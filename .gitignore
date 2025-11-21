@@ -24,6 +24,9 @@ profile.cov
 go.work
 go.work.sum
 
+# Go build cache (local)
+.cache/
+
 # env file
 .env
 
