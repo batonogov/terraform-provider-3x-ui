@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -114,8 +113,4 @@ func (s *stubClient) UpdateClient(ctx context.Context, inboundID int, clientID s
 }
 func (s *stubClient) DeleteClient(ctx context.Context, inboundID int, clientID string) error {
 	return nil
-}
-
-func jsonRaw(s string) json.RawMessage {
-	return json.RawMessage([]byte(s))
 }
