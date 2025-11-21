@@ -1,0 +1,38 @@
+version: '3'
+
+vars:
+  GOFILES:
+    sh: git ls-files '*.go'
+
+tasks:
+  default:
+    desc: Format, lint и тесты
+    cmds:
+      - task: fmt
+      - task: lint
+      - task: test
+
+  fmt:
+    desc: Форматирование Go-файлов (gofmt)
+    cmds:
+      - |
+        if [ -n "{{.GOFILES}}" ]; then
+          gofmt -w {{.GOFILES | shellQuote}}
+        else
+          echo "Нет Go-файлов для форматирования"
+        fi
+
+  lint:
+    desc: Запуск golangci-lint
+    cmds:
+      - golangci-lint run ./...
+
+  test:
+    desc: Юнит-тесты
+    cmds:
+      - go test ./...
+
+  build:
+    desc: Сборка плагина
+    cmds:
+      - go build ./...
