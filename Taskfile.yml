@@ -38,18 +38,23 @@ tasks:
       - go build ./...
 
   acc:
-    desc: Acceptance-тесты (требует поднятого 3x-ui и переменных окружения)
+    desc: Acceptance-тесты (поднимает локальный 3x-ui, нужны переменные THREEXUI_*)
     cmds:
-      - TF_ACC=1 go test ./internal/provider/acceptance -v
+      - task env-up
+      - |
+        TF_ACC=1 go test ./internal/provider/acceptance -v || { task env-down; exit 1; }
+      - task env-down
 
   smoke:
     desc: Smoke-тест примеров (нужен terraform и переменные THREEXUI_*)
     cmds:
       - ./scripts/smoke.sh
+
   env-up:
     desc: Поднять локальный 3x-ui через docker-compose
     cmds:
       - docker compose up -d
+
   env-down:
     desc: Остановить локальный 3x-ui и удалить тома
     cmds:
