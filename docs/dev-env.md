@@ -70,6 +70,13 @@ curl -k -c cookies.txt -X POST https://localhost:2053/login \
   - `THREEXUI_TLS_SKIP_VERIFY=true` (опционально) для self-signed стенда.
 - Запустите `task acc`, чтобы прогнать сценарий `3xui_inbound` (создание → импорт → удаление). Перед запуском убедитесь, что в панели нет конфликтующих inbound'ов с портом `28000`.
 
+## 6. Smoke-тесты примеров
+Чтобы удостовериться, что конфигурации из `examples/` работают целиком через Terraform CLI:
+
+1. Убедитесь, что переменные `THREEXUI_BASE_URL`, `THREEXUI_USERNAME`, `THREEXUI_PASSWORD` заданы.
+2. Выполните `task smoke`. Скрипт `scripts/smoke.sh` соберёт провайдер, настроит `dev_overrides` и выполнит `terraform init/apply/destroy` для `examples/resources/3xui_inbound` с использованием локального бинаря.
+3. После завершения пример будет удалён автоматически (вызов `terraform destroy` идёт в этом же скрипте).
+
 ## 6. Альтернативы
 - Можно поднять панель напрямую на хостовой машине (`./x-ui.sh install`), но Docker проще для CI и повторяемости.
 - Для быстрой очистки состояния достаточно `docker compose down -v && docker compose up -d`.
