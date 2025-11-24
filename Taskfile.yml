@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 
 vars:
   GOFILES:
@@ -36,3 +36,7 @@ tasks:
     desc: Сборка плагина
     cmds:
       - go build ./...
+  acc:
+    desc: Acceptance-тесты (требует поднятого 3x-ui и переменных окружения)
+    cmds:
+      - TF_ACC=1 go test ./internal/provider/acceptance -v

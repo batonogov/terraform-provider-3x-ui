@@ -64,8 +64,11 @@ curl -k -c cookies.txt -X POST https://localhost:2053/login \
 После успешного ответа cookie в `cookies.txt` позволит вызывать `/panel/api/**`.
 
 ## 5. Использование в acceptance-тестах
-- Экспортируйте переменные окружения, которые будет читать провайдер (например, `TF_ACC=1`, `THREEXUI_BASE_URL=https://localhost:2053`, `THREEXUI_USERNAME=...`, `THREEXUI_PASSWORD=...`).
-- Acceptance-тесты можно запускать параллельно, но следите, чтобы они не конфликтовали по портам и именам inbound'ов.
+- Экспортируйте переменные окружения, которые будет читать провайдер:
+  - `TF_ACC=1` — включает acceptance-тесты.
+  - `THREEXUI_BASE_URL`, `THREEXUI_USERNAME`, `THREEXUI_PASSWORD` — подключение к панели.
+  - `THREEXUI_TLS_SKIP_VERIFY=true` (опционально) для self-signed стенда.
+- Запустите `task acc`, чтобы прогнать сценарий `3xui_inbound` (создание → импорт → удаление). Перед запуском убедитесь, что в панели нет конфликтующих inbound'ов с портом `28000`.
 
 ## 6. Альтернативы
 - Можно поднять панель напрямую на хостовой машине (`./x-ui.sh install`), но Docker проще для CI и повторяемости.
