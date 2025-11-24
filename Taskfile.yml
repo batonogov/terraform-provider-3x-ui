@@ -39,10 +39,11 @@ tasks:
 
   acc:
     desc: Acceptance-тесты (поднимает локальный 3x-ui, нужны переменные THREEXUI_*)
+    deps:
+      - env-up
     cmds:
-      - task env-up
-      - |
-        TF_ACC=1 go test ./internal/provider/acceptance -v || { task env-down; exit 1; }
+      - TF_ACC=1 go test ./internal/provider/acceptance -v
+    finally:
       - task env-down
 
   smoke:
