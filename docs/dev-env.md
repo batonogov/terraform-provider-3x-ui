@@ -64,7 +64,7 @@ curl -k -c cookies.txt -X POST https://localhost:2053/login \
 После успешного ответа cookie в `cookies.txt` позволит вызывать `/panel/api/**`.
 
 ## 5. Использование в acceptance-тестах
-- Экспортируйте переменные окружения, которые будет читать провайдер:
+- Экспортируйте переменные окружения, которые будет читать провайдер (для свежего стенда подойдут `THREEXUI_USERNAME=admin`, `THREEXUI_PASSWORD=admin`, если пароль не меняли):
   - `TF_ACC=1` — включает acceptance-тесты.
   - `THREEXUI_BASE_URL`, `THREEXUI_USERNAME`, `THREEXUI_PASSWORD` — подключение к панели.
   - `THREEXUI_TLS_SKIP_VERIFY=true` (опционально) для self-signed стенда.
@@ -73,7 +73,7 @@ curl -k -c cookies.txt -X POST https://localhost:2053/login \
 ## 6. Smoke-тесты примеров
 Чтобы удостовериться, что конфигурации из `examples/` работают целиком через Terraform CLI:
 
-1. Убедитесь, что переменные `THREEXUI_BASE_URL`, `THREEXUI_USERNAME`, `THREEXUI_PASSWORD` заданы.
+1. Убедитесь, что переменные `THREEXUI_BASE_URL`, `THREEXUI_USERNAME`, `THREEXUI_PASSWORD` заданы (по умолчанию `admin/admin`).
 2. Выполните `task smoke`. Скрипт `scripts/smoke.sh` соберёт провайдер, настроит `dev_overrides` и выполнит `terraform init/apply/destroy` для `examples/resources/3xui_inbound` с использованием локального бинаря.
 3. После завершения пример будет удалён автоматически (вызов `terraform destroy` идёт в этом же скрипте).
 
