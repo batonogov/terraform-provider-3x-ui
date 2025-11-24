@@ -1,0 +1,20 @@
+services:
+  3xui:
+    image: ghcr.io/mhsanaei/3x-ui:latest
+    container_name: 3xui_app
+    ports:
+      - "2053:2053"   # HTTPS panel
+      - "9999:9999"   # HTTP panel
+      - "54321:54321" # XRAY API port
+    volumes:
+      - xui-db:/etc/x-ui/
+      - xui-cert:/root/cert/
+    environment:
+      XRAY_VMESS_AEAD_FORCED: "false"
+      XUI_ENABLE_FAIL2BAN: "true"
+    tty: true
+    restart: unless-stopped
+
+volumes:
+  xui-db:
+  xui-cert:
