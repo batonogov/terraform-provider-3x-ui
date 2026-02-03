@@ -175,6 +175,9 @@ func isSubset(desired, actual any) bool {
 func resourceInboundCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
 	client := meta.(*Client)
 	inbound := expandInbound(d)
+	if err := ensureInboundClientIDs(inbound); err != nil {
+		return diag.FromErr(err)
+	}
 
 	created, err := client.AddInbound(ctx, inbound)
 	if err != nil {
@@ -208,6 +211,9 @@ func resourceInboundUpdate(ctx context.Context, d *schema.ResourceData, meta any
 		return diag.FromErr(err)
 	}
 	inbound := expandInbound(d)
+	if err := ensureInboundClientIDs(inbound); err != nil {
+		return diag.FromErr(err)
+	}
 	inbound.ID = id
 
 	updated, err := client.UpdateInbound(ctx, inbound)
@@ -247,6 +253,51 @@ func expandInbound(d *schema.ResourceData) *Inbound {
 		StreamSettings:       d.Get("stream_settings").(string),
 		Sniffing:             d.Get("sniffing").(string),
 	}
+}
+
+func ensureInboundClientIDs(inbound *Inbound) error {
+	if inbound == nil {
+		return nil
+	}
+	settings, err := ParseJSONField(inbound.Settings)
+	if err != nil {
+		return err
+	}
+	clientsRaw, ok := settings["clients"]
+	if !ok {
+		return nil
+	}
+	clients, ok := clientsRaw.([]any)
+	if !ok {
+		return nil
+	}
+	changed := false
+	for i := range clients {
+		clientMap, ok := clients[i].(map[string]any)
+		if !ok {
+			continue
+		}
+		id, _ := clientMap["id"].(string)
+		if id == "" {
+			newID, err := newUUID()
+			if err != nil {
+				return err
+			}
+			clientMap["id"] = newID
+			clients[i] = clientMap
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	settings["clients"] = clients
+	updated, err := json.Marshal(settings)
+	if err != nil {
+		return err
+	}
+	inbound.Settings = string(updated)
+	return nil
 }
 
 func setInboundState(d *schema.ResourceData, inbound *Inbound) diag.Diagnostics {
