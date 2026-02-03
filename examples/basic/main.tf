@@ -13,18 +13,8 @@ provider "threexui" {
 }
 
 resource "threexui_inbound" "example" {
-  port     = 23456
+  port     = 443
   protocol = "vless"
+  enable   = true
   remark   = "example-inbound"
-  sniffing {
-    enabled       = true
-    dest_override = ["http", "tls", "quic", "fakedns"]
-  }
 }
-
-# resource "threexui_inbound_client" "example" {
-#   inbound_id = threexui_inbound.example.id
-#   email      = "client2@example.com"
-#   enable     = true
-#   flow       = "xtls-rprx-vision"
-# }

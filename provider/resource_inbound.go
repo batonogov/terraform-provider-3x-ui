@@ -75,11 +75,11 @@ func resourceInbound() *schema.Resource {
 				Required: true,
 			},
 			"settings": {
-				Type:             schema.TypeString,
-				Optional:         true,
-				Computed:         true,
-				ValidateFunc:     validateJSONString,
-				DiffSuppressFunc: jsonSubsetDiffSuppress,
+				Type:     schema.TypeList,
+				Optional: true,
+				Computed: true,
+				MaxItems: 1,
+				Elem:     &schema.Resource{Schema: settingsSchema()},
 			},
 			"stream_settings": {
 				Type:     schema.TypeList,
@@ -234,8 +234,15 @@ func resourceInboundUpdate(ctx context.Context, d *schema.ResourceData, meta any
 	if err != nil {
 		return diag.FromErr(err)
 	}
+	existing, err := client.GetInbound(ctx, id)
+	if err != nil {
+		return diag.FromErr(err)
+	}
 	inbound := expandInbound(d)
 	if err := applyDefaultInboundSettings(inbound); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := preserveInboundClientIDs(inbound, existing); err != nil {
 		return diag.FromErr(err)
 	}
 	if err := ensureInboundClientIDs(inbound); err != nil {
@@ -276,7 +283,7 @@ func expandInbound(d *schema.ResourceData) *Inbound {
 		Listen:               d.Get("listen").(string),
 		Port:                 d.Get("port").(int),
 		Protocol:             d.Get("protocol").(string),
-		Settings:             d.Get("settings").(string),
+		Settings:             buildSettingsJSON(d),
 		StreamSettings:       buildStreamSettingsJSON(d),
 		Sniffing:             buildSniffingJSON(d),
 	}
@@ -346,7 +353,7 @@ func setInboundState(d *schema.ResourceData, inbound *Inbound) diag.Diagnostics 
 	set("listen", inbound.Listen)
 	set("port", inbound.Port)
 	set("protocol", inbound.Protocol)
-	set("settings", inbound.Settings)
+	set("settings", flattenSettings(inbound.Settings))
 	set("stream_settings", flattenStreamSettings(inbound.StreamSettings))
 	set("sniffing", flattenSniffing(inbound.Sniffing))
 	set("tag", inbound.Tag)

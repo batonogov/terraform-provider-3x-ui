@@ -28,7 +28,14 @@ resource "threexui_inbound" "example" {
   # settings/stream_settings/sniffing теперь опциональны.
   # Если settings не задан, провайдер подставит дефолт как в UI 3x-ui:
   # vless/vmess/trojan/shadowsocks — один случайный клиент + нужные поля.
-  # settings        = jsonencode({ decryption = "none" })
+  # settings {
+  #   decryption = "none"
+  #   encryption = "none"
+  #   clients {
+  #     email  = "client@example.com"
+  #     enable = true
+  #   }
+  # }
   # stream_settings {
   #   network  = "tcp"
   #   security = "reality"

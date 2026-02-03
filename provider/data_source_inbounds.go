@@ -58,7 +58,11 @@ func inboundSchemaComputed() map[string]*schema.Schema {
 		"listen":                  {Type: schema.TypeString, Computed: true},
 		"port":                    {Type: schema.TypeInt, Computed: true},
 		"protocol":                {Type: schema.TypeString, Computed: true},
-		"settings":                {Type: schema.TypeString, Computed: true},
+		"settings": {
+			Type:     schema.TypeList,
+			Computed: true,
+			Elem:     &schema.Resource{Schema: settingsSchema()},
+		},
 		"stream_settings": {
 			Type:     schema.TypeList,
 			Computed: true,
@@ -106,7 +110,7 @@ func flattenInbound(inbound Inbound) map[string]any {
 		"listen":                  inbound.Listen,
 		"port":                    inbound.Port,
 		"protocol":                inbound.Protocol,
-		"settings":                inbound.Settings,
+		"settings":                flattenSettings(inbound.Settings),
 		"stream_settings":         flattenStreamSettings(inbound.StreamSettings),
 		"tag":                     inbound.Tag,
 		"sniffing":                flattenSniffing(inbound.Sniffing),
