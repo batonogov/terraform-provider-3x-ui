@@ -28,7 +28,6 @@ resource "threexui_inbound" "example" {
 
   settings = jsonencode({
     clients = [{
-      id    = "11111111-1111-1111-1111-111111111111"
       email = "client@example.com"
       flow  = "xtls-rprx-vision"
     }]
@@ -45,10 +44,10 @@ resource "threexui_inbound" "example" {
 ```hcl
 resource "threexui_inbound_client" "example" {
   inbound_id = threexui_inbound.example.id
-  client_id  = "22222222-2222-2222-2222-222222222222"
   email      = "client2@example.com"
   enable     = true
   flow       = "xtls-rprx-vision"
+  # client_id можно не задавать — он генерируется автоматически
 }
 ```
 

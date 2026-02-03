@@ -103,7 +103,6 @@ resource "threexui_inbound" "test" {
   enable   = true
   settings = jsonencode({
     clients = [{
-      id    = "11111111-1111-1111-1111-111111111111"
       email = "acc-client@example.com"
       flow  = "xtls-rprx-vision"
     }]
@@ -124,7 +123,6 @@ resource "threexui_inbound" "test" {
   enable   = true
   settings = jsonencode({
     clients = [{
-      id    = "22222222-2222-2222-2222-222222222222"
       email = "acc-bootstrap@example.com"
       flow  = "xtls-rprx-vision"
     }]
@@ -136,7 +134,6 @@ resource "threexui_inbound" "test" {
 
 resource "threexui_inbound_client" "test" {
   inbound_id = threexui_inbound.test.id
-  client_id  = "33333333-3333-3333-3333-333333333333"
   email      = "acc-client@example.com"
   enable     = true
   flow       = "xtls-rprx-vision"

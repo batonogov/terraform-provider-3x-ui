@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -102,7 +103,11 @@ func resourceInboundClientCreate(ctx context.Context, d *schema.ResourceData, me
 	clientData := expandInboundClient(d)
 	clientID := getClientID(d, clientData)
 	if clientID == "" {
-		return diag.Errorf("client_id is required")
+		var err error
+		clientID, err = newUUID()
+		if err != nil {
+			return diag.FromErr(err)
+		}
 	}
 	clientData["id"] = clientID
 
@@ -272,6 +277,22 @@ func getClientID(d *schema.ResourceData, client map[string]any) string {
 
 func makeInboundClientID(inboundID int, clientID string) string {
 	return fmt.Sprintf("%d:%s", inboundID, clientID)
+}
+
+func newUUID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		b[0:4],
+		b[4:6],
+		b[6:8],
+		b[8:10],
+		b[10:16],
+	), nil
 }
 
 func splitInboundClientID(id string) (int, string, error) {

@@ -1,0 +1,27 @@
+version: "3"
+
+tasks:
+  build-dev:
+    desc: Собрать локальный dev-бинарь провайдера
+    cmds:
+      - go build -o terraform-provider-threexui
+
+  test:
+    desc: Запустить unit-тесты
+    cmds:
+      - go test ./provider
+
+  test-all:
+    desc: Запустить все тесты
+    cmds:
+      - go test ./...
+
+  acc:
+    desc: Запустить acceptance-тесты (нужен локальный 3x-ui)
+    cmds:
+      - TF_ACC=1 THREEXUI_ENDPOINT=http://localhost:2053 THREEXUI_USERNAME=admin THREEXUI_PASSWORD=admin go test ./provider -run TestAcc
+
+  fmt:
+    desc: Форматировать Go-файлы
+    cmds:
+      - gofmt -w provider/*.go
