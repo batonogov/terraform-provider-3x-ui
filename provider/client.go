@@ -1,0 +1,399 @@
+package provider
+
+import (
+	"bytes"
+	"context"
+	"crypto/tls"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/cookiejar"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+)
+
+type ClientConfig struct {
+	Endpoint           string
+	BasePath           string
+	Username           string
+	Password           string
+	TwoFactorCode      string
+	InsecureSkipVerify bool
+	Timeout            time.Duration
+}
+
+type Client struct {
+	baseURL    *url.URL
+	basePath   string
+	username   string
+	password   string
+	twoFactor  string
+	httpClient *http.Client
+}
+
+type apiResponse struct {
+	Success bool            `json:"success"`
+	Msg     string          `json:"msg"`
+	Obj     json.RawMessage `json:"obj"`
+}
+
+func NewClient(cfg ClientConfig) (*Client, error) {
+	if cfg.Endpoint == "" {
+		return nil, errors.New("endpoint is required")
+	}
+	baseURL, err := url.Parse(cfg.Endpoint)
+	if err != nil {
+		return nil, err
+	}
+	if baseURL.Scheme == "" {
+		return nil, errors.New("endpoint must include scheme (http or https)")
+	}
+
+	basePath := normalizeBasePath(cfg.BasePath)
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify}
+
+	client := &http.Client{
+		Jar:       jar,
+		Timeout:   cfg.Timeout,
+		Transport: transport,
+	}
+
+	return &Client{
+		baseURL:    baseURL,
+		basePath:   basePath,
+		username:   cfg.Username,
+		password:   cfg.Password,
+		twoFactor:  cfg.TwoFactorCode,
+		httpClient: client,
+	}, nil
+}
+
+func (c *Client) Login(ctx context.Context) error {
+	form := url.Values{}
+	form.Set("username", c.username)
+	form.Set("password", c.password)
+	if c.twoFactor != "" {
+		form.Set("twoFactorCode", c.twoFactor)
+	}
+
+	endpoint, err := c.resolvePath("login")
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	var apiResp apiResponse
+	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		return err
+	}
+	if !apiResp.Success {
+		if apiResp.Msg == "" {
+			return errors.New("login failed")
+		}
+		return errors.New(apiResp.Msg)
+	}
+	return nil
+}
+
+func (c *Client) doJSON(ctx context.Context, method, relPath string, body any, out any) error {
+	endpoint, err := c.resolvePath(relPath)
+	if err != nil {
+		return err
+	}
+
+	var buf bytes.Buffer
+	if body != nil {
+		if err := json.NewEncoder(&buf).Encode(body); err != nil {
+			return err
+		}
+	}
+	contentType := ""
+	if body != nil {
+		contentType = "application/json"
+	}
+	return c.doRequest(ctx, method, endpoint, contentType, buf.Bytes(), out)
+}
+
+func (c *Client) doForm(ctx context.Context, method, relPath string, form url.Values, out any) error {
+	endpoint, err := c.resolvePath(relPath)
+	if err != nil {
+		return err
+	}
+
+	return c.doRequest(ctx, method, endpoint, "application/x-www-form-urlencoded", []byte(form.Encode()), out)
+}
+
+func (c *Client) AddInbound(ctx context.Context, inbound *Inbound) (*Inbound, error) {
+	var out Inbound
+	if err := c.doForm(ctx, http.MethodPost, "panel/api/inbounds/add", inboundToForm(inbound), &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) UpdateInbound(ctx context.Context, inbound *Inbound) (*Inbound, error) {
+	if inbound == nil {
+		return nil, errors.New("inbound is nil")
+	}
+	if inbound.ID == 0 {
+		return nil, errors.New("inbound id is required for update")
+	}
+	relPath := fmt.Sprintf("panel/api/inbounds/update/%d", inbound.ID)
+	var out Inbound
+	if err := c.doForm(ctx, http.MethodPost, relPath, inboundToForm(inbound), &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) DeleteInbound(ctx context.Context, id int) error {
+	if id == 0 {
+		return errors.New("inbound id is required for delete")
+	}
+	relPath := fmt.Sprintf("panel/api/inbounds/del/%d", id)
+	return c.doForm(ctx, http.MethodPost, relPath, url.Values{}, nil)
+}
+
+func (c *Client) GetInbound(ctx context.Context, id int) (*Inbound, error) {
+	if id == 0 {
+		return nil, errors.New("inbound id is required for get")
+	}
+	relPath := fmt.Sprintf("panel/api/inbounds/get/%d", id)
+	var out Inbound
+	if err := c.doJSON(ctx, http.MethodGet, relPath, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) GetInbounds(ctx context.Context) ([]Inbound, error) {
+	var out []Inbound
+	if err := c.doJSON(ctx, http.MethodGet, "panel/api/inbounds/list", nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) AddInboundClient(ctx context.Context, inboundID int, client map[string]any) error {
+	if inboundID == 0 {
+		return errors.New("inbound id is required for add client")
+	}
+	if client == nil {
+		return errors.New("client data is required")
+	}
+	payload := map[string]any{"clients": []map[string]any{client}}
+	settings, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	form := url.Values{}
+	form.Set("id", strconv.Itoa(inboundID))
+	form.Set("settings", string(settings))
+	return c.doForm(ctx, http.MethodPost, "panel/api/inbounds/addClient", form, nil)
+}
+
+func (c *Client) UpdateInboundClient(ctx context.Context, inboundID int, clientID string, client map[string]any) error {
+	if inboundID == 0 {
+		return errors.New("inbound id is required for update client")
+	}
+	if clientID == "" {
+		return errors.New("client id is required for update client")
+	}
+	if client == nil {
+		return errors.New("client data is required")
+	}
+	payload := map[string]any{"clients": []map[string]any{client}}
+	settings, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	form := url.Values{}
+	form.Set("id", strconv.Itoa(inboundID))
+	form.Set("settings", string(settings))
+	relPath := fmt.Sprintf("panel/api/inbounds/updateClient/%s", clientID)
+	return c.doForm(ctx, http.MethodPost, relPath, form, nil)
+}
+
+func (c *Client) DeleteInboundClient(ctx context.Context, inboundID int, clientID string) error {
+	if inboundID == 0 {
+		return errors.New("inbound id is required for delete client")
+	}
+	if clientID == "" {
+		return errors.New("client id is required for delete client")
+	}
+	relPath := fmt.Sprintf("panel/api/inbounds/%d/delClient/%s", inboundID, clientID)
+	return c.doForm(ctx, http.MethodPost, relPath, url.Values{}, nil)
+}
+
+func (c *Client) GetServerStatus(ctx context.Context) (map[string]any, error) {
+	var out map[string]any
+	if err := c.doJSON(ctx, http.MethodGet, "panel/api/server/status", nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetXrayVersions(ctx context.Context) ([]string, error) {
+	var out []string
+	if err := c.doJSON(ctx, http.MethodGet, "panel/api/server/getXrayVersion", nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetXrayConfig(ctx context.Context) (map[string]any, error) {
+	var out map[string]any
+	if err := c.doJSON(ctx, http.MethodGet, "panel/api/server/getConfigJson", nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetSettings(ctx context.Context) (map[string]any, error) {
+	var out map[string]any
+	if err := c.doForm(ctx, http.MethodPost, "panel/setting/all", url.Values{}, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType string, body []byte, out any) error {
+	resp, err := c.doRequestOnce(ctx, method, endpoint, contentType, body)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusNotFound {
+		if err := c.Login(ctx); err != nil {
+			return err
+		}
+		resp.Body.Close()
+		resp, err = c.doRequestOnce(ctx, method, endpoint, contentType, body)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+	}
+
+	return decodeAPIResponse(resp, out)
+}
+
+func (c *Client) doRequestOnce(ctx context.Context, method, endpoint, contentType string, body []byte) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	return c.httpClient.Do(req)
+}
+
+func decodeAPIResponse(resp *http.Response, out any) error {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if len(body) == 0 {
+		if resp.StatusCode >= 400 {
+			return fmt.Errorf("request failed: status %d", resp.StatusCode)
+		}
+		return nil
+	}
+
+	var apiResp apiResponse
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		if resp.StatusCode >= 400 {
+			return fmt.Errorf("request failed: status %d", resp.StatusCode)
+		}
+		return err
+	}
+	if !apiResp.Success {
+		if apiResp.Msg == "" {
+			return errors.New("request failed")
+		}
+		return errors.New(apiResp.Msg)
+	}
+
+	if out == nil || apiResp.Obj == nil {
+		return nil
+	}
+
+	return json.Unmarshal(apiResp.Obj, out)
+}
+
+func (c *Client) resolvePath(rel string) (string, error) {
+	if rel == "" {
+		return "", errors.New("empty path")
+	}
+
+	base := *c.baseURL
+	basePath := strings.TrimSuffix(base.Path, "/")
+	merged := basePath + c.basePath
+	if !strings.HasSuffix(merged, "/") {
+		merged += "/"
+	}
+	merged += strings.TrimPrefix(rel, "/")
+	base.Path = merged
+	return base.String(), nil
+}
+
+func normalizeBasePath(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return "/"
+	}
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	if !strings.HasSuffix(p, "/") {
+		p += "/"
+	}
+	return p
+}
+
+func inboundToForm(in *Inbound) url.Values {
+	form := url.Values{}
+	if in == nil {
+		return form
+	}
+	form.Set("id", strconv.Itoa(in.ID))
+	form.Set("up", strconv.FormatInt(in.Up, 10))
+	form.Set("down", strconv.FormatInt(in.Down, 10))
+	form.Set("total", strconv.FormatInt(in.Total, 10))
+	form.Set("remark", in.Remark)
+	form.Set("enable", strconv.FormatBool(in.Enable))
+	form.Set("expiryTime", strconv.FormatInt(in.ExpiryTime, 10))
+	form.Set("trafficReset", in.TrafficReset)
+	form.Set("lastTrafficResetTime", strconv.FormatInt(in.LastTrafficResetTime, 10))
+	form.Set("listen", in.Listen)
+	form.Set("port", strconv.Itoa(in.Port))
+	form.Set("protocol", in.Protocol)
+	form.Set("settings", in.Settings)
+	form.Set("streamSettings", in.StreamSettings)
+	form.Set("sniffing", in.Sniffing)
+	return form
+}
