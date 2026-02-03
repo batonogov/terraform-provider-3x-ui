@@ -24,18 +24,13 @@ resource "threexui_inbound" "example" {
   port     = 23456
   protocol = "vless"
   remark   = "example-inbound"
-  enable   = true
 
-  settings = jsonencode({
-    clients = [{
-      email = "client@example.com"
-      flow  = "xtls-rprx-vision"
-    }]
-    decryption = "none"
-  })
-
-  stream_settings = jsonencode({})
-  sniffing        = jsonencode({})
+  # settings/stream_settings/sniffing теперь опциональны.
+  # Если settings не задан, провайдер подставит дефолт как в UI 3x-ui:
+  # vless/vmess/trojan/shadowsocks — один случайный клиент + нужные поля.
+  # settings        = jsonencode({ decryption = "none" })
+  # stream_settings = jsonencode({})
+  # sniffing        = jsonencode({})
 }
 ```
 

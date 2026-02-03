@@ -1,7 +1,6 @@
 services:
   3xui:
     image: ghcr.io/mhsanaei/3x-ui:v2.8.9
-    container_name: 3xui_app
     ports:
       - "2053:2053" # HTTP panel
       - "54321:54321" # XRAY API port

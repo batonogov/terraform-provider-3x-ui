@@ -76,19 +76,22 @@ func resourceInbound() *schema.Resource {
 			},
 			"settings": {
 				Type:             schema.TypeString,
-				Required:         true,
+				Optional:         true,
+				Computed:         true,
 				ValidateFunc:     validateJSONString,
 				DiffSuppressFunc: jsonSubsetDiffSuppress,
 			},
 			"stream_settings": {
 				Type:             schema.TypeString,
 				Optional:         true,
+				Default:          "{}",
 				ValidateFunc:     validateJSONString,
 				DiffSuppressFunc: jsonSubsetDiffSuppress,
 			},
 			"sniffing": {
 				Type:             schema.TypeString,
 				Optional:         true,
+				Default:          "{}",
 				ValidateFunc:     validateJSONString,
 				DiffSuppressFunc: jsonSubsetDiffSuppress,
 			},
@@ -175,6 +178,9 @@ func isSubset(desired, actual any) bool {
 func resourceInboundCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
 	client := meta.(*Client)
 	inbound := expandInbound(d)
+	if err := applyDefaultInboundSettings(inbound); err != nil {
+		return diag.FromErr(err)
+	}
 	if err := ensureInboundClientIDs(inbound); err != nil {
 		return diag.FromErr(err)
 	}
@@ -211,6 +217,9 @@ func resourceInboundUpdate(ctx context.Context, d *schema.ResourceData, meta any
 		return diag.FromErr(err)
 	}
 	inbound := expandInbound(d)
+	if err := applyDefaultInboundSettings(inbound); err != nil {
+		return diag.FromErr(err)
+	}
 	if err := ensureInboundClientIDs(inbound); err != nil {
 		return diag.FromErr(err)
 	}
