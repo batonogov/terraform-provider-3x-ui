@@ -82,18 +82,36 @@ func resourceInbound() *schema.Resource {
 				DiffSuppressFunc: jsonSubsetDiffSuppress,
 			},
 			"stream_settings": {
-				Type:             schema.TypeString,
-				Optional:         true,
-				Default:          "{}",
-				ValidateFunc:     validateJSONString,
-				DiffSuppressFunc: jsonSubsetDiffSuppress,
+				Type:     schema.TypeList,
+				Optional: true,
+				Computed: true,
+				MaxItems: 1,
+				Elem:     &schema.Resource{Schema: streamSettingsSchema()},
 			},
 			"sniffing": {
-				Type:             schema.TypeString,
-				Optional:         true,
-				Default:          "{}",
-				ValidateFunc:     validateJSONString,
-				DiffSuppressFunc: jsonSubsetDiffSuppress,
+				Type:     schema.TypeList,
+				Optional: true,
+				Computed: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{Schema: map[string]*schema.Schema{
+					"enabled": {
+						Type:     schema.TypeBool,
+						Optional: true,
+					},
+					"dest_override": {
+						Type:     schema.TypeList,
+						Optional: true,
+						Elem:     &schema.Schema{Type: schema.TypeString},
+					},
+					"metadata_only": {
+						Type:     schema.TypeBool,
+						Optional: true,
+					},
+					"route_only": {
+						Type:     schema.TypeBool,
+						Optional: true,
+					},
+				}},
 			},
 			"tag": {
 				Type:     schema.TypeString,
@@ -259,8 +277,8 @@ func expandInbound(d *schema.ResourceData) *Inbound {
 		Port:                 d.Get("port").(int),
 		Protocol:             d.Get("protocol").(string),
 		Settings:             d.Get("settings").(string),
-		StreamSettings:       d.Get("stream_settings").(string),
-		Sniffing:             d.Get("sniffing").(string),
+		StreamSettings:       buildStreamSettingsJSON(d),
+		Sniffing:             buildSniffingJSON(d),
 	}
 }
 
@@ -329,8 +347,8 @@ func setInboundState(d *schema.ResourceData, inbound *Inbound) diag.Diagnostics 
 	set("port", inbound.Port)
 	set("protocol", inbound.Protocol)
 	set("settings", inbound.Settings)
-	set("stream_settings", inbound.StreamSettings)
-	set("sniffing", inbound.Sniffing)
+	set("stream_settings", flattenStreamSettings(inbound.StreamSettings))
+	set("sniffing", flattenSniffing(inbound.Sniffing))
 	set("tag", inbound.Tag)
 	return nil
 }

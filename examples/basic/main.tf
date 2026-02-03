@@ -16,6 +16,10 @@ resource "threexui_inbound" "example" {
   port     = 23456
   protocol = "vless"
   remark   = "example-inbound"
+  sniffing {
+    enabled       = true
+    dest_override = ["http", "tls", "quic", "fakedns"]
+  }
 }
 
 # resource "threexui_inbound_client" "example" {
@@ -24,7 +28,3 @@ resource "threexui_inbound" "example" {
 #   enable     = true
 #   flow       = "xtls-rprx-vision"
 # }
-
-data "threexui_inbounds" "all" {}
-
-data "threexui_server_status" "status" {}

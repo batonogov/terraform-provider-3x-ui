@@ -1,7 +1,7 @@
 version: "3"
 
 tasks:
-  build-dev:
+  build:
     desc: Собрать локальный dev-бинарь провайдера
     cmds:
       - go build -o terraform-provider-threexui
