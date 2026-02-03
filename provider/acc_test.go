@@ -1,12 +1,16 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
 const (
@@ -56,10 +60,95 @@ func testAccProviderConfig() string {
 	return config + "\n"
 }
 
+func testAccClientFromEnv() (*Client, error) {
+	endpoint := os.Getenv(envEndpoint)
+	basePath := os.Getenv(envBasePath)
+	username := os.Getenv(envUsername)
+	password := os.Getenv(envPassword)
+	insecure := os.Getenv(envInsecureSkipVerify)
+	if username == "" {
+		username = "admin"
+	}
+	if password == "" {
+		password = "admin"
+	}
+	insecureBool := false
+	if insecure != "" {
+		if v, err := strconv.ParseBool(insecure); err == nil {
+			insecureBool = v
+		}
+	}
+
+	client, err := NewClient(ClientConfig{
+		Endpoint:           endpoint,
+		BasePath:           basePath,
+		Username:           username,
+		Password:           password,
+		InsecureSkipVerify: insecureBool,
+		Timeout:            30 * time.Second,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := client.Login(context.Background()); err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
+func testAccCheckInboundDestroyed(state *terraform.State) error {
+	client, err := testAccClientFromEnv()
+	if err != nil {
+		return fmt.Errorf("client init failed: %w", err)
+	}
+	for _, rs := range state.RootModule().Resources {
+		if rs.Type != "threexui_inbound" {
+			continue
+		}
+		id, err := parseID(rs.Primary.ID)
+		if err != nil {
+			continue
+		}
+		if _, err := client.GetInbound(context.Background(), id); err == nil {
+			return fmt.Errorf("inbound %d still exists", id)
+		}
+	}
+	return nil
+}
+
+func testAccCheckInboundClientDestroyed(state *terraform.State) error {
+	client, err := testAccClientFromEnv()
+	if err != nil {
+		return fmt.Errorf("client init failed: %w", err)
+	}
+	for _, rs := range state.RootModule().Resources {
+		if rs.Type != "threexui_inbound_client" {
+			continue
+		}
+		inboundID, clientID, err := splitInboundClientID(rs.Primary.ID)
+		if err != nil {
+			continue
+		}
+		inbound, err := client.GetInbound(context.Background(), inboundID)
+		if err != nil {
+			continue
+		}
+		settings, err := parseInboundSettings(inbound.Settings)
+		if err != nil {
+			return err
+		}
+		if found := findClientByID(settings.Clients, clientID); found != nil {
+			return fmt.Errorf("inbound client %s still exists", rs.Primary.ID)
+		}
+	}
+	return nil
+}
+
 func TestAccInboundBasic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories(),
+		CheckDestroy:      testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + testAccInboundConfig("acc-inbound-1"),
@@ -74,6 +163,19 @@ func TestAccInboundBasic(t *testing.T) {
 					resource.TestCheckResourceAttr("threexui_inbound.test", "remark", "acc-inbound-2"),
 				),
 			},
+			{
+				Config: testAccProviderConfig() + testAccInboundConfigWithExtras("acc-inbound-3"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.test", "remark", "acc-inbound-3"),
+					resource.TestCheckResourceAttr("threexui_inbound.test", "stream_settings.0.network", "tcp"),
+					resource.TestCheckResourceAttr("threexui_inbound.test", "sniffing.0.enabled", "true"),
+				),
+			},
+			{
+				ResourceName:      "threexui_inbound.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
 		},
 	})
 }
@@ -82,12 +184,45 @@ func TestAccInboundClientBasic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories(),
+		CheckDestroy:      testAccCheckInboundClientDestroyed,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccProviderConfig() + testAccInboundWithClientConfig(),
+				Config: testAccProviderConfig() + testAccInboundWithClientConfig("acc-client@example.com", true),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound_client.test", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound_client.test", "email", "acc-client@example.com"),
+				),
+			},
+			{
+				Config: testAccProviderConfig() + testAccInboundWithClientConfig("acc-client-updated@example.com", false),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound_client.test", "email", "acc-client-updated@example.com"),
+					resource.TestCheckResourceAttr("threexui_inbound_client.test", "enable", "false"),
+				),
+			},
+			{
+				ResourceName:            "threexui_inbound_client.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"password"},
+			},
+		},
+	})
+}
+
+func TestAccDataSources(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:          func() { testAccPreCheck(t) },
+		ProviderFactories: testAccProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + testAccInboundConfig("acc-inbound-ds") + testAccDataSourcesConfig(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("data.threexui_inbounds.all", "inbounds.0.id"),
+					resource.TestCheckResourceAttrSet("data.threexui_server_status.status", "json"),
+					resource.TestCheckResourceAttrSet("data.threexui_xray_versions.versions", "versions.0"),
+					resource.TestCheckResourceAttrSet("data.threexui_xray_config.config", "json"),
+					resource.TestCheckResourceAttrSet("data.threexui_settings.settings", "json"),
 				),
 			},
 		},
@@ -101,42 +236,89 @@ resource "threexui_inbound" "test" {
   protocol = "vless"
   remark   = %q
   enable   = true
-  settings = jsonencode({
-    clients = [{
+  settings {
+    decryption = "none"
+    clients {
       email = "acc-client@example.com"
       flow  = "xtls-rprx-vision"
-    }]
-    decryption = "none"
-  })
-  stream_settings = jsonencode({})
-  sniffing        = jsonencode({})
+    }
+  }
 }
 `, remark)
 }
 
-func testAccInboundWithClientConfig() string {
-	return `
+func testAccInboundConfigWithExtras(remark string) string {
+	return fmt.Sprintf(`
+resource "threexui_inbound" "test" {
+  port     = 23456
+  protocol = "vless"
+  remark   = %q
+  enable   = true
+  settings {
+    decryption = "none"
+    clients {
+      email = "acc-client@example.com"
+      flow  = "xtls-rprx-vision"
+    }
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "none"
+    tcp_settings {
+      accept_proxy_protocol = false
+      header {
+        type = "none"
+      }
+    }
+  }
+  sniffing {
+    enabled       = true
+    dest_override = ["http", "tls"]
+    metadata_only = false
+    route_only    = false
+  }
+}
+`, remark)
+}
+
+func testAccInboundWithClientConfig(clientEmail string, clientEnable bool) string {
+	return fmt.Sprintf(`
 resource "threexui_inbound" "test" {
   port     = 23457
   protocol = "vless"
   remark   = "acc-inbound-client"
   enable   = true
-  settings = jsonencode({
-    clients = [{
-      email = "acc-bootstrap@example.com"
-      flow  = "xtls-rprx-vision"
-    }]
-    decryption = "none"
-  })
-  stream_settings = jsonencode({})
-  sniffing        = jsonencode({})
 }
 
 resource "threexui_inbound_client" "test" {
   inbound_id = threexui_inbound.test.id
-  email      = "acc-client@example.com"
-  enable     = true
+  email      = %q
+  enable     = %t
   flow       = "xtls-rprx-vision"
+}
+`, clientEmail, clientEnable)
+}
+
+func testAccDataSourcesConfig() string {
+	return `
+data "threexui_inbounds" "all" {
+  depends_on = [threexui_inbound.test]
+}
+
+data "threexui_server_status" "status" {
+  depends_on = [threexui_inbound.test]
+}
+
+data "threexui_xray_versions" "versions" {
+  depends_on = [threexui_inbound.test]
+}
+
+data "threexui_xray_config" "config" {
+  depends_on = [threexui_inbound.test]
+}
+
+data "threexui_settings" "settings" {
+  depends_on = [threexui_inbound.test]
 }
 `
 }

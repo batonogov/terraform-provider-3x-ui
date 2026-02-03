@@ -75,22 +75,43 @@ func resourceInbound() *schema.Resource {
 				Required: true,
 			},
 			"settings": {
-				Type:             schema.TypeString,
-				Required:         true,
-				ValidateFunc:     validateJSONString,
-				DiffSuppressFunc: jsonSubsetDiffSuppress,
+				Type:     schema.TypeList,
+				Optional: true,
+				Computed: true,
+				MaxItems: 1,
+				Elem:     &schema.Resource{Schema: settingsSchema()},
 			},
 			"stream_settings": {
-				Type:             schema.TypeString,
-				Optional:         true,
-				ValidateFunc:     validateJSONString,
-				DiffSuppressFunc: jsonSubsetDiffSuppress,
+				Type:     schema.TypeList,
+				Optional: true,
+				Computed: true,
+				MaxItems: 1,
+				Elem:     &schema.Resource{Schema: streamSettingsSchema()},
 			},
 			"sniffing": {
-				Type:             schema.TypeString,
-				Optional:         true,
-				ValidateFunc:     validateJSONString,
-				DiffSuppressFunc: jsonSubsetDiffSuppress,
+				Type:     schema.TypeList,
+				Optional: true,
+				Computed: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{Schema: map[string]*schema.Schema{
+					"enabled": {
+						Type:     schema.TypeBool,
+						Optional: true,
+					},
+					"dest_override": {
+						Type:     schema.TypeList,
+						Optional: true,
+						Elem:     &schema.Schema{Type: schema.TypeString},
+					},
+					"metadata_only": {
+						Type:     schema.TypeBool,
+						Optional: true,
+					},
+					"route_only": {
+						Type:     schema.TypeBool,
+						Optional: true,
+					},
+				}},
 			},
 			"tag": {
 				Type:     schema.TypeString,
@@ -175,6 +196,9 @@ func isSubset(desired, actual any) bool {
 func resourceInboundCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
 	client := meta.(*Client)
 	inbound := expandInbound(d)
+	if err := applyDefaultInboundSettings(inbound); err != nil {
+		return diag.FromErr(err)
+	}
 	if err := ensureInboundClientIDs(inbound); err != nil {
 		return diag.FromErr(err)
 	}
@@ -210,7 +234,17 @@ func resourceInboundUpdate(ctx context.Context, d *schema.ResourceData, meta any
 	if err != nil {
 		return diag.FromErr(err)
 	}
+	existing, err := client.GetInbound(ctx, id)
+	if err != nil {
+		return diag.FromErr(err)
+	}
 	inbound := expandInbound(d)
+	if err := applyDefaultInboundSettings(inbound); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := preserveInboundClientIDs(inbound, existing); err != nil {
+		return diag.FromErr(err)
+	}
 	if err := ensureInboundClientIDs(inbound); err != nil {
 		return diag.FromErr(err)
 	}
@@ -249,9 +283,9 @@ func expandInbound(d *schema.ResourceData) *Inbound {
 		Listen:               d.Get("listen").(string),
 		Port:                 d.Get("port").(int),
 		Protocol:             d.Get("protocol").(string),
-		Settings:             d.Get("settings").(string),
-		StreamSettings:       d.Get("stream_settings").(string),
-		Sniffing:             d.Get("sniffing").(string),
+		Settings:             buildSettingsJSON(d),
+		StreamSettings:       buildStreamSettingsJSON(d),
+		Sniffing:             buildSniffingJSON(d),
 	}
 }
 
@@ -319,9 +353,9 @@ func setInboundState(d *schema.ResourceData, inbound *Inbound) diag.Diagnostics 
 	set("listen", inbound.Listen)
 	set("port", inbound.Port)
 	set("protocol", inbound.Protocol)
-	set("settings", inbound.Settings)
-	set("stream_settings", inbound.StreamSettings)
-	set("sniffing", inbound.Sniffing)
+	set("settings", flattenSettings(inbound.Settings))
+	set("stream_settings", flattenStreamSettings(inbound.StreamSettings))
+	set("sniffing", flattenSniffing(inbound.Sniffing))
 	set("tag", inbound.Tag)
 	return nil
 }

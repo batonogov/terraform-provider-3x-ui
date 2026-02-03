@@ -58,10 +58,40 @@ func inboundSchemaComputed() map[string]*schema.Schema {
 		"listen":                  {Type: schema.TypeString, Computed: true},
 		"port":                    {Type: schema.TypeInt, Computed: true},
 		"protocol":                {Type: schema.TypeString, Computed: true},
-		"settings":                {Type: schema.TypeString, Computed: true},
-		"stream_settings":         {Type: schema.TypeString, Computed: true},
-		"tag":                     {Type: schema.TypeString, Computed: true},
-		"sniffing":                {Type: schema.TypeString, Computed: true},
+		"settings": {
+			Type:     schema.TypeList,
+			Computed: true,
+			Elem:     &schema.Resource{Schema: settingsSchema()},
+		},
+		"stream_settings": {
+			Type:     schema.TypeList,
+			Computed: true,
+			Elem:     &schema.Resource{Schema: streamSettingsSchema()},
+		},
+		"tag": {Type: schema.TypeString, Computed: true},
+		"sniffing": {
+			Type:     schema.TypeList,
+			Computed: true,
+			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
+				"enabled": {
+					Type:     schema.TypeBool,
+					Computed: true,
+				},
+				"dest_override": {
+					Type:     schema.TypeList,
+					Computed: true,
+					Elem:     &schema.Schema{Type: schema.TypeString},
+				},
+				"metadata_only": {
+					Type:     schema.TypeBool,
+					Computed: true,
+				},
+				"route_only": {
+					Type:     schema.TypeBool,
+					Computed: true,
+				},
+			}},
+		},
 	}
 }
 
@@ -80,9 +110,9 @@ func flattenInbound(inbound Inbound) map[string]any {
 		"listen":                  inbound.Listen,
 		"port":                    inbound.Port,
 		"protocol":                inbound.Protocol,
-		"settings":                inbound.Settings,
-		"stream_settings":         inbound.StreamSettings,
+		"settings":                flattenSettings(inbound.Settings),
+		"stream_settings":         flattenStreamSettings(inbound.StreamSettings),
 		"tag":                     inbound.Tag,
-		"sniffing":                inbound.Sniffing,
+		"sniffing":                flattenSniffing(inbound.Sniffing),
 	}
 }

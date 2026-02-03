@@ -24,18 +24,57 @@ resource "threexui_inbound" "example" {
   port     = 23456
   protocol = "vless"
   remark   = "example-inbound"
-  enable   = true
 
-  settings = jsonencode({
-    clients = [{
-      email = "client@example.com"
-      flow  = "xtls-rprx-vision"
-    }]
-    decryption = "none"
-  })
-
-  stream_settings = jsonencode({})
-  sniffing        = jsonencode({})
+  # settings/stream_settings/sniffing теперь опциональны.
+  # Если settings не задан, провайдер подставит дефолт как в UI 3x-ui:
+  # vless/vmess/trojan/shadowsocks — один случайный клиент + нужные поля.
+  # settings {
+  #   decryption = "none"
+  #   encryption = "none"
+  #   clients {
+  #     email  = "client@example.com"
+  #     enable = true
+  #   }
+  # }
+  # stream_settings {
+  #   network  = "tcp"
+  #   security = "reality"
+  #
+  #   external_proxy = []
+  #
+  #   reality_settings {
+  #     show          = false
+  #     xver          = 0
+  #     target        = "caddy:443"
+  #     server_names  = ["ns-k1.lifelink.space", "www.ns-k1.lifelink.space"]
+  #     private_key   = "..."
+  #     min_client_ver = ""
+  #     max_client_ver = ""
+  #     max_timediff  = 0
+  #     short_ids     = ["af9094bc", "01"]
+  #     mldsa65_seed  = ""
+  #     settings {
+  #       public_key    = "..."
+  #       fingerprint   = "chrome"
+  #       server_name   = ""
+  #       spider_x      = "/"
+  #       mldsa65_verify = ""
+  #     }
+  #   }
+  #
+  #   tcp_settings {
+  #     accept_proxy_protocol = false
+  #     header {
+  #       type = "none"
+  #     }
+  #   }
+  # }
+  # sniffing {
+  #   enabled       = true
+  #   dest_override = ["http", "tls", "quic", "fakedns"]
+  #   metadata_only = false
+  #   route_only    = false
+  # }
 }
 ```
 
