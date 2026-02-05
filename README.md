@@ -90,6 +90,122 @@ resource "threexui_inbound_client" "example" {
 }
 ```
 
+### Разделенные настройки (по вкладкам)
+
+```hcl
+resource "threexui_panel_general" "panel" {
+  web_port      = 2053
+  web_base_path = "/"
+}
+
+Mapping (panel/general.html -> API -> resource fields):
+
+| UI control (v-model) | API key | Resource field |
+| --- | --- | --- |
+| allSetting.webListen | webListen | web_listen |
+| allSetting.webDomain | webDomain | web_domain |
+| allSetting.webPort | webPort | web_port |
+| allSetting.webBasePath | webBasePath | web_base_path |
+| allSetting.sessionMaxAge | sessionMaxAge | session_max_age |
+| allSetting.pageSize | pageSize | page_size |
+| remarkModel | remarkModel | remark_model |
+| datepicker | datepicker | date_picker |
+| allSetting.timeLocation | timeLocation | time_location |
+| allSetting.expireDiff | expireDiff | expire_diff |
+| allSetting.trafficDiff | trafficDiff | traffic_diff |
+| allSetting.webCertFile | webCertFile | web_cert_file |
+| allSetting.webKeyFile | webKeyFile | web_key_file |
+| allSetting.externalTrafficInformEnable | externalTrafficInformEnable | external_traffic_inform_enable |
+| allSetting.externalTrafficInformURI | externalTrafficInformURI | external_traffic_inform_uri |
+| allSetting.ldapEnable | ldapEnable | ldap_enable |
+| allSetting.ldapHost | ldapHost | ldap_host |
+| allSetting.ldapPort | ldapPort | ldap_port |
+| allSetting.ldapUseTLS | ldapUseTLS | ldap_use_tls |
+| allSetting.ldapBindDN | ldapBindDN | ldap_bind_dn |
+| allSetting.ldapPassword | ldapPassword | ldap_password |
+| allSetting.ldapBaseDN | ldapBaseDN | ldap_base_dn |
+| allSetting.ldapUserFilter | ldapUserFilter | ldap_user_filter |
+| allSetting.ldapUserAttr | ldapUserAttr | ldap_user_attr |
+| allSetting.ldapVlessField | ldapVlessField | ldap_vless_field |
+| allSetting.ldapSyncCron | ldapSyncCron | ldap_sync_cron |
+| allSetting.ldapFlagField | ldapFlagField | ldap_flag_field |
+| allSetting.ldapTruthyValues | ldapTruthyValues | ldap_truthy_values |
+| allSetting.ldapInvertFlag | ldapInvertFlag | ldap_invert_flag |
+| ldapInboundTagList | ldapInboundTags | ldap_inbound_tags |
+| allSetting.ldapAutoCreate | ldapAutoCreate | ldap_auto_create |
+| allSetting.ldapAutoDelete | ldapAutoDelete | ldap_auto_delete |
+| allSetting.ldapDefaultTotalGB | ldapDefaultTotalGB | ldap_default_total_gb |
+| allSetting.ldapDefaultExpiryDays | ldapDefaultExpiryDays | ldap_default_expiry_days |
+| allSetting.ldapDefaultLimitIP | ldapDefaultLimitIP | ldap_default_limit_ip |
+
+Note: `lang` (UI language selector) is stored in browser cookies and is not part of `/panel/setting/update`, so it cannot be managed via `threexui_panel_general`.
+
+resource "threexui_panel_security" "account" {
+  two_factor_enable = true
+}
+
+resource "threexui_panel_telegram" "telegram" {
+  tg_bot_enable = true
+  tg_bot_token  = "..."
+}
+
+resource "threexui_panel_subscription" "subscription" {
+  sub_enable = true
+  sub_title  = "My Sub"
+}
+```
+
+### Xray настройки (по вкладкам)
+
+```hcl
+resource "threexui_xray_basics" "basics" {
+  json = jsonencode({
+    log = {
+      loglevel = "warning"
+    }
+  })
+}
+
+resource "threexui_xray_dns" "dns" {
+  json = jsonencode({
+    servers = [
+      "1.1.1.1",
+      "8.8.8.8"
+    ]
+  })
+}
+
+resource "threexui_xray_routing" "routing" {
+  json = jsonencode({
+    domainStrategy = "AsIs"
+    rules          = []
+  })
+}
+
+resource "threexui_xray_balancers" "balancers" {
+  json = jsonencode([])
+}
+
+resource "threexui_xray_reverse" "reverse" {
+  json = jsonencode({
+    portals = []
+    bridges = []
+  })
+}
+
+resource "threexui_xray_outbounds" "outbounds" {
+  json = jsonencode([])
+}
+
+resource "threexui_xray_advanced" "advanced" {
+  json = jsonencode({
+    log = {
+      loglevel = "warning"
+    }
+  })
+}
+```
+
 ## Data sources
 
 ```hcl

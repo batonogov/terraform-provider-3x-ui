@@ -100,6 +100,9 @@ func resourceInboundClient() *schema.Resource {
 func resourceInboundClientCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
 	client := meta.(*Client)
 	inboundID := d.Get("inbound_id").(int)
+	if err := ensureInboundClientsKey(ctx, client, inboundID); err != nil {
+		return diag.FromErr(err)
+	}
 	clientData := expandInboundClient(d)
 	clientID := getClientID(d, clientData)
 	if clientID == "" {
@@ -152,6 +155,9 @@ func resourceInboundClientUpdate(ctx context.Context, d *schema.ResourceData, me
 	if err != nil {
 		return diag.FromErr(err)
 	}
+	if err := ensureInboundClientsKey(ctx, client, inboundID); err != nil {
+		return diag.FromErr(err)
+	}
 	clientData := expandInboundClient(d)
 	clientData["id"] = clientID
 
@@ -165,6 +171,9 @@ func resourceInboundClientDelete(ctx context.Context, d *schema.ResourceData, me
 	client := meta.(*Client)
 	inboundID, clientID, err := splitInboundClientID(d.Id())
 	if err != nil {
+		return diag.FromErr(err)
+	}
+	if err := ensureInboundClientsKey(ctx, client, inboundID); err != nil {
 		return diag.FromErr(err)
 	}
 	if err := client.DeleteInboundClient(ctx, inboundID, clientID); err != nil {
@@ -248,6 +257,34 @@ func parseInboundSettings(settings string) (*inboundSettings, error) {
 		return nil, err
 	}
 	return &out, nil
+}
+
+func ensureInboundClientsKey(ctx context.Context, client *Client, inboundID int) error {
+	if client == nil || inboundID == 0 {
+		return nil
+	}
+	inbound, err := client.GetInbound(ctx, inboundID)
+	if err != nil {
+		return err
+	}
+	settings, err := ParseJSONField(inbound.Settings)
+	if err != nil {
+		return err
+	}
+	if settings == nil {
+		settings = map[string]any{}
+	}
+	if _, ok := settings["clients"]; ok {
+		return nil
+	}
+	settings["clients"] = []any{}
+	updated, err := json.Marshal(settings)
+	if err != nil {
+		return err
+	}
+	inbound.Settings = string(updated)
+	_, err = client.UpdateInbound(ctx, inbound)
+	return err
 }
 
 func findClientByID(clients []map[string]any, clientID string) map[string]any {

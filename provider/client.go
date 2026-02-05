@@ -271,12 +271,84 @@ func (c *Client) GetXrayConfig(ctx context.Context) (map[string]any, error) {
 	return out, nil
 }
 
+func (c *Client) GetNewX25519Cert(ctx context.Context) (map[string]any, error) {
+	var out map[string]any
+	if err := c.doJSON(ctx, http.MethodGet, "panel/api/server/getNewX25519Cert", nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+type VlessEncAuth struct {
+	Label      string `json:"label"`
+	Decryption string `json:"decryption"`
+	Encryption string `json:"encryption"`
+}
+
+func (c *Client) GetNewVlessEnc(ctx context.Context) ([]VlessEncAuth, error) {
+	var out struct {
+		Auths []VlessEncAuth `json:"auths"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "panel/api/server/getNewVlessEnc", nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Auths, nil
+}
+
 func (c *Client) GetSettings(ctx context.Context) (map[string]any, error) {
 	var out map[string]any
 	if err := c.doForm(ctx, http.MethodPost, "panel/setting/all", url.Values{}, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+func (c *Client) UpdateSettings(ctx context.Context, settings map[string]any) error {
+	if settings == nil {
+		return errors.New("settings payload is required")
+	}
+	return c.doJSON(ctx, http.MethodPost, "panel/setting/update", settings, nil)
+}
+
+func (c *Client) RestartPanel(ctx context.Context) error {
+	return c.doForm(ctx, http.MethodPost, "panel/setting/restartPanel", url.Values{}, nil)
+}
+
+func (c *Client) GetXrayTemplate(ctx context.Context) (map[string]any, error) {
+	var raw string
+	if err := c.doForm(ctx, http.MethodPost, "panel/xray", url.Values{}, &raw); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(raw) == "" {
+		return map[string]any{}, nil
+	}
+	var payload struct {
+		XraySetting any `json:"xraySetting"`
+	}
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return nil, err
+	}
+	if payload.XraySetting == nil {
+		return map[string]any{}, nil
+	}
+	settings, ok := payload.XraySetting.(map[string]any)
+	if !ok {
+		return nil, errors.New("xraySetting is not an object")
+	}
+	return settings, nil
+}
+
+func (c *Client) UpdateXrayTemplate(ctx context.Context, settings map[string]any) error {
+	if settings == nil {
+		return errors.New("xraySetting payload is required")
+	}
+	payload, err := json.Marshal(settings)
+	if err != nil {
+		return err
+	}
+	form := url.Values{}
+	form.Set("xraySetting", string(payload))
+	return c.doForm(ctx, http.MethodPost, "panel/xray/update", form, nil)
 }
 
 func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType string, body []byte, out any) error {
@@ -327,15 +399,22 @@ func decodeAPIResponse(resp *http.Response, out any) error {
 	var apiResp apiResponse
 	if err := json.Unmarshal(body, &apiResp); err != nil {
 		if resp.StatusCode >= 400 {
-			return fmt.Errorf("request failed: status %d", resp.StatusCode)
+			msg := strings.TrimSpace(string(body))
+			if msg == "" {
+				return fmt.Errorf("request failed: status %d", resp.StatusCode)
+			}
+			if len(msg) > 1024 {
+				msg = msg[:1024] + "...(truncated)"
+			}
+			return fmt.Errorf("request failed: status %d, body: %s", resp.StatusCode, msg)
 		}
 		return err
 	}
 	if !apiResp.Success {
 		if apiResp.Msg == "" {
-			return errors.New("request failed")
+			return fmt.Errorf("request failed: status %d", resp.StatusCode)
 		}
-		return errors.New(apiResp.Msg)
+		return fmt.Errorf("request failed: status %d, msg: %s", resp.StatusCode, apiResp.Msg)
 	}
 
 	if out == nil || apiResp.Obj == nil {

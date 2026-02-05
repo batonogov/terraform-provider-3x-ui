@@ -53,17 +53,23 @@ func streamSettingsSchema() map[string]*schema.Schema {
 					Optional: true,
 				},
 				"target": {
-					Type:     schema.TypeString,
-					Optional: true,
+					Type:             schema.TypeString,
+					Optional:         true,
+					Computed:         true,
+					DiffSuppressFunc: suppressIfNewEmpty,
 				},
 				"server_names": {
 					Type:     schema.TypeList,
 					Optional: true,
+					Computed: true,
 					Elem:     &schema.Schema{Type: schema.TypeString},
 				},
 				"private_key": {
-					Type:     schema.TypeString,
-					Optional: true,
+					Type:             schema.TypeString,
+					Optional:         true,
+					Computed:         true,
+					Sensitive:        true,
+					DiffSuppressFunc: suppressIfNewEmpty,
 				},
 				"min_client_ver": {
 					Type:     schema.TypeString,
@@ -78,9 +84,11 @@ func streamSettingsSchema() map[string]*schema.Schema {
 					Optional: true,
 				},
 				"short_ids": {
-					Type:     schema.TypeList,
-					Optional: true,
-					Elem:     &schema.Schema{Type: schema.TypeString},
+					Type:             schema.TypeList,
+					Optional:         true,
+					Computed:         true,
+					DiffSuppressFunc: suppressIfNewEmpty,
+					Elem:             &schema.Schema{Type: schema.TypeString},
 				},
 				"mldsa65_seed": {
 					Type:     schema.TypeString,
@@ -92,8 +100,11 @@ func streamSettingsSchema() map[string]*schema.Schema {
 					MaxItems: 1,
 					Elem: &schema.Resource{Schema: map[string]*schema.Schema{
 						"public_key": {
-							Type:     schema.TypeString,
-							Optional: true,
+							Type:             schema.TypeString,
+							Optional:         true,
+							Computed:         true,
+							Sensitive:        true,
+							DiffSuppressFunc: suppressIfNewEmpty,
 						},
 						"fingerprint": {
 							Type:     schema.TypeString,
@@ -283,6 +294,7 @@ func expandRealitySettings(list []any) map[string]any {
 		return nil
 	}
 	rs := map[string]any{}
+	target := ""
 	if v, ok := item["show"].(bool); ok {
 		rs["show"] = v
 	}
@@ -290,6 +302,7 @@ func expandRealitySettings(list []any) map[string]any {
 		rs["xver"] = v
 	}
 	if v, ok := item["target"].(string); ok && v != "" {
+		target = v
 		rs["target"] = v
 	}
 	if v, ok := item["server_names"]; ok {
@@ -317,6 +330,18 @@ func expandRealitySettings(list []any) map[string]any {
 		if s := expandRealityInnerSettings(v.([]any)); s != nil {
 			rs["settings"] = s
 		}
+	}
+	if !hasRealityServerNames(rs) {
+		if target != "" {
+			host := strings.Split(target, ":")[0]
+			if host != "" {
+				rs["serverNames"] = []any{host}
+			}
+		}
+	}
+	if !hasRealityServerNames(rs) {
+		rs["target"] = "www.apple.com:443"
+		rs["serverNames"] = []any{"www.apple.com", "apple.com"}
 	}
 	if len(rs) == 0 {
 		return nil

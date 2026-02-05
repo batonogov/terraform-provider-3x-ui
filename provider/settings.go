@@ -9,42 +9,15 @@ import (
 
 func settingsSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
-		"clients": {
-			Type:     schema.TypeList,
-			Optional: true,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"id": {
-					Type:             schema.TypeString,
-					Optional:         true,
-					DiffSuppressFunc: suppressIfNewEmpty,
-				},
-				"email":    {Type: schema.TypeString, Optional: true},
-				"enable":   {Type: schema.TypeBool, Optional: true},
-				"flow":     {Type: schema.TypeString, Optional: true},
-				"security": {Type: schema.TypeString, Optional: true},
-				"password": {
-					Type:             schema.TypeString,
-					Optional:         true,
-					DiffSuppressFunc: suppressIfNewEmpty,
-				},
-				"limit_ip":    {Type: schema.TypeInt, Optional: true},
-				"total_gb":    {Type: schema.TypeInt, Optional: true},
-				"expiry_time": {Type: schema.TypeInt, Optional: true},
-				"tg_id":       {Type: schema.TypeInt, Optional: true},
-				"sub_id":      {Type: schema.TypeString, Optional: true},
-				"comment":     {Type: schema.TypeString, Optional: true},
-				"reset":       {Type: schema.TypeInt, Optional: true},
-				"created_at":  {Type: schema.TypeInt, Computed: true},
-				"updated_at":  {Type: schema.TypeInt, Computed: true},
-			}},
-		},
 		"decryption": {
-			Type:     schema.TypeString,
-			Optional: true,
+			Type:      schema.TypeString,
+			Optional:  true,
+			Sensitive: true,
 		},
 		"encryption": {
-			Type:     schema.TypeString,
-			Optional: true,
+			Type:      schema.TypeString,
+			Optional:  true,
+			Sensitive: true,
 		},
 		"fallbacks": {
 			Type:     schema.TypeList,
@@ -188,9 +161,6 @@ func buildSettingsJSON(d *schema.ResourceData) string {
 	}
 
 	payload := map[string]any{}
-	if v, ok := item["clients"]; ok {
-		payload["clients"] = expandClients(v.([]any))
-	}
 	if v, ok := item["decryption"].(string); ok && v != "" {
 		payload["decryption"] = v
 	}
@@ -283,9 +253,6 @@ func flattenSettings(settings string) []any {
 		return []any{}
 	}
 	out := map[string]any{}
-	if v, ok := payload["clients"].([]any); ok {
-		out["clients"] = flattenClients(v)
-	}
 	if v, ok := payload["decryption"].(string); ok {
 		out["decryption"] = v
 	}
@@ -362,98 +329,6 @@ func flattenSettings(settings string) []any {
 		return []any{}
 	}
 	return []any{out}
-}
-
-func preserveInboundClientIDs(desired *Inbound, existing *Inbound) error {
-	if desired == nil || existing == nil {
-		return nil
-	}
-	if strings.TrimSpace(desired.Settings) == "" || strings.TrimSpace(existing.Settings) == "" {
-		return nil
-	}
-
-	desiredSettings, err := ParseJSONField(desired.Settings)
-	if err != nil {
-		return err
-	}
-	existingSettings, err := ParseJSONField(existing.Settings)
-	if err != nil {
-		return err
-	}
-
-	desiredClients, ok := desiredSettings["clients"].([]any)
-	if !ok || len(desiredClients) == 0 {
-		return nil
-	}
-	existingClients, ok := existingSettings["clients"].([]any)
-	if !ok || len(existingClients) == 0 {
-		return nil
-	}
-
-	existingByEmail := map[string]map[string]any{}
-	for _, c := range existingClients {
-		m, ok := c.(map[string]any)
-		if !ok {
-			continue
-		}
-		email := stringValue(m["email"])
-		if email != "" {
-			existingByEmail[email] = m
-		}
-	}
-
-	changed := false
-	for i, c := range desiredClients {
-		m, ok := c.(map[string]any)
-		if !ok {
-			continue
-		}
-		email := stringValue(m["email"])
-		if email == "" {
-			continue
-		}
-		existingClient := existingByEmail[email]
-		if existingClient == nil {
-			continue
-		}
-
-		switch desired.Protocol {
-		case "vless", "vmess":
-			if stringValue(m["id"]) == "" {
-				if id := stringValue(existingClient["id"]); id != "" {
-					m["id"] = id
-					changed = true
-				}
-			}
-		case "trojan":
-			if stringValue(m["password"]) == "" {
-				if pw := stringValue(existingClient["password"]); pw != "" {
-					m["password"] = pw
-					changed = true
-				}
-			}
-		case "shadowsocks":
-			if stringValue(m["password"]) == "" {
-				if pw := stringValue(existingClient["password"]); pw != "" {
-					m["password"] = pw
-					changed = true
-				}
-			}
-		}
-
-		desiredClients[i] = m
-	}
-
-	if !changed {
-		return nil
-	}
-	desiredSettings["clients"] = desiredClients
-	updated, err := json.Marshal(desiredSettings)
-	if err != nil {
-		return err
-	}
-	desired.Settings = string(updated)
-	return nil
 }
 
 func expandClients(list []any) []any {

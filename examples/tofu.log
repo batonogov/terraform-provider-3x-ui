@@ -1,0 +1,120 @@
+2026-02-05T17:36:03.538+0300 [TRACE] OpenTelemetry: OTEL_TRACES_EXPORTER not set, OTel tracing is not enabled
+2026-02-05T17:36:03.538+0300 [INFO]  OpenTofu version: 1.11.4
+2026-02-05T17:36:03.538+0300 [DEBUG] using github.com/hashicorp/go-tfe v1.95.0
+2026-02-05T17:36:03.538+0300 [DEBUG] using github.com/opentofu/hcl/v2 v2.20.2-0.20251021132045-587d123c2828
+2026-02-05T17:36:03.538+0300 [DEBUG] using github.com/zclconf/go-cty v1.17.0
+2026-02-05T17:36:03.538+0300 [INFO]  Go runtime version: go1.25.6
+2026-02-05T17:36:03.538+0300 [INFO]  CLI args: []string{"tofu", "apply", "-auto-approve"}
+2026-02-05T17:36:03.538+0300 [TRACE] Stdout is not a terminal
+2026-02-05T17:36:03.538+0300 [TRACE] Stderr is not a terminal
+2026-02-05T17:36:03.538+0300 [TRACE] Stdin is not a terminal
+2026-02-05T17:36:03.538+0300 [DEBUG] Attempting to open CLI config file: /Users/fedor/.tofurc
+2026-02-05T17:36:03.538+0300 [INFO]  Loading CLI configuration from /Users/fedor/.tofurc
+2026-02-05T17:36:03.538+0300 [DEBUG] checking for credentials in "/Users/fedor/.terraform.d/plugins"
+2026-02-05T17:36:03.538+0300 [DEBUG] Explicit provider installation configuration is set
+2026-02-05T17:36:03.538+0300 [TRACE] Selected provider installation method cliconfig.ProviderInstallationDirect with includes [] and excludes []
+2026-02-05T17:36:03.538+0300 [DEBUG] Found the config directory: /Users/fedor/.terraform.d
+2026-02-05T17:36:03.538+0300 [INFO]  CLI command args: []string{"apply", "-auto-approve"}
+2026-02-05T17:36:03.540+0300 [TRACE] Meta.Backend: no config given or present on disk, so returning nil config
+2026-02-05T17:36:03.540+0300 [TRACE] Meta.Backend: backend has not previously been initialized in this working directory
+2026-02-05T17:36:03.540+0300 [DEBUG] New state was assigned lineage "c1304113-7acd-81a2-4450-2769cbba0804"
+2026-02-05T17:36:03.540+0300 [TRACE] Meta.Backend: using default local state only (no backend configuration, and no existing initialized backend)
+2026-02-05T17:36:03.540+0300 [TRACE] Meta.Backend: instantiated backend of type <nil>
+2026-02-05T17:36:03.540+0300 [DEBUG] Provider registry.opentofu.org/hashicorp/threexui is overridden by dev_overrides
+2026-02-05T17:36:03.540+0300 [DEBUG] Provider registry.opentofu.org/hashicorp/threexui is overridden to load from /Users/fedor/Documents/github.com/batonogov/terraform-provider-3x-ui
+2026-02-05T17:36:03.540+0300 [DEBUG] checking for provisioner in "."
+2026-02-05T17:36:03.541+0300 [DEBUG] checking for provisioner in "/opt/homebrew/bin"
+2026-02-05T17:36:03.541+0300 [DEBUG] checking for provisioner in "/Users/fedor/.terraform.d/plugins"
+2026-02-05T17:36:03.541+0300 [TRACE] Meta.Backend: backend <nil> does not support operations, so wrapping it in a local backend
+2026-02-05T17:36:03.541+0300 [DEBUG] Provider registry.opentofu.org/hashicorp/threexui is overridden by dev_overrides
+2026-02-05T17:36:03.541+0300 [INFO]  backend/local: starting Apply operation
+2026-02-05T17:36:03.542+0300 [TRACE] backend/local: requesting state manager for workspace "default"
+2026-02-05T17:36:03.542+0300 [TRACE] backend/local: state manager for workspace "default" will:
+ - read initial snapshot from terraform.tfstate
+ - write new snapshots to terraform.tfstate
+ - create any backup at terraform.tfstate.backup
+2026-02-05T17:36:03.542+0300 [TRACE] backend/local: requesting state lock for workspace "default"
+2026-02-05T17:36:03.545+0300 [TRACE] statemgr.Filesystem: preparing to manage state snapshots at terraform.tfstate
+2026-02-05T17:36:03.545+0300 [TRACE] statemgr.Filesystem: locking terraform.tfstate
+2026-02-05T17:36:03.545+0300 [TRACE] statemgr.Filesystem: existing snapshot has lineage "4516f18a-b96f-d087-e52b-1bf3d15de69f" serial 1
+2026-02-05T17:36:03.545+0300 [TRACE] statemgr.Filesystem: writing lock metadata to .terraform.tfstate.lock.info
+2026-02-05T17:36:03.546+0300 [TRACE] backend/local: reading remote state for workspace "default"
+2026-02-05T17:36:03.546+0300 [TRACE] statemgr.Filesystem: reading latest snapshot from terraform.tfstate
+2026-02-05T17:36:03.546+0300 [TRACE] statemgr.Filesystem: read snapshot with lineage "4516f18a-b96f-d087-e52b-1bf3d15de69f" serial 1
+2026-02-05T17:36:03.546+0300 [TRACE] backend/local: populating backend.LocalRun for current working directory
+2026-02-05T17:36:03.546+0300 [DEBUG] Config.VerifyDependencySelections: skipping registry.opentofu.org/hashicorp/threexui because it's overridden by a special configuration setting
+2026-02-05T17:36:03.546+0300 [TRACE] tofu.NewContext: starting
+2026-02-05T17:36:03.546+0300 [TRACE] tofu.NewContext: complete
+2026-02-05T17:36:03.546+0300 [TRACE] backend/local: requesting interactive input, if necessary
+2026-02-05T17:36:03.546+0300 [TRACE] LoadSchemas: retrieving schema for provider type "registry.opentofu.org/hashicorp/threexui"
+2026-02-05T17:36:03.546+0300 [TRACE] tofu.contextPlugins: Initializing provider "registry.opentofu.org/hashicorp/threexui" to read its schema
+2026-02-05T17:36:03.546+0300 [DEBUG] created provider logger: level=trace
+2026-02-05T17:36:03.546+0300 [INFO]  provider: configuring client automatic mTLS
+2026-02-05T17:36:03.553+0300 [DEBUG] provider: starting plugin: path=/Users/fedor/Documents/github.com/batonogov/terraform-provider-3x-ui/terraform-provider-threexui args=["/Users/fedor/Documents/github.com/batonogov/terraform-provider-3x-ui/terraform-provider-threexui"]
+2026-02-05T17:36:03.555+0300 [DEBUG] provider: plugin started: path=/Users/fedor/Documents/github.com/batonogov/terraform-provider-3x-ui/terraform-provider-threexui pid=50548
+2026-02-05T17:36:03.555+0300 [DEBUG] provider: waiting for RPC address: plugin=/Users/fedor/Documents/github.com/batonogov/terraform-provider-3x-ui/terraform-provider-threexui
+2026-02-05T17:36:03.562+0300 [ERROR] provider.terraform-provider-threexui: plugin init error: error="listen unix /var/folders/s9/4x2fvk854pb76blt2b_hjw6r0000gn/T/plugin2269175381: bind: operation not permitted" timestamp="2026-02-05T17:36:03.561+0300"
+2026-02-05T17:36:03.562+0300 [INFO]  provider: plugin process exited: plugin=/Users/fedor/Documents/github.com/batonogov/terraform-provider-3x-ui/terraform-provider-threexui id=50548
+2026-02-05T17:36:03.566+0300 [TRACE] statemgr.Filesystem: removed lock metadata file .terraform.tfstate.lock.info
+2026-02-05T17:36:03.566+0300 [TRACE] statemgr.Filesystem: unlocking terraform.tfstate
+2026-02-05T17:36:03.566+0300 [WARN]  provider: plugin failed to exit gracefully
+2026-02-05T17:36:18.603+0300 [TRACE] OpenTelemetry: OTEL_TRACES_EXPORTER not set, OTel tracing is not enabled
+2026-02-05T17:36:18.603+0300 [INFO]  OpenTofu version: 1.11.4
+2026-02-05T17:36:18.603+0300 [DEBUG] using github.com/hashicorp/go-tfe v1.95.0
+2026-02-05T17:36:18.603+0300 [DEBUG] using github.com/opentofu/hcl/v2 v2.20.2-0.20251021132045-587d123c2828
+2026-02-05T17:36:18.603+0300 [DEBUG] using github.com/zclconf/go-cty v1.17.0
+2026-02-05T17:36:18.603+0300 [INFO]  Go runtime version: go1.25.6
+2026-02-05T17:36:18.603+0300 [INFO]  CLI args: []string{"tofu", "apply", "-auto-approve"}
+2026-02-05T17:36:18.603+0300 [TRACE] Stdout is not a terminal
+2026-02-05T17:36:18.603+0300 [TRACE] Stderr is not a terminal
+2026-02-05T17:36:18.603+0300 [TRACE] Stdin is not a terminal
+2026-02-05T17:36:18.603+0300 [DEBUG] Attempting to open CLI config file: /Users/fedor/.tofurc
+2026-02-05T17:36:18.603+0300 [INFO]  Loading CLI configuration from /Users/fedor/.tofurc
+2026-02-05T17:36:18.604+0300 [DEBUG] checking for credentials in "/Users/fedor/.terraform.d/plugins"
+2026-02-05T17:36:18.604+0300 [DEBUG] Explicit provider installation configuration is set
+2026-02-05T17:36:18.604+0300 [TRACE] Selected provider installation method cliconfig.ProviderInstallationDirect with includes [] and excludes []
+2026-02-05T17:36:18.604+0300 [DEBUG] Found the config directory: /Users/fedor/.terraform.d
+2026-02-05T17:36:18.604+0300 [INFO]  CLI command args: []string{"apply", "-auto-approve"}
+2026-02-05T17:36:18.605+0300 [TRACE] Meta.Backend: no config given or present on disk, so returning nil config
+2026-02-05T17:36:18.605+0300 [TRACE] Meta.Backend: backend has not previously been initialized in this working directory
+2026-02-05T17:36:18.605+0300 [DEBUG] New state was assigned lineage "b073523e-5b16-06bd-d9ce-246c0ef7621e"
+2026-02-05T17:36:18.605+0300 [TRACE] Meta.Backend: using default local state only (no backend configuration, and no existing initialized backend)
+2026-02-05T17:36:18.605+0300 [TRACE] Meta.Backend: instantiated backend of type <nil>
+2026-02-05T17:36:18.605+0300 [DEBUG] Provider registry.opentofu.org/hashicorp/threexui is overridden by dev_overrides
+2026-02-05T17:36:18.605+0300 [DEBUG] Provider registry.opentofu.org/hashicorp/threexui is overridden to load from /Users/fedor/Documents/github.com/batonogov/terraform-provider-3x-ui
+2026-02-05T17:36:18.605+0300 [DEBUG] checking for provisioner in "."
+2026-02-05T17:36:18.605+0300 [DEBUG] checking for provisioner in "/opt/homebrew/bin"
+2026-02-05T17:36:18.605+0300 [DEBUG] checking for provisioner in "/Users/fedor/.terraform.d/plugins"
+2026-02-05T17:36:18.605+0300 [TRACE] Meta.Backend: backend <nil> does not support operations, so wrapping it in a local backend
+2026-02-05T17:36:18.605+0300 [DEBUG] Provider registry.opentofu.org/hashicorp/threexui is overridden by dev_overrides
+2026-02-05T17:36:18.605+0300 [INFO]  backend/local: starting Apply operation
+2026-02-05T17:36:18.605+0300 [TRACE] backend/local: requesting state manager for workspace "default"
+2026-02-05T17:36:18.606+0300 [TRACE] backend/local: state manager for workspace "default" will:
+ - read initial snapshot from terraform.tfstate
+ - write new snapshots to terraform.tfstate
+ - create any backup at terraform.tfstate.backup
+2026-02-05T17:36:18.606+0300 [TRACE] backend/local: requesting state lock for workspace "default"
+2026-02-05T17:36:18.607+0300 [TRACE] statemgr.Filesystem: preparing to manage state snapshots at terraform.tfstate
+2026-02-05T17:36:18.607+0300 [TRACE] statemgr.Filesystem: locking terraform.tfstate
+2026-02-05T17:36:18.607+0300 [TRACE] statemgr.Filesystem: existing snapshot has lineage "4516f18a-b96f-d087-e52b-1bf3d15de69f" serial 1
+2026-02-05T17:36:18.607+0300 [TRACE] statemgr.Filesystem: writing lock metadata to .terraform.tfstate.lock.info
+2026-02-05T17:36:18.607+0300 [TRACE] backend/local: reading remote state for workspace "default"
+2026-02-05T17:36:18.607+0300 [TRACE] statemgr.Filesystem: reading latest snapshot from terraform.tfstate
+2026-02-05T17:36:18.607+0300 [TRACE] statemgr.Filesystem: read snapshot with lineage "4516f18a-b96f-d087-e52b-1bf3d15de69f" serial 1
+2026-02-05T17:36:18.607+0300 [TRACE] backend/local: populating backend.LocalRun for current working directory
+2026-02-05T17:36:18.607+0300 [DEBUG] Config.VerifyDependencySelections: skipping registry.opentofu.org/hashicorp/threexui because it's overridden by a special configuration setting
+2026-02-05T17:36:18.607+0300 [TRACE] tofu.NewContext: starting
+2026-02-05T17:36:18.607+0300 [TRACE] tofu.NewContext: complete
+2026-02-05T17:36:18.607+0300 [TRACE] backend/local: requesting interactive input, if necessary
+2026-02-05T17:36:18.607+0300 [TRACE] LoadSchemas: retrieving schema for provider type "registry.opentofu.org/hashicorp/threexui"
+2026-02-05T17:36:18.608+0300 [TRACE] tofu.contextPlugins: Initializing provider "registry.opentofu.org/hashicorp/threexui" to read its schema
+2026-02-05T17:36:18.608+0300 [DEBUG] created provider logger: level=trace
+2026-02-05T17:36:18.608+0300 [INFO]  provider: configuring client automatic mTLS
+2026-02-05T17:36:18.614+0300 [DEBUG] provider: starting plugin: path=/Users/fedor/Documents/github.com/batonogov/terraform-provider-3x-ui/terraform-provider-threexui args=["/Users/fedor/Documents/github.com/batonogov/terraform-provider-3x-ui/terraform-provider-threexui"]
+2026-02-05T17:36:18.615+0300 [DEBUG] provider: plugin started: path=/Users/fedor/Documents/github.com/batonogov/terraform-provider-3x-ui/terraform-provider-threexui pid=50588
+2026-02-05T17:36:18.615+0300 [DEBUG] provider: waiting for RPC address: plugin=/Users/fedor/Documents/github.com/batonogov/terraform-provider-3x-ui/terraform-provider-threexui
+2026-02-05T17:36:18.622+0300 [ERROR] provider.terraform-provider-threexui: plugin init error: error="listen unix /tmp/plugin2644435048: bind: operation not permitted" timestamp="2026-02-05T17:36:18.622+0300"
+2026-02-05T17:36:18.623+0300 [INFO]  provider: plugin process exited: plugin=/Users/fedor/Documents/github.com/batonogov/terraform-provider-3x-ui/terraform-provider-threexui id=50588
+2026-02-05T17:36:18.628+0300 [TRACE] statemgr.Filesystem: removed lock metadata file .terraform.tfstate.lock.info
+2026-02-05T17:36:18.628+0300 [TRACE] statemgr.Filesystem: unlocking terraform.tfstate
+2026-02-05T17:36:18.628+0300 [WARN]  provider: plugin failed to exit gracefully
