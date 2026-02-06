@@ -1,0 +1,78 @@
+---
+page_title: "threexui_panel_general Resource - 3x-ui"
+subcategory: "Panel Settings"
+description: |-
+  Manages general panel settings in the 3x-ui panel.
+---
+
+# threexui_panel_general (Resource)
+
+Manages the general settings of the 3x-ui panel including web server configuration, LDAP integration, and display preferences.
+
+This is a singleton resource -- only one instance should exist per provider. Deleting this resource only removes it from Terraform state; it does not reset the panel settings.
+
+~> **Warning:** Changing `web_base_path` requires updating the provider's `base_path` to match. Otherwise the provider will lose connectivity to the panel.
+
+## Example Usage
+
+```hcl
+resource "threexui_panel_general" "settings" {
+  web_port      = 2053
+  web_base_path = "/panel/"
+  page_size     = 50
+  time_location = "UTC"
+}
+```
+
+## Argument Reference
+
+### Web Server
+
+- `web_listen` (Optional, String) - Listen address. Default is `""` (all interfaces).
+- `web_domain` (Optional, String) - Domain name. Default is `""`.
+- `web_port` (Optional, Number) - Web panel port. Default is `2053`.
+- `web_base_path` (Optional, String) - Base URL path. Default is `/`.
+- `web_cert_file` (Optional, String) - TLS certificate file path. Default is `""`.
+- `web_key_file` (Optional, String) - TLS key file path. Default is `""`.
+- `session_max_age` (Optional, Number) - Session max age in minutes. Default is `360`.
+
+### Display
+
+- `page_size` (Optional, Number) - Items per page. Default is `25`.
+- `remark_model` (Optional, String) - Remark display model. Default is `-ieo`.
+- `date_picker` (Optional, String) - Date picker type. Default is `gregorian`.
+- `time_location` (Optional, String) - Timezone. Default is `Local`.
+- `expire_diff` (Optional, Number) - Expiry diff threshold. Default is `0`.
+- `traffic_diff` (Optional, Number) - Traffic diff threshold. Default is `0`.
+
+### External Traffic
+
+- `external_traffic_inform_enable` (Optional, Boolean) - Enable external traffic notifications. Default is `false`.
+- `external_traffic_inform_uri` (Optional, String) - External traffic notification URI. Default is `""`.
+
+### LDAP
+
+- `ldap_enable` (Optional, Boolean) - Enable LDAP. Default is `false`.
+- `ldap_host` (Optional, String) - LDAP server host. Default is `""`.
+- `ldap_port` (Optional, Number) - LDAP server port. Default is `389`.
+- `ldap_use_tls` (Optional, Boolean) - Use TLS for LDAP. Default is `false`.
+- `ldap_bind_dn` (Optional, String) - Bind DN. Default is `""`.
+- `ldap_password` (Optional, String, Sensitive) - Bind password. Default is `""`.
+- `ldap_base_dn` (Optional, String) - Base DN. Default is `""`.
+- `ldap_user_filter` (Optional, String) - User filter. Default is `(objectClass=person)`.
+- `ldap_user_attr` (Optional, String) - User attribute. Default is `mail`.
+- `ldap_vless_field` (Optional, String) - VLESS field name. Default is `vless_enabled`.
+- `ldap_sync_cron` (Optional, String) - Sync cron expression. Default is `@every 1m`.
+- `ldap_flag_field` (Optional, String) - Flag field name. Default is `""`.
+- `ldap_truthy_values` (Optional, String) - Truthy values. Default is `true,1,yes,on`.
+- `ldap_invert_flag` (Optional, Boolean) - Invert flag logic. Default is `false`.
+- `ldap_inbound_tags` (Optional, String) - Inbound tags. Default is `""`.
+- `ldap_auto_create` (Optional, Boolean) - Auto-create clients from LDAP. Default is `false`.
+- `ldap_auto_delete` (Optional, Boolean) - Auto-delete clients from LDAP. Default is `false`.
+- `ldap_default_total_gb` (Optional, Number) - Default traffic limit for LDAP clients (GB). Default is `0`.
+- `ldap_default_expiry_days` (Optional, Number) - Default expiry days for LDAP clients. Default is `0`.
+- `ldap_default_limit_ip` (Optional, Number) - Default IP limit for LDAP clients. Default is `0`.
+
+## Attribute Reference
+
+All arguments are also exported as attributes.
