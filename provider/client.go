@@ -136,7 +136,7 @@ func (c *Client) doJSON(ctx context.Context, method, relPath string, body any, o
 	return c.doRequest(ctx, method, endpoint, contentType, buf.Bytes(), out)
 }
 
-func (c *Client) doForm(ctx context.Context, method, relPath string, form url.Values, out any) error {
+func (c *Client) doForm(ctx context.Context, method, relPath string, form url.Values, out any) error { //nolint:unparam // method kept for API consistency with doJSON
 	endpoint, err := c.resolvePath(relPath)
 	if err != nil {
 		return err

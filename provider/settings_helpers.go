@@ -31,7 +31,7 @@ func mergeSettings(existing, desired map[string]any) map[string]any {
 }
 
 func getStringField(d *schema.ResourceData, path string) (string, bool) {
-	v, ok := d.GetOkExists(path)
+	v, ok := d.GetOkExists(path) //nolint:staticcheck // GetOkExists needed for zero-value vs unset
 	if !ok {
 		return "", false
 	}
@@ -40,7 +40,7 @@ func getStringField(d *schema.ResourceData, path string) (string, bool) {
 }
 
 func getIntField(d *schema.ResourceData, path string) (int, bool) {
-	v, ok := d.GetOkExists(path)
+	v, ok := d.GetOkExists(path) //nolint:staticcheck // GetOkExists needed for zero-value vs unset
 	if !ok {
 		return 0, false
 	}
@@ -57,7 +57,7 @@ func getIntField(d *schema.ResourceData, path string) (int, bool) {
 }
 
 func getBoolField(d *schema.ResourceData, path string) (bool, bool) {
-	v, ok := d.GetOkExists(path)
+	v, ok := d.GetOkExists(path) //nolint:staticcheck // GetOkExists needed for zero-value vs unset
 	if !ok {
 		return false, false
 	}

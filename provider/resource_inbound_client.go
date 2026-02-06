@@ -218,7 +218,7 @@ func expandInboundClient(d *schema.ResourceData) map[string]any {
 	if v, ok := d.GetOk("expiry_time"); ok {
 		client["expiryTime"] = v.(int)
 	}
-	if v, ok := d.GetOkExists("enable"); ok {
+	if v, ok := d.GetOkExists("enable"); ok { //nolint:staticcheck // GetOkExists needed for bool false vs unset
 		client["enable"] = v.(bool)
 	}
 	if v, ok := d.GetOk("tg_id"); ok {

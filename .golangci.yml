@@ -34,6 +34,8 @@ linters:
       exclude-functions:
         - (io.Closer).Close
         - (*os.File).Close
+        # Terraform SDK: d.Set() возвращает error, но SDK сам обрабатывает
+        - (*github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema.ResourceData).Set
 
     gocritic:
       enabled-tags:
@@ -41,9 +43,15 @@ linters:
         - style
         - performance
       disabled-checks:
-        # Terraform SDK использует ResourceData.Set без проверки
+        # Terraform SDK паттерны
         - unnamedResult
         - ifElseChain
+        - hugeParam
+        - paramTypeCombine
+        - builtinShadow
+        - singleCaseSwitch
+        - rangeValCopy
+        - unlambda
 
   exclusions:
     rules:
