@@ -97,3 +97,68 @@ terraform import threexui_inbound.example 123
 # inbound client: <inbound_id>:<client_id>
 terraform import threexui_inbound_client.client_a 123:client-id
 ```
+
+## Разработка
+
+### Требования
+
+- Go 1.21+
+- [Task](https://taskfile.dev/) - task runner
+- [golangci-lint](https://golangci-lint.run/welcome/install/) - линтер
+- [pre-commit](https://pre-commit.com/) - git hooks фреймворк
+- Docker - для локального окружения 3x-ui
+
+### Установка pre-commit hooks
+
+```bash
+# Установить pre-commit (если ещё не установлен)
+pip install pre-commit
+# или через brew на macOS
+brew install pre-commit
+
+# Установить git hooks
+pre-commit install
+
+# Запустить проверки вручную на всех файлах
+pre-commit run --all-files
+```
+
+### Команды для разработки
+
+```bash
+task build        # Собрать провайдер
+task fmt          # Форматировать код (gofmt)
+task vet          # Запустить go vet
+task lint         # Запустить golangci-lint
+task pre-commit   # Запустить все проверки вручную (fmt, vet, lint, build)
+task test         # Запустить acceptance-тесты (запускает docker compose)
+```
+
+### Pre-commit проверки
+
+При каждом коммите автоматически запускаются:
+- **gofmt** - форматирование кода
+- **go vet** - статический анализ
+- **go build** - проверка компиляции
+- Проверки YAML/JSON файлов
+- Проверка trailing whitespace
+
+Если проверки не проходят, коммит будет отклонён. Исправьте ошибки и попробуйте снова.
+
+**Важно:** `golangci-lint` не запускается автоматически при коммите (он медленный), но рекомендуется запускать вручную перед PR:
+```bash
+task lint
+```
+
+### Локальное окружение
+
+```bash
+# Запустить 3x-ui v2.8.9 на localhost:2053
+docker compose up -d
+
+# Логин: admin / admin
+# webBasePath по умолчанию: /panel/
+
+# Остановить
+docker compose down
+```

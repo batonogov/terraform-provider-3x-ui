@@ -17,3 +17,21 @@ tasks:
     desc: Форматировать Go-файлы
     cmds:
       - gofmt -w provider/*.go
+
+  vet:
+    desc: Запустить go vet
+    cmds:
+      - go vet ./...
+
+  lint:
+    desc: Запустить golangci-lint
+    cmds:
+      - golangci-lint run
+
+  pre-commit:
+    desc: Запустить все pre-commit проверки вручную
+    cmds:
+      - task: fmt
+      - task: vet
+      - task: lint
+      - task: build

@@ -1,0 +1,65 @@
+# golangci-lint configuration
+# Документация: https://golangci-lint.run/usage/configuration/
+
+version: 2
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    # Базовые линтеры
+    - errcheck      # проверка обработки ошибок
+    - govet         # go vet
+    - ineffassign   # неиспользуемые присваивания
+    - staticcheck   # много различных проверок (включает gosimple)
+    - unused        # неиспользуемый код
+
+    # Стиль и качество
+    - misspell      # опечатки в комментариях
+    - unconvert     # ненужные конверсии типов
+    - unparam       # неиспользуемые параметры функций
+
+    # Потенциальные баги
+    - gocritic      # множество проверок качества кода
+    - errname       # имена error переменных должны заканчиваться на Err/Error
+    - errorlint     # правильное использование errors.Is/As
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/batonogov/terraform-provider-3x-ui
+
+  errcheck:
+    # Игнорировать Close() для defer
+    check-blank: true
+    exclude-functions:
+      - (io.Closer).Close
+      - (*os.File).Close
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    disabled-checks:
+      # Terraform SDK использует ResourceData.Set без проверки
+      - unnamedResult
+      - ifElseChain
+
+issues:
+  exclude-rules:
+    # Тестовые файлы - более мягкие правила
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gocritic
+
+    # Генерируемые файлы
+    - path: vendor/
+      linters:
+        - all
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
