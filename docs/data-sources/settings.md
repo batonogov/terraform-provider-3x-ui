@@ -1,0 +1,28 @@
+---
+page_title: "threexui_settings Data Source - 3x-ui"
+subcategory: "Panel Settings"
+description: |-
+  Retrieves all panel settings from the 3x-ui panel.
+---
+
+# threexui_settings (Data Source)
+
+Retrieves all current panel settings from the 3x-ui panel as a JSON string. Includes general, security, telegram, and subscription settings.
+
+## Example Usage
+
+```hcl
+data "threexui_settings" "all" {}
+
+output "panel_settings" {
+  value = data.threexui_settings.all.json
+}
+```
+
+## Argument Reference
+
+This data source has no arguments.
+
+## Attribute Reference
+
+- `json` (String) - All panel settings as a JSON string.
