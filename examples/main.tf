@@ -3,10 +3,10 @@ resource "threexui_inbound" "example" {
   port     = 8443
   protocol = "vless"
 
-  # settings {
-  #   decryption = "none"
-  #   encryption = "none"
-  # }
+  settings {
+    decryption = "none"
+    encryption = "none"
+  }
 
   # stream_settings {
   #   network  = "tcp"
@@ -77,10 +77,51 @@ resource "threexui_inbound_client" "client_c" {
 }
 
 output "inbound_clients" {
-  sensitive = true
   value = {
-    client_a = threexui_inbound_client.client_a
-    client_b = threexui_inbound_client.client_b
-    client_c = threexui_inbound_client.client_c
+    client_a = {
+      id          = threexui_inbound_client.client_a.id
+      client_id   = threexui_inbound_client.client_a.client_id
+      email       = threexui_inbound_client.client_a.email
+      enable      = threexui_inbound_client.client_a.enable
+      flow        = threexui_inbound_client.client_a.flow
+      limit_ip    = threexui_inbound_client.client_a.limit_ip
+      total_gb    = threexui_inbound_client.client_a.total_gb
+      expiry_time = threexui_inbound_client.client_a.expiry_time
+      tg_id       = threexui_inbound_client.client_a.tg_id
+      sub_id      = threexui_inbound_client.client_a.sub_id
+      comment     = threexui_inbound_client.client_a.comment
+      reset       = threexui_inbound_client.client_a.reset
+      security    = threexui_inbound_client.client_a.security
+    }
+    client_b = {
+      id          = threexui_inbound_client.client_b.id
+      client_id   = threexui_inbound_client.client_b.client_id
+      email       = threexui_inbound_client.client_b.email
+      enable      = threexui_inbound_client.client_b.enable
+      flow        = threexui_inbound_client.client_b.flow
+      limit_ip    = threexui_inbound_client.client_b.limit_ip
+      total_gb    = threexui_inbound_client.client_b.total_gb
+      expiry_time = threexui_inbound_client.client_b.expiry_time
+      tg_id       = threexui_inbound_client.client_b.tg_id
+      sub_id      = threexui_inbound_client.client_b.sub_id
+      comment     = threexui_inbound_client.client_b.comment
+      reset       = threexui_inbound_client.client_b.reset
+      security    = threexui_inbound_client.client_b.security
+    }
+    client_c = {
+      id          = threexui_inbound_client.client_c.id
+      client_id   = threexui_inbound_client.client_c.client_id
+      email       = threexui_inbound_client.client_c.email
+      enable      = threexui_inbound_client.client_c.enable
+      flow        = threexui_inbound_client.client_c.flow
+      limit_ip    = threexui_inbound_client.client_c.limit_ip
+      total_gb    = threexui_inbound_client.client_c.total_gb
+      expiry_time = threexui_inbound_client.client_c.expiry_time
+      tg_id       = threexui_inbound_client.client_c.tg_id
+      sub_id      = threexui_inbound_client.client_c.sub_id
+      comment     = threexui_inbound_client.client_c.comment
+      reset       = threexui_inbound_client.client_c.reset
+      security    = threexui_inbound_client.client_c.security
+    }
   }
 }

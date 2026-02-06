@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
+
+var inboundClientMu sync.Mutex
 
 func resourceInboundClient() *schema.Resource {
 	return &schema.Resource{
@@ -100,6 +103,8 @@ func resourceInboundClient() *schema.Resource {
 func resourceInboundClientCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
 	client := meta.(*Client)
 	inboundID := d.Get("inbound_id").(int)
+	inboundClientMu.Lock()
+	defer inboundClientMu.Unlock()
 	if err := ensureInboundClientsKey(ctx, client, inboundID); err != nil {
 		return diag.FromErr(err)
 	}
@@ -155,6 +160,8 @@ func resourceInboundClientUpdate(ctx context.Context, d *schema.ResourceData, me
 	if err != nil {
 		return diag.FromErr(err)
 	}
+	inboundClientMu.Lock()
+	defer inboundClientMu.Unlock()
 	if err := ensureInboundClientsKey(ctx, client, inboundID); err != nil {
 		return diag.FromErr(err)
 	}
@@ -173,10 +180,16 @@ func resourceInboundClientDelete(ctx context.Context, d *schema.ResourceData, me
 	if err != nil {
 		return diag.FromErr(err)
 	}
+	inboundClientMu.Lock()
+	defer inboundClientMu.Unlock()
 	if err := ensureInboundClientsKey(ctx, client, inboundID); err != nil {
 		return diag.FromErr(err)
 	}
 	if err := client.DeleteInboundClient(ctx, inboundID, clientID); err != nil {
+		if strings.Contains(err.Error(), "no client remained in Inbound") {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 	d.SetId("")

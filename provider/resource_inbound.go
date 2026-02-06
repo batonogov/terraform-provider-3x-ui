@@ -256,6 +256,9 @@ func resourceInboundUpdate(ctx context.Context, d *schema.ResourceData, meta any
 	if err := ensureRealityKeys(ctx, client, inbound, existing); err != nil {
 		return diag.FromErr(err)
 	}
+	if err := preserveInboundSettings(inbound, existing); err != nil {
+		return diag.FromErr(err)
+	}
 	inbound.ID = id
 
 	updated, err := client.UpdateInbound(ctx, inbound)
@@ -295,6 +298,59 @@ func expandInbound(d *schema.ResourceData) *Inbound {
 		StreamSettings:       buildStreamSettingsJSON(d),
 		Sniffing:             buildSniffingJSON(d),
 	}
+}
+
+func preserveInboundSettings(desired *Inbound, existing *Inbound) error {
+	if desired == nil || existing == nil {
+		return nil
+	}
+	if strings.TrimSpace(desired.Settings) == "" || strings.TrimSpace(existing.Settings) == "" {
+		return nil
+	}
+	desiredSettings, err := ParseJSONField(desired.Settings)
+	if err != nil {
+		return err
+	}
+	existingSettings, err := ParseJSONField(existing.Settings)
+	if err != nil {
+		return err
+	}
+	if !preserveSettingsKey(desiredSettings, existingSettings, "clients") {
+		return nil
+	}
+	_ = preserveSettingsKey(desiredSettings, existingSettings, "testseed")
+	updated, err := json.Marshal(desiredSettings)
+	if err != nil {
+		return err
+	}
+	desired.Settings = string(updated)
+	return nil
+}
+
+func preserveSettingsKey(desired, existing map[string]any, key string) bool {
+	if existing == nil {
+		return false
+	}
+	existingVal, ok := existing[key]
+	if !ok {
+		return false
+	}
+	switch v := existingVal.(type) {
+	case []any:
+		if len(v) == 0 {
+			return false
+		}
+	}
+	if desired == nil {
+		return false
+	}
+	if desiredVal, ok := desired[key]; ok {
+		if list, ok := desiredVal.([]any); ok && len(list) > 0 {
+			return false
+		}
+	}
+	desired[key] = existingVal
+	return true
 }
 
 func settingsKeyMissing(d *schema.ResourceData, key string) bool {

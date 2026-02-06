@@ -9,16 +9,20 @@ import (
 
 func settingsSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
-		"decryption": {
-			Type:      schema.TypeString,
-			Optional:  true,
-			Sensitive: true,
-		},
-		"encryption": {
-			Type:      schema.TypeString,
-			Optional:  true,
-			Sensitive: true,
-		},
+	"decryption": {
+		Type:             schema.TypeString,
+		Optional:         true,
+		Computed:         true,
+		Sensitive:        true,
+		DiffSuppressFunc: suppressIfNewEmpty,
+	},
+	"encryption": {
+		Type:             schema.TypeString,
+		Optional:         true,
+		Computed:         true,
+		Sensitive:        true,
+		DiffSuppressFunc: suppressIfNewEmpty,
+	},
 		"fallbacks": {
 			Type:     schema.TypeList,
 			Optional: true,
@@ -34,11 +38,12 @@ func settingsSchema() map[string]*schema.Schema {
 			Type:     schema.TypeString,
 			Optional: true,
 		},
-		"testseed": {
-			Type:     schema.TypeList,
-			Optional: true,
-			Elem:     &schema.Schema{Type: schema.TypeInt},
-		},
+	"testseed": {
+		Type:     schema.TypeList,
+		Optional: true,
+		DiffSuppressFunc: suppressIfNewEmptyList,
+		Elem:     &schema.Schema{Type: schema.TypeInt},
+	},
 		"method": {
 			Type:     schema.TypeString,
 			Optional: true,
@@ -264,9 +269,6 @@ func flattenSettings(settings string) []any {
 	}
 	if v, ok := payload["selectedAuth"].(string); ok {
 		out["selected_auth"] = v
-	}
-	if v, ok := payload["testseed"].([]any); ok {
-		out["testseed"] = v
 	}
 	if v, ok := payload["method"].(string); ok {
 		out["method"] = v
@@ -645,4 +647,9 @@ func expandIntList(list []any) []int {
 
 func suppressIfNewEmpty(k, old, new string, d *schema.ResourceData) bool {
 	return strings.TrimSpace(new) == ""
+}
+
+func suppressIfNewEmptyList(k, old, new string, d *schema.ResourceData) bool {
+	n := strings.TrimSpace(new)
+	return n == "" || n == "[]" || n == "null"
 }
