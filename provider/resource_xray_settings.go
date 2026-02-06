@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
+
+var xrayTemplateMu sync.Mutex
 
 type xraySectionMode int
 
@@ -63,6 +66,10 @@ func resourceXrayAdvanced() *schema.Resource {
 }
 
 func resourceXraySection(section xraySection) *schema.Resource {
+	diffSuppress := jsonEqualDiffSuppress
+	if section.mode == xraySectionMergeRoot {
+		diffSuppress = jsonSubsetDiffSuppress
+	}
 	return &schema.Resource{
 		CreateContext: func(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
 			return resourceXraySectionApply(ctx, d, meta, section)
@@ -78,7 +85,7 @@ func resourceXraySection(section xraySection) *schema.Resource {
 			"json": {
 				Type:             schema.TypeString,
 				Optional:         true,
-				DiffSuppressFunc: jsonEqualDiffSuppress,
+				DiffSuppressFunc: diffSuppress,
 				StateFunc:        normalizeJSONString,
 			},
 		},
@@ -97,6 +104,9 @@ func resourceXraySectionApply(ctx context.Context, d *schema.ResourceData, meta 
 		}
 		return resourceXraySectionRead(ctx, d, meta, section)
 	}
+
+	xrayTemplateMu.Lock()
+	defer xrayTemplateMu.Unlock()
 
 	current, err := client.GetXrayTemplate(ctx)
 	if err != nil {
