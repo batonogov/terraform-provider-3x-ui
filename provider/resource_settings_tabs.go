@@ -62,6 +62,15 @@ func resourcePanelSettingsApply(ctx context.Context, d *schema.ResourceData, met
 		return resourceSettingsReadWith(ctx, d, meta, flattenPanelSettingsFields)
 	}
 
+	var diags diag.Diagnostics
+	if d.HasChange("web_base_path") {
+		diags = append(diags, diag.Diagnostic{
+			Severity: diag.Warning,
+			Summary:  "Changing web_base_path requires updating provider config",
+			Detail:   "The provider's base_path must match the panel's web_base_path. After this change, update the provider configuration to use the new base_path, otherwise the provider will not be able to connect.",
+		})
+	}
+
 	existing, err := client.GetSettings(ctx)
 	if err != nil {
 		return diag.FromErr(err)
@@ -78,11 +87,21 @@ func resourcePanelSettingsApply(ctx context.Context, d *schema.ResourceData, met
 		}
 	}
 	d.SetId("settings")
-	return resourceSettingsReadWith(ctx, d, meta, flattenPanelSettingsFields)
+	result := resourceSettingsReadWith(ctx, d, meta, flattenPanelSettingsFields)
+	return append(diags, result...)
 }
 
 func resourceAccountSettingsApply(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	return resourceSettingsApplyWith(ctx, d, meta, expandAccountSettingsFields, flattenAccountSettingsFields)
+	var diags diag.Diagnostics
+	if v, ok := d.GetOk("two_factor_enable"); ok && v.(bool) {
+		diags = append(diags, diag.Diagnostic{
+			Severity: diag.Warning,
+			Summary:  "Enabling 2FA will block provider authentication",
+			Detail:   "The provider does not support two-factor authentication codes during login. Enabling 2FA will prevent the provider from connecting to the panel. You will need to disable 2FA via the API or UI to restore provider access.",
+		})
+	}
+	result := resourceSettingsApplyWith(ctx, d, meta, expandAccountSettingsFields, flattenAccountSettingsFields)
+	return append(diags, result...)
 }
 
 func resourceTelegramSettingsApply(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
@@ -90,6 +109,13 @@ func resourceTelegramSettingsApply(ctx context.Context, d *schema.ResourceData, 
 }
 
 func resourceSubscriptionSettingsApply(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	diags := resourceSettingsApplyWith(ctx, d, meta, expandSubscriptionSettingsFields, flattenSubscriptionSettingsFields)
+	if diags.HasError() {
+		return diags
+	}
+	// 3x-ui may ignore some fields (e.g. subJsonEnable) when subEnable
+	// changes in the same request. Apply a second time to ensure all
+	// fields are persisted.
 	return resourceSettingsApplyWith(ctx, d, meta, expandSubscriptionSettingsFields, flattenSubscriptionSettingsFields)
 }
 
