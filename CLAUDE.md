@@ -107,10 +107,25 @@ Taskfile.yml           — task build / test / fmt
 ## Команды
 
 ```bash
-task build    # Собрать бинарь
-task test     # Запустить acceptance-тесты (нужен docker)
-task fmt      # gofmt
+task build       # Собрать бинарь
+task test        # Запустить acceptance-тесты (нужен docker)
+task fmt         # gofmt
+task vet         # go vet
+task lint        # golangci-lint (не запускается автоматически в pre-commit)
+task pre-commit  # Запустить все pre-commit проверки вручную
 ```
+
+## Pre-commit hooks
+
+В проекте настроены автоматические проверки перед коммитом:
+- **go-fmt** — форматирование кода
+- **go-vet** — статический анализ
+- **go-build** — проверка компиляции
+- Проверки YAML/JSON, trailing whitespace, EOF
+
+**golangci-lint** намеренно НЕ включён в pre-commit (медленный), но рекомендуется запускать вручную перед PR: `task lint`.
+
+Конфигурации: `.pre-commit-config.yaml`, `.golangci.yml`
 
 ## Тестовое окружение
 
