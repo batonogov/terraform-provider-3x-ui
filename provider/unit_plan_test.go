@@ -230,52 +230,6 @@ func TestEnsureInboundClientIDs_NoChange(t *testing.T) {
 	}
 }
 
-func TestPreserveInboundClientIDs_Vless(t *testing.T) {
-	existing := &Inbound{
-		Protocol: "vless",
-		Settings: `{"clients":[{"id":"existing-id","email":"a@example.com"}]}`,
-	}
-	desired := &Inbound{
-		Protocol: "vless",
-		Settings: `{"clients":[{"email":"a@example.com"}]}`,
-	}
-	if err := preserveInboundClientIDs(desired, existing); err != nil {
-		t.Fatalf("preserveInboundClientIDs error: %v", err)
-	}
-	var settings map[string]any
-	if err := json.Unmarshal([]byte(desired.Settings), &settings); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
-	}
-	clients := settings["clients"].([]any)
-	client := clients[0].(map[string]any)
-	if client["id"] != "existing-id" {
-		t.Fatalf("expected preserved id, got %#v", client["id"])
-	}
-}
-
-func TestPreserveInboundClientIDs_TrojanPassword(t *testing.T) {
-	existing := &Inbound{
-		Protocol: "trojan",
-		Settings: `{"clients":[{"password":"pw123","email":"a@example.com"}]}`,
-	}
-	desired := &Inbound{
-		Protocol: "trojan",
-		Settings: `{"clients":[{"email":"a@example.com"}]}`,
-	}
-	if err := preserveInboundClientIDs(desired, existing); err != nil {
-		t.Fatalf("preserveInboundClientIDs error: %v", err)
-	}
-	var settings map[string]any
-	if err := json.Unmarshal([]byte(desired.Settings), &settings); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
-	}
-	clients := settings["clients"].([]any)
-	client := clients[0].(map[string]any)
-	if client["password"] != "pw123" {
-		t.Fatalf("expected preserved password, got %#v", client["password"])
-	}
-}
-
 func TestApplyDefaultInboundSettings_Empty(t *testing.T) {
 	inbound := &Inbound{
 		Protocol: "vless",

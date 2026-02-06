@@ -9,20 +9,20 @@ import (
 
 func settingsSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
-	"decryption": {
-		Type:             schema.TypeString,
-		Optional:         true,
-		Computed:         true,
-		Sensitive:        true,
-		DiffSuppressFunc: suppressIfNewEmpty,
-	},
-	"encryption": {
-		Type:             schema.TypeString,
-		Optional:         true,
-		Computed:         true,
-		Sensitive:        true,
-		DiffSuppressFunc: suppressIfNewEmpty,
-	},
+		"decryption": {
+			Type:             schema.TypeString,
+			Optional:         true,
+			Computed:         true,
+			Sensitive:        true,
+			DiffSuppressFunc: suppressIfNewEmpty,
+		},
+		"encryption": {
+			Type:             schema.TypeString,
+			Optional:         true,
+			Computed:         true,
+			Sensitive:        true,
+			DiffSuppressFunc: suppressIfNewEmpty,
+		},
 		"fallbacks": {
 			Type:     schema.TypeList,
 			Optional: true,
@@ -38,12 +38,12 @@ func settingsSchema() map[string]*schema.Schema {
 			Type:     schema.TypeString,
 			Optional: true,
 		},
-	"testseed": {
-		Type:     schema.TypeList,
-		Optional: true,
-		DiffSuppressFunc: suppressIfNewEmptyList,
-		Elem:     &schema.Schema{Type: schema.TypeInt},
-	},
+		"testseed": {
+			Type:             schema.TypeList,
+			Optional:         true,
+			DiffSuppressFunc: suppressIfNewEmptyList,
+			Elem:             &schema.Schema{Type: schema.TypeInt},
+		},
 		"method": {
 			Type:     schema.TypeString,
 			Optional: true,

@@ -1,0 +1,47 @@
+# Pre-commit hooks configuration
+# Установка: pip install pre-commit && pre-commit install
+# Запуск вручную: pre-commit run --all-files
+
+repos:
+  # Go-specific hooks
+  - repo: https://github.com/tekwizely/pre-commit-golang
+    rev: v1.0.0-rc.1
+    hooks:
+      # gofmt - форматирование кода
+      - id: go-fmt
+        args: [-w]
+
+      # go vet - статический анализ
+      - id: go-vet-mod
+
+      # go build - проверка компиляции
+      - id: go-build-mod
+
+  # Общие хуки для любых файлов
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # Trailing whitespace
+      - id: trailing-whitespace
+        exclude: ^test_plans/
+
+      # Конец файла - пустая строка
+      - id: end-of-file-fixer
+        exclude: ^test_plans/
+
+      # Проверка YAML
+      - id: check-yaml
+        args: [--unsafe]  # для docker-compose.yaml с якорями
+
+      # Проверка JSON
+      - id: check-json
+
+      # Большие файлы (>500KB)
+      - id: check-added-large-files
+        args: [--maxkb=500]
+
+      # Merge conflict markers
+      - id: check-merge-conflict
+
+      # Проверка case conflicts (для кросс-платформы)
+      - id: check-case-conflict
