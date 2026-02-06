@@ -58,10 +58,12 @@ linters:
         linters:
           - all
 
-    max-issues-per-linter: 0
-    max-same-issues: 0
+output:
+  max-issues-per-linter: 0
+  max-same-issues: 0
 
 formatters:
   settings:
     goimports:
-      local-prefixes: github.com/batonogov/terraform-provider-3x-ui
+      local-prefixes:
+        - github.com/batonogov/terraform-provider-3x-ui
