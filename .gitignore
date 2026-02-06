@@ -67,5 +67,5 @@ terraform.rc
 # End of https://www.toptal.com/developers/gitignore/api/terraform
 
 # other
-3x-ui
+3x-ui-*
 terraform-provider-threexui

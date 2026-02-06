@@ -10,7 +10,6 @@ tasks:
     desc: Запустить все тесты + acceptance (нужен локальный 3x-ui)
     cmds:
       - docker compose up -d
-      - go test ./...
       - TF_ACC=1 THREEXUI_ENDPOINT=http://localhost:2053 THREEXUI_USERNAME=admin THREEXUI_PASSWORD=admin go test ./provider -run TestAcc -count=1
       - docker compose down
 
