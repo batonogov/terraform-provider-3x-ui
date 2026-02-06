@@ -68,7 +68,6 @@ func Provider() *schema.Provider {
 			"threexui_xray_balancers":     resourceXrayBalancers(),
 			"threexui_xray_reverse":       resourceXrayReverse(),
 			"threexui_xray_outbounds":     resourceXrayOutbounds(),
-			"threexui_xray_advanced":      resourceXrayAdvanced(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"threexui_inbounds":      dataSourceInbounds(),

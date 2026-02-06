@@ -16,7 +16,13 @@ provider/              — весь код провайдера
   resource_inbound.go  — ресурс threexui_inbound (CRUD, Reality, settings defaults)
   resource_inbound_client.go — ресурс threexui_inbound_client (мьютекс, UUID)
   resource_settings_tabs.go  — panel_general/security/telegram/subscription
-  resource_xray_settings.go  — xray_basics/dns/routing/balancers/reverse/outbounds/advanced
+  resource_xray_settings.go  — CRUD для xray_basics/dns/routing/balancers/reverse/outbounds, buildFunc/flattenFunc
+  xray_basics_schema.go      — schema, build, flatten для xray_basics (log, policy, api, stats)
+  xray_dns_schema.go         — schema, build, flatten для xray_dns (servers, hosts)
+  xray_routing_schema.go     — schema, build, flatten для xray_routing (rules)
+  xray_balancers_schema.go   — schema, build, flatten для xray_balancers
+  xray_reverse_schema.go     — schema, build, flatten для xray_reverse (bridges, portals)
+  xray_outbounds_schema.go   — schema, build, flatten для xray_outbounds (per-protocol settings)
   settings.go          — settings schema, build/flatten JSON, expand/flatten clients/fallbacks/peers
   stream_settings.go   — stream_settings schema (tcp_settings, reality_settings, external_proxy)
   sniffing.go          — sniffing schema, build/flatten
@@ -40,13 +46,12 @@ Taskfile.yml           — task build / test / fmt
 | `threexui_panel_security` | resource_settings_tabs.go | 2FA |
 | `threexui_panel_telegram` | resource_settings_tabs.go | Telegram-бот |
 | `threexui_panel_subscription` | resource_settings_tabs.go | Подписки |
-| `threexui_xray_basics` | resource_xray_settings.go | Базовый Xray-конфиг (merge root) |
-| `threexui_xray_dns` | resource_xray_settings.go | DNS (set path) |
-| `threexui_xray_routing` | resource_xray_settings.go | Маршрутизация (set path) |
-| `threexui_xray_balancers` | resource_xray_settings.go | Балансировщики (set path) |
-| `threexui_xray_reverse` | resource_xray_settings.go | Reverse proxy (set path) |
-| `threexui_xray_outbounds` | resource_xray_settings.go | Outbound'ы (set path) |
-| `threexui_xray_advanced` | resource_xray_settings.go | Полная замена конфига (replace all) |
+| `threexui_xray_basics` | resource_xray_settings.go + xray_basics_schema.go | Базовый Xray-конфиг (merge root): log, policy, api, stats |
+| `threexui_xray_dns` | resource_xray_settings.go + xray_dns_schema.go | DNS (set path): server блоки, hosts, query_strategy |
+| `threexui_xray_routing` | resource_xray_settings.go + xray_routing_schema.go | Маршрутизация (set path): rule блоки, domain_strategy |
+| `threexui_xray_balancers` | resource_xray_settings.go + xray_balancers_schema.go | Балансировщики (set path): balancer блоки |
+| `threexui_xray_reverse` | resource_xray_settings.go + xray_reverse_schema.go | Reverse proxy (set path): bridge, portal блоки |
+| `threexui_xray_outbounds` | resource_xray_settings.go + xray_outbounds_schema.go | Outbound'ы (set path): per-protocol settings блоки |
 
 ## Data Sources
 
@@ -98,11 +103,16 @@ Taskfile.yml           — task build / test / fmt
 - `panelSettingsNeedRestart` — ключи: webListen, webDomain, webPort, webBasePath, webCertFile, webKeyFile, sessionMaxAge
 
 ### Xray Settings
-- Xray-ресурсы работают в 3 режимах: merge root, set path, replace all
+- Xray-ресурсы используют **structured blocks** (нативные HCL-блоки), не `json` атрибут с `jsonencode()`
+- Каждый ресурс имеет свой `*_schema.go` файл с функциями `schema()`, `buildJSON(d)`, `flattenToMap(data)`
+- Xray-ресурсы работают в 2 режимах: merge root (`xray_basics`), set path (остальные)
 - `xrayTemplateMu` — мьютекс для сериализации read-modify-write на xray template (предотвращает race condition)
-- Merge root (`xray_basics`) использует `jsonSubsetDiffSuppress` — state содержит полный конфиг, но diff подавляется если config пользователя является подмножеством
-- SetPath / ReplaceAll используют `jsonEqualDiffSuppress` — точное сравнение JSON
+- CRUD: `buildFunc` собирает map/slice из ResourceData → `applyXraySection` → API; Read: API → `extractXraySection` → `flattenFunc` → `d.Set()`
+- DNS servers: address-only → сериализуется как строка в JSON, с доп. полями → как объект
+- Outbound settings: per-protocol блоки (`freedom_settings`, `blackhole_settings`, ...) определяются значением `protocol`
+- Policy levels: в Xray JSON map `{"0": {...}}`, в TF list `[{id=0, ...}]`
 - Delete для xray-ресурсов — только очищает TF state, не сбрасывает xray-конфиг
+- Ресурс `threexui_xray_advanced` удалён
 
 ## Команды
 

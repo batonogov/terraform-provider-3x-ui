@@ -131,57 +131,6 @@ func TestCloneJSONMap_Independence(t *testing.T) {
 	}
 }
 
-func TestNormalizeJSONString_Valid(t *testing.T) {
-	result := normalizeJSONString(`{ "b": 1, "a": 2 }`)
-	if result != `{"a":2,"b":1}` {
-		t.Fatalf("unexpected: %q", result)
-	}
-}
-
-func TestNormalizeJSONString_Invalid(t *testing.T) {
-	result := normalizeJSONString("{bad")
-	if result != "{bad" {
-		t.Fatalf("expected raw string back, got %q", result)
-	}
-}
-
-func TestNormalizeJSONString_Empty(t *testing.T) {
-	result := normalizeJSONString("")
-	if result != "" {
-		t.Fatalf("expected empty, got %q", result)
-	}
-}
-
-func TestJsonEqualDiffSuppress_EqualFormatting(t *testing.T) {
-	if !jsonEqualDiffSuppress("k", `{"a":1}`, `{ "a": 1 }`, nil) {
-		t.Fatalf("expected equal")
-	}
-}
-
-func TestJsonEqualDiffSuppress_DifferentValues(t *testing.T) {
-	if jsonEqualDiffSuppress("k", `{"a":1}`, `{"a":2}`, nil) {
-		t.Fatalf("expected not equal")
-	}
-}
-
-func TestJsonEqualDiffSuppress_BothEmpty(t *testing.T) {
-	if !jsonEqualDiffSuppress("k", "", "", nil) {
-		t.Fatalf("expected equal for empty")
-	}
-}
-
-func TestJsonEqualDiffSuppress_OneEmpty(t *testing.T) {
-	if jsonEqualDiffSuppress("k", `{"a":1}`, "", nil) {
-		t.Fatalf("expected not equal when one empty")
-	}
-}
-
-func TestJsonEqualDiffSuppress_InvalidJSON(t *testing.T) {
-	if jsonEqualDiffSuppress("k", "{bad", `{"a":1}`, nil) {
-		t.Fatalf("expected false for invalid JSON")
-	}
-}
-
 func TestDeepEqualJSON_EqualMaps(t *testing.T) {
 	a := map[string]any{"x": float64(1)}
 	b := map[string]any{"x": float64(1)}
@@ -214,11 +163,12 @@ func TestDeepEqualJSON_DifferentTypes(t *testing.T) {
 
 func TestExtractXraySection_MergeRoot(t *testing.T) {
 	current := map[string]any{
-		"log":       map[string]any{"level": "debug"},
+		"log":       map[string]any{"loglevel": "debug"},
 		"policy":    map[string]any{},
-		"routing":   map[string]any{"rules": []any{}},
-		"outbounds": []any{},
+		"api":       map[string]any{"tag": "api"},
+		"stats":     map[string]any{},
 		"dns":       map[string]any{"servers": []any{}},
+		"outbounds": []any{},
 	}
 	result := extractXraySection(current, xraySectionBasics)
 	m, ok := result.(map[string]any)
@@ -228,8 +178,17 @@ func TestExtractXraySection_MergeRoot(t *testing.T) {
 	if _, ok := m["log"]; !ok {
 		t.Fatalf("missing log")
 	}
+	if _, ok := m["api"]; !ok {
+		t.Fatalf("missing api")
+	}
+	if _, ok := m["stats"]; !ok {
+		t.Fatalf("missing stats")
+	}
 	if _, ok := m["dns"]; ok {
 		t.Fatalf("dns should not be in basics")
+	}
+	if _, ok := m["outbounds"]; ok {
+		t.Fatalf("outbounds should not be in basics")
 	}
 }
 
@@ -245,28 +204,16 @@ func TestExtractXraySection_SetPath(t *testing.T) {
 	}
 }
 
-func TestExtractXraySection_ReplaceAll(t *testing.T) {
-	current := map[string]any{"a": "1", "b": "2"}
-	result := extractXraySection(current, xraySectionAdvanced)
-	m, ok := result.(map[string]any)
-	if !ok {
-		t.Fatalf("expected map")
-	}
-	if !reflect.DeepEqual(m, current) {
-		t.Fatalf("expected full config")
-	}
-}
-
 func TestApplyXraySection_MergeRoot(t *testing.T) {
-	current := map[string]any{"log": map[string]any{"level": "info"}}
-	desired := map[string]any{"log": map[string]any{"level": "debug"}}
+	current := map[string]any{"log": map[string]any{"loglevel": "info"}}
+	desired := map[string]any{"log": map[string]any{"loglevel": "debug"}}
 	result, err := applyXraySection(current, desired, xraySectionBasics)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	log, _ := result["log"].(map[string]any)
-	if log["level"] != "debug" {
-		t.Fatalf("expected debug, got %v", log["level"])
+	if log["loglevel"] != "debug" {
+		t.Fatalf("expected debug, got %v", log["loglevel"])
 	}
 }
 
@@ -286,21 +233,6 @@ func TestApplyXraySection_SetPath(t *testing.T) {
 	}
 }
 
-func TestApplyXraySection_ReplaceAll(t *testing.T) {
-	current := map[string]any{"old": "data"}
-	desired := map[string]any{"new": "data"}
-	result, err := applyXraySection(current, desired, xraySectionAdvanced)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if _, ok := result["old"]; ok {
-		t.Fatalf("old data should be gone")
-	}
-	if result["new"] != "data" {
-		t.Fatalf("expected new data")
-	}
-}
-
 func TestApplyXraySection_MergeRoot_NotObject(t *testing.T) {
 	_, err := applyXraySection(map[string]any{}, "string", xraySectionBasics)
 	if err == nil {
@@ -313,5 +245,304 @@ func TestApplyXraySection_SetPath_EmptyPath(t *testing.T) {
 	_, err := applyXraySection(map[string]any{}, map[string]any{}, section)
 	if err == nil {
 		t.Fatalf("expected error for empty path")
+	}
+}
+
+// --- Build/Flatten unit tests ---
+
+func TestFlattenXrayReverseToMap(t *testing.T) {
+	data := map[string]any{
+		"bridges": []any{
+			map[string]any{"tag": "b1", "domain": "test.com"},
+		},
+		"portals": []any{
+			map[string]any{"tag": "p1", "domain": "test.com"},
+		},
+	}
+	result := flattenXrayReverseToMap(data)
+	bridges, ok := result["bridge"].([]any)
+	if !ok || len(bridges) != 1 {
+		t.Fatalf("expected 1 bridge, got %v", result["bridge"])
+	}
+	b := bridges[0].(map[string]any)
+	if b["tag"] != "b1" {
+		t.Fatalf("expected tag b1, got %v", b["tag"])
+	}
+}
+
+func TestFlattenXrayBalancersToMap(t *testing.T) {
+	data := []any{
+		map[string]any{
+			"tag":      "bal1",
+			"selector": []any{"proxy-*"},
+			"strategy": map[string]any{"type": "leastPing"},
+		},
+	}
+	result := flattenXrayBalancersToMap(data)
+	balancers, ok := result["balancer"].([]any)
+	if !ok || len(balancers) != 1 {
+		t.Fatalf("expected 1 balancer, got %v", result["balancer"])
+	}
+}
+
+func TestFlattenXrayDNSToMap(t *testing.T) {
+	data := map[string]any{
+		"servers": []any{
+			"8.8.8.8",
+			map[string]any{
+				"address":     "localhost",
+				"port":        float64(53),
+				"domains":     []any{"geosite:cn"},
+				"expectedIPs": []any{"geoip:cn"},
+			},
+		},
+		"queryStrategy": "UseIP",
+	}
+	result := flattenXrayDNSToMap(data)
+	servers, ok := result["server"].([]any)
+	if !ok || len(servers) != 2 {
+		t.Fatalf("expected 2 servers, got %v", result["server"])
+	}
+	// First server is string-only
+	s0 := servers[0].(map[string]any)
+	if s0["address"] != "8.8.8.8" {
+		t.Fatalf("expected 8.8.8.8, got %v", s0["address"])
+	}
+	// Second server is object
+	s1 := servers[1].(map[string]any)
+	if s1["address"] != "localhost" {
+		t.Fatalf("expected localhost, got %v", s1["address"])
+	}
+	if result["query_strategy"] != "UseIP" {
+		t.Fatalf("expected UseIP, got %v", result["query_strategy"])
+	}
+}
+
+func TestExpandDNSServers_StringOnly(t *testing.T) {
+	list := []any{
+		map[string]any{"address": "8.8.8.8"},
+	}
+	result := expandDNSServers(list)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 server")
+	}
+	// Should be a plain string
+	if s, ok := result[0].(string); !ok || s != "8.8.8.8" {
+		t.Fatalf("expected string 8.8.8.8, got %v", result[0])
+	}
+}
+
+func TestExpandDNSServers_WithPort(t *testing.T) {
+	list := []any{
+		map[string]any{"address": "localhost", "port": 53},
+	}
+	result := expandDNSServers(list)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 server")
+	}
+	m, ok := result[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected map, got %T", result[0])
+	}
+	if m["address"] != "localhost" || m["port"] != 53 {
+		t.Fatalf("unexpected: %v", m)
+	}
+}
+
+func TestFlattenXrayRoutingToMap(t *testing.T) {
+	data := map[string]any{
+		"domainStrategy": "AsIs",
+		"rules": []any{
+			map[string]any{
+				"type":        "field",
+				"ip":          []any{"geoip:private"},
+				"outboundTag": "blocked",
+			},
+		},
+	}
+	result := flattenXrayRoutingToMap(data)
+	if result["domain_strategy"] != "AsIs" {
+		t.Fatalf("expected AsIs, got %v", result["domain_strategy"])
+	}
+	rules, ok := result["rule"].([]any)
+	if !ok || len(rules) != 1 {
+		t.Fatalf("expected 1 rule, got %v", result["rule"])
+	}
+	r := rules[0].(map[string]any)
+	if r["outbound_tag"] != "blocked" {
+		t.Fatalf("expected blocked, got %v", r["outbound_tag"])
+	}
+}
+
+func TestFlattenXrayBasicsToMap(t *testing.T) {
+	data := map[string]any{
+		"log": map[string]any{
+			"loglevel": "warning",
+			"dnsLog":   false,
+		},
+		"api": map[string]any{
+			"tag":      "api",
+			"services": []any{"HandlerService", "StatsService"},
+		},
+		"stats": map[string]any{},
+	}
+	result := flattenXrayBasicsToMap(data)
+	logList, ok := result["log"].([]any)
+	if !ok || len(logList) != 1 {
+		t.Fatalf("expected log block, got %v", result["log"])
+	}
+	log := logList[0].(map[string]any)
+	if log["loglevel"] != "warning" {
+		t.Fatalf("expected warning, got %v", log["loglevel"])
+	}
+	if _, ok := result["stats"]; !ok {
+		t.Fatalf("expected stats block")
+	}
+}
+
+func TestFlattenXrayOutboundsToMap(t *testing.T) {
+	data := []any{
+		map[string]any{
+			"tag":      "direct",
+			"protocol": "freedom",
+			"settings": map[string]any{
+				"domainStrategy": "AsIs",
+			},
+		},
+		map[string]any{
+			"tag":      "blocked",
+			"protocol": "blackhole",
+			"settings": map[string]any{
+				"response": map[string]any{"type": "none"},
+			},
+		},
+	}
+	result := flattenXrayOutboundsToMap(data)
+	outbounds, ok := result["outbound"].([]any)
+	if !ok || len(outbounds) != 2 {
+		t.Fatalf("expected 2 outbounds, got %v", result["outbound"])
+	}
+
+	o0 := outbounds[0].(map[string]any)
+	if o0["tag"] != "direct" || o0["protocol"] != "freedom" {
+		t.Fatalf("unexpected first outbound: %v", o0)
+	}
+	freedomList, ok := o0["freedom_settings"].([]any)
+	if !ok || len(freedomList) != 1 {
+		t.Fatalf("expected freedom_settings, got %v", o0["freedom_settings"])
+	}
+	freedom := freedomList[0].(map[string]any)
+	if freedom["domain_strategy"] != "AsIs" {
+		t.Fatalf("expected AsIs, got %v", freedom["domain_strategy"])
+	}
+
+	o1 := outbounds[1].(map[string]any)
+	bhList, ok := o1["blackhole_settings"].([]any)
+	if !ok || len(bhList) != 1 {
+		t.Fatalf("expected blackhole_settings, got %v", o1["blackhole_settings"])
+	}
+	bh := bhList[0].(map[string]any)
+	if bh["response_type"] != "none" {
+		t.Fatalf("expected none, got %v", bh["response_type"])
+	}
+}
+
+func TestExpandReverseEntries(t *testing.T) {
+	list := []any{
+		map[string]any{"tag": "b1", "domain": "test.com"},
+	}
+	result := expandReverseEntries(list)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 entry")
+	}
+	m := result[0].(map[string]any)
+	if m["tag"] != "b1" || m["domain"] != "test.com" {
+		t.Fatalf("unexpected: %v", m)
+	}
+}
+
+func TestExpandRoutingRules(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"type":         "field",
+			"ip":           []any{"geoip:private"},
+			"outbound_tag": "blocked",
+		},
+	}
+	result := expandRoutingRules(list)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 rule")
+	}
+	r := result[0].(map[string]any)
+	if r["type"] != "field" {
+		t.Fatalf("expected field type")
+	}
+	if r["outboundTag"] != "blocked" {
+		t.Fatalf("expected outboundTag blocked, got %v", r["outboundTag"])
+	}
+	ips, ok := r["ip"].([]string)
+	if !ok || len(ips) != 1 || ips[0] != "geoip:private" {
+		t.Fatalf("unexpected ips: %v", r["ip"])
+	}
+}
+
+func TestFlattenWireguardOutSettings(t *testing.T) {
+	in := map[string]any{
+		"secretKey":      "test-key",
+		"address":        []any{"10.0.0.2/32"},
+		"mtu":            float64(1420),
+		"workers":        float64(2),
+		"domainStrategy": "ForceIPv6v4",
+		"reserved":       []any{float64(1), float64(2), float64(3)},
+		"noKernelTun":    false,
+		"peers": []any{
+			map[string]any{
+				"publicKey":  "pub-key",
+				"endpoint":   "engage.cloudflareclient.com:2408",
+				"allowedIPs": []any{"0.0.0.0/0", "::/0"},
+				"keepAlive":  float64(30),
+			},
+		},
+	}
+	result := flattenWireguardOutSettings(in)
+	if result["secret_key"] != "test-key" {
+		t.Fatalf("expected test-key, got %v", result["secret_key"])
+	}
+	if result["domain_strategy"] != "ForceIPv6v4" {
+		t.Fatalf("expected ForceIPv6v4, got %v", result["domain_strategy"])
+	}
+	peers, ok := result["peer"].([]any)
+	if !ok || len(peers) != 1 {
+		t.Fatalf("expected 1 peer, got %v", result["peer"])
+	}
+	p := peers[0].(map[string]any)
+	if p["public_key"] != "pub-key" {
+		t.Fatalf("expected pub-key, got %v", p["public_key"])
+	}
+	reserved, ok := result["reserved"].([]int)
+	if !ok || !reflect.DeepEqual(reserved, []int{1, 2, 3}) {
+		t.Fatalf("expected [1,2,3], got %v", result["reserved"])
+	}
+}
+
+func TestFlattenBasicsPolicyLevels(t *testing.T) {
+	in := map[string]any{
+		"0": map[string]any{
+			"handshake":         float64(4),
+			"connIdle":          float64(300),
+			"statsUserUplink":   false,
+			"statsUserDownlink": false,
+		},
+	}
+	result := flattenBasicsPolicyLevels(in)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 level, got %d", len(result))
+	}
+	level := result[0].(map[string]any)
+	if level["id"] != 0 {
+		t.Fatalf("expected id 0, got %v", level["id"])
+	}
+	if level["handshake"] != 4 {
+		t.Fatalf("expected handshake 4, got %v", level["handshake"])
 	}
 }
