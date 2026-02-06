@@ -102,14 +102,6 @@ func TestBuildAndFlattenSettings(t *testing.T) {
 		"settings": []any{
 			map[string]any{
 				"decryption": "none",
-				"clients": []any{
-					map[string]any{
-						"email":    "a@example.com",
-						"enable":   true,
-						"flow":     "xtls",
-						"limit_ip": 1,
-					},
-				},
 			},
 		},
 	})
@@ -124,11 +116,10 @@ func TestBuildAndFlattenSettings(t *testing.T) {
 	if payload["decryption"] != "none" {
 		t.Fatalf("unexpected decryption: %#v", payload["decryption"])
 	}
-	clients, ok := payload["clients"].([]any)
-	if !ok || len(clients) != 1 {
-		t.Fatalf("expected 1 client, got %#v", payload["clients"])
-	}
+	// buildSettingsJSON intentionally excludes clients — they are managed
+	// via preserveInboundSettings and the inbound_client resource.
 
+	// flattenSettings also excludes clients — they are managed separately.
 	flattened := flattenSettings(`{"decryption":"none","clients":[{"id":"id1","email":"a@example.com","limitIp":2,"expiryTime":10,"enable":true}]}`)
 	if len(flattened) != 1 {
 		t.Fatalf("expected 1 settings item, got %d", len(flattened))
@@ -136,11 +127,6 @@ func TestBuildAndFlattenSettings(t *testing.T) {
 	out := flattened[0].(map[string]any)
 	if out["decryption"] != "none" {
 		t.Fatalf("unexpected flattened decryption: %#v", out["decryption"])
-	}
-	outClients := out["clients"].([]any)
-	outClient := outClients[0].(map[string]any)
-	if outClient["id"] != "id1" || outClient["limit_ip"].(int) != 2 {
-		t.Fatalf("unexpected flattened client: %#v", outClient)
 	}
 }
 

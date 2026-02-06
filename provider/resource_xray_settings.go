@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -148,7 +149,7 @@ func resourceXraySectionRead(ctx context.Context, d *schema.ResourceData, meta a
 }
 
 func getJSONField(d *schema.ResourceData, path string) (any, bool, error) {
-	v, ok := d.GetOkExists(path)
+	v, ok := d.GetOkExists(path) //nolint:staticcheck // GetOkExists needed for zero-value vs unset
 	if !ok {
 		return nil, false, nil
 	}
@@ -206,7 +207,7 @@ func deepEqualJSON(a, b any) bool {
 	if err != nil {
 		return false
 	}
-	return string(ab) == string(bb)
+	return bytes.Equal(ab, bb)
 }
 
 func applyXraySection(current map[string]any, desired any, section xraySection) (map[string]any, error) {

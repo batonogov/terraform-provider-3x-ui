@@ -77,9 +77,7 @@ func Provider() *schema.Provider {
 			"threexui_xray_config":   dataSourceXrayConfig(),
 			"threexui_settings":      dataSourceSettings(),
 		},
-		ConfigureContextFunc: func(ctx context.Context, d *schema.ResourceData) (any, diag.Diagnostics) {
-			return configureClient(ctx, d)
-		},
+		ConfigureContextFunc: configureClient,
 	}
 }
 

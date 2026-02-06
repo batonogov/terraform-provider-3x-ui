@@ -23,7 +23,7 @@ const (
 
 func testAccProviderFactories() map[string]func() (*schema.Provider, error) {
 	return map[string]func() (*schema.Provider, error){
-		"threexui": func() (*schema.Provider, error) { return Provider(), nil },
+		"threexui": func() (*schema.Provider, error) { return Provider(), nil }, //nolint:unparam // signature required by Terraform SDK
 	}
 }
 

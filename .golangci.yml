@@ -1,7 +1,7 @@
-# golangci-lint configuration
-# Документация: https://golangci-lint.run/usage/configuration/
+# golangci-lint configuration v2
+# Документация: https://golangci-lint.run/docs/configuration/
 
-version: 2
+version: "2"
 
 run:
   timeout: 5m
@@ -27,39 +27,47 @@ linters:
     - errname       # имена error переменных должны заканчиваться на Err/Error
     - errorlint     # правильное использование errors.Is/As
 
-linters-settings:
-  goimports:
-    local-prefixes: github.com/batonogov/terraform-provider-3x-ui
+  settings:
+    errcheck:
+      # Игнорировать Close() для defer
+      check-blank: true
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+        # Terraform SDK: d.Set() возвращает error, но SDK сам обрабатывает
+        - (*github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema.ResourceData).Set
 
-  errcheck:
-    # Игнорировать Close() для defer
-    check-blank: true
-    exclude-functions:
-      - (io.Closer).Close
-      - (*os.File).Close
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        # Terraform SDK паттерны
+        - unnamedResult
+        - ifElseChain
+        - hugeParam
+        - paramTypeCombine
+        - builtinShadow
+        - singleCaseSwitch
+        - rangeValCopy
+        - unlambda
 
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-    disabled-checks:
-      # Terraform SDK использует ResourceData.Set без проверки
-      - unnamedResult
-      - ifElseChain
+  exclusions:
+    rules:
+      # Тестовые файлы - более мягкие правила
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gocritic
 
-issues:
-  exclude-rules:
-    # Тестовые файлы - более мягкие правила
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gocritic
+      # Генерируемые файлы
+      - path: vendor/
+        linters:
+          - all
 
-    # Генерируемые файлы
-    - path: vendor/
-      linters:
-        - all
-
-  max-issues-per-linter: 0
-  max-same-issues: 0
+formatters:
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/batonogov/terraform-provider-3x-ui

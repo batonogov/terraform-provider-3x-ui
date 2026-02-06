@@ -82,7 +82,7 @@ func protocolUsesClients(protocol string) bool {
 	}
 }
 
-func defaultSettingsForProtocol(protocol string) (map[string]any, error) {
+func defaultSettingsForProtocol(protocol string) (map[string]any, error) { //nolint:unparam // error kept for future protocol support
 	switch protocol {
 	case "vless":
 		return map[string]any{

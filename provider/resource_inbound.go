@@ -123,17 +123,6 @@ func resourceInbound() *schema.Resource {
 	}
 }
 
-func validateJSONString(v interface{}, k string) (ws []string, es []error) {
-	s, ok := v.(string)
-	if !ok || s == "" {
-		return ws, es
-	}
-	if _, err := ParseJSONField(s); err != nil {
-		es = append(es, fmt.Errorf("%s must be valid JSON: %v", k, err))
-	}
-	return ws, es
-}
-
 func jsonSubsetDiffSuppress(k, old, new string, d *schema.ResourceData) bool {
 	if strings.TrimSpace(new) == "" {
 		return true
