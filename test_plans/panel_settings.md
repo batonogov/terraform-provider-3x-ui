@@ -115,11 +115,11 @@
 - [x] Все основные пункты выполнены (2 пропущены: web_port restart, cert files)
 - [x] Зафиксированы отклонения/баги
 
-### Найденные проблемы
+### Найденные и исправленные проблемы
 
-1. **2FA блокирует провайдер** — включение `two_factor_enable = true` делает провайдер неработоспособным, т.к. login не поддерживает 2FA-код. Нужна документация или валидация.
-2. **sub_json_enable не сохраняется при первом apply** — при одновременном включении `sub_enable` и `sub_json_enable`, последний не сохраняется. Требуется повторный apply.
-3. **web_base_path разрывает связь** — изменение base_path требует обновления provider config, иначе провайдер не может залогиниться.
+1. **2FA блокирует провайдер** — включение `two_factor_enable = true` делает провайдер неработоспособным, т.к. login не поддерживает 2FA-код. **Исправлено**: добавлен Warning diagnostic в `resourceAccountSettingsApply` (`resource_settings_tabs.go`).
+2. **sub_json_enable не сохраняется при первом apply** — при одновременном включении `sub_enable` и `sub_json_enable`, последний не сохраняется. **Исправлено**: `resourceSubscriptionSettingsApply` делает двойной apply (`resource_settings_tabs.go`).
+3. **web_base_path разрывает связь** — изменение base_path требует обновления provider config, иначе провайдер не может залогиниться. **Исправлено**: добавлен Warning diagnostic в `resourcePanelSettingsApply` (`resource_settings_tabs.go`).
 
 ### Особенности
 
