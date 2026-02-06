@@ -270,6 +270,9 @@ func flattenSettings(settings string) []any {
 	if v, ok := payload["selectedAuth"].(string); ok {
 		out["selected_auth"] = v
 	}
+	if v, ok := payload["testseed"].([]any); ok {
+		out["testseed"] = flattenIntList(v)
+	}
 	if v, ok := payload["method"].(string); ok {
 		out["method"] = v
 	}
@@ -638,6 +641,14 @@ func flattenStringMap(in map[string]any) map[string]string {
 }
 
 func expandIntList(list []any) []int {
+	out := make([]int, 0, len(list))
+	for _, v := range list {
+		out = append(out, intValue(v))
+	}
+	return out
+}
+
+func flattenIntList(list []any) []int {
 	out := make([]int, 0, len(list))
 	for _, v := range list {
 		out = append(out, intValue(v))
