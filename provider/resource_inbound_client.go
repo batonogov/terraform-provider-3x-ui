@@ -37,8 +37,7 @@ func resourceInboundClient() *schema.Resource {
 			},
 			"email": {
 				Type:     schema.TypeString,
-				Optional: true,
-				Computed: true,
+				Required: true,
 			},
 			"security": {
 				Type:     schema.TypeString,
