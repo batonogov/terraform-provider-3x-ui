@@ -1,4 +1,4 @@
-# План тестирования настроек панели и Xray
+# План тестирования настроек панели
 
 Дата: 2026-02-06
 
@@ -8,13 +8,6 @@
 - `threexui_panel_security` — 2FA
 - `threexui_panel_telegram` — Telegram-бот
 - `threexui_panel_subscription` — подписки
-- `threexui_xray_basics` — базовые настройки Xray
-- `threexui_xray_dns` — DNS Xray
-- `threexui_xray_routing` — маршрутизация Xray
-- `threexui_xray_balancers` — балансировщики Xray
-- `threexui_xray_reverse` — reverse proxy Xray
-- `threexui_xray_outbounds` — outbound'ы Xray
-- `threexui_xray_advanced` — полная замена конфига Xray
 
 ---
 
@@ -94,48 +87,7 @@
 
 ---
 
-## 5. Xray-секции
-
-### 5.1 Общее для всех xray-ресурсов
-- [ ] Поле `json` — принимает валидный JSON
-- [ ] `DiffSuppressFunc` — эквивалентный JSON не вызывает diff
-- [ ] `StateFunc` — JSON нормализуется
-- [ ] Невалидный JSON → ошибка
-- [ ] Пустая строка → ошибка
-
-### 5.2 `threexui_xray_basics` (mode: merge root)
-- [ ] Задать `log`, `policy`
-- [ ] Проверить, что мержится с существующим конфигом (не затирает `dns`, `routing`)
-- [ ] Обновить `log.loglevel` — проверить идемпотентность
-
-### 5.3 `threexui_xray_dns` (path: `dns`)
-- [ ] Задать DNS-серверы
-- [ ] Проверить чтение обратно
-- [ ] Обновить → проверить идемпотентность
-
-### 5.4 `threexui_xray_routing` (path: `routing`)
-- [ ] Задать правила маршрутизации
-- [ ] Проверить чтение/обновление
-
-### 5.5 `threexui_xray_balancers` (path: `routing.balancers`)
-- [ ] Задать балансировщики
-- [ ] Проверить вложенный путь
-
-### 5.6 `threexui_xray_reverse` (path: `reverse`)
-- [ ] Задать reverse-прокси
-- [ ] Проверить чтение
-
-### 5.7 `threexui_xray_outbounds` (path: `outbounds`)
-- [ ] Задать outbound'ы (freedom, blackhole)
-- [ ] Проверить чтение массива
-
-### 5.8 `threexui_xray_advanced` (mode: replace all)
-- [ ] Полная замена конфига
-- [ ] Проверить, что старый конфиг полностью заменяется
-
----
-
-## 6. Delete-поведение
+## 5. Delete-поведение
 
 - [ ] Все settings-ресурсы используют `resourceSettingsDelete`
 - [ ] Delete не сбрасывает настройки на дефолт (ожидаемое поведение?)
@@ -143,16 +95,15 @@
 
 ---
 
-## 7. Негативные сценарии
+## 6. Негативные сценарии
 
 - [ ] Невалидный `web_port` (0, -1, 99999) → ошибка
-- [ ] Невалидный JSON в xray-ресурсах → ошибка
 - [ ] Конфликт `sub_port` = `web_port` → поведение?
 - [ ] Пустой `tg_bot_token` при `tg_bot_enable = true` → поведение?
 
 ---
 
-## 8. Результаты
+## 7. Результаты
 
 - [ ] Все пункты выполнены
 - [ ] Зафиксированы отклонения/баги
