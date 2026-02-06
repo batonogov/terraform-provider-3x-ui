@@ -78,6 +78,7 @@ Taskfile.yml           — task build / test / fmt
 
 ## Важные особенности кода
 
+### Inbound / Client
 - `settings`, `stream_settings`, `sniffing` — JSON-строки в API, но structured blocks в TF schema
 - `stream_settings` поддерживает **только**: tcp_settings, reality_settings, external_proxy (ws/grpc/h2/quic/kcp НЕ реализованы)
 - `preserveInboundSettings` — при update сохраняет clients и testseed из existing inbound
@@ -85,7 +86,23 @@ Taskfile.yml           — task build / test / fmt
 - `ensureInboundClientIDs` — автогенерация UUID для клиентов без id
 - `applyDefaultInboundSettings` — дефолтные settings по протоколу (vless: decryption=none, testseed)
 - `inboundClientMu` — мьютекс для конкурентных операций с клиентами
+- `email` в `threexui_inbound_client` — **Required** (без email 3x-ui падает с SQL error при добавлении следующего клиента)
+- `jsonSubsetDiffSuppress` / `isSubset` — используется для settings и merge root, подавляет diff если config подмножество state
+
+### Panel Settings
+- Settings-ресурсы — синглтоны (ID = `"settings"`), один экземпляр на тип
+- `resourceSettingsDelete` — только очищает TF state, **не** сбрасывает настройки в API
+- `resourceSubscriptionSettingsApply` — делает двойной apply (обходит баг 3x-ui: sub_json_enable не сохраняется при первом apply совместно с sub_enable)
+- Включение 2FA (`two_factor_enable`) блокирует провайдер (login не поддерживает 2FA-код) — добавлен Warning
+- Изменение `web_base_path` требует обновления `base_path` в provider config — добавлен Warning
+- `panelSettingsNeedRestart` — ключи: webListen, webDomain, webPort, webBasePath, webCertFile, webKeyFile, sessionMaxAge
+
+### Xray Settings
 - Xray-ресурсы работают в 3 режимах: merge root, set path, replace all
+- `xrayTemplateMu` — мьютекс для сериализации read-modify-write на xray template (предотвращает race condition)
+- Merge root (`xray_basics`) использует `jsonSubsetDiffSuppress` — state содержит полный конфиг, но diff подавляется если config пользователя является подмножеством
+- SetPath / ReplaceAll используют `jsonEqualDiffSuppress` — точное сравнение JSON
+- Delete для xray-ресурсов — только очищает TF state, не сбрасывает xray-конфиг
 
 ## Команды
 
@@ -100,6 +117,8 @@ task fmt      # gofmt
 ```bash
 docker compose up -d   # Запуск 3x-ui v2.8.9 на localhost:2053
 # Логин: admin / admin
+# Docker image v2.8.9 по умолчанию webBasePath = /panel/
+# provider.tf: base_path должен совпадать с webBasePath панели
 ```
 
 ## Основные принципы
