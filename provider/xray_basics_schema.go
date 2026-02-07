@@ -125,7 +125,7 @@ func xrayBasicsSchema() map[string]*schema.Schema {
 	}
 }
 
-func buildXrayBasicsJSON(d *schema.ResourceData) (map[string]any, error) {
+func buildXrayBasicsJSON(d *schema.ResourceData) (map[string]any, error) { //nolint:unparam // error required by buildFunc interface
 	payload := map[string]any{}
 
 	if v, ok := d.GetOk("log"); ok {

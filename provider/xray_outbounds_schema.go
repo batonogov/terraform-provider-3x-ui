@@ -378,7 +378,7 @@ func xrayOutboundsSchema() map[string]*schema.Schema {
 	}
 }
 
-func buildXrayOutboundsJSON(d *schema.ResourceData) ([]any, error) {
+func buildXrayOutboundsJSON(d *schema.ResourceData) ([]any, error) { //nolint:unparam // error required by buildFunc interface
 	v, ok := d.GetOk("outbound")
 	if !ok {
 		return []any{}, nil

@@ -37,7 +37,7 @@ func xrayBalancersSchema() map[string]*schema.Schema {
 	}
 }
 
-func buildXrayBalancersJSON(d *schema.ResourceData) ([]any, error) {
+func buildXrayBalancersJSON(d *schema.ResourceData) ([]any, error) { //nolint:unparam // error required by buildFunc interface
 	v, ok := d.GetOk("balancer")
 	if !ok {
 		return []any{}, nil

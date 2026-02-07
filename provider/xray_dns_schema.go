@@ -85,7 +85,7 @@ func xrayDNSSchema() map[string]*schema.Schema {
 	}
 }
 
-func buildXrayDNSJSON(d *schema.ResourceData) (map[string]any, error) {
+func buildXrayDNSJSON(d *schema.ResourceData) (map[string]any, error) { //nolint:unparam // error required by buildFunc interface
 	payload := map[string]any{}
 
 	if v, ok := d.GetOk("server"); ok {
@@ -100,13 +100,13 @@ func buildXrayDNSJSON(d *schema.ResourceData) (map[string]any, error) {
 	if v, ok := d.GetOk("tag"); ok {
 		payload["tag"] = v.(string)
 	}
-	if v, ok := d.GetOkExists("disable_cache"); ok { //nolint:staticcheck
+	if v, ok := d.GetOkExists("disable_cache"); ok { //nolint:staticcheck // needed for zero-value booleans
 		payload["disableCache"] = v.(bool)
 	}
-	if v, ok := d.GetOkExists("disable_fallback"); ok { //nolint:staticcheck
+	if v, ok := d.GetOkExists("disable_fallback"); ok { //nolint:staticcheck // needed for zero-value booleans
 		payload["disableFallback"] = v.(bool)
 	}
-	if v, ok := d.GetOkExists("disable_fallback_if_match"); ok { //nolint:staticcheck
+	if v, ok := d.GetOkExists("disable_fallback_if_match"); ok { //nolint:staticcheck // needed for zero-value booleans
 		payload["disableFallbackIfMatch"] = v.(bool)
 	}
 	if v, ok := d.GetOk("client_ip"); ok {

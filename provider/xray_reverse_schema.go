@@ -39,7 +39,7 @@ func xrayReverseSchema() map[string]*schema.Schema {
 	}
 }
 
-func buildXrayReverseJSON(d *schema.ResourceData) (map[string]any, error) {
+func buildXrayReverseJSON(d *schema.ResourceData) (map[string]any, error) { //nolint:unparam // error required by buildFunc interface
 	payload := map[string]any{}
 
 	if v, ok := d.GetOk("bridge"); ok {

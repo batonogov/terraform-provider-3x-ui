@@ -686,8 +686,8 @@ func TestExpandBalancers(t *testing.T) {
 	if !ok || len(sel) != 1 || sel[0] != "proxy-*" {
 		t.Fatalf("unexpected selector: %v", m["selector"])
 	}
-	strat, ok := m["strategy"].(map[string]any)
-	if !ok || strat["type"] != "leastPing" {
+	strategy, ok := m["strategy"].(map[string]any)
+	if !ok || strategy["type"] != "leastPing" {
 		t.Fatalf("unexpected strategy: %v", m["strategy"])
 	}
 }

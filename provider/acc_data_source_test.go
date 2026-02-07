@@ -137,7 +137,7 @@ func testAccCheckJSONValid(resourceName, attrName string) resource.TestCheckFunc
 	}
 }
 
-func testAccCheckJSONContainsKey(resourceName, attrName, key string) resource.TestCheckFunc {
+func testAccCheckJSONContainsKey(resourceName, attrName, key string) resource.TestCheckFunc { //nolint:unparam // attrName may vary in future tests
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[resourceName]
 		if !ok {
