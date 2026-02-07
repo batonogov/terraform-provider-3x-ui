@@ -1,119 +1,40 @@
 package provider
 
-import (
-	"encoding/json"
+import "encoding/json"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-)
-
-func xrayDNSSchema() map[string]*schema.Schema {
-	return map[string]*schema.Schema{
-		"server": {
-			Type:     schema.TypeList,
-			Optional: true,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"address": {
-					Type:     schema.TypeString,
-					Required: true,
-				},
-				"port": {
-					Type:     schema.TypeInt,
-					Optional: true,
-				},
-				"domains": {
-					Type:     schema.TypeList,
-					Optional: true,
-					Elem:     &schema.Schema{Type: schema.TypeString},
-				},
-				"expect_ips": {
-					Type:     schema.TypeList,
-					Optional: true,
-					Elem:     &schema.Schema{Type: schema.TypeString},
-				},
-				"unexpected_ips": {
-					Type:     schema.TypeList,
-					Optional: true,
-					Elem:     &schema.Schema{Type: schema.TypeString},
-				},
-				"skip_fallback": {
-					Type:     schema.TypeBool,
-					Optional: true,
-				},
-				"query_strategy": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"disable_cache": {
-					Type:     schema.TypeBool,
-					Optional: true,
-				},
-				"final_query": {
-					Type:     schema.TypeBool,
-					Optional: true,
-				},
-			}},
-		},
-		"hosts": {
-			Type:     schema.TypeMap,
-			Optional: true,
-			Elem:     &schema.Schema{Type: schema.TypeString},
-		},
-		"query_strategy": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"tag": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"disable_cache": {
-			Type:     schema.TypeBool,
-			Optional: true,
-		},
-		"disable_fallback": {
-			Type:     schema.TypeBool,
-			Optional: true,
-		},
-		"disable_fallback_if_match": {
-			Type:     schema.TypeBool,
-			Optional: true,
-		},
-		"client_ip": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-	}
-}
-
-func buildXrayDNSJSON(d *schema.ResourceData) (map[string]any, error) { //nolint:unparam // error required by buildFunc interface
+func buildXrayDNSJSON(d map[string]any) any {
 	payload := map[string]any{}
 
-	if v, ok := d.GetOk("server"); ok {
-		payload["servers"] = expandDNSServers(v.([]any))
+	if v, ok := d["server"]; ok {
+		if list, ok := v.([]any); ok {
+			payload["servers"] = expandDNSServers(list)
+		}
 	}
-	if v, ok := d.GetOk("hosts"); ok {
-		payload["hosts"] = expandStringMap(v.(map[string]any))
+	if v, ok := d["hosts"]; ok {
+		if m, ok := v.(map[string]any); ok {
+			payload["hosts"] = expandStringMap(m)
+		}
 	}
-	if v, ok := d.GetOk("query_strategy"); ok {
-		payload["queryStrategy"] = v.(string)
+	if v, ok := d["query_strategy"].(string); ok && v != "" {
+		payload["queryStrategy"] = v
 	}
-	if v, ok := d.GetOk("tag"); ok {
-		payload["tag"] = v.(string)
+	if v, ok := d["tag"].(string); ok && v != "" {
+		payload["tag"] = v
 	}
-	if v, ok := d.GetOkExists("disable_cache"); ok { //nolint:staticcheck // needed for zero-value booleans
-		payload["disableCache"] = v.(bool)
+	if v, ok := d["disable_cache"]; ok {
+		payload["disableCache"] = boolValue(v)
 	}
-	if v, ok := d.GetOkExists("disable_fallback"); ok { //nolint:staticcheck // needed for zero-value booleans
-		payload["disableFallback"] = v.(bool)
+	if v, ok := d["disable_fallback"]; ok {
+		payload["disableFallback"] = boolValue(v)
 	}
-	if v, ok := d.GetOkExists("disable_fallback_if_match"); ok { //nolint:staticcheck // needed for zero-value booleans
-		payload["disableFallbackIfMatch"] = v.(bool)
+	if v, ok := d["disable_fallback_if_match"]; ok {
+		payload["disableFallbackIfMatch"] = boolValue(v)
 	}
-	if v, ok := d.GetOk("client_ip"); ok {
-		payload["clientIp"] = v.(string)
+	if v, ok := d["client_ip"].(string); ok && v != "" {
+		payload["clientIp"] = v
 	}
 
-	return payload, nil
+	return payload
 }
 
 // expandDNSServers converts TF server blocks to JSON.
@@ -133,8 +54,10 @@ func expandDNSServers(list []any) []any {
 
 		// Check if server has any fields beyond address
 		hasExtra := false
-		if v, ok := m["port"].(int); ok && v != 0 {
-			hasExtra = true
+		if v, ok := m["port"]; ok {
+			if intValue(v) != 0 {
+				hasExtra = true
+			}
 		}
 		if v, ok := m["domains"].([]any); ok && len(v) > 0 {
 			hasExtra = true
@@ -145,16 +68,16 @@ func expandDNSServers(list []any) []any {
 		if v, ok := m["unexpected_ips"].([]any); ok && len(v) > 0 {
 			hasExtra = true
 		}
-		if v, ok := m["skip_fallback"].(bool); ok && v {
+		if v, ok := m["skip_fallback"]; ok && boolValue(v) {
 			hasExtra = true
 		}
 		if v, ok := m["query_strategy"].(string); ok && v != "" {
 			hasExtra = true
 		}
-		if v, ok := m["disable_cache"].(bool); ok && v {
+		if v, ok := m["disable_cache"]; ok && boolValue(v) {
 			hasExtra = true
 		}
-		if v, ok := m["final_query"].(bool); ok && v {
+		if v, ok := m["final_query"]; ok && boolValue(v) {
 			hasExtra = true
 		}
 
@@ -166,8 +89,10 @@ func expandDNSServers(list []any) []any {
 		entry := map[string]any{
 			"address": address,
 		}
-		if v, ok := m["port"].(int); ok && v != 0 {
-			entry["port"] = v
+		if v, ok := m["port"]; ok {
+			if p := intValue(v); p != 0 {
+				entry["port"] = p
+			}
 		}
 		if v, ok := m["domains"].([]any); ok && len(v) > 0 {
 			entry["domains"] = expandStringList(v)
@@ -178,17 +103,17 @@ func expandDNSServers(list []any) []any {
 		if v, ok := m["unexpected_ips"].([]any); ok && len(v) > 0 {
 			entry["unexpectedIPs"] = expandStringList(v)
 		}
-		if v, ok := m["skip_fallback"].(bool); ok {
-			entry["skipFallback"] = v
+		if v, ok := m["skip_fallback"]; ok {
+			entry["skipFallback"] = boolValue(v)
 		}
 		if v, ok := m["query_strategy"].(string); ok && v != "" {
 			entry["queryStrategy"] = v
 		}
-		if v, ok := m["disable_cache"].(bool); ok {
-			entry["disableCache"] = v
+		if v, ok := m["disable_cache"]; ok {
+			entry["disableCache"] = boolValue(v)
 		}
-		if v, ok := m["final_query"].(bool); ok {
-			entry["finalQuery"] = v
+		if v, ok := m["final_query"]; ok {
+			entry["finalQuery"] = boolValue(v)
 		}
 
 		out = append(out, entry)

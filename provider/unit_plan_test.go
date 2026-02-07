@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"net/url"
 	"testing"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 func TestNormalizeBasePath(t *testing.T) {
@@ -82,30 +80,26 @@ func TestNewUUIDFormat(t *testing.T) {
 	}
 }
 
-func TestJSONSubsetDiffSuppress(t *testing.T) {
-	old := `{"a":1,"b":{"c":2},"arr":[{"x":1,"y":2},{"x":2}]}`
-	newSubset := `{"b":{"c":2},"arr":[{"x":2}]}`
-	if !jsonSubsetDiffSuppress("k", old, newSubset, nil) {
-		t.Fatalf("expected subset diff suppress")
+func TestIsSubset(t *testing.T) {
+	var old, newVal any
+	_ = json.Unmarshal([]byte(`{"a":1,"b":{"c":2},"arr":[{"x":1,"y":2},{"x":2}]}`), &old)
+	_ = json.Unmarshal([]byte(`{"b":{"c":2},"arr":[{"x":2}]}`), &newVal)
+	if !isSubset(newVal, old) {
+		t.Fatalf("expected subset")
 	}
-	if jsonSubsetDiffSuppress("k", old, "{", nil) {
-		t.Fatalf("expected false on invalid JSON")
-	}
-	if !jsonSubsetDiffSuppress("k", old, "   ", nil) {
-		t.Fatalf("expected true when new is empty")
+
+	var notSubset any
+	_ = json.Unmarshal([]byte(`{"z":99}`), &notSubset)
+	if isSubset(notSubset, old) {
+		t.Fatalf("expected not subset")
 	}
 }
 
 func TestBuildAndFlattenSettings(t *testing.T) {
-	r := resourceInbound()
-	d := schema.TestResourceDataRaw(t, r.Schema, map[string]any{
-		"settings": []any{
-			map[string]any{
-				"decryption": "none",
-			},
-		},
-	})
-	settingsJSON := buildSettingsJSON(d)
+	item := map[string]any{
+		"decryption": "none",
+	}
+	settingsJSON := buildSettingsJSON(item)
 	if settingsJSON == "{}" {
 		t.Fatalf("expected settings JSON, got {}")
 	}
@@ -116,10 +110,7 @@ func TestBuildAndFlattenSettings(t *testing.T) {
 	if payload["decryption"] != "none" {
 		t.Fatalf("unexpected decryption: %#v", payload["decryption"])
 	}
-	// buildSettingsJSON intentionally excludes clients — they are managed
-	// via preserveInboundSettings and the inbound_client resource.
 
-	// flattenSettings also excludes clients — they are managed separately.
 	flattened := flattenSettings(`{"decryption":"none","clients":[{"id":"id1","email":"a@example.com","limitIp":2,"expiryTime":10,"enable":true}]}`)
 	if len(flattened) != 1 {
 		t.Fatalf("expected 1 settings item, got %d", len(flattened))
@@ -131,31 +122,26 @@ func TestBuildAndFlattenSettings(t *testing.T) {
 }
 
 func TestBuildAndFlattenStreamSettings(t *testing.T) {
-	r := resourceInbound()
-	d := schema.TestResourceDataRaw(t, r.Schema, map[string]any{
-		"stream_settings": []any{
+	item := map[string]any{
+		"network":  "tcp",
+		"security": "reality",
+		"external_proxy": []any{
 			map[string]any{
-				"network":  "tcp",
-				"security": "reality",
-				"external_proxy": []any{
-					map[string]any{
-						"dest":   "example.com",
-						"port":   443,
-						"remark": "edge",
-					},
-				},
-				"tcp_settings": []any{
-					map[string]any{
-						"accept_proxy_protocol": true,
-						"header": []any{
-							map[string]any{"type": "none"},
-						},
-					},
+				"dest":   "example.com",
+				"port":   443,
+				"remark": "edge",
+			},
+		},
+		"tcp_settings": []any{
+			map[string]any{
+				"accept_proxy_protocol": true,
+				"header": []any{
+					map[string]any{"type": "none"},
 				},
 			},
 		},
-	})
-	streamJSON := buildStreamSettingsJSON(d)
+	}
+	streamJSON := buildStreamSettingsJSON(item)
 	if streamJSON == "{}" {
 		t.Fatalf("expected stream settings JSON, got {}")
 	}
@@ -178,18 +164,13 @@ func TestBuildAndFlattenStreamSettings(t *testing.T) {
 }
 
 func TestBuildAndFlattenSniffing(t *testing.T) {
-	r := resourceInbound()
-	d := schema.TestResourceDataRaw(t, r.Schema, map[string]any{
-		"sniffing": []any{
-			map[string]any{
-				"enabled":       true,
-				"dest_override": []any{"http", "tls"},
-				"metadata_only": false,
-				"route_only":    true,
-			},
-		},
-	})
-	sniffingJSON := buildSniffingJSON(d)
+	item := map[string]any{
+		"enabled":       true,
+		"dest_override": []any{"http", "tls"},
+		"metadata_only": false,
+		"route_only":    true,
+	}
+	sniffingJSON := buildSniffingJSON(item)
 	if sniffingJSON == "{}" {
 		t.Fatalf("expected sniffing JSON, got {}")
 	}

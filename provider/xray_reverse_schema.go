@@ -1,55 +1,22 @@
 package provider
 
-import (
-	"encoding/json"
+import "encoding/json"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-)
-
-func xrayReverseSchema() map[string]*schema.Schema {
-	return map[string]*schema.Schema{
-		"bridge": {
-			Type:     schema.TypeList,
-			Optional: true,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"tag": {
-					Type:     schema.TypeString,
-					Required: true,
-				},
-				"domain": {
-					Type:     schema.TypeString,
-					Required: true,
-				},
-			}},
-		},
-		"portal": {
-			Type:     schema.TypeList,
-			Optional: true,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"tag": {
-					Type:     schema.TypeString,
-					Required: true,
-				},
-				"domain": {
-					Type:     schema.TypeString,
-					Required: true,
-				},
-			}},
-		},
-	}
-}
-
-func buildXrayReverseJSON(d *schema.ResourceData) (map[string]any, error) { //nolint:unparam // error required by buildFunc interface
+func buildXrayReverseJSON(d map[string]any) any {
 	payload := map[string]any{}
 
-	if v, ok := d.GetOk("bridge"); ok {
-		payload["bridges"] = expandReverseEntries(v.([]any))
+	if v, ok := d["bridge"]; ok {
+		if list, ok := v.([]any); ok {
+			payload["bridges"] = expandReverseEntries(list)
+		}
 	}
-	if v, ok := d.GetOk("portal"); ok {
-		payload["portals"] = expandReverseEntries(v.([]any))
+	if v, ok := d["portal"]; ok {
+		if list, ok := v.([]any); ok {
+			payload["portals"] = expandReverseEntries(list)
+		}
 	}
 
-	return payload, nil
+	return payload
 }
 
 func expandReverseEntries(list []any) []any {

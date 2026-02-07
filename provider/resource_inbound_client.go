@@ -5,93 +5,133 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var inboundClientMu sync.Mutex
 
-func resourceInboundClient() *schema.Resource {
-	return &schema.Resource{
-		CreateContext: resourceInboundClientCreate,
-		ReadContext:   resourceInboundClientRead,
-		UpdateContext: resourceInboundClientUpdate,
-		DeleteContext: resourceInboundClientDelete,
-		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
-		},
-		Schema: map[string]*schema.Schema{
-			"inbound_id": {
-				Type:     schema.TypeInt,
-				Required: true,
-				ForceNew: true,
+// ---------------------------------------------------------------------------
+// Interface checks
+// ---------------------------------------------------------------------------
+
+var (
+	_ resource.Resource                = &InboundClientResource{}
+	_ resource.ResourceWithImportState = &InboundClientResource{}
+)
+
+// ---------------------------------------------------------------------------
+// Model
+// ---------------------------------------------------------------------------
+
+type InboundClientResourceModel struct {
+	ID         types.String `tfsdk:"id"`
+	InboundID  types.Int64  `tfsdk:"inbound_id"`
+	ClientID   types.String `tfsdk:"client_id"`
+	Email      types.String `tfsdk:"email"`
+	Security   types.String `tfsdk:"security"`
+	Password   types.String `tfsdk:"password"`
+	Flow       types.String `tfsdk:"flow"`
+	LimitIP    types.Int64  `tfsdk:"limit_ip"`
+	TotalGB    types.Int64  `tfsdk:"total_gb"`
+	ExpiryTime types.Int64  `tfsdk:"expiry_time"`
+	Enable     types.Bool   `tfsdk:"enable"`
+	TgID       types.Int64  `tfsdk:"tg_id"`
+	SubID      types.String `tfsdk:"sub_id"`
+	Comment    types.String `tfsdk:"comment"`
+	Reset      types.Int64  `tfsdk:"reset"`
+}
+
+// ---------------------------------------------------------------------------
+// Resource
+// ---------------------------------------------------------------------------
+
+type InboundClientResource struct {
+	client *Client
+}
+
+func NewInboundClientResource() resource.Resource {
+	return &InboundClientResource{}
+}
+
+func (r *InboundClientResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_inbound_client"
+}
+
+func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
 			},
-			"client_id": {
-				Type:     schema.TypeString,
+			"inbound_id": schema.Int64Attribute{
+				Required: true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.RequiresReplace(),
+				},
+			},
+			"client_id": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
-				ForceNew: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
-			"email": {
-				Type:     schema.TypeString,
+			"email": schema.StringAttribute{
 				Required: true,
 			},
-			"security": {
-				Type:     schema.TypeString,
+			"security": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
 			},
-			"password": {
-				Type:      schema.TypeString,
+			"password": schema.StringAttribute{
 				Optional:  true,
 				Computed:  true,
 				Sensitive: true,
 			},
-			"flow": {
-				Type:     schema.TypeString,
+			"flow": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
 			},
-			"limit_ip": {
-				Type:     schema.TypeInt,
+			"limit_ip": schema.Int64Attribute{
 				Optional: true,
 				Computed: true,
 			},
-			"total_gb": {
-				Type:     schema.TypeInt,
+			"total_gb": schema.Int64Attribute{
 				Optional: true,
 				Computed: true,
 			},
-			"expiry_time": {
-				Type:     schema.TypeInt,
+			"expiry_time": schema.Int64Attribute{
 				Optional: true,
 				Computed: true,
 			},
-			"enable": {
-				Type:     schema.TypeBool,
+			"enable": schema.BoolAttribute{
 				Optional: true,
 				Computed: true,
 			},
-			"tg_id": {
-				Type:     schema.TypeInt,
+			"tg_id": schema.Int64Attribute{
 				Optional: true,
 				Computed: true,
 			},
-			"sub_id": {
-				Type:     schema.TypeString,
+			"sub_id": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
 			},
-			"comment": {
-				Type:     schema.TypeString,
+			"comment": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
 			},
-			"reset": {
-				Type:     schema.TypeInt,
+			"reset": schema.Int64Attribute{
 				Optional: true,
 				Computed: true,
 			},
@@ -99,162 +139,293 @@ func resourceInboundClient() *schema.Resource {
 	}
 }
 
-func resourceInboundClientCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*Client)
-	inboundID := d.Get("inbound_id").(int)
+func (r *InboundClientResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	c, ok := req.ProviderData.(*Client)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected Resource Configure Type", "Expected *Client")
+		return
+	}
+	r.client = c
+}
+
+// ---------------------------------------------------------------------------
+// CRUD
+// ---------------------------------------------------------------------------
+
+func (r *InboundClientResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan InboundClientResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	inboundID := int(plan.InboundID.ValueInt64())
+
 	inboundClientMu.Lock()
 	defer inboundClientMu.Unlock()
-	if err := ensureInboundClientsKey(ctx, client, inboundID); err != nil {
-		return diag.FromErr(err)
+
+	if err := ensureInboundClientsKey(ctx, r.client, inboundID); err != nil {
+		resp.Diagnostics.AddError("Failed to ensure clients key", err.Error())
+		return
 	}
-	clientData := expandInboundClient(d)
-	clientID := getClientID(d, clientData)
+
+	clientData := expandInboundClientFromModel(&plan)
+	clientID := getClientIDFromModel(&plan, clientData)
 	if clientID == "" {
 		var err error
 		clientID, err = newUUID()
 		if err != nil {
-			return diag.FromErr(err)
+			resp.Diagnostics.AddError("Failed to generate UUID", err.Error())
+			return
 		}
 	}
 	clientData["id"] = clientID
 
-	if err := client.AddInboundClient(ctx, inboundID, clientData); err != nil {
-		return diag.FromErr(err)
+	if err := r.client.AddInboundClient(ctx, inboundID, clientData); err != nil {
+		resp.Diagnostics.AddError("Failed to add inbound client", err.Error())
+		return
 	}
 
-	d.SetId(makeInboundClientID(inboundID, clientID))
-	return resourceInboundClientRead(ctx, d, meta)
+	// Read back from API to populate state.
+	state := r.readClientState(ctx, &resp.Diagnostics, inboundID, clientID)
+	if state == nil {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
-func resourceInboundClientRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*Client)
-	inboundID, clientID, err := splitInboundClientID(d.Id())
-	if err != nil {
-		return diag.FromErr(err)
+func (r *InboundClientResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var cur InboundClientResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &cur)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	inbound, err := client.GetInbound(ctx, inboundID)
+	inboundID, clientID, err := splitInboundClientID(cur.ID.ValueString())
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("Invalid resource ID", err.Error())
+		return
+	}
+
+	state := r.readClientState(ctx, &resp.Diagnostics, inboundID, clientID)
+	if state == nil {
+		// Client not found — remove from state.
+		if !resp.Diagnostics.HasError() {
+			resp.State.RemoveResource(ctx)
+		}
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *InboundClientResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan InboundClientResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var cur InboundClientResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &cur)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	inboundID, clientID, err := splitInboundClientID(cur.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid resource ID", err.Error())
+		return
+	}
+
+	inboundClientMu.Lock()
+	defer inboundClientMu.Unlock()
+
+	if err := ensureInboundClientsKey(ctx, r.client, inboundID); err != nil {
+		resp.Diagnostics.AddError("Failed to ensure clients key", err.Error())
+		return
+	}
+
+	clientData := expandInboundClientFromModel(&plan)
+	clientData["id"] = clientID
+
+	if err := r.client.UpdateInboundClient(ctx, inboundID, clientID, clientData); err != nil {
+		resp.Diagnostics.AddError("Failed to update inbound client", err.Error())
+		return
+	}
+
+	state := r.readClientState(ctx, &resp.Diagnostics, inboundID, clientID)
+	if state == nil {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *InboundClientResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var cur InboundClientResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &cur)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	inboundID, clientID, err := splitInboundClientID(cur.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid resource ID", err.Error())
+		return
+	}
+
+	inboundClientMu.Lock()
+	defer inboundClientMu.Unlock()
+
+	if err := ensureInboundClientsKey(ctx, r.client, inboundID); err != nil {
+		resp.Diagnostics.AddError("Failed to ensure clients key", err.Error())
+		return
+	}
+
+	if err := r.client.DeleteInboundClient(ctx, inboundID, clientID); err != nil {
+		if strings.Contains(err.Error(), "no client remained in Inbound") {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+		resp.Diagnostics.AddError("Failed to delete inbound client", err.Error())
+		return
+	}
+
+	resp.State.RemoveResource(ctx)
+}
+
+// ---------------------------------------------------------------------------
+// Import
+// ---------------------------------------------------------------------------
+
+func (r *InboundClientResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	inboundID, clientID, err := splitInboundClientID(req.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", fmt.Sprintf("Expected format inbound_id:client_id, got: %s", req.ID))
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), makeInboundClientID(inboundID, clientID))...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("inbound_id"), int64(inboundID))...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("client_id"), clientID)...)
+}
+
+// ---------------------------------------------------------------------------
+// Read helper
+// ---------------------------------------------------------------------------
+
+func (r *InboundClientResource) readClientState(ctx context.Context, diags *diag.Diagnostics, inboundID int, clientID string) *InboundClientResourceModel {
+	inbound, err := r.client.GetInbound(ctx, inboundID)
+	if err != nil {
+		diags.AddError("Failed to read inbound", err.Error())
+		return nil
 	}
 
 	settings, err := parseInboundSettings(inbound.Settings)
 	if err != nil {
-		return diag.FromErr(err)
+		diags.AddError("Failed to parse inbound settings", err.Error())
+		return nil
 	}
 
 	found := findClientByID(settings.Clients, clientID)
 	if found == nil {
-		d.SetId("")
 		return nil
 	}
 
-	setInboundClientState(d, inboundID, clientID, found)
-	return nil
+	return inboundClientToModel(inboundID, clientID, found)
 }
 
-func resourceInboundClientUpdate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*Client)
-	inboundID, clientID, err := splitInboundClientID(d.Id())
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	inboundClientMu.Lock()
-	defer inboundClientMu.Unlock()
-	if err := ensureInboundClientsKey(ctx, client, inboundID); err != nil {
-		return diag.FromErr(err)
-	}
-	clientData := expandInboundClient(d)
-	clientData["id"] = clientID
+// ---------------------------------------------------------------------------
+// Expand / Flatten
+// ---------------------------------------------------------------------------
 
-	if err := client.UpdateInboundClient(ctx, inboundID, clientID, clientData); err != nil {
-		return diag.FromErr(err)
-	}
-	return resourceInboundClientRead(ctx, d, meta)
-}
-
-func resourceInboundClientDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*Client)
-	inboundID, clientID, err := splitInboundClientID(d.Id())
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	inboundClientMu.Lock()
-	defer inboundClientMu.Unlock()
-	if err := ensureInboundClientsKey(ctx, client, inboundID); err != nil {
-		return diag.FromErr(err)
-	}
-	if err := client.DeleteInboundClient(ctx, inboundID, clientID); err != nil {
-		if strings.Contains(err.Error(), "no client remained in Inbound") {
-			d.SetId("")
-			return nil
-		}
-		return diag.FromErr(err)
-	}
-	d.SetId("")
-	return nil
-}
-
-func expandInboundClient(d *schema.ResourceData) map[string]any {
+func expandInboundClientFromModel(m *InboundClientResourceModel) map[string]any {
 	client := map[string]any{}
-	if v, ok := d.GetOk("email"); ok {
-		client["email"] = v.(string)
+
+	if !m.Email.IsNull() {
+		client["email"] = m.Email.ValueString()
 	}
-	if v, ok := d.GetOk("security"); ok {
-		client["security"] = v.(string)
+	if !m.Security.IsNull() && !m.Security.IsUnknown() {
+		client["security"] = m.Security.ValueString()
 	}
-	if v, ok := d.GetOk("password"); ok {
-		client["password"] = v.(string)
+	if !m.Password.IsNull() && !m.Password.IsUnknown() {
+		client["password"] = m.Password.ValueString()
 	}
-	if v, ok := d.GetOk("flow"); ok {
-		client["flow"] = v.(string)
+	if !m.Flow.IsNull() && !m.Flow.IsUnknown() {
+		client["flow"] = m.Flow.ValueString()
 	}
-	if v, ok := d.GetOk("limit_ip"); ok {
-		client["limitIp"] = v.(int)
+	if !m.LimitIP.IsNull() && !m.LimitIP.IsUnknown() {
+		client["limitIp"] = int(m.LimitIP.ValueInt64())
 	}
-	if v, ok := d.GetOk("total_gb"); ok {
-		client["totalGB"] = v.(int)
+	if !m.TotalGB.IsNull() && !m.TotalGB.IsUnknown() {
+		client["totalGB"] = int(m.TotalGB.ValueInt64())
 	}
-	if v, ok := d.GetOk("expiry_time"); ok {
-		client["expiryTime"] = v.(int)
+	if !m.ExpiryTime.IsNull() && !m.ExpiryTime.IsUnknown() {
+		client["expiryTime"] = int(m.ExpiryTime.ValueInt64())
 	}
-	if v, ok := d.GetOkExists("enable"); ok { //nolint:staticcheck // GetOkExists needed for bool false vs unset
-		client["enable"] = v.(bool)
+	if !m.Enable.IsNull() && !m.Enable.IsUnknown() {
+		client["enable"] = m.Enable.ValueBool()
 	}
-	if v, ok := d.GetOk("tg_id"); ok {
-		client["tgId"] = v.(int)
+	if !m.TgID.IsNull() && !m.TgID.IsUnknown() {
+		client["tgId"] = int(m.TgID.ValueInt64())
 	}
-	if v, ok := d.GetOk("sub_id"); ok {
-		client["subId"] = v.(string)
+	if !m.SubID.IsNull() && !m.SubID.IsUnknown() {
+		client["subId"] = m.SubID.ValueString()
 	}
-	if v, ok := d.GetOk("comment"); ok {
-		client["comment"] = v.(string)
+	if !m.Comment.IsNull() && !m.Comment.IsUnknown() {
+		client["comment"] = m.Comment.ValueString()
 	}
-	if v, ok := d.GetOk("reset"); ok {
-		client["reset"] = v.(int)
+	if !m.Reset.IsNull() && !m.Reset.IsUnknown() {
+		client["reset"] = int(m.Reset.ValueInt64())
 	}
-	if v, ok := d.GetOk("client_id"); ok {
-		client["id"] = v.(string)
+	if !m.ClientID.IsNull() && !m.ClientID.IsUnknown() {
+		client["id"] = m.ClientID.ValueString()
 	}
+
 	return client
 }
 
-func setInboundClientState(d *schema.ResourceData, inboundID int, clientID string, client map[string]any) {
-	_ = d.Set("inbound_id", inboundID)
-	_ = d.Set("client_id", clientID)
-	_ = d.Set("email", stringValue(client["email"]))
-	_ = d.Set("security", stringValue(client["security"]))
-	_ = d.Set("password", stringValue(client["password"]))
-	_ = d.Set("flow", stringValue(client["flow"]))
-	_ = d.Set("limit_ip", intValue(client["limitIp"]))
-	_ = d.Set("total_gb", intValue(client["totalGB"]))
-	_ = d.Set("expiry_time", intValue(client["expiryTime"]))
-	_ = d.Set("enable", boolValue(client["enable"]))
-	_ = d.Set("tg_id", intValue(client["tgId"]))
-	_ = d.Set("sub_id", stringValue(client["subId"]))
-	_ = d.Set("comment", stringValue(client["comment"]))
-	_ = d.Set("reset", intValue(client["reset"]))
+func inboundClientToModel(inboundID int, clientID string, client map[string]any) *InboundClientResourceModel {
+	return &InboundClientResourceModel{
+		ID:         types.StringValue(makeInboundClientID(inboundID, clientID)),
+		InboundID:  types.Int64Value(int64(inboundID)),
+		ClientID:   types.StringValue(clientID),
+		Email:      types.StringValue(stringValue(client["email"])),
+		Security:   types.StringValue(stringValue(client["security"])),
+		Password:   types.StringValue(stringValue(client["password"])),
+		Flow:       types.StringValue(stringValue(client["flow"])),
+		LimitIP:    types.Int64Value(int64(intValue(client["limitIp"]))),
+		TotalGB:    types.Int64Value(int64(intValue(client["totalGB"]))),
+		ExpiryTime: types.Int64Value(int64(intValue(client["expiryTime"]))),
+		Enable:     types.BoolValue(boolValue(client["enable"])),
+		TgID:       types.Int64Value(int64(intValue(client["tgId"]))),
+		SubID:      types.StringValue(stringValue(client["subId"])),
+		Comment:    types.StringValue(stringValue(client["comment"])),
+		Reset:      types.Int64Value(int64(intValue(client["reset"]))),
+	}
 }
+
+func getClientIDFromModel(m *InboundClientResourceModel, client map[string]any) string {
+	if !m.ClientID.IsNull() && !m.ClientID.IsUnknown() && m.ClientID.ValueString() != "" {
+		return m.ClientID.ValueString()
+	}
+	if v := stringValue(client["id"]); v != "" {
+		return v
+	}
+	if v := stringValue(client["password"]); v != "" {
+		return v
+	}
+	if v := stringValue(client["email"]); v != "" {
+		return v
+	}
+	return ""
+}
+
+// ---------------------------------------------------------------------------
+// Helper types and functions
+// ---------------------------------------------------------------------------
 
 type inboundSettings struct {
 	Clients []map[string]any `json:"clients"`
@@ -308,22 +479,6 @@ func findClientByID(clients []map[string]any, clientID string) map[string]any {
 	return nil
 }
 
-func getClientID(d *schema.ResourceData, client map[string]any) string {
-	if v, ok := d.GetOk("client_id"); ok {
-		return v.(string)
-	}
-	if v := stringValue(client["id"]); v != "" {
-		return v
-	}
-	if v := stringValue(client["password"]); v != "" {
-		return v
-	}
-	if v := stringValue(client["email"]); v != "" {
-		return v
-	}
-	return ""
-}
-
 func makeInboundClientID(inboundID int, clientID string) string {
 	return fmt.Sprintf("%d:%s", inboundID, clientID)
 }
@@ -349,8 +504,8 @@ func splitInboundClientID(id string) (int, string, error) {
 	if len(parts) != 2 {
 		return 0, "", fmt.Errorf("invalid inbound_client id: %s", id)
 	}
-	var inboundID int
-	if _, err := fmt.Sscanf(parts[0], "%d", &inboundID); err != nil || inboundID == 0 {
+	inboundID, err := strconv.Atoi(parts[0])
+	if err != nil || inboundID == 0 {
 		return 0, "", fmt.Errorf("invalid inbound id: %s", id)
 	}
 	if parts[1] == "" {

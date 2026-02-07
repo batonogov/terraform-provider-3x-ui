@@ -387,11 +387,10 @@ func TestFlattenXrayBasicsToMap(t *testing.T) {
 		"stats": map[string]any{},
 	}
 	result := flattenXrayBasicsToMap(data)
-	logList, ok := result["log"].([]any)
-	if !ok || len(logList) != 1 {
-		t.Fatalf("expected log block, got %v", result["log"])
+	log, ok := result["log"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected log map, got %v", result["log"])
 	}
-	log := logList[0].(map[string]any)
 	if log["loglevel"] != "warning" {
 		t.Fatalf("expected warning, got %v", log["loglevel"])
 	}
@@ -550,15 +549,13 @@ func TestFlattenBasicsPolicyLevels(t *testing.T) {
 // --- Expand unit tests ---
 
 func TestExpandBasicsLog(t *testing.T) {
-	list := []any{
-		map[string]any{
-			"loglevel": "warning",
-			"access":   "/var/log/access.log",
-			"error":    "/var/log/error.log",
-			"dns_log":  true,
-		},
+	item := map[string]any{
+		"loglevel": "warning",
+		"access":   "/var/log/access.log",
+		"error":    "/var/log/error.log",
+		"dns_log":  true,
 	}
-	result := expandBasicsLog(list)
+	result := expandBasicsLog(item)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -577,35 +574,31 @@ func TestExpandBasicsLog(t *testing.T) {
 }
 
 func TestExpandBasicsLog_Empty(t *testing.T) {
-	result := expandBasicsLog([]any{})
+	result := expandBasicsLog(map[string]any{})
 	if result != nil {
-		t.Fatalf("expected nil for empty list, got %v", result)
+		t.Fatalf("expected nil for empty map, got %v", result)
 	}
 }
 
 func TestExpandBasicsPolicy(t *testing.T) {
-	list := []any{
-		map[string]any{
-			"system": []any{
-				map[string]any{
-					"stats_inbound_downlink":  true,
-					"stats_inbound_uplink":    true,
-					"stats_outbound_downlink": false,
-					"stats_outbound_uplink":   false,
-				},
-			},
-			"level": []any{
-				map[string]any{
-					"id":                  0,
-					"handshake":           4,
-					"conn_idle":           300,
-					"stats_user_uplink":   true,
-					"stats_user_downlink": true,
-				},
+	item := map[string]any{
+		"system": map[string]any{
+			"stats_inbound_downlink":  true,
+			"stats_inbound_uplink":    true,
+			"stats_outbound_downlink": false,
+			"stats_outbound_uplink":   false,
+		},
+		"level": []any{
+			map[string]any{
+				"id":                  0,
+				"handshake":           4,
+				"conn_idle":           300,
+				"stats_user_uplink":   true,
+				"stats_user_downlink": true,
 			},
 		},
 	}
-	result := expandBasicsPolicy(list)
+	result := expandBasicsPolicy(item)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -635,13 +628,11 @@ func TestExpandBasicsPolicy(t *testing.T) {
 }
 
 func TestExpandBasicsAPI(t *testing.T) {
-	list := []any{
-		map[string]any{
-			"tag":      "api",
-			"services": []any{"HandlerService", "StatsService"},
-		},
+	item := map[string]any{
+		"tag":      "api",
+		"services": []any{"HandlerService", "StatsService"},
 	}
-	result := expandBasicsAPI(list)
+	result := expandBasicsAPI(item)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -658,9 +649,9 @@ func TestExpandBasicsAPI(t *testing.T) {
 }
 
 func TestExpandBasicsAPI_Empty(t *testing.T) {
-	result := expandBasicsAPI([]any{})
+	result := expandBasicsAPI(map[string]any{})
 	if result != nil {
-		t.Fatalf("expected nil for empty list, got %v", result)
+		t.Fatalf("expected nil for empty map, got %v", result)
 	}
 }
 

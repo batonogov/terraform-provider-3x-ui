@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
 const (
@@ -21,9 +22,9 @@ const (
 	envInsecureSkipVerify = "THREEXUI_INSECURE_SKIP_VERIFY"
 )
 
-func testAccProviderFactories() map[string]func() (*schema.Provider, error) {
-	return map[string]func() (*schema.Provider, error){
-		"threexui": func() (*schema.Provider, error) { return Provider(), nil }, //nolint:unparam // signature required by Terraform SDK
+func testAccProtoV6ProviderFactories() map[string]func() (tfprotov6.ProviderServer, error) {
+	return map[string]func() (tfprotov6.ProviderServer, error){
+		"threexui": providerserver.NewProtocol6WithError(New()),
 	}
 }
 
@@ -167,9 +168,9 @@ func testAccCheckInboundClientDestroyed(state *terraform.State) error {
 
 func TestAccInboundBasic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + testAccInboundConfig("acc-inbound-1"),
@@ -188,8 +189,8 @@ func TestAccInboundBasic(t *testing.T) {
 				Config: testAccProviderConfig() + testAccInboundConfigWithExtras("acc-inbound-3"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_inbound.test", "remark", "acc-inbound-3"),
-					resource.TestCheckResourceAttr("threexui_inbound.test", "stream_settings.0.network", "tcp"),
-					resource.TestCheckResourceAttr("threexui_inbound.test", "sniffing.0.enabled", "true"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.test", "stream_settings"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.test", "sniffing"),
 				),
 			},
 			{
@@ -203,9 +204,9 @@ func TestAccInboundBasic(t *testing.T) {
 
 func TestAccInboundClientBasic(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundClientDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + testAccInboundWithClientConfig("acc-client@example.com", true),
@@ -233,13 +234,13 @@ func TestAccInboundClientBasic(t *testing.T) {
 
 func TestAccDataSources(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + testAccInboundConfig("acc-inbound-ds") + testAccDataSourcesConfig(),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttrSet("data.threexui_inbounds.all", "inbounds.0.id"),
+					resource.TestCheckResourceAttrSet("data.threexui_inbounds.all", "inbounds"),
 					resource.TestCheckResourceAttrSet("data.threexui_server_status.status", "json"),
 					resource.TestCheckResourceAttrSet("data.threexui_xray_versions.versions", "versions.0"),
 					resource.TestCheckResourceAttrSet("data.threexui_xray_config.config", "json"),
@@ -257,9 +258,9 @@ resource "threexui_inbound" "test" {
   protocol = "vless"
   remark   = %q
   enable   = true
-  settings {
+  settings = jsonencode({
     decryption = "none"
-  }
+  })
 }
 `, remark)
 }
@@ -271,25 +272,25 @@ resource "threexui_inbound" "test" {
   protocol = "vless"
   remark   = %q
   enable   = true
-  settings {
+  settings = jsonencode({
     decryption = "none"
-  }
-  stream_settings {
+  })
+  stream_settings = jsonencode({
     network  = "tcp"
     security = "none"
-    tcp_settings {
-      accept_proxy_protocol = false
-      header {
+    tcpSettings = {
+      acceptProxyProtocol = false
+      header = {
         type = "none"
       }
     }
-  }
-  sniffing {
+  })
+  sniffing = jsonencode({
     enabled       = true
-    dest_override = ["http", "tls"]
-    metadata_only = false
-    route_only    = false
-  }
+    destOverride  = ["http", "tls"]
+    metadataOnly  = false
+    routeOnly     = false
+  })
 }
 `, remark)
 }

@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
 // --- All fields: email, flow, limit_ip, total_gb, expiry_time, enable, tg_id, sub_id, comment, reset ---
 
 func TestAccInboundClientAllFields(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundClientDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `
@@ -22,9 +22,9 @@ resource "threexui_inbound" "client_host" {
   protocol = "vless"
   remark   = "acc-client-host-allfields"
   enable   = true
-  settings {
+  settings = jsonencode({
     decryption = "none"
-  }
+  })
 }
 
 resource "threexui_inbound_client" "allfields" {
@@ -62,9 +62,9 @@ resource "threexui_inbound_client" "allfields" {
 
 func TestAccInboundClientUpdate(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundClientDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + testAccInboundClientUpdateConfig("client-upd@test.com", true, 2, "initial"),
@@ -98,9 +98,9 @@ func TestAccInboundClientUpdate(t *testing.T) {
 
 func TestAccInboundClientMultiple(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundClientDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `
@@ -109,9 +109,9 @@ resource "threexui_inbound" "multi_host" {
   protocol = "vless"
   remark   = "acc-multi-client-host"
   enable   = true
-  settings {
+  settings = jsonencode({
     decryption = "none"
-  }
+  })
 }
 
 resource "threexui_inbound_client" "multi1" {
@@ -144,9 +144,9 @@ resource "threexui_inbound_client" "multi2" {
 
 func TestAccInboundClientVmess(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundClientDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `
@@ -178,9 +178,9 @@ resource "threexui_inbound_client" "vmess_cl" {
 
 func TestAccInboundClientTrojan(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundClientDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `
@@ -216,9 +216,9 @@ resource "threexui_inbound" "upd_host" {
   protocol = "vless"
   remark   = "acc-client-upd-host"
   enable   = true
-  settings {
+  settings = jsonencode({
     decryption = "none"
-  }
+  })
 }
 
 resource "threexui_inbound_client" "upd" {

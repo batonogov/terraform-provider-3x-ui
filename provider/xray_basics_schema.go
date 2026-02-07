@@ -3,159 +3,41 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-func xrayBasicsSchema() map[string]*schema.Schema {
-	return map[string]*schema.Schema{
-		"log": {
-			Type:     schema.TypeList,
-			Optional: true,
-			MaxItems: 1,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"loglevel": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"access": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"error": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"dns_log": {
-					Type:     schema.TypeBool,
-					Optional: true,
-				},
-			}},
-		},
-		"policy": {
-			Type:     schema.TypeList,
-			Optional: true,
-			MaxItems: 1,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"system": {
-					Type:     schema.TypeList,
-					Optional: true,
-					MaxItems: 1,
-					Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-						"stats_inbound_downlink": {
-							Type:     schema.TypeBool,
-							Optional: true,
-						},
-						"stats_inbound_uplink": {
-							Type:     schema.TypeBool,
-							Optional: true,
-						},
-						"stats_outbound_downlink": {
-							Type:     schema.TypeBool,
-							Optional: true,
-						},
-						"stats_outbound_uplink": {
-							Type:     schema.TypeBool,
-							Optional: true,
-						},
-					}},
-				},
-				"level": {
-					Type:     schema.TypeList,
-					Optional: true,
-					Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-						"id": {
-							Type:     schema.TypeInt,
-							Required: true,
-						},
-						"handshake": {
-							Type:     schema.TypeInt,
-							Optional: true,
-						},
-						"conn_idle": {
-							Type:     schema.TypeInt,
-							Optional: true,
-						},
-						"uplink_only": {
-							Type:     schema.TypeInt,
-							Optional: true,
-						},
-						"downlink_only": {
-							Type:     schema.TypeInt,
-							Optional: true,
-						},
-						"stats_user_uplink": {
-							Type:     schema.TypeBool,
-							Optional: true,
-						},
-						"stats_user_downlink": {
-							Type:     schema.TypeBool,
-							Optional: true,
-						},
-						"buffer_size": {
-							Type:     schema.TypeInt,
-							Optional: true,
-						},
-					}},
-				},
-			}},
-		},
-		"api": {
-			Type:     schema.TypeList,
-			Optional: true,
-			MaxItems: 1,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"tag": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"services": {
-					Type:     schema.TypeList,
-					Optional: true,
-					Elem:     &schema.Schema{Type: schema.TypeString},
-				},
-			}},
-		},
-		"stats": {
-			Type:     schema.TypeList,
-			Optional: true,
-			MaxItems: 1,
-			Elem:     &schema.Resource{Schema: map[string]*schema.Schema{}},
-		},
-	}
-}
-
-func buildXrayBasicsJSON(d *schema.ResourceData) (map[string]any, error) { //nolint:unparam // error required by buildFunc interface
+func buildXrayBasicsJSON(d map[string]any) any {
 	payload := map[string]any{}
 
-	if v, ok := d.GetOk("log"); ok {
-		if log := expandBasicsLog(v.([]any)); log != nil {
-			payload["log"] = log
+	if v, ok := d["log"]; ok {
+		if m, ok := v.(map[string]any); ok {
+			if log := expandBasicsLog(m); log != nil {
+				payload["log"] = log
+			}
 		}
 	}
-	if v, ok := d.GetOk("policy"); ok {
-		if policy := expandBasicsPolicy(v.([]any)); policy != nil {
-			payload["policy"] = policy
+	if v, ok := d["policy"]; ok {
+		if m, ok := v.(map[string]any); ok {
+			if policy := expandBasicsPolicy(m); policy != nil {
+				payload["policy"] = policy
+			}
 		}
 	}
-	if v, ok := d.GetOk("api"); ok {
-		if api := expandBasicsAPI(v.([]any)); api != nil {
-			payload["api"] = api
+	if v, ok := d["api"]; ok {
+		if m, ok := v.(map[string]any); ok {
+			if api := expandBasicsAPI(m); api != nil {
+				payload["api"] = api
+			}
 		}
 	}
-	if _, ok := d.GetOk("stats"); ok {
+	if _, ok := d["stats"]; ok {
 		payload["stats"] = map[string]any{}
 	}
 
-	return payload, nil
+	return payload
 }
 
-func expandBasicsLog(list []any) map[string]any {
-	if len(list) == 0 {
-		return nil
-	}
-	item, ok := list[0].(map[string]any)
-	if !ok {
+func expandBasicsLog(item map[string]any) map[string]any {
+	if len(item) == 0 {
 		return nil
 	}
 	out := map[string]any{}
@@ -168,30 +50,30 @@ func expandBasicsLog(list []any) map[string]any {
 	if v, ok := item["error"].(string); ok && v != "" {
 		out["error"] = v
 	}
-	if v, ok := item["dns_log"].(bool); ok {
-		out["dnsLog"] = v
+	if v, ok := item["dns_log"]; ok {
+		out["dnsLog"] = boolValue(v)
 	}
 	return out
 }
 
-func expandBasicsPolicy(list []any) map[string]any {
-	if len(list) == 0 {
-		return nil
-	}
-	item, ok := list[0].(map[string]any)
-	if !ok {
+func expandBasicsPolicy(item map[string]any) map[string]any {
+	if len(item) == 0 {
 		return nil
 	}
 	out := map[string]any{}
 
 	if v, ok := item["system"]; ok {
-		if sys := expandBasicsPolicySystem(v.([]any)); sys != nil {
-			out["system"] = sys
+		if m, ok := v.(map[string]any); ok {
+			if sys := expandBasicsPolicySystem(m); sys != nil {
+				out["system"] = sys
+			}
 		}
 	}
 	if v, ok := item["level"]; ok {
-		if levels := expandBasicsPolicyLevels(v.([]any)); levels != nil {
-			out["levels"] = levels
+		if list, ok := v.([]any); ok {
+			if levels := expandBasicsPolicyLevels(list); levels != nil {
+				out["levels"] = levels
+			}
 		}
 	}
 
@@ -201,26 +83,22 @@ func expandBasicsPolicy(list []any) map[string]any {
 	return out
 }
 
-func expandBasicsPolicySystem(list []any) map[string]any {
-	if len(list) == 0 {
-		return nil
-	}
-	item, ok := list[0].(map[string]any)
-	if !ok {
+func expandBasicsPolicySystem(item map[string]any) map[string]any {
+	if len(item) == 0 {
 		return nil
 	}
 	out := map[string]any{}
-	if v, ok := item["stats_inbound_downlink"].(bool); ok {
-		out["statsInboundDownlink"] = v
+	if v, ok := item["stats_inbound_downlink"]; ok {
+		out["statsInboundDownlink"] = boolValue(v)
 	}
-	if v, ok := item["stats_inbound_uplink"].(bool); ok {
-		out["statsInboundUplink"] = v
+	if v, ok := item["stats_inbound_uplink"]; ok {
+		out["statsInboundUplink"] = boolValue(v)
 	}
-	if v, ok := item["stats_outbound_downlink"].(bool); ok {
-		out["statsOutboundDownlink"] = v
+	if v, ok := item["stats_outbound_downlink"]; ok {
+		out["statsOutboundDownlink"] = boolValue(v)
 	}
-	if v, ok := item["stats_outbound_uplink"].(bool); ok {
-		out["statsOutboundUplink"] = v
+	if v, ok := item["stats_outbound_uplink"]; ok {
+		out["statsOutboundUplink"] = boolValue(v)
 	}
 	if len(out) == 0 {
 		return nil
@@ -242,26 +120,26 @@ func expandBasicsPolicyLevels(list []any) map[string]any {
 		}
 		id := intValue(m["id"])
 		entry := map[string]any{}
-		if v, ok := m["handshake"].(int); ok {
-			entry["handshake"] = v
+		if v, ok := m["handshake"]; ok {
+			entry["handshake"] = intValue(v)
 		}
-		if v, ok := m["conn_idle"].(int); ok {
-			entry["connIdle"] = v
+		if v, ok := m["conn_idle"]; ok {
+			entry["connIdle"] = intValue(v)
 		}
-		if v, ok := m["uplink_only"].(int); ok {
-			entry["uplinkOnly"] = v
+		if v, ok := m["uplink_only"]; ok {
+			entry["uplinkOnly"] = intValue(v)
 		}
-		if v, ok := m["downlink_only"].(int); ok {
-			entry["downlinkOnly"] = v
+		if v, ok := m["downlink_only"]; ok {
+			entry["downlinkOnly"] = intValue(v)
 		}
-		if v, ok := m["stats_user_uplink"].(bool); ok {
-			entry["statsUserUplink"] = v
+		if v, ok := m["stats_user_uplink"]; ok {
+			entry["statsUserUplink"] = boolValue(v)
 		}
-		if v, ok := m["stats_user_downlink"].(bool); ok {
-			entry["statsUserDownlink"] = v
+		if v, ok := m["stats_user_downlink"]; ok {
+			entry["statsUserDownlink"] = boolValue(v)
 		}
-		if v, ok := m["buffer_size"].(int); ok {
-			entry["bufferSize"] = v
+		if v, ok := m["buffer_size"]; ok {
+			entry["bufferSize"] = intValue(v)
 		}
 		out[fmt.Sprintf("%d", id)] = entry
 	}
@@ -291,32 +169,28 @@ func flattenXrayBasicsToMap(data any) map[string]any {
 
 	if v, ok := payload["log"].(map[string]any); ok {
 		if log := flattenBasicsLog(v); log != nil {
-			out["log"] = []any{log}
+			out["log"] = log
 		}
 	}
 	if v, ok := payload["policy"].(map[string]any); ok {
 		if policy := flattenBasicsPolicy(v); policy != nil {
-			out["policy"] = []any{policy}
+			out["policy"] = policy
 		}
 	}
 	if v, ok := payload["api"].(map[string]any); ok {
 		if api := flattenBasicsAPI(v); api != nil {
-			out["api"] = []any{api}
+			out["api"] = api
 		}
 	}
 	if _, ok := payload["stats"]; ok {
-		out["stats"] = []any{map[string]any{}}
+		out["stats"] = map[string]any{}
 	}
 
 	return out
 }
 
-func expandBasicsAPI(list []any) map[string]any {
-	if len(list) == 0 {
-		return nil
-	}
-	item, ok := list[0].(map[string]any)
-	if !ok {
+func expandBasicsAPI(item map[string]any) map[string]any {
+	if len(item) == 0 {
 		return nil
 	}
 	out := map[string]any{}
@@ -324,7 +198,9 @@ func expandBasicsAPI(list []any) map[string]any {
 		out["tag"] = v
 	}
 	if v, ok := item["services"]; ok {
-		out["services"] = expandStringList(v.([]any))
+		if list, ok := v.([]any); ok {
+			out["services"] = expandStringList(list)
+		}
 	}
 	if len(out) == 0 {
 		return nil
@@ -363,7 +239,7 @@ func flattenBasicsPolicy(in map[string]any) map[string]any {
 
 	if v, ok := in["system"].(map[string]any); ok {
 		if sys := flattenBasicsPolicySystem(v); sys != nil {
-			out["system"] = []any{sys}
+			out["system"] = sys
 		}
 	}
 	if v, ok := in["levels"].(map[string]any); ok {

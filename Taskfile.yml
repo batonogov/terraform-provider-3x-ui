@@ -12,7 +12,9 @@ tasks:
       TOFU_PATH:
         sh: which tofu
     cmds:
+      - docker compose down -v 2>/dev/null || true
       - docker compose up --detach --wait
+      - defer: docker compose down
       - >-
         TF_ACC=1
         TF_ACC_TERRAFORM_PATH={{.TOFU_PATH}}
@@ -22,7 +24,6 @@ tasks:
         THREEXUI_USERNAME=admin
         THREEXUI_PASSWORD=admin
         go test ./provider -run TestAcc -count=1 -timeout 600s -v
-      - docker compose down
 
   fmt:
     desc: Форматировать Go-файлы

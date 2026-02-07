@@ -3,186 +3,37 @@ package provider
 import (
 	"encoding/json"
 	"strings"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-func streamSettingsSchema() map[string]*schema.Schema {
-	return map[string]*schema.Schema{
-		"network": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"security": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"external_proxy": {
-			Type:     schema.TypeList,
-			Optional: true,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"dest": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"port": {
-					Type:     schema.TypeInt,
-					Optional: true,
-				},
-				"remark": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"force_tls": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-			}},
-		},
-		"reality_settings": {
-			Type:     schema.TypeList,
-			Optional: true,
-			MaxItems: 1,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"show": {
-					Type:     schema.TypeBool,
-					Optional: true,
-				},
-				"xver": {
-					Type:     schema.TypeInt,
-					Optional: true,
-				},
-				"target": {
-					Type:             schema.TypeString,
-					Optional:         true,
-					Computed:         true,
-					DiffSuppressFunc: suppressIfNewEmpty,
-				},
-				"server_names": {
-					Type:     schema.TypeList,
-					Optional: true,
-					Computed: true,
-					Elem:     &schema.Schema{Type: schema.TypeString},
-				},
-				"private_key": {
-					Type:             schema.TypeString,
-					Optional:         true,
-					Computed:         true,
-					Sensitive:        true,
-					DiffSuppressFunc: suppressIfNewEmpty,
-				},
-				"min_client_ver": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"max_client_ver": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"max_timediff": {
-					Type:     schema.TypeInt,
-					Optional: true,
-				},
-				"short_ids": {
-					Type:             schema.TypeList,
-					Optional:         true,
-					Computed:         true,
-					DiffSuppressFunc: suppressIfNewEmpty,
-					Elem:             &schema.Schema{Type: schema.TypeString},
-				},
-				"mldsa65_seed": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"settings": {
-					Type:     schema.TypeList,
-					Optional: true,
-					MaxItems: 1,
-					Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-						"public_key": {
-							Type:             schema.TypeString,
-							Optional:         true,
-							Computed:         true,
-							Sensitive:        true,
-							DiffSuppressFunc: suppressIfNewEmpty,
-						},
-						"fingerprint": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-						"server_name": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-						"spider_x": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-						"mldsa65_verify": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-					}},
-				},
-			}},
-		},
-		"tcp_settings": {
-			Type:     schema.TypeList,
-			Optional: true,
-			MaxItems: 1,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"accept_proxy_protocol": {
-					Type:     schema.TypeBool,
-					Optional: true,
-				},
-				"header": {
-					Type:     schema.TypeList,
-					Optional: true,
-					MaxItems: 1,
-					Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-						"type": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-					}},
-				},
-			}},
-		},
-	}
-}
-
-func buildStreamSettingsJSON(d *schema.ResourceData) string {
-	raw, ok := d.GetOk("stream_settings")
-	if !ok {
-		return "{}"
-	}
-	list, ok := raw.([]any)
-	if !ok || len(list) == 0 {
-		return "{}"
-	}
-	item, ok := list[0].(map[string]any)
-	if !ok {
+func buildStreamSettingsJSON(item map[string]any) string {
+	if item == nil {
 		return "{}"
 	}
 
 	payload := map[string]any{}
-	if v, ok := item["network"]; ok {
-		payload["network"] = v.(string)
+	if v, ok := item["network"].(string); ok && v != "" {
+		payload["network"] = v
 	}
-	if v, ok := item["security"]; ok {
-		payload["security"] = v.(string)
+	if v, ok := item["security"].(string); ok && v != "" {
+		payload["security"] = v
 	}
 	if v, ok := item["external_proxy"]; ok {
-		payload["externalProxy"] = expandExternalProxy(v.([]any))
+		if list, ok := v.([]any); ok {
+			payload["externalProxy"] = expandExternalProxy(list)
+		}
 	}
 	if v, ok := item["reality_settings"]; ok {
-		if rs := expandRealitySettings(v.([]any)); rs != nil {
-			payload["realitySettings"] = rs
+		if list, ok := v.([]any); ok {
+			if rs := expandRealitySettings(list); rs != nil {
+				payload["realitySettings"] = rs
+			}
 		}
 	}
 	if v, ok := item["tcp_settings"]; ok {
-		if ts := expandTCPSettings(v.([]any)); ts != nil {
-			payload["tcpSettings"] = ts
+		if list, ok := v.([]any); ok {
+			if ts := expandTCPSettings(list); ts != nil {
+				payload["tcpSettings"] = ts
+			}
 		}
 	}
 
@@ -244,8 +95,10 @@ func expandExternalProxy(list []any) []any {
 		if v, ok := m["dest"].(string); ok && v != "" {
 			entry["dest"] = v
 		}
-		if v, ok := m["port"].(int); ok && v != 0 {
-			entry["port"] = v
+		if v, ok := m["port"]; ok {
+			if p := intValue(v); p != 0 {
+				entry["port"] = p
+			}
 		}
 		if v, ok := m["remark"].(string); ok && v != "" {
 			entry["remark"] = v
@@ -295,18 +148,20 @@ func expandRealitySettings(list []any) map[string]any {
 	}
 	rs := map[string]any{}
 	target := ""
-	if v, ok := item["show"].(bool); ok {
-		rs["show"] = v
+	if v, ok := item["show"]; ok {
+		rs["show"] = boolValue(v)
 	}
-	if v, ok := item["xver"].(int); ok {
-		rs["xver"] = v
+	if v, ok := item["xver"]; ok {
+		rs["xver"] = intValue(v)
 	}
 	if v, ok := item["target"].(string); ok && v != "" {
 		target = v
 		rs["target"] = v
 	}
 	if v, ok := item["server_names"]; ok {
-		rs["serverNames"] = expandStringList(v.([]any))
+		if list, ok := v.([]any); ok {
+			rs["serverNames"] = expandStringList(list)
+		}
 	}
 	if v, ok := item["private_key"].(string); ok && v != "" {
 		rs["privateKey"] = v
@@ -317,18 +172,22 @@ func expandRealitySettings(list []any) map[string]any {
 	if v, ok := item["max_client_ver"].(string); ok && v != "" {
 		rs["maxClientVer"] = v
 	}
-	if v, ok := item["max_timediff"].(int); ok {
-		rs["maxTimediff"] = v
+	if v, ok := item["max_timediff"]; ok {
+		rs["maxTimediff"] = intValue(v)
 	}
 	if v, ok := item["short_ids"]; ok {
-		rs["shortIds"] = expandStringList(v.([]any))
+		if list, ok := v.([]any); ok {
+			rs["shortIds"] = expandStringList(list)
+		}
 	}
 	if v, ok := item["mldsa65_seed"].(string); ok && v != "" {
 		rs["mldsa65Seed"] = v
 	}
 	if v, ok := item["settings"]; ok {
-		if s := expandRealityInnerSettings(v.([]any)); s != nil {
-			rs["settings"] = s
+		if list, ok := v.([]any); ok {
+			if s := expandRealityInnerSettings(list); s != nil {
+				rs["settings"] = s
+			}
 		}
 	}
 	if !hasRealityServerNames(rs) {
@@ -460,12 +319,14 @@ func expandTCPSettings(list []any) map[string]any {
 		return nil
 	}
 	out := map[string]any{}
-	if v, ok := item["accept_proxy_protocol"].(bool); ok {
-		out["acceptProxyProtocol"] = v
+	if v, ok := item["accept_proxy_protocol"]; ok {
+		out["acceptProxyProtocol"] = boolValue(v)
 	}
 	if v, ok := item["header"]; ok {
-		if h := expandTCPHeader(v.([]any)); h != nil {
-			out["header"] = h
+		if list, ok := v.([]any); ok {
+			if h := expandTCPHeader(list); h != nil {
+				out["header"] = h
+			}
 		}
 	}
 	if len(out) == 0 {

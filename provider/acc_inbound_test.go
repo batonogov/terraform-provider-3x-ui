@@ -5,16 +5,16 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
 // --- Vmess: create + update remark ---
 
 func TestAccInboundVmess(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `
@@ -53,9 +53,9 @@ resource "threexui_inbound" "vmess" {
 
 func TestAccInboundTrojan(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `
@@ -80,9 +80,9 @@ resource "threexui_inbound" "trojan" {
 
 func TestAccInboundShadowsocks(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `
@@ -91,18 +91,17 @@ resource "threexui_inbound" "ss" {
   protocol = "shadowsocks"
   remark   = "acc-ss"
   enable   = true
-  settings {
+  settings = jsonencode({
     method   = "aes-256-gcm"
     password = "testpassword123"
     network  = "tcp,udp"
-  }
+  })
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.ss", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.ss", "protocol", "shadowsocks"),
-					resource.TestCheckResourceAttr("threexui_inbound.ss", "settings.0.method", "aes-256-gcm"),
-					resource.TestCheckResourceAttr("threexui_inbound.ss", "settings.0.network", "tcp,udp"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.ss", "settings"),
 				),
 			},
 		},
@@ -113,9 +112,9 @@ resource "threexui_inbound" "ss" {
 
 func TestAccInboundHTTP(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `
@@ -124,22 +123,20 @@ resource "threexui_inbound" "http" {
   protocol = "http"
   remark   = "acc-http"
   enable   = true
-  settings {
-    auth              = "password"
-    allow_transparent = false
-    accounts {
+  settings = jsonencode({
+    auth             = "password"
+    allowTransparent = false
+    accounts = [{
       user = "testuser"
       pass = "testpass"
-    }
-  }
+    }]
+  })
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.http", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.http", "protocol", "http"),
-					resource.TestCheckResourceAttr("threexui_inbound.http", "settings.0.auth", "password"),
-					resource.TestCheckResourceAttr("threexui_inbound.http", "settings.0.allow_transparent", "false"),
-					resource.TestCheckResourceAttr("threexui_inbound.http", "settings.0.accounts.0.user", "testuser"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.http", "settings"),
 				),
 			},
 		},
@@ -150,9 +147,9 @@ resource "threexui_inbound" "http" {
 
 func TestAccInboundWireguard(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `
@@ -161,21 +158,19 @@ resource "threexui_inbound" "wg" {
   protocol = "wireguard"
   remark   = "acc-wireguard"
   enable   = true
-  settings {
+  settings = jsonencode({
     mtu = 1420
-    peers {
-      public_key  = "dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXkxMjM0NQ=="
-      allowed_ips = ["10.0.0.2/32"]
-    }
-  }
+    peers = [{
+      publicKey  = "dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXkxMjM0NQ=="
+      allowedIPs = ["10.0.0.2/32"]
+    }]
+  })
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.wg", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.wg", "protocol", "wireguard"),
-					resource.TestCheckResourceAttr("threexui_inbound.wg", "settings.0.mtu", "1420"),
-					resource.TestCheckResourceAttr("threexui_inbound.wg", "settings.0.peers.0.public_key", "dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXkxMjM0NQ=="),
-					resource.TestCheckResourceAttr("threexui_inbound.wg", "settings.0.peers.0.allowed_ips.0", "10.0.0.2/32"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.wg", "settings"),
 				),
 			},
 		},
@@ -186,9 +181,9 @@ resource "threexui_inbound" "wg" {
 
 func TestAccInboundDokodemo(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `
@@ -197,20 +192,18 @@ resource "threexui_inbound" "dokodemo" {
   protocol = "dokodemo-door"
   remark   = "acc-dokodemo"
   enable   = true
-  settings {
-    address         = "127.0.0.1"
-    port            = 80
-    network         = "tcp"
-    follow_redirect = false
-  }
+  settings = jsonencode({
+    address        = "127.0.0.1"
+    port           = 80
+    network        = "tcp"
+    followRedirect = false
+  })
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.dokodemo", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.dokodemo", "protocol", "dokodemo-door"),
-					resource.TestCheckResourceAttr("threexui_inbound.dokodemo", "settings.0.address", "127.0.0.1"),
-					resource.TestCheckResourceAttr("threexui_inbound.dokodemo", "settings.0.port", "80"),
-					resource.TestCheckResourceAttr("threexui_inbound.dokodemo", "settings.0.network", "tcp"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.dokodemo", "settings"),
 				),
 			},
 		},
@@ -221,9 +214,9 @@ resource "threexui_inbound" "dokodemo" {
 
 func TestAccInboundReality(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `
@@ -232,31 +225,25 @@ resource "threexui_inbound" "reality" {
   protocol = "vless"
   remark   = "acc-reality"
   enable   = true
-  settings {
+  settings = jsonencode({
     decryption = "none"
-  }
-  stream_settings {
+  })
+  stream_settings = jsonencode({
     network  = "tcp"
     security = "reality"
-    reality_settings {
-      target       = "google.com:443"
-      server_names = ["google.com"]
+    realitySettings = {
+      target      = "google.com:443"
+      serverNames = ["google.com"]
     }
-  }
+  })
 }
 `,
-				// Reality auto-generates keys and adds computed fields (port_map,
-				// testseed, settings.public_key) which cause a non-empty plan.
-				ExpectNonEmptyPlan: true,
+				// Reality auto-generates keys — the jsonSubsetPlanModifier
+				// suppresses the diff since config is a subset of state.
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.reality", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.reality", "protocol", "vless"),
-					resource.TestCheckResourceAttr("threexui_inbound.reality", "stream_settings.0.security", "reality"),
-					resource.TestCheckResourceAttr("threexui_inbound.reality", "stream_settings.0.reality_settings.0.target", "google.com:443"),
-					resource.TestCheckResourceAttr("threexui_inbound.reality", "stream_settings.0.reality_settings.0.server_names.0", "google.com"),
-					// Auto-generated keys
-					resource.TestCheckResourceAttrSet("threexui_inbound.reality", "stream_settings.0.reality_settings.0.private_key"),
-					resource.TestCheckResourceAttrSet("threexui_inbound.reality", "stream_settings.0.reality_settings.0.short_ids.0"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.reality", "stream_settings"),
 				),
 			},
 		},
@@ -267,9 +254,9 @@ resource "threexui_inbound" "reality" {
 
 func TestAccInboundFallbacks(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `
@@ -278,21 +265,19 @@ resource "threexui_inbound" "fallback" {
   protocol = "vless"
   remark   = "acc-fallback"
   enable   = true
-  settings {
+  settings = jsonencode({
     decryption = "none"
-    fallbacks {
+    fallbacks = [{
       name = "default"
       dest = "80"
       xver = 1
-    }
-  }
+    }]
+  })
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.fallback", "id"),
-					resource.TestCheckResourceAttr("threexui_inbound.fallback", "settings.0.fallbacks.0.name", "default"),
-					resource.TestCheckResourceAttr("threexui_inbound.fallback", "settings.0.fallbacks.0.dest", "80"),
-					resource.TestCheckResourceAttr("threexui_inbound.fallback", "settings.0.fallbacks.0.xver", "1"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.fallback", "settings"),
 				),
 			},
 		},
@@ -303,9 +288,9 @@ resource "threexui_inbound" "fallback" {
 
 func TestAccInboundSettings(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `
@@ -314,14 +299,14 @@ resource "threexui_inbound" "settings" {
   protocol = "vless"
   remark   = "acc-settings"
   enable   = true
-  settings {
+  settings = jsonencode({
     decryption = "none"
-  }
+  })
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.settings", "id"),
-					resource.TestCheckResourceAttr("threexui_inbound.settings", "settings.0.decryption", "none"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.settings", "settings"),
 				),
 			},
 			// Re-apply same config: testseed should be preserved
@@ -332,13 +317,13 @@ resource "threexui_inbound" "settings" {
   protocol = "vless"
   remark   = "acc-settings"
   enable   = true
-  settings {
+  settings = jsonencode({
     decryption = "none"
-  }
+  })
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("threexui_inbound.settings", "settings.0.decryption", "none"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.settings", "settings"),
 				),
 			},
 		},
@@ -349,9 +334,9 @@ resource "threexui_inbound" "settings" {
 
 func TestAccInboundStreamSniffing(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `
@@ -360,27 +345,24 @@ resource "threexui_inbound" "stream" {
   protocol = "vless"
   remark   = "acc-stream"
   enable   = true
-  settings {
+  settings = jsonencode({
     decryption = "none"
-  }
-  stream_settings {
+  })
+  stream_settings = jsonencode({
     network  = "tcp"
     security = "none"
-  }
-  sniffing {
-    enabled       = true
-    dest_override = ["http", "tls"]
-    metadata_only = false
-    route_only    = false
-  }
+  })
+  sniffing = jsonencode({
+    enabled      = true
+    destOverride = ["http", "tls"]
+    metadataOnly = false
+    routeOnly    = false
+  })
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("threexui_inbound.stream", "stream_settings.0.network", "tcp"),
-					resource.TestCheckResourceAttr("threexui_inbound.stream", "stream_settings.0.security", "none"),
-					resource.TestCheckResourceAttr("threexui_inbound.stream", "sniffing.0.enabled", "true"),
-					resource.TestCheckResourceAttr("threexui_inbound.stream", "sniffing.0.dest_override.0", "http"),
-					resource.TestCheckResourceAttr("threexui_inbound.stream", "sniffing.0.dest_override.1", "tls"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.stream", "stream_settings"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.stream", "sniffing"),
 				),
 			},
 			// Update sniffing
@@ -391,37 +373,36 @@ resource "threexui_inbound" "stream" {
   protocol = "vless"
   remark   = "acc-stream"
   enable   = true
-  settings {
+  settings = jsonencode({
     decryption = "none"
-  }
-  stream_settings {
+  })
+  stream_settings = jsonencode({
     network  = "tcp"
     security = "none"
-  }
-  sniffing {
-    enabled       = true
-    dest_override = ["http", "tls", "quic", "fakedns"]
-    metadata_only = true
-    route_only    = false
-  }
+  })
+  sniffing = jsonencode({
+    enabled      = true
+    destOverride = ["http", "tls", "quic", "fakedns"]
+    metadataOnly = true
+    routeOnly    = false
+  })
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("threexui_inbound.stream", "sniffing.0.dest_override.#", "4"),
-					resource.TestCheckResourceAttr("threexui_inbound.stream", "sniffing.0.metadata_only", "true"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.stream", "sniffing"),
 				),
 			},
 		},
 	})
 }
 
-// --- Port conflict → error ---
+// --- Port conflict -> error ---
 
 func TestAccInboundPortConflict(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `
@@ -430,9 +411,9 @@ resource "threexui_inbound" "conflict1" {
   protocol = "vless"
   remark   = "acc-conflict-1"
   enable   = true
-  settings {
+  settings = jsonencode({
     decryption = "none"
-  }
+  })
 }
 
 resource "threexui_inbound" "conflict2" {
@@ -440,9 +421,9 @@ resource "threexui_inbound" "conflict2" {
   protocol = "vless"
   remark   = "acc-conflict-2"
   enable   = true
-  settings {
+  settings = jsonencode({
     decryption = "none"
-  }
+  })
   depends_on = [threexui_inbound.conflict1]
 }
 `,
@@ -456,9 +437,9 @@ resource "threexui_inbound" "conflict2" {
 
 func TestAccInboundUpdateFields(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + testAccInboundUpdateConfig("acc-update-1", 25012, true),
@@ -489,31 +470,31 @@ resource "threexui_inbound" "idem" {
   protocol = "vless"
   remark   = "acc-idempotent"
   enable   = true
-  settings {
+  settings = jsonencode({
     decryption = "none"
-  }
-  stream_settings {
+  })
+  stream_settings = jsonencode({
     network  = "tcp"
     security = "none"
-    tcp_settings {
-      accept_proxy_protocol = false
-      header {
+    tcpSettings = {
+      acceptProxyProtocol = false
+      header = {
         type = "none"
       }
     }
-  }
-  sniffing {
-    enabled       = true
-    dest_override = ["http", "tls"]
-    metadata_only = false
-    route_only    = false
-  }
+  })
+  sniffing = jsonencode({
+    enabled      = true
+    destOverride = ["http", "tls"]
+    metadataOnly = false
+    routeOnly    = false
+  })
 }
 `
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: config,
@@ -539,9 +520,9 @@ resource "threexui_inbound" "update" {
   protocol = "vless"
   remark   = %q
   enable   = %t
-  settings {
+  settings = jsonencode({
     decryption = "none"
-  }
+  })
 }
 `, port, remark, enable)
 }

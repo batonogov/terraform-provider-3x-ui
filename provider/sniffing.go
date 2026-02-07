@@ -3,36 +3,27 @@ package provider
 import (
 	"encoding/json"
 	"strings"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-func buildSniffingJSON(d *schema.ResourceData) string {
-	raw, ok := d.GetOk("sniffing")
-	if !ok {
-		return "{}"
-	}
-	list, ok := raw.([]any)
-	if !ok || len(list) == 0 {
-		return "{}"
-	}
-	item, ok := list[0].(map[string]any)
-	if !ok {
+func buildSniffingJSON(item map[string]any) string {
+	if item == nil {
 		return "{}"
 	}
 
 	payload := map[string]any{}
 	if v, ok := item["enabled"]; ok {
-		payload["enabled"] = v.(bool)
+		payload["enabled"] = boolValue(v)
 	}
 	if v, ok := item["dest_override"]; ok {
-		payload["destOverride"] = expandStringList(v.([]any))
+		if list, ok := v.([]any); ok {
+			payload["destOverride"] = expandStringList(list)
+		}
 	}
 	if v, ok := item["metadata_only"]; ok {
-		payload["metadataOnly"] = v.(bool)
+		payload["metadataOnly"] = boolValue(v)
 	}
 	if v, ok := item["route_only"]; ok {
-		payload["routeOnly"] = v.(bool)
+		payload["routeOnly"] = boolValue(v)
 	}
 
 	if len(payload) == 0 {

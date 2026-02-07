@@ -2,117 +2,79 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func dataSourceInbounds() *schema.Resource {
-	return &schema.Resource{
-		ReadContext: dataSourceInboundsRead,
-		Schema: map[string]*schema.Schema{
-			"inbounds": {
-				Type:     schema.TypeList,
+var _ datasource.DataSource = &InboundsDataSource{}
+
+type InboundsDataSource struct {
+	client *Client
+}
+
+type InboundsDataSourceModel struct {
+	ID       types.String `tfsdk:"id"`
+	Inbounds types.String `tfsdk:"inbounds"`
+}
+
+func NewInboundsDataSource() datasource.DataSource {
+	return &InboundsDataSource{}
+}
+
+func (d *InboundsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_inbounds"
+}
+
+func (d *InboundsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
 				Computed: true,
-				Elem:     &schema.Resource{Schema: inboundSchemaComputed()},
+			},
+			"inbounds": schema.StringAttribute{
+				Computed:    true,
+				Description: "JSON array of inbound objects.",
 			},
 		},
 	}
 }
 
-func dataSourceInboundsRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*Client)
-	inbounds, err := client.GetInbounds(ctx)
+func (d *InboundsDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	client, ok := req.ProviderData.(*Client)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected Data Source Configure Type", "Expected *Client")
+		return
+	}
+	d.client = client
+}
+
+func (d *InboundsDataSource) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
+	inbounds, err := d.client.GetInbounds(ctx)
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("Failed to list inbounds", err.Error())
+		return
 	}
 
-	items := make([]any, 0, len(inbounds))
-	for _, inbound := range inbounds {
-		items = append(items, flattenInbound(inbound))
+	payload, err := json.Marshal(inbounds)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to marshal inbounds", err.Error())
+		return
 	}
-	if err := d.Set("inbounds", items); err != nil {
-		return diag.FromErr(err)
-	}
+
+	var state InboundsDataSourceModel
+	state.Inbounds = types.StringValue(string(payload))
 	if len(inbounds) == 0 {
-		d.SetId("0")
-		return nil
+		state.ID = types.StringValue("0")
+	} else {
+		state.ID = types.StringValue(strconv.Itoa(inbounds[0].ID))
 	}
-	d.SetId(strconv.Itoa(inbounds[0].ID))
-	return nil
-}
 
-func inboundSchemaComputed() map[string]*schema.Schema {
-	return map[string]*schema.Schema{
-		"id":                      {Type: schema.TypeInt, Computed: true},
-		"up":                      {Type: schema.TypeInt, Computed: true},
-		"down":                    {Type: schema.TypeInt, Computed: true},
-		"total":                   {Type: schema.TypeInt, Computed: true},
-		"all_time":                {Type: schema.TypeInt, Computed: true},
-		"remark":                  {Type: schema.TypeString, Computed: true},
-		"enable":                  {Type: schema.TypeBool, Computed: true},
-		"expiry_time":             {Type: schema.TypeInt, Computed: true},
-		"traffic_reset":           {Type: schema.TypeString, Computed: true},
-		"last_traffic_reset_time": {Type: schema.TypeInt, Computed: true},
-		"listen":                  {Type: schema.TypeString, Computed: true},
-		"port":                    {Type: schema.TypeInt, Computed: true},
-		"protocol":                {Type: schema.TypeString, Computed: true},
-		"settings": {
-			Type:     schema.TypeList,
-			Computed: true,
-			Elem:     &schema.Resource{Schema: settingsSchema()},
-		},
-		"stream_settings": {
-			Type:     schema.TypeList,
-			Computed: true,
-			Elem:     &schema.Resource{Schema: streamSettingsSchema()},
-		},
-		"tag": {Type: schema.TypeString, Computed: true},
-		"sniffing": {
-			Type:     schema.TypeList,
-			Computed: true,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"enabled": {
-					Type:     schema.TypeBool,
-					Computed: true,
-				},
-				"dest_override": {
-					Type:     schema.TypeList,
-					Computed: true,
-					Elem:     &schema.Schema{Type: schema.TypeString},
-				},
-				"metadata_only": {
-					Type:     schema.TypeBool,
-					Computed: true,
-				},
-				"route_only": {
-					Type:     schema.TypeBool,
-					Computed: true,
-				},
-			}},
-		},
-	}
-}
-
-func flattenInbound(inbound Inbound) map[string]any {
-	return map[string]any{
-		"id":                      inbound.ID,
-		"up":                      int(inbound.Up),
-		"down":                    int(inbound.Down),
-		"total":                   int(inbound.Total),
-		"all_time":                int(inbound.AllTime),
-		"remark":                  inbound.Remark,
-		"enable":                  inbound.Enable,
-		"expiry_time":             int(inbound.ExpiryTime),
-		"traffic_reset":           inbound.TrafficReset,
-		"last_traffic_reset_time": int(inbound.LastTrafficResetTime),
-		"listen":                  inbound.Listen,
-		"port":                    inbound.Port,
-		"protocol":                inbound.Protocol,
-		"settings":                flattenSettings(inbound.Settings),
-		"stream_settings":         flattenStreamSettings(inbound.StreamSettings),
-		"tag":                     inbound.Tag,
-		"sniffing":                flattenSniffing(inbound.Sniffing),
-	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

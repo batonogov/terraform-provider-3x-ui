@@ -9,134 +9,489 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func resourceInbound() *schema.Resource {
-	return &schema.Resource{
-		CreateContext: resourceInboundCreate,
-		ReadContext:   resourceInboundRead,
-		UpdateContext: resourceInboundUpdate,
-		DeleteContext: resourceInboundDelete,
-		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
-		},
-		Schema: map[string]*schema.Schema{
-			"up": {
-				Type:     schema.TypeInt,
-				Optional: true,
-				Computed: true,
+var (
+	_ resource.Resource                = &InboundResource{}
+	_ resource.ResourceWithImportState = &InboundResource{}
+)
+
+type InboundResource struct {
+	client *Client
+}
+
+type InboundResourceModel struct {
+	ID                   types.String `tfsdk:"id"`
+	Up                   types.Int64  `tfsdk:"up"`
+	Down                 types.Int64  `tfsdk:"down"`
+	Total                types.Int64  `tfsdk:"total"`
+	AllTime              types.Int64  `tfsdk:"all_time"`
+	Remark               types.String `tfsdk:"remark"`
+	Enable               types.Bool   `tfsdk:"enable"`
+	ExpiryTime           types.Int64  `tfsdk:"expiry_time"`
+	TrafficReset         types.String `tfsdk:"traffic_reset"`
+	LastTrafficResetTime types.Int64  `tfsdk:"last_traffic_reset_time"`
+	Listen               types.String `tfsdk:"listen"`
+	Port                 types.Int64  `tfsdk:"port"`
+	Protocol             types.String `tfsdk:"protocol"`
+	Settings             types.String `tfsdk:"settings"`
+	StreamSettings       types.String `tfsdk:"stream_settings"`
+	Sniffing             types.String `tfsdk:"sniffing"`
+	Tag                  types.String `tfsdk:"tag"`
+}
+
+func NewInboundResource() resource.Resource {
+	return &InboundResource{}
+}
+
+func (r *InboundResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_inbound"
+}
+
+func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Description: "Manages a 3x-ui inbound.",
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed:    true,
+				Description: "Numeric ID of the inbound.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
-			"down": {
-				Type:     schema.TypeInt,
-				Optional: true,
-				Computed: true,
+			"up": schema.Int64Attribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Upload traffic (bytes).",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
-			"total": {
-				Type:     schema.TypeInt,
-				Optional: true,
-				Computed: true,
+			"down": schema.Int64Attribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Download traffic (bytes).",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
-			"all_time": {
-				Type:     schema.TypeInt,
-				Computed: true,
+			"total": schema.Int64Attribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Total traffic limit (bytes). 0 means unlimited.",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
-			"remark": {
-				Type:     schema.TypeString,
-				Optional: true,
+			"all_time": schema.Int64Attribute{
+				Computed:    true,
+				Description: "All-time accumulated traffic (bytes).",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
-			"enable": {
-				Type:     schema.TypeBool,
-				Optional: true,
-				Default:  true,
+			"remark": schema.StringAttribute{
+				Optional:    true,
+				Description: "Remark / display name for the inbound.",
 			},
-			"expiry_time": {
-				Type:     schema.TypeInt,
-				Optional: true,
+			"enable": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(true),
+				Description: "Whether the inbound is enabled.",
 			},
-			"traffic_reset": {
-				Type:     schema.TypeString,
-				Optional: true,
-				Default:  "never",
+			"expiry_time": schema.Int64Attribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Expiry time in milliseconds since epoch. 0 means never.",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
-			"last_traffic_reset_time": {
-				Type:     schema.TypeInt,
-				Computed: true,
+			"traffic_reset": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString("never"),
+				Description: "Traffic reset interval (e.g. 'never', 'day', 'week', 'month', 'year').",
 			},
-			"listen": {
-				Type:     schema.TypeString,
-				Optional: true,
+			"last_traffic_reset_time": schema.Int64Attribute{
+				Computed:    true,
+				Description: "Last traffic reset time in milliseconds since epoch.",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
-			"port": {
-				Type:     schema.TypeInt,
-				Required: true,
+			"listen": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Listen address.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
-			"protocol": {
-				Type:     schema.TypeString,
-				Required: true,
+			"port": schema.Int64Attribute{
+				Required:    true,
+				Description: "Listen port.",
 			},
-			"settings": {
-				Type:     schema.TypeList,
-				Optional: true,
-				Computed: true,
-				MaxItems: 1,
-				Elem:     &schema.Resource{Schema: settingsSchema()},
+			"protocol": schema.StringAttribute{
+				Required:    true,
+				Description: "Protocol (vless, vmess, trojan, shadowsocks, http, socks, wireguard, etc.).",
 			},
-			"stream_settings": {
-				Type:     schema.TypeList,
-				Optional: true,
-				Computed: true,
-				MaxItems: 1,
-				Elem:     &schema.Resource{Schema: streamSettingsSchema()},
+			"settings": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Inbound settings as a JSON string.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+					jsonSubsetPlanModifier{},
+				},
 			},
-			"sniffing": {
-				Type:     schema.TypeList,
-				Optional: true,
-				Computed: true,
-				MaxItems: 1,
-				Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-					"enabled": {
-						Type:     schema.TypeBool,
-						Optional: true,
-					},
-					"dest_override": {
-						Type:     schema.TypeList,
-						Optional: true,
-						Elem:     &schema.Schema{Type: schema.TypeString},
-					},
-					"metadata_only": {
-						Type:     schema.TypeBool,
-						Optional: true,
-					},
-					"route_only": {
-						Type:     schema.TypeBool,
-						Optional: true,
-					},
-				}},
+			"stream_settings": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Stream settings as a JSON string.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+					jsonSubsetPlanModifier{},
+				},
 			},
-			"tag": {
-				Type:     schema.TypeString,
-				Computed: true,
+			"sniffing": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Sniffing settings as a JSON string.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+					jsonSubsetPlanModifier{},
+				},
+			},
+			"tag": schema.StringAttribute{
+				Computed:    true,
+				Description: "Xray inbound tag (auto-generated by the panel).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
 }
 
-func jsonSubsetDiffSuppress(k, old, new string, d *schema.ResourceData) bool { //nolint:unparam // k required by schema.DiffSuppressFunc
-	if strings.TrimSpace(new) == "" {
-		return true
+func (r *InboundResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
 	}
-	var desired any
-	if err := json.Unmarshal([]byte(new), &desired); err != nil {
-		return false
+	client, ok := req.ProviderData.(*Client)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected provider data type",
+			fmt.Sprintf("Expected *Client, got: %T", req.ProviderData))
+		return
 	}
-	var actual any
-	if err := json.Unmarshal([]byte(old), &actual); err != nil {
-		return false
-	}
-	return isSubset(desired, actual)
+	r.client = client
 }
+
+func (r *InboundResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan InboundResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	inbound := expandInboundFromModel(&plan)
+
+	settingsJSON, err := ensureVlessEncFromAuth(ctx, r.client, inbound.Settings, inbound.Protocol)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to resolve VLESS encryption", err.Error())
+		return
+	}
+	inbound.Settings = settingsJSON
+
+	if err := applyDefaultInboundSettings(inbound); err != nil {
+		resp.Diagnostics.AddError("Failed to apply default inbound settings", err.Error())
+		return
+	}
+	if err := ensureRealityKeys(ctx, r.client, inbound, nil); err != nil {
+		resp.Diagnostics.AddError("Failed to ensure Reality keys", err.Error())
+		return
+	}
+	if err := ensureInboundClientIDs(inbound); err != nil {
+		resp.Diagnostics.AddError("Failed to ensure inbound client IDs", err.Error())
+		return
+	}
+
+	created, err := r.client.AddInbound(ctx, inbound)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to create inbound", err.Error())
+		return
+	}
+	if created == nil {
+		resp.Diagnostics.AddError("Empty response", "API returned nil inbound")
+		return
+	}
+
+	state := inboundToModel(created)
+	// Preserve plan values for JSON fields when the user specified them.
+	// API may add defaults (e.g. clients:[] in settings, tcpSettings in
+	// stream_settings). The plan modifier handles Read→Plan diff suppression.
+	if !plan.Settings.IsNull() && !plan.Settings.IsUnknown() {
+		state.Settings = plan.Settings
+	}
+	if !plan.StreamSettings.IsNull() && !plan.StreamSettings.IsUnknown() {
+		state.StreamSettings = plan.StreamSettings
+	}
+	if !plan.Sniffing.IsNull() && !plan.Sniffing.IsUnknown() {
+		state.Sniffing = plan.Sniffing
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *InboundResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state InboundResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	id, err := parseID(state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid ID", err.Error())
+		return
+	}
+
+	inbound, err := r.client.GetInbound(ctx, id)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to read inbound", err.Error())
+		return
+	}
+
+	newState := inboundToModel(inbound)
+	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
+}
+
+func (r *InboundResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan InboundResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var state InboundResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	id, err := parseID(state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid ID", err.Error())
+		return
+	}
+
+	existing, err := r.client.GetInbound(ctx, id)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to read existing inbound", err.Error())
+		return
+	}
+
+	inbound := expandInboundFromModel(&plan)
+
+	settingsJSON, err := ensureVlessEncFromAuth(ctx, r.client, inbound.Settings, inbound.Protocol)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to resolve VLESS encryption", err.Error())
+		return
+	}
+	inbound.Settings = settingsJSON
+
+	if err := applyDefaultInboundSettings(inbound); err != nil {
+		resp.Diagnostics.AddError("Failed to apply default inbound settings", err.Error())
+		return
+	}
+	if err := ensureRealityKeys(ctx, r.client, inbound, existing); err != nil {
+		resp.Diagnostics.AddError("Failed to ensure Reality keys", err.Error())
+		return
+	}
+	if err := preserveInboundSettings(inbound, existing); err != nil {
+		resp.Diagnostics.AddError("Failed to preserve inbound settings", err.Error())
+		return
+	}
+	inbound.ID = id
+
+	updated, err := r.client.UpdateInbound(ctx, inbound)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to update inbound", err.Error())
+		return
+	}
+
+	newState := inboundToModel(updated)
+	// Preserve plan values for JSON fields when the user specified them.
+	if !plan.Settings.IsNull() && !plan.Settings.IsUnknown() {
+		newState.Settings = plan.Settings
+	}
+	if !plan.StreamSettings.IsNull() && !plan.StreamSettings.IsUnknown() {
+		newState.StreamSettings = plan.StreamSettings
+	}
+	if !plan.Sniffing.IsNull() && !plan.Sniffing.IsUnknown() {
+		newState.Sniffing = plan.Sniffing
+	}
+	// Tag is Computed-only (auto-generated by panel). The API may return
+	// empty tag on update; preserve the plan value (prior state).
+	if newState.Tag.ValueString() == "" && !plan.Tag.IsNull() && !plan.Tag.IsUnknown() {
+		newState.Tag = plan.Tag
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
+}
+
+func (r *InboundResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state InboundResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	id, err := parseID(state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid ID", err.Error())
+		return
+	}
+
+	if err := r.client.DeleteInbound(ctx, id); err != nil {
+		resp.Diagnostics.AddError("Failed to delete inbound", err.Error())
+		return
+	}
+}
+
+func (r *InboundResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+// ---------------------------------------------------------------------------
+// Model <-> Inbound conversion
+// ---------------------------------------------------------------------------
+
+func expandInboundFromModel(m *InboundResourceModel) *Inbound {
+	settings := m.Settings.ValueString()
+	if settings == "" {
+		settings = "{}"
+	}
+	streamSettings := m.StreamSettings.ValueString()
+	if streamSettings == "" {
+		streamSettings = "{}"
+	}
+	sniffing := m.Sniffing.ValueString()
+	if sniffing == "" {
+		sniffing = "{}"
+	}
+
+	return &Inbound{
+		Up:                   m.Up.ValueInt64(),
+		Down:                 m.Down.ValueInt64(),
+		Total:                m.Total.ValueInt64(),
+		Remark:               m.Remark.ValueString(),
+		Enable:               m.Enable.ValueBool(),
+		ExpiryTime:           m.ExpiryTime.ValueInt64(),
+		TrafficReset:         m.TrafficReset.ValueString(),
+		LastTrafficResetTime: m.LastTrafficResetTime.ValueInt64(),
+		Listen:               m.Listen.ValueString(),
+		Port:                 int(m.Port.ValueInt64()),
+		Protocol:             m.Protocol.ValueString(),
+		Settings:             settings,
+		StreamSettings:       streamSettings,
+		Sniffing:             sniffing,
+	}
+}
+
+func inboundToModel(inbound *Inbound) *InboundResourceModel {
+	return &InboundResourceModel{
+		ID:                   types.StringValue(fmt.Sprintf("%d", inbound.ID)),
+		Up:                   types.Int64Value(inbound.Up),
+		Down:                 types.Int64Value(inbound.Down),
+		Total:                types.Int64Value(inbound.Total),
+		AllTime:              types.Int64Value(inbound.AllTime),
+		Remark:               types.StringValue(inbound.Remark),
+		Enable:               types.BoolValue(inbound.Enable),
+		ExpiryTime:           types.Int64Value(inbound.ExpiryTime),
+		TrafficReset:         types.StringValue(inbound.TrafficReset),
+		LastTrafficResetTime: types.Int64Value(inbound.LastTrafficResetTime),
+		Listen:               types.StringValue(inbound.Listen),
+		Port:                 types.Int64Value(int64(inbound.Port)),
+		Protocol:             types.StringValue(inbound.Protocol),
+		Settings:             types.StringValue(inbound.Settings),
+		StreamSettings:       types.StringValue(inbound.StreamSettings),
+		Sniffing:             types.StringValue(inbound.Sniffing),
+		Tag:                  types.StringValue(inbound.Tag),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ensureVlessEncFromAuth — resolves VLESS decryption/encryption from the
+// panel's auth endpoint when selectedAuth is set but decryption/encryption
+// are missing in the settings JSON.
+// ---------------------------------------------------------------------------
+
+func ensureVlessEncFromAuth(ctx context.Context, client *Client, settingsJSON string, protocol string) (string, error) {
+	if protocol != "vless" || client == nil {
+		return settingsJSON, nil
+	}
+	if strings.TrimSpace(settingsJSON) == "" {
+		return settingsJSON, nil
+	}
+
+	settings, err := ParseJSONField(settingsJSON)
+	if err != nil {
+		return settingsJSON, err
+	}
+
+	selected := stringValue(settings["selectedAuth"])
+	if selected == "" {
+		return settingsJSON, nil
+	}
+
+	decryptionMissing := stringValue(settings["decryption"]) == ""
+	encryptionMissing := stringValue(settings["encryption"]) == ""
+	if !decryptionMissing && !encryptionMissing {
+		return settingsJSON, nil
+	}
+
+	auths, err := client.GetNewVlessEnc(ctx)
+	if err != nil {
+		return settingsJSON, err
+	}
+
+	var match *VlessEncAuth
+	for i := range auths {
+		if auths[i].Label == selected {
+			match = &auths[i]
+			break
+		}
+	}
+	if match == nil {
+		return settingsJSON, fmt.Errorf("no auth block for selected_auth %q", selected)
+	}
+
+	if decryptionMissing {
+		settings["decryption"] = match.Decryption
+	}
+	if encryptionMissing {
+		settings["encryption"] = match.Encryption
+	}
+
+	updated, err := json.Marshal(settings)
+	if err != nil {
+		return settingsJSON, err
+	}
+	return string(updated), nil
+}
+
+// ---------------------------------------------------------------------------
+// isSubset — standalone utility function (no SDK dependency)
+// ---------------------------------------------------------------------------
 
 func isSubset(desired, actual any) bool {
 	switch dv := desired.(type) {
@@ -184,110 +539,48 @@ func isSubset(desired, actual any) bool {
 	}
 }
 
-func resourceInboundCreate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*Client)
-	inbound := expandInbound(d)
-	if err := ensureVlessEncFromAuth(ctx, client, d, inbound); err != nil {
-		return diag.FromErr(err)
-	}
-	if err := applyDefaultInboundSettings(inbound); err != nil {
-		return diag.FromErr(err)
-	}
-	if err := ensureRealityKeys(ctx, client, inbound, nil); err != nil {
-		return diag.FromErr(err)
-	}
-	if err := ensureInboundClientIDs(inbound); err != nil {
-		return diag.FromErr(err)
-	}
+// ---------------------------------------------------------------------------
+// jsonSubsetPlanModifier suppresses diffs when the config value is a JSON
+// subset of the prior state value. This handles API-added defaults (like
+// clients:[] in settings, tcpSettings defaults in stream_settings).
+// ---------------------------------------------------------------------------
 
-	created, err := client.AddInbound(ctx, inbound)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	if created != nil {
-		d.SetId(fmt.Sprintf("%d", created.ID))
-		return setInboundState(d, created)
-	}
-	return diag.Errorf("empty response from API")
+type jsonSubsetPlanModifier struct{}
+
+func (m jsonSubsetPlanModifier) Description(_ context.Context) string {
+	return "Suppresses diffs when config is a JSON subset of prior state."
 }
 
-func resourceInboundRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*Client)
-	id, err := parseID(d.Id())
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	inbound, err := client.GetInbound(ctx, id)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	return setInboundState(d, inbound)
+func (m jsonSubsetPlanModifier) MarkdownDescription(_ context.Context) string {
+	return "Suppresses diffs when config is a JSON subset of prior state."
 }
 
-func resourceInboundUpdate(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*Client)
-	id, err := parseID(d.Id())
-	if err != nil {
-		return diag.FromErr(err)
+func (m jsonSubsetPlanModifier) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	// No prior state (Create) or config is null/unknown — nothing to do.
+	if req.StateValue.IsNull() || req.StateValue.IsUnknown() ||
+		req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
 	}
-	existing, err := client.GetInbound(ctx, id)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	inbound := expandInbound(d)
-	if err := ensureVlessEncFromAuth(ctx, client, d, inbound); err != nil {
-		return diag.FromErr(err)
-	}
-	if err := applyDefaultInboundSettings(inbound); err != nil {
-		return diag.FromErr(err)
-	}
-	if err := ensureRealityKeys(ctx, client, inbound, existing); err != nil {
-		return diag.FromErr(err)
-	}
-	if err := preserveInboundSettings(inbound, existing); err != nil {
-		return diag.FromErr(err)
-	}
-	inbound.ID = id
+	configJSON := req.ConfigValue.ValueString()
+	stateJSON := req.StateValue.ValueString()
 
-	updated, err := client.UpdateInbound(ctx, inbound)
-	if err != nil {
-		return diag.FromErr(err)
+	var configVal, stateVal any
+	if err := json.Unmarshal([]byte(configJSON), &configVal); err != nil {
+		return
 	}
-	return setInboundState(d, updated)
+	if err := json.Unmarshal([]byte(stateJSON), &stateVal); err != nil {
+		return
+	}
+
+	if isSubset(configVal, stateVal) {
+		resp.PlanValue = req.StateValue
+	}
 }
 
-func resourceInboundDelete(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*Client)
-	id, err := parseID(d.Id())
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	if err := client.DeleteInbound(ctx, id); err != nil {
-		return diag.FromErr(err)
-	}
-	d.SetId("")
-	return nil
-}
-
-func expandInbound(d *schema.ResourceData) *Inbound {
-	return &Inbound{
-		Up:                   int64(d.Get("up").(int)),
-		Down:                 int64(d.Get("down").(int)),
-		Total:                int64(d.Get("total").(int)),
-		Remark:               d.Get("remark").(string),
-		Enable:               d.Get("enable").(bool),
-		ExpiryTime:           int64(d.Get("expiry_time").(int)),
-		TrafficReset:         d.Get("traffic_reset").(string),
-		LastTrafficResetTime: int64(d.Get("last_traffic_reset_time").(int)),
-		Listen:               d.Get("listen").(string),
-		Port:                 d.Get("port").(int),
-		Protocol:             d.Get("protocol").(string),
-		Settings:             buildSettingsJSON(d),
-		StreamSettings:       buildStreamSettingsJSON(d),
-		Sniffing:             buildSniffingJSON(d),
-	}
-}
+// ---------------------------------------------------------------------------
+// preserveInboundSettings / preserveSettingsKey — preserve clients and
+// testseed from existing inbound during update (no SDK dependency)
+// ---------------------------------------------------------------------------
 
 func preserveInboundSettings(desired *Inbound, existing *Inbound) error {
 	if desired == nil || existing == nil {
@@ -342,72 +635,10 @@ func preserveSettingsKey(desired, existing map[string]any, key string) bool {
 	return true
 }
 
-func settingsKeyMissing(d *schema.ResourceData, key string) bool {
-	raw, ok := d.GetOk("settings")
-	if !ok {
-		return true
-	}
-	list, ok := raw.([]any)
-	if !ok || len(list) == 0 {
-		return true
-	}
-	item, ok := list[0].(map[string]any)
-	if !ok {
-		return true
-	}
-	_, ok = item[key]
-	return !ok
-}
-
-func ensureVlessEncFromAuth(ctx context.Context, client *Client, d *schema.ResourceData, inbound *Inbound) error {
-	if inbound == nil || inbound.Protocol != "vless" || client == nil {
-		return nil
-	}
-	if strings.TrimSpace(inbound.Settings) == "" {
-		return nil
-	}
-	settings, err := ParseJSONField(inbound.Settings)
-	if err != nil {
-		return err
-	}
-	selected := stringValue(settings["selectedAuth"])
-	if selected == "" {
-		return nil
-	}
-
-	decryptionMissing := settingsKeyMissing(d, "decryption") || stringValue(settings["decryption"]) == ""
-	encryptionMissing := settingsKeyMissing(d, "encryption") || stringValue(settings["encryption"]) == ""
-	if !decryptionMissing && !encryptionMissing {
-		return nil
-	}
-
-	auths, err := client.GetNewVlessEnc(ctx)
-	if err != nil {
-		return err
-	}
-	var match *VlessEncAuth
-	for i := range auths {
-		if auths[i].Label == selected {
-			match = &auths[i]
-			break
-		}
-	}
-	if match == nil {
-		return fmt.Errorf("no auth block for selected_auth %q", selected)
-	}
-	if decryptionMissing {
-		settings["decryption"] = match.Decryption
-	}
-	if encryptionMissing {
-		settings["encryption"] = match.Encryption
-	}
-	updated, err := json.Marshal(settings)
-	if err != nil {
-		return err
-	}
-	inbound.Settings = string(updated)
-	return nil
-}
+// ---------------------------------------------------------------------------
+// ensureInboundClientIDs — auto-generate UUIDs for clients without id
+// (no SDK dependency)
+// ---------------------------------------------------------------------------
 
 func ensureInboundClientIDs(inbound *Inbound) error {
 	if inbound == nil {
@@ -453,6 +684,10 @@ func ensureInboundClientIDs(inbound *Inbound) error {
 	inbound.Settings = string(updated)
 	return nil
 }
+
+// ---------------------------------------------------------------------------
+// Reality key helpers (no SDK dependency)
+// ---------------------------------------------------------------------------
 
 func ensureRealityKeys(ctx context.Context, client *Client, inbound *Inbound, existing *Inbound) error {
 	if inbound == nil || inbound.StreamSettings == "" {
@@ -594,6 +829,10 @@ func hasStringListValues(raw any) bool {
 	return false
 }
 
+// ---------------------------------------------------------------------------
+// Random helpers (no SDK dependency)
+// ---------------------------------------------------------------------------
+
 func randomHex(length int) string {
 	if length <= 0 {
 		return ""
@@ -618,31 +857,9 @@ func randomShortIDs() []any {
 	return out
 }
 
-func setInboundState(d *schema.ResourceData, inbound *Inbound) diag.Diagnostics {
-	if inbound == nil {
-		return diag.Errorf("empty inbound")
-	}
-	set := func(key string, value any) {
-		_ = d.Set(key, value)
-	}
-	set("up", int(inbound.Up))
-	set("down", int(inbound.Down))
-	set("total", int(inbound.Total))
-	set("all_time", int(inbound.AllTime))
-	set("remark", inbound.Remark)
-	set("enable", inbound.Enable)
-	set("expiry_time", int(inbound.ExpiryTime))
-	set("traffic_reset", inbound.TrafficReset)
-	set("last_traffic_reset_time", int(inbound.LastTrafficResetTime))
-	set("listen", inbound.Listen)
-	set("port", inbound.Port)
-	set("protocol", inbound.Protocol)
-	set("settings", flattenSettings(inbound.Settings))
-	set("stream_settings", flattenStreamSettings(inbound.StreamSettings))
-	set("sniffing", flattenSniffing(inbound.Sniffing))
-	set("tag", inbound.Tag)
-	return nil
-}
+// ---------------------------------------------------------------------------
+// parseID — parses a numeric string ID (no SDK dependency)
+// ---------------------------------------------------------------------------
 
 func parseID(id string) (int, error) {
 	var parsed int

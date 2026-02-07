@@ -5,35 +5,70 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func dataSourceSettings() *schema.Resource {
-	return &schema.Resource{
-		ReadContext: dataSourceSettingsRead,
-		Schema: map[string]*schema.Schema{
-			"json": {
-				Type:     schema.TypeString,
+var _ datasource.DataSource = &SettingsDataSource{}
+
+type SettingsDataSource struct {
+	client *Client
+}
+
+type SettingsDataSourceModel struct {
+	ID   types.String `tfsdk:"id"`
+	JSON types.String `tfsdk:"json"`
+}
+
+func NewSettingsDataSource() datasource.DataSource {
+	return &SettingsDataSource{}
+}
+
+func (d *SettingsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_settings"
+}
+
+func (d *SettingsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+			},
+			"json": schema.StringAttribute{
 				Computed: true,
 			},
 		},
 	}
 }
 
-func dataSourceSettingsRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*Client)
-	settings, err := client.GetSettings(ctx)
+func (d *SettingsDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	client, ok := req.ProviderData.(*Client)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected Data Source Configure Type", "Expected *Client")
+		return
+	}
+	d.client = client
+}
+
+func (d *SettingsDataSource) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
+	settings, err := d.client.GetSettings(ctx)
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("Failed to get settings", err.Error())
+		return
 	}
 	payload, err := json.Marshal(settings)
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("Failed to marshal settings", err.Error())
+		return
 	}
-	if err := d.Set("json", string(payload)); err != nil {
-		return diag.FromErr(err)
-	}
-	d.SetId(strconv.FormatInt(int64(len(payload)), 10))
-	return nil
+
+	var state SettingsDataSourceModel
+	state.JSON = types.StringValue(string(payload))
+	state.ID = types.StringValue(strconv.FormatInt(int64(len(payload)), 10))
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

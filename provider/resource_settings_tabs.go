@@ -2,925 +2,809 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-const remarkModelDefaultAPI = "-ieo"
+// ---------------------------------------------------------------------------
+// Shared model and schema
+// ---------------------------------------------------------------------------
 
-func resourcePanelSettings() *schema.Resource {
-	return &schema.Resource{
-		CreateContext: resourcePanelSettingsApply,
-		ReadContext:   resourcePanelSettingsRead,
-		UpdateContext: resourcePanelSettingsApply,
-		DeleteContext: resourceSettingsDelete,
-		Schema:        panelSettingsSchemaFields(),
+type settingsResourceModel struct {
+	ID   types.String `tfsdk:"id"`
+	JSON types.String `tfsdk:"json"`
+}
+
+func settingsResourceSchema() schema.Schema {
+	return schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{Computed: true},
+			"json": schema.StringAttribute{
+				Required:    true,
+				Description: "JSON object with settings fields (snake_case keys).",
+			},
+		},
 	}
 }
 
-func resourceAccountSettings() *schema.Resource {
-	return &schema.Resource{
-		CreateContext: resourceAccountSettingsApply,
-		ReadContext:   resourceAccountSettingsRead,
-		UpdateContext: resourceAccountSettingsApply,
-		DeleteContext: resourceSettingsDelete,
-		Schema:        accountSettingsSchemaFields(),
-	}
-}
+// ---------------------------------------------------------------------------
+// settingsApplyHelper: shared apply logic for all settings resources
+// ---------------------------------------------------------------------------
 
-func resourceTelegramSettings() *schema.Resource {
-	return &schema.Resource{
-		CreateContext: resourceTelegramSettingsApply,
-		ReadContext:   resourceTelegramSettingsRead,
-		UpdateContext: resourceTelegramSettingsApply,
-		DeleteContext: resourceSettingsDelete,
-		Schema:        telegramSettingsSchemaFields(),
+func settingsApplyHelper(
+	ctx context.Context,
+	jsonStr string,
+	diags *diag.Diagnostics,
+	client *Client,
+	expand func(map[string]any) (map[string]any, bool),
+	flatten func(map[string]any) map[string]any,
+) *settingsResourceModel {
+	var input map[string]any
+	if err := json.Unmarshal([]byte(jsonStr), &input); err != nil {
+		diags.AddError("Invalid JSON", err.Error())
+		return nil
 	}
-}
 
-func resourceSubscriptionSettings() *schema.Resource {
-	return &schema.Resource{
-		CreateContext: resourceSubscriptionSettingsApply,
-		ReadContext:   resourceSubscriptionSettingsRead,
-		UpdateContext: resourceSubscriptionSettingsApply,
-		DeleteContext: resourceSettingsDelete,
-		Schema:        subscriptionSettingsSchemaFields(),
-	}
-}
-
-func resourcePanelSettingsApply(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*Client)
-	desired, ok, err := expandPanelSettingsFields(d)
-	if err != nil {
-		return diag.FromErr(err)
-	}
+	desired, ok := expand(input)
 	if !ok {
-		if d.Id() == "" {
-			d.SetId("settings")
-		}
-		return resourceSettingsReadWith(ctx, d, meta, flattenPanelSettingsFields)
-	}
-
-	var diags diag.Diagnostics
-	if d.HasChange("web_base_path") {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Warning,
-			Summary:  "Changing web_base_path requires updating provider config",
-			Detail:   "The provider's base_path must match the panel's web_base_path. After this change, update the provider configuration to use the new base_path, otherwise the provider will not be able to connect.",
-		})
+		// Nothing to apply; read current state.
+		return settingsReadHelper(ctx, diags, client, flatten)
 	}
 
 	existing, err := client.GetSettings(ctx)
 	if err != nil {
-		return diag.FromErr(err)
+		diags.AddError("Failed to get settings", err.Error())
+		return nil
+	}
+
+	merged := mergeSettings(existing, desired)
+	if err := client.UpdateSettings(ctx, merged); err != nil {
+		diags.AddError("Failed to update settings", err.Error())
+		return nil
+	}
+
+	return settingsReadHelper(ctx, diags, client, flatten)
+}
+
+func settingsReadHelper(
+	ctx context.Context,
+	diags *diag.Diagnostics,
+	client *Client,
+	flatten func(map[string]any) map[string]any,
+) *settingsResourceModel {
+	settings, err := client.GetSettings(ctx)
+	if err != nil {
+		diags.AddError("Failed to get settings", err.Error())
+		return nil
+	}
+
+	flat := flatten(settings)
+	payload, err := json.Marshal(flat)
+	if err != nil {
+		diags.AddError("Failed to marshal settings", err.Error())
+		return nil
+	}
+
+	return &settingsResourceModel{
+		ID:   types.StringValue("settings"),
+		JSON: types.StringValue(string(payload)),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// PanelGeneralResource (threexui_panel_general)
+// ---------------------------------------------------------------------------
+
+var (
+	_ resource.Resource                = &PanelGeneralResource{}
+	_ resource.ResourceWithConfigure   = &PanelGeneralResource{}
+	_ resource.ResourceWithImportState = &PanelGeneralResource{}
+)
+
+type PanelGeneralResource struct {
+	client *Client
+}
+
+func NewPanelGeneralResource() resource.Resource {
+	return &PanelGeneralResource{}
+}
+
+func (r *PanelGeneralResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_panel_general"
+}
+
+func (r *PanelGeneralResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = settingsResourceSchema()
+}
+
+func (r *PanelGeneralResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	client, ok := req.ProviderData.(*Client)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected Resource Configure Type", "Expected *Client")
+		return
+	}
+	r.client = client
+}
+
+func (r *PanelGeneralResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan settingsResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	r.applyPanelGeneral(ctx, plan.JSON.ValueString(), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenPanelSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+func (r *PanelGeneralResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenPanelSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+func (r *PanelGeneralResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan settingsResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	r.applyPanelGeneral(ctx, plan.JSON.ValueString(), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenPanelSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+func (r *PanelGeneralResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
+	resp.State.RemoveResource(ctx)
+}
+
+func (r *PanelGeneralResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenPanelSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+func (r *PanelGeneralResource) applyPanelGeneral(ctx context.Context, jsonStr string, diags *diag.Diagnostics) {
+	var input map[string]any
+	if err := json.Unmarshal([]byte(jsonStr), &input); err != nil {
+		diags.AddError("Invalid JSON", err.Error())
+		return
+	}
+
+	desired, ok := expandPanelSettingsFields(input)
+	if !ok {
+		return
+	}
+
+	// Warn about web_base_path change.
+	if _, hasBasePath := desired["webBasePath"]; hasBasePath {
+		diags.AddWarning(
+			"Changing web_base_path requires updating provider config",
+			"The provider's base_path must match the panel's web_base_path. After this change, update the provider configuration to use the new base_path, otherwise the provider will not be able to connect.",
+		)
+	}
+
+	existing, err := r.client.GetSettings(ctx)
+	if err != nil {
+		diags.AddError("Failed to get settings", err.Error())
+		return
 	}
 
 	needRestart := panelSettingsNeedRestart(existing, desired)
 	merged := mergeSettings(existing, desired)
-	if err := client.UpdateSettings(ctx, merged); err != nil {
-		return diag.FromErr(err)
+	if err := r.client.UpdateSettings(ctx, merged); err != nil {
+		diags.AddError("Failed to update settings", err.Error())
+		return
 	}
+
 	if needRestart {
-		if err := client.RestartPanel(ctx); err != nil {
-			return diag.FromErr(err)
+		if err := r.client.RestartPanel(ctx); err != nil {
+			diags.AddError("Failed to restart panel", err.Error())
+			return
 		}
 	}
-	d.SetId("settings")
-	result := resourceSettingsReadWith(ctx, d, meta, flattenPanelSettingsFields)
-	return append(diags, result...)
 }
 
-func resourceAccountSettingsApply(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	var diags diag.Diagnostics
-	if v, ok := d.GetOk("two_factor_enable"); ok && v.(bool) {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Warning,
-			Summary:  "Enabling 2FA will block provider authentication",
-			Detail:   "The provider does not support two-factor authentication codes during login. Enabling 2FA will prevent the provider from connecting to the panel. You will need to disable 2FA via the API or UI to restore provider access.",
-		})
+// ---------------------------------------------------------------------------
+// PanelSecurityResource (threexui_panel_security)
+// ---------------------------------------------------------------------------
+
+var (
+	_ resource.Resource                = &PanelSecurityResource{}
+	_ resource.ResourceWithConfigure   = &PanelSecurityResource{}
+	_ resource.ResourceWithImportState = &PanelSecurityResource{}
+)
+
+type PanelSecurityResource struct {
+	client *Client
+}
+
+func NewPanelSecurityResource() resource.Resource {
+	return &PanelSecurityResource{}
+}
+
+func (r *PanelSecurityResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_panel_security"
+}
+
+func (r *PanelSecurityResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = settingsResourceSchema()
+}
+
+func (r *PanelSecurityResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
 	}
-	result := resourceSettingsApplyWith(ctx, d, meta, expandAccountSettingsFields, flattenAccountSettingsFields)
-	return append(diags, result...)
-}
-
-func resourceTelegramSettingsApply(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	return resourceSettingsApplyWith(ctx, d, meta, expandTelegramSettingsFields, flattenTelegramSettingsFields)
-}
-
-func resourceSubscriptionSettingsApply(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	diags := resourceSettingsApplyWith(ctx, d, meta, expandSubscriptionSettingsFields, flattenSubscriptionSettingsFields)
-	if diags.HasError() {
-		return diags
-	}
-	// 3x-ui may ignore some fields (e.g. subJsonEnable) when subEnable
-	// changes in the same request. Apply a second time to ensure all
-	// fields are persisted.
-	return resourceSettingsApplyWith(ctx, d, meta, expandSubscriptionSettingsFields, flattenSubscriptionSettingsFields)
-}
-
-func resourcePanelSettingsRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	return resourceSettingsReadWith(ctx, d, meta, flattenPanelSettingsFields)
-}
-
-func resourceAccountSettingsRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	return resourceSettingsReadWith(ctx, d, meta, flattenAccountSettingsFields)
-}
-
-func resourceTelegramSettingsRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	return resourceSettingsReadWith(ctx, d, meta, flattenTelegramSettingsFields)
-}
-
-func resourceSubscriptionSettingsRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	return resourceSettingsReadWith(ctx, d, meta, flattenSubscriptionSettingsFields)
-}
-
-func resourceSettingsApplyWith(
-	ctx context.Context,
-	d *schema.ResourceData,
-	meta any,
-	expand func(*schema.ResourceData) (map[string]any, bool, error),
-	flatten func(map[string]any) map[string]any,
-) diag.Diagnostics {
-	client := meta.(*Client)
-	desired, ok, err := expand(d)
-	if err != nil {
-		return diag.FromErr(err)
-	}
+	client, ok := req.ProviderData.(*Client)
 	if !ok {
-		if d.Id() == "" {
-			d.SetId("settings")
-		}
-		return resourceSettingsReadWith(ctx, d, meta, flatten)
+		resp.Diagnostics.AddError("Unexpected Resource Configure Type", "Expected *Client")
+		return
+	}
+	r.client = client
+}
+
+func (r *PanelSecurityResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan settingsResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	existing, err := client.GetSettings(ctx)
+	r.warnIfTwoFactor(plan.JSON.ValueString(), &resp.Diagnostics)
+
+	state := settingsApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client,
+		expandAccountSettingsFields, flattenAccountSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+func (r *PanelSecurityResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenAccountSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+func (r *PanelSecurityResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan settingsResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	r.warnIfTwoFactor(plan.JSON.ValueString(), &resp.Diagnostics)
+
+	state := settingsApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client,
+		expandAccountSettingsFields, flattenAccountSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+func (r *PanelSecurityResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
+	resp.State.RemoveResource(ctx)
+}
+
+func (r *PanelSecurityResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenAccountSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+func (r *PanelSecurityResource) warnIfTwoFactor(jsonStr string, diags *diag.Diagnostics) {
+	var input map[string]any
+	if err := json.Unmarshal([]byte(jsonStr), &input); err != nil {
+		return
+	}
+	if v, ok := input["two_factor_enable"]; ok {
+		if b, isBool := v.(bool); isBool && b {
+			diags.AddWarning(
+				"Enabling 2FA will block provider authentication",
+				"The provider does not support two-factor authentication codes during login. Enabling 2FA will prevent the provider from connecting to the panel. You will need to disable 2FA via the API or UI to restore provider access.",
+			)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// PanelTelegramResource (threexui_panel_telegram)
+// ---------------------------------------------------------------------------
+
+var (
+	_ resource.Resource                = &PanelTelegramResource{}
+	_ resource.ResourceWithConfigure   = &PanelTelegramResource{}
+	_ resource.ResourceWithImportState = &PanelTelegramResource{}
+)
+
+type PanelTelegramResource struct {
+	client *Client
+}
+
+func NewPanelTelegramResource() resource.Resource {
+	return &PanelTelegramResource{}
+}
+
+func (r *PanelTelegramResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_panel_telegram"
+}
+
+func (r *PanelTelegramResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = settingsResourceSchema()
+}
+
+func (r *PanelTelegramResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	client, ok := req.ProviderData.(*Client)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected Resource Configure Type", "Expected *Client")
+		return
+	}
+	r.client = client
+}
+
+func (r *PanelTelegramResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan settingsResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	state := settingsApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client,
+		expandTelegramSettingsFields, flattenTelegramSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+func (r *PanelTelegramResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenTelegramSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+func (r *PanelTelegramResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan settingsResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	state := settingsApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client,
+		expandTelegramSettingsFields, flattenTelegramSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+func (r *PanelTelegramResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
+	resp.State.RemoveResource(ctx)
+}
+
+func (r *PanelTelegramResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenTelegramSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// PanelSubscriptionResource (threexui_panel_subscription)
+// ---------------------------------------------------------------------------
+
+var (
+	_ resource.Resource                = &PanelSubscriptionResource{}
+	_ resource.ResourceWithConfigure   = &PanelSubscriptionResource{}
+	_ resource.ResourceWithImportState = &PanelSubscriptionResource{}
+)
+
+type PanelSubscriptionResource struct {
+	client *Client
+}
+
+func NewPanelSubscriptionResource() resource.Resource {
+	return &PanelSubscriptionResource{}
+}
+
+func (r *PanelSubscriptionResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_panel_subscription"
+}
+
+func (r *PanelSubscriptionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = settingsResourceSchema()
+}
+
+func (r *PanelSubscriptionResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	client, ok := req.ProviderData.(*Client)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected Resource Configure Type", "Expected *Client")
+		return
+	}
+	r.client = client
+}
+
+func (r *PanelSubscriptionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan settingsResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	r.applySubscription(ctx, plan.JSON.ValueString(), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenSubscriptionSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+func (r *PanelSubscriptionResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenSubscriptionSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+func (r *PanelSubscriptionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan settingsResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	r.applySubscription(ctx, plan.JSON.ValueString(), &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenSubscriptionSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+func (r *PanelSubscriptionResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
+	resp.State.RemoveResource(ctx)
+}
+
+func (r *PanelSubscriptionResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenSubscriptionSettingsFields)
+	if state != nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	}
+}
+
+// applySubscription applies subscription settings twice to work around a 3x-ui
+// bug where subJsonEnable is not persisted when subEnable changes in the same
+// request.
+func (r *PanelSubscriptionResource) applySubscription(ctx context.Context, jsonStr string, diags *diag.Diagnostics) {
+	var input map[string]any
+	if err := json.Unmarshal([]byte(jsonStr), &input); err != nil {
+		diags.AddError("Invalid JSON", err.Error())
+		return
+	}
+
+	desired, ok := expandSubscriptionSettingsFields(input)
+	if !ok {
+		return
+	}
+
+	// First apply.
+	existing, err := r.client.GetSettings(ctx)
 	if err != nil {
-		return diag.FromErr(err)
+		diags.AddError("Failed to get settings", err.Error())
+		return
 	}
 	merged := mergeSettings(existing, desired)
-	if err := client.UpdateSettings(ctx, merged); err != nil {
-		return diag.FromErr(err)
+	if err := r.client.UpdateSettings(ctx, merged); err != nil {
+		diags.AddError("Failed to update settings", err.Error())
+		return
 	}
-	d.SetId("settings")
-	return resourceSettingsReadWith(ctx, d, meta, flatten)
-}
 
-func resourceSettingsReadWith(
-	ctx context.Context,
-	d *schema.ResourceData,
-	meta any,
-	flatten func(map[string]any) map[string]any,
-) diag.Diagnostics {
-	client := meta.(*Client)
-	settings, err := client.GetSettings(ctx)
+	// Second apply (workaround for 3x-ui bug).
+	existing2, err := r.client.GetSettings(ctx)
 	if err != nil {
-		return diag.FromErr(err)
+		diags.AddError("Failed to get settings (second apply)", err.Error())
+		return
 	}
-	if flatten != nil {
-		if err := setSettingsFields(d, flatten(settings)); err != nil {
-			return diag.FromErr(err)
-		}
-	}
-	if d.Id() == "" {
-		d.SetId("settings")
-	}
-	return nil
-}
-
-func panelSettingsNeedRestart(existing, desired map[string]any) bool {
-	restartKeys := []string{
-		"webListen",
-		"webDomain",
-		"webPort",
-		"webBasePath",
-		"webCertFile",
-		"webKeyFile",
-		"sessionMaxAge",
-	}
-	for _, key := range restartKeys {
-		newVal, ok := desired[key]
-		if !ok {
-			continue
-		}
-		oldVal, ok := existing[key]
-		if !ok {
-			return true
-		}
-		if !settingsValueEqual(oldVal, newVal) {
-			return true
-		}
-	}
-	return false
-}
-
-func settingsValueEqual(a, b any) bool {
-	switch av := a.(type) {
-	case nil:
-		return b == nil
-	case bool:
-		bv, ok := b.(bool)
-		return ok && av == bv
-	case string:
-		bv, ok := b.(string)
-		return ok && av == bv
-	case float64:
-		return numberValueEqual(av, b)
-	case float32:
-		return numberValueEqual(float64(av), b)
-	case int:
-		return numberValueEqual(float64(av), b)
-	case int8:
-		return numberValueEqual(float64(av), b)
-	case int16:
-		return numberValueEqual(float64(av), b)
-	case int32:
-		return numberValueEqual(float64(av), b)
-	case int64:
-		return numberValueEqual(float64(av), b)
-	case uint:
-		return numberValueEqual(float64(av), b)
-	case uint8:
-		return numberValueEqual(float64(av), b)
-	case uint16:
-		return numberValueEqual(float64(av), b)
-	case uint32:
-		return numberValueEqual(float64(av), b)
-	case uint64:
-		return numberValueEqual(float64(av), b)
-	default:
-		return false
+	merged2 := mergeSettings(existing2, desired)
+	if err := r.client.UpdateSettings(ctx, merged2); err != nil {
+		diags.AddError("Failed to update settings (second apply)", err.Error())
+		return
 	}
 }
 
-func numberValueEqual(a float64, b any) bool {
-	switch bv := b.(type) {
-	case float64:
-		return a == bv
-	case float32:
-		return a == float64(bv)
-	case int:
-		return a == float64(bv)
-	case int8:
-		return a == float64(bv)
-	case int16:
-		return a == float64(bv)
-	case int32:
-		return a == float64(bv)
-	case int64:
-		return a == float64(bv)
-	case uint:
-		return a == float64(bv)
-	case uint8:
-		return a == float64(bv)
-	case uint16:
-		return a == float64(bv)
-	case uint32:
-		return a == float64(bv)
-	case uint64:
-		return a == float64(bv)
-	default:
-		return false
-	}
-}
+// ---------------------------------------------------------------------------
+// Expand functions: snake_case map[string]any -> camelCase API payload
+// ---------------------------------------------------------------------------
 
-func setSettingsFields(d *schema.ResourceData, fields map[string]any) error {
-	for k, v := range fields {
-		if err := d.Set(k, v); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func panelSettingsSchemaFields() map[string]*schema.Schema {
-	return map[string]*schema.Schema{
-		"web_listen": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "",
-		},
-		"web_domain": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "",
-		},
-		"web_port": {
-			Type:     schema.TypeInt,
-			Optional: true,
-			Default:  2053,
-		},
-		"web_base_path": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "/",
-		},
-		"session_max_age": {
-			Type:     schema.TypeInt,
-			Optional: true,
-			Default:  360,
-		},
-		"page_size": {
-			Type:     schema.TypeInt,
-			Optional: true,
-			Default:  25,
-		},
-		"remark_model": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  remarkModelDefaultAPI,
-		},
-		"date_picker": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "gregorian",
-		},
-		"time_location": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "Local",
-		},
-		"expire_diff": {
-			Type:     schema.TypeInt,
-			Optional: true,
-			Default:  0,
-		},
-		"traffic_diff": {
-			Type:     schema.TypeInt,
-			Optional: true,
-			Default:  0,
-		},
-		"web_cert_file": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "",
-		},
-		"web_key_file": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "",
-		},
-		"external_traffic_inform_enable": {
-			Type:     schema.TypeBool,
-			Optional: true,
-			Default:  false,
-		},
-		"external_traffic_inform_uri": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "",
-		},
-		"ldap_enable": {
-			Type:     schema.TypeBool,
-			Optional: true,
-			Default:  false,
-		},
-		"ldap_host": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "",
-		},
-		"ldap_port": {
-			Type:     schema.TypeInt,
-			Optional: true,
-			Default:  389,
-		},
-		"ldap_use_tls": {
-			Type:     schema.TypeBool,
-			Optional: true,
-			Default:  false,
-		},
-		"ldap_bind_dn": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "",
-		},
-		"ldap_password": {
-			Type:      schema.TypeString,
-			Optional:  true,
-			Sensitive: true,
-			Default:   "",
-		},
-		"ldap_base_dn": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "",
-		},
-		"ldap_user_filter": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "(objectClass=person)",
-		},
-		"ldap_user_attr": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "mail",
-		},
-		"ldap_vless_field": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "vless_enabled",
-		},
-		"ldap_sync_cron": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "@every 1m",
-		},
-		"ldap_flag_field": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "",
-		},
-		"ldap_truthy_values": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "true,1,yes,on",
-		},
-		"ldap_invert_flag": {
-			Type:     schema.TypeBool,
-			Optional: true,
-			Default:  false,
-		},
-		"ldap_inbound_tags": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Default:  "",
-		},
-		"ldap_auto_create": {
-			Type:     schema.TypeBool,
-			Optional: true,
-			Default:  false,
-		},
-		"ldap_auto_delete": {
-			Type:     schema.TypeBool,
-			Optional: true,
-			Default:  false,
-		},
-		"ldap_default_total_gb": {
-			Type:     schema.TypeInt,
-			Optional: true,
-			Default:  0,
-		},
-		"ldap_default_expiry_days": {
-			Type:     schema.TypeInt,
-			Optional: true,
-			Default:  0,
-		},
-		"ldap_default_limit_ip": {
-			Type:     schema.TypeInt,
-			Optional: true,
-			Default:  0,
-		},
-	}
-}
-
-func accountSettingsSchemaFields() map[string]*schema.Schema {
-	return map[string]*schema.Schema{
-		"two_factor_enable": {
-			Type:     schema.TypeBool,
-			Optional: true,
-			Computed: true,
-		},
-		"two_factor_token": {
-			Type:      schema.TypeString,
-			Optional:  true,
-			Computed:  true,
-			Sensitive: true,
-		},
-	}
-}
-
-func telegramSettingsSchemaFields() map[string]*schema.Schema {
-	return map[string]*schema.Schema{
-		"tg_bot_enable": {
-			Type:     schema.TypeBool,
-			Optional: true,
-			Computed: true,
-		},
-		"tg_bot_token": {
-			Type:      schema.TypeString,
-			Optional:  true,
-			Computed:  true,
-			Sensitive: true,
-		},
-		"tg_bot_proxy": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"tg_bot_api_server": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"tg_bot_chat_id": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"tg_lang": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"tg_run_time": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"tg_bot_backup": {
-			Type:     schema.TypeBool,
-			Optional: true,
-			Computed: true,
-		},
-		"tg_bot_login_notify": {
-			Type:     schema.TypeBool,
-			Optional: true,
-			Computed: true,
-		},
-		"tg_cpu": {
-			Type:     schema.TypeInt,
-			Optional: true,
-			Computed: true,
-		},
-	}
-}
-
-func subscriptionSettingsSchemaFields() map[string]*schema.Schema {
-	return map[string]*schema.Schema{
-		"sub_enable": {
-			Type:     schema.TypeBool,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_json_enable": {
-			Type:     schema.TypeBool,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_title": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_support_url": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_profile_url": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_announce": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_enable_routing": {
-			Type:     schema.TypeBool,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_routing_rules": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_listen": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_port": {
-			Type:     schema.TypeInt,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_path": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_domain": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_cert_file": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_key_file": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_updates": {
-			Type:     schema.TypeInt,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_encrypt": {
-			Type:     schema.TypeBool,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_show_info": {
-			Type:     schema.TypeBool,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_uri": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_json_path": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_json_uri": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_json_fragment": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_json_noises": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_json_mux": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-		"sub_json_rules": {
-			Type:     schema.TypeString,
-			Optional: true,
-			Computed: true,
-		},
-	}
-}
-
-func expandPanelSettingsFields(d *schema.ResourceData) (map[string]any, bool, error) {
+func expandPanelSettingsFields(input map[string]any) (map[string]any, bool) {
 	payload := map[string]any{}
-	if v, ok := getStringField(d, "web_listen"); ok {
+	if v, ok := input["web_listen"].(string); ok {
 		payload["webListen"] = v
 	}
-	if v, ok := getStringField(d, "web_domain"); ok {
+	if v, ok := input["web_domain"].(string); ok {
 		payload["webDomain"] = v
 	}
-	if v, ok, err := getPortField(d, "web_port"); err != nil {
-		return nil, false, err
-	} else if ok {
-		payload["webPort"] = v
+	if v, ok := input["web_port"]; ok {
+		payload["webPort"] = jsonNumber(v)
 	}
-	if v, ok := getStringField(d, "web_base_path"); ok {
+	if v, ok := input["web_base_path"].(string); ok {
 		payload["webBasePath"] = v
 	}
-	if v, ok := getIntField(d, "session_max_age"); ok {
-		payload["sessionMaxAge"] = v
+	if v, ok := input["session_max_age"]; ok {
+		payload["sessionMaxAge"] = jsonNumber(v)
 	}
-	if v, ok := getIntField(d, "page_size"); ok {
-		payload["pageSize"] = v
+	if v, ok := input["page_size"]; ok {
+		payload["pageSize"] = jsonNumber(v)
 	}
-	if v, ok := getStringField(d, "remark_model"); ok {
+	if v, ok := input["remark_model"].(string); ok {
 		payload["remarkModel"] = v
 	}
-	if v, ok := getStringField(d, "date_picker"); ok {
+	if v, ok := input["date_picker"].(string); ok {
 		payload["datepicker"] = v
 	}
-	if v, ok := getStringField(d, "time_location"); ok {
+	if v, ok := input["time_location"].(string); ok {
 		payload["timeLocation"] = v
 	}
-	if v, ok := getIntField(d, "expire_diff"); ok {
-		payload["expireDiff"] = v
+	if v, ok := input["expire_diff"]; ok {
+		payload["expireDiff"] = jsonNumber(v)
 	}
-	if v, ok := getIntField(d, "traffic_diff"); ok {
-		payload["trafficDiff"] = v
+	if v, ok := input["traffic_diff"]; ok {
+		payload["trafficDiff"] = jsonNumber(v)
 	}
-	if v, ok := getStringField(d, "web_cert_file"); ok {
+	if v, ok := input["web_cert_file"].(string); ok {
 		payload["webCertFile"] = v
 	}
-	if v, ok := getStringField(d, "web_key_file"); ok {
+	if v, ok := input["web_key_file"].(string); ok {
 		payload["webKeyFile"] = v
 	}
-	if v, ok := getBoolField(d, "external_traffic_inform_enable"); ok {
+	if v, ok := input["external_traffic_inform_enable"].(bool); ok {
 		payload["externalTrafficInformEnable"] = v
 	}
-	if v, ok := getStringField(d, "external_traffic_inform_uri"); ok {
+	if v, ok := input["external_traffic_inform_uri"].(string); ok {
 		payload["externalTrafficInformURI"] = v
 	}
-	if v, ok := getBoolField(d, "ldap_enable"); ok {
+	if v, ok := input["ldap_enable"].(bool); ok {
 		payload["ldapEnable"] = v
 	}
-	if v, ok := getStringField(d, "ldap_host"); ok {
+	if v, ok := input["ldap_host"].(string); ok {
 		payload["ldapHost"] = v
 	}
-	if v, ok, err := getPortField(d, "ldap_port"); err != nil {
-		return nil, false, err
-	} else if ok {
-		payload["ldapPort"] = v
+	if v, ok := input["ldap_port"]; ok {
+		payload["ldapPort"] = jsonNumber(v)
 	}
-	if v, ok := getBoolField(d, "ldap_use_tls"); ok {
+	if v, ok := input["ldap_use_tls"].(bool); ok {
 		payload["ldapUseTLS"] = v
 	}
-	if v, ok := getStringField(d, "ldap_bind_dn"); ok {
+	if v, ok := input["ldap_bind_dn"].(string); ok {
 		payload["ldapBindDN"] = v
 	}
-	if v, ok := getStringField(d, "ldap_password"); ok {
+	if v, ok := input["ldap_password"].(string); ok {
 		payload["ldapPassword"] = v
 	}
-	if v, ok := getStringField(d, "ldap_base_dn"); ok {
+	if v, ok := input["ldap_base_dn"].(string); ok {
 		payload["ldapBaseDN"] = v
 	}
-	if v, ok := getStringField(d, "ldap_user_filter"); ok {
+	if v, ok := input["ldap_user_filter"].(string); ok {
 		payload["ldapUserFilter"] = v
 	}
-	if v, ok := getStringField(d, "ldap_user_attr"); ok {
+	if v, ok := input["ldap_user_attr"].(string); ok {
 		payload["ldapUserAttr"] = v
 	}
-	if v, ok := getStringField(d, "ldap_vless_field"); ok {
+	if v, ok := input["ldap_vless_field"].(string); ok {
 		payload["ldapVlessField"] = v
 	}
-	if v, ok := getStringField(d, "ldap_sync_cron"); ok {
+	if v, ok := input["ldap_sync_cron"].(string); ok {
 		payload["ldapSyncCron"] = v
 	}
-	if v, ok := getStringField(d, "ldap_flag_field"); ok {
+	if v, ok := input["ldap_flag_field"].(string); ok {
 		payload["ldapFlagField"] = v
 	}
-	if v, ok := getStringField(d, "ldap_truthy_values"); ok {
+	if v, ok := input["ldap_truthy_values"].(string); ok {
 		payload["ldapTruthyValues"] = v
 	}
-	if v, ok := getBoolField(d, "ldap_invert_flag"); ok {
+	if v, ok := input["ldap_invert_flag"].(bool); ok {
 		payload["ldapInvertFlag"] = v
 	}
-	if v, ok := getStringField(d, "ldap_inbound_tags"); ok {
+	if v, ok := input["ldap_inbound_tags"].(string); ok {
 		payload["ldapInboundTags"] = v
 	}
-	if v, ok := getBoolField(d, "ldap_auto_create"); ok {
+	if v, ok := input["ldap_auto_create"].(bool); ok {
 		payload["ldapAutoCreate"] = v
 	}
-	if v, ok := getBoolField(d, "ldap_auto_delete"); ok {
+	if v, ok := input["ldap_auto_delete"].(bool); ok {
 		payload["ldapAutoDelete"] = v
 	}
-	if v, ok := getIntField(d, "ldap_default_total_gb"); ok {
-		payload["ldapDefaultTotalGB"] = v
+	if v, ok := input["ldap_default_total_gb"]; ok {
+		payload["ldapDefaultTotalGB"] = jsonNumber(v)
 	}
-	if v, ok := getIntField(d, "ldap_default_expiry_days"); ok {
-		payload["ldapDefaultExpiryDays"] = v
+	if v, ok := input["ldap_default_expiry_days"]; ok {
+		payload["ldapDefaultExpiryDays"] = jsonNumber(v)
 	}
-	if v, ok := getIntField(d, "ldap_default_limit_ip"); ok {
-		payload["ldapDefaultLimitIP"] = v
+	if v, ok := input["ldap_default_limit_ip"]; ok {
+		payload["ldapDefaultLimitIP"] = jsonNumber(v)
 	}
-	if len(payload) == 0 {
-		return nil, false, nil
-	}
-	return payload, true, nil
+	return payload, len(payload) > 0
 }
 
-func expandAccountSettingsFields(d *schema.ResourceData) (map[string]any, bool, error) {
+func expandAccountSettingsFields(input map[string]any) (map[string]any, bool) {
 	payload := map[string]any{}
-	if v, ok := getBoolField(d, "two_factor_enable"); ok {
+	if v, ok := input["two_factor_enable"].(bool); ok {
 		payload["twoFactorEnable"] = v
 	}
-	if v, ok := getStringField(d, "two_factor_token"); ok {
+	if v, ok := input["two_factor_token"].(string); ok {
 		payload["twoFactorToken"] = v
 	}
-	if len(payload) == 0 {
-		return nil, false, nil
-	}
-	return payload, true, nil
+	return payload, len(payload) > 0
 }
 
-func expandTelegramSettingsFields(d *schema.ResourceData) (map[string]any, bool, error) {
+func expandTelegramSettingsFields(input map[string]any) (map[string]any, bool) {
 	payload := map[string]any{}
-	if v, ok := getBoolField(d, "tg_bot_enable"); ok {
+	if v, ok := input["tg_bot_enable"].(bool); ok {
 		payload["tgBotEnable"] = v
 	}
-	if v, ok := getStringField(d, "tg_bot_token"); ok {
+	if v, ok := input["tg_bot_token"].(string); ok {
 		payload["tgBotToken"] = v
 	}
-	if v, ok := getStringField(d, "tg_bot_proxy"); ok {
+	if v, ok := input["tg_bot_proxy"].(string); ok {
 		payload["tgBotProxy"] = v
 	}
-	if v, ok := getStringField(d, "tg_bot_api_server"); ok {
+	if v, ok := input["tg_bot_api_server"].(string); ok {
 		payload["tgBotAPIServer"] = v
 	}
-	if v, ok := getStringField(d, "tg_bot_chat_id"); ok {
+	if v, ok := input["tg_bot_chat_id"].(string); ok {
 		payload["tgBotChatId"] = v
 	}
-	if v, ok := getStringField(d, "tg_lang"); ok {
+	if v, ok := input["tg_lang"].(string); ok {
 		payload["tgLang"] = v
 	}
-	if v, ok := getStringField(d, "tg_run_time"); ok {
+	if v, ok := input["tg_run_time"].(string); ok {
 		payload["tgRunTime"] = v
 	}
-	if v, ok := getBoolField(d, "tg_bot_backup"); ok {
+	if v, ok := input["tg_bot_backup"].(bool); ok {
 		payload["tgBotBackup"] = v
 	}
-	if v, ok := getBoolField(d, "tg_bot_login_notify"); ok {
+	if v, ok := input["tg_bot_login_notify"].(bool); ok {
 		payload["tgBotLoginNotify"] = v
 	}
-	if v, ok := getIntField(d, "tg_cpu"); ok {
-		payload["tgCpu"] = v
+	if v, ok := input["tg_cpu"]; ok {
+		payload["tgCpu"] = jsonNumber(v)
 	}
-	if len(payload) == 0 {
-		return nil, false, nil
-	}
-	return payload, true, nil
+	return payload, len(payload) > 0
 }
 
-func expandSubscriptionSettingsFields(d *schema.ResourceData) (map[string]any, bool, error) {
+func expandSubscriptionSettingsFields(input map[string]any) (map[string]any, bool) {
 	payload := map[string]any{}
-	if v, ok := getBoolField(d, "sub_enable"); ok {
+	if v, ok := input["sub_enable"].(bool); ok {
 		payload["subEnable"] = v
 	}
-	if v, ok := getBoolField(d, "sub_json_enable"); ok {
+	if v, ok := input["sub_json_enable"].(bool); ok {
 		payload["subJsonEnable"] = v
 	}
-	if v, ok := getStringField(d, "sub_title"); ok {
+	if v, ok := input["sub_title"].(string); ok {
 		payload["subTitle"] = v
 	}
-	if v, ok := getStringField(d, "sub_support_url"); ok {
+	if v, ok := input["sub_support_url"].(string); ok {
 		payload["subSupportUrl"] = v
 	}
-	if v, ok := getStringField(d, "sub_profile_url"); ok {
+	if v, ok := input["sub_profile_url"].(string); ok {
 		payload["subProfileUrl"] = v
 	}
-	if v, ok := getStringField(d, "sub_announce"); ok {
+	if v, ok := input["sub_announce"].(string); ok {
 		payload["subAnnounce"] = v
 	}
-	if v, ok := getBoolField(d, "sub_enable_routing"); ok {
+	if v, ok := input["sub_enable_routing"].(bool); ok {
 		payload["subEnableRouting"] = v
 	}
-	if v, ok := getStringField(d, "sub_routing_rules"); ok {
+	if v, ok := input["sub_routing_rules"].(string); ok {
 		payload["subRoutingRules"] = v
 	}
-	if v, ok := getStringField(d, "sub_listen"); ok {
+	if v, ok := input["sub_listen"].(string); ok {
 		payload["subListen"] = v
 	}
-	if v, ok, err := getPortField(d, "sub_port"); err != nil {
-		return nil, false, err
-	} else if ok {
-		payload["subPort"] = v
+	if v, ok := input["sub_port"]; ok {
+		payload["subPort"] = jsonNumber(v)
 	}
-	if v, ok := getStringField(d, "sub_path"); ok {
+	if v, ok := input["sub_path"].(string); ok {
 		payload["subPath"] = v
 	}
-	if v, ok := getStringField(d, "sub_domain"); ok {
+	if v, ok := input["sub_domain"].(string); ok {
 		payload["subDomain"] = v
 	}
-	if v, ok := getStringField(d, "sub_cert_file"); ok {
+	if v, ok := input["sub_cert_file"].(string); ok {
 		payload["subCertFile"] = v
 	}
-	if v, ok := getStringField(d, "sub_key_file"); ok {
+	if v, ok := input["sub_key_file"].(string); ok {
 		payload["subKeyFile"] = v
 	}
-	if v, ok := getIntField(d, "sub_updates"); ok {
-		payload["subUpdates"] = v
+	if v, ok := input["sub_updates"]; ok {
+		payload["subUpdates"] = jsonNumber(v)
 	}
-	if v, ok := getBoolField(d, "sub_encrypt"); ok {
+	if v, ok := input["sub_encrypt"].(bool); ok {
 		payload["subEncrypt"] = v
 	}
-	if v, ok := getBoolField(d, "sub_show_info"); ok {
+	if v, ok := input["sub_show_info"].(bool); ok {
 		payload["subShowInfo"] = v
 	}
-	if v, ok := getStringField(d, "sub_uri"); ok {
+	if v, ok := input["sub_uri"].(string); ok {
 		payload["subURI"] = v
 	}
-	if v, ok := getStringField(d, "sub_json_path"); ok {
+	if v, ok := input["sub_json_path"].(string); ok {
 		payload["subJsonPath"] = v
 	}
-	if v, ok := getStringField(d, "sub_json_uri"); ok {
+	if v, ok := input["sub_json_uri"].(string); ok {
 		payload["subJsonURI"] = v
 	}
-	if v, ok := getStringField(d, "sub_json_fragment"); ok {
+	if v, ok := input["sub_json_fragment"].(string); ok {
 		payload["subJsonFragment"] = v
 	}
-	if v, ok := getStringField(d, "sub_json_noises"); ok {
+	if v, ok := input["sub_json_noises"].(string); ok {
 		payload["subJsonNoises"] = v
 	}
-	if v, ok := getStringField(d, "sub_json_mux"); ok {
+	if v, ok := input["sub_json_mux"].(string); ok {
 		payload["subJsonMux"] = v
 	}
-	if v, ok := getStringField(d, "sub_json_rules"); ok {
+	if v, ok := input["sub_json_rules"].(string); ok {
 		payload["subJsonRules"] = v
 	}
-	if len(payload) == 0 {
-		return nil, false, nil
-	}
-	return payload, true, nil
+	return payload, len(payload) > 0
 }
+
+// jsonNumber converts a JSON-decoded number (float64) to int for the API.
+// JSON numbers from json.Unmarshal are always float64.
+func jsonNumber(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case float32:
+		return int(n)
+	case int:
+		return n
+	case int64:
+		return int(n)
+	default:
+		return 0
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Flatten functions: camelCase API response -> snake_case map[string]any
+// These have no SDK dependency and are preserved as-is.
+// ---------------------------------------------------------------------------
 
 func flattenPanelSettingsFields(in map[string]any) map[string]any {
 	out := map[string]any{}
@@ -1153,4 +1037,104 @@ func flattenSubscriptionSettingsFields(in map[string]any) map[string]any {
 		out["sub_json_rules"] = stringValue(v)
 	}
 	return out
+}
+
+// ---------------------------------------------------------------------------
+// Helper functions (no SDK dependency)
+// ---------------------------------------------------------------------------
+
+func panelSettingsNeedRestart(existing, desired map[string]any) bool {
+	restartKeys := []string{
+		"webListen",
+		"webDomain",
+		"webPort",
+		"webBasePath",
+		"webCertFile",
+		"webKeyFile",
+		"sessionMaxAge",
+	}
+	for _, key := range restartKeys {
+		newVal, ok := desired[key]
+		if !ok {
+			continue
+		}
+		oldVal, ok := existing[key]
+		if !ok {
+			return true
+		}
+		if !settingsValueEqual(oldVal, newVal) {
+			return true
+		}
+	}
+	return false
+}
+
+func settingsValueEqual(a, b any) bool {
+	switch av := a.(type) {
+	case nil:
+		return b == nil
+	case bool:
+		bv, ok := b.(bool)
+		return ok && av == bv
+	case string:
+		bv, ok := b.(string)
+		return ok && av == bv
+	case float64:
+		return numberValueEqual(av, b)
+	case float32:
+		return numberValueEqual(float64(av), b)
+	case int:
+		return numberValueEqual(float64(av), b)
+	case int8:
+		return numberValueEqual(float64(av), b)
+	case int16:
+		return numberValueEqual(float64(av), b)
+	case int32:
+		return numberValueEqual(float64(av), b)
+	case int64:
+		return numberValueEqual(float64(av), b)
+	case uint:
+		return numberValueEqual(float64(av), b)
+	case uint8:
+		return numberValueEqual(float64(av), b)
+	case uint16:
+		return numberValueEqual(float64(av), b)
+	case uint32:
+		return numberValueEqual(float64(av), b)
+	case uint64:
+		return numberValueEqual(float64(av), b)
+	default:
+		return false
+	}
+}
+
+func numberValueEqual(a float64, b any) bool {
+	switch bv := b.(type) {
+	case float64:
+		return a == bv
+	case float32:
+		return a == float64(bv)
+	case int:
+		return a == float64(bv)
+	case int8:
+		return a == float64(bv)
+	case int16:
+		return a == float64(bv)
+	case int32:
+		return a == float64(bv)
+	case int64:
+		return a == float64(bv)
+	case uint:
+		return a == float64(bv)
+	case uint8:
+		return a == float64(bv)
+	case uint16:
+		return a == float64(bv)
+	case uint32:
+		return a == float64(bv)
+	case uint64:
+		return a == float64(bv)
+	default:
+		return false
+	}
 }
