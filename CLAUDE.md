@@ -30,7 +30,6 @@ provider/              — весь код провайдера
   default_settings.go  — дефолтные settings по протоколу, applyDefaultInboundSettings
   data_source_*.go     — data sources (inbounds, server_status, settings, xray_config, xray_versions)
 examples/              — примеры TF-конфигов для ручного тестирования
-test_plans/            — тест-планы для каждого ресурса
 3x-ui-2.8.9/          — исходники 3x-ui v2.8.9 (в .gitignore, для справки)
 docker-compose.yaml    — 3x-ui v2.8.9 на порту 2053
 Taskfile.yml           — task build / test / fmt
@@ -140,11 +139,19 @@ task pre-commit  # Запустить все pre-commit проверки вру�
 ## Тестовое окружение
 
 ```bash
+task test              # Полный цикл: docker up, acc-тесты (OpenTofu), docker down
 docker compose up -d   # Запуск 3x-ui v2.8.9 на localhost:2053
 # Логин: admin / admin
-# Docker image v2.8.9 по умолчанию webBasePath = /panel/
-# provider.tf: base_path должен совпадать с webBasePath панели
+# Docker image v2.8.9 по умолчанию webBasePath = / (НЕ /panel/)
+# Не задавать THREEXUI_BASE_PATH
 ```
+
+Acc-тесты требуют OpenTofu и переменные окружения для корректного provider namespace:
+- `TF_ACC_TERRAFORM_PATH` — абсолютный путь к `tofu`
+- `TF_ACC_PROVIDER_NAMESPACE=batonogov`
+- `TF_ACC_PROVIDER_HOST=registry.opentofu.org`
+
+Всё это уже настроено в `Taskfile.yml` → `task test`.
 
 ## Основные принципы
 

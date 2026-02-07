@@ -8,9 +8,20 @@ tasks:
 
   test:
     desc: Запустить все тесты + acceptance (нужен локальный 3x-ui)
+    vars:
+      TOFU_PATH:
+        sh: which tofu
     cmds:
-      - docker compose up -d
-      - TF_ACC=1 THREEXUI_ENDPOINT=http://localhost:2053 THREEXUI_USERNAME=admin THREEXUI_PASSWORD=admin go test ./provider -run TestAcc -count=1
+      - docker compose up --detach --wait
+      - >-
+        TF_ACC=1
+        TF_ACC_TERRAFORM_PATH={{.TOFU_PATH}}
+        TF_ACC_PROVIDER_NAMESPACE=batonogov
+        TF_ACC_PROVIDER_HOST=registry.opentofu.org
+        THREEXUI_ENDPOINT=http://localhost:2053
+        THREEXUI_USERNAME=admin
+        THREEXUI_PASSWORD=admin
+        go test ./provider -run TestAcc -count=1 -timeout 600s -v
       - docker compose down
 
   fmt:

@@ -546,3 +546,548 @@ func TestFlattenBasicsPolicyLevels(t *testing.T) {
 		t.Fatalf("expected handshake 4, got %v", level["handshake"])
 	}
 }
+
+// --- Expand unit tests ---
+
+func TestExpandBasicsLog(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"loglevel": "warning",
+			"access":   "/var/log/access.log",
+			"error":    "/var/log/error.log",
+			"dns_log":  true,
+		},
+	}
+	result := expandBasicsLog(list)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result["loglevel"] != "warning" {
+		t.Fatalf("expected warning, got %v", result["loglevel"])
+	}
+	if result["access"] != "/var/log/access.log" {
+		t.Fatalf("expected access path, got %v", result["access"])
+	}
+	if result["error"] != "/var/log/error.log" {
+		t.Fatalf("expected error path, got %v", result["error"])
+	}
+	if result["dnsLog"] != true {
+		t.Fatalf("expected dnsLog true, got %v", result["dnsLog"])
+	}
+}
+
+func TestExpandBasicsLog_Empty(t *testing.T) {
+	result := expandBasicsLog([]any{})
+	if result != nil {
+		t.Fatalf("expected nil for empty list, got %v", result)
+	}
+}
+
+func TestExpandBasicsPolicy(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"system": []any{
+				map[string]any{
+					"stats_inbound_downlink":  true,
+					"stats_inbound_uplink":    true,
+					"stats_outbound_downlink": false,
+					"stats_outbound_uplink":   false,
+				},
+			},
+			"level": []any{
+				map[string]any{
+					"id":                  0,
+					"handshake":           4,
+					"conn_idle":           300,
+					"stats_user_uplink":   true,
+					"stats_user_downlink": true,
+				},
+			},
+		},
+	}
+	result := expandBasicsPolicy(list)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+
+	sys, ok := result["system"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected system map, got %T", result["system"])
+	}
+	if sys["statsInboundDownlink"] != true {
+		t.Fatalf("expected statsInboundDownlink true, got %v", sys["statsInboundDownlink"])
+	}
+
+	levels, ok := result["levels"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected levels map, got %T", result["levels"])
+	}
+	level0, ok := levels["0"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected level 0 map")
+	}
+	if level0["handshake"] != 4 {
+		t.Fatalf("expected handshake 4, got %v", level0["handshake"])
+	}
+	if level0["connIdle"] != 300 {
+		t.Fatalf("expected connIdle 300, got %v", level0["connIdle"])
+	}
+}
+
+func TestExpandBasicsAPI(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"tag":      "api",
+			"services": []any{"HandlerService", "StatsService"},
+		},
+	}
+	result := expandBasicsAPI(list)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result["tag"] != "api" {
+		t.Fatalf("expected tag api, got %v", result["tag"])
+	}
+	services, ok := result["services"].([]string)
+	if !ok || len(services) != 2 {
+		t.Fatalf("expected 2 services, got %v", result["services"])
+	}
+	if services[0] != "HandlerService" {
+		t.Fatalf("expected HandlerService, got %v", services[0])
+	}
+}
+
+func TestExpandBasicsAPI_Empty(t *testing.T) {
+	result := expandBasicsAPI([]any{})
+	if result != nil {
+		t.Fatalf("expected nil for empty list, got %v", result)
+	}
+}
+
+func TestExpandBalancers(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"tag":      "bal1",
+			"selector": []any{"proxy-*"},
+			"strategy": []any{
+				map[string]any{"type": "leastPing"},
+			},
+		},
+	}
+	result := expandBalancers(list)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 balancer, got %d", len(result))
+	}
+	m := result[0].(map[string]any)
+	if m["tag"] != "bal1" {
+		t.Fatalf("expected bal1, got %v", m["tag"])
+	}
+	sel, ok := m["selector"].([]string)
+	if !ok || len(sel) != 1 || sel[0] != "proxy-*" {
+		t.Fatalf("unexpected selector: %v", m["selector"])
+	}
+	strat, ok := m["strategy"].(map[string]any)
+	if !ok || strat["type"] != "leastPing" {
+		t.Fatalf("unexpected strategy: %v", m["strategy"])
+	}
+}
+
+func TestExpandOutbounds_Freedom(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"tag":      "direct",
+			"protocol": "freedom",
+			"freedom_settings": []any{
+				map[string]any{
+					"domain_strategy": "AsIs",
+					"fragment": []any{
+						map[string]any{
+							"packets":  "tlshello",
+							"length":   "100-200",
+							"interval": "10-20",
+						},
+					},
+					"noises": []any{
+						map[string]any{
+							"type":   "rand",
+							"packet": "10-20",
+							"delay":  "10-16",
+						},
+					},
+				},
+			},
+		},
+	}
+	result := expandOutbounds(list)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 outbound, got %d", len(result))
+	}
+	m := result[0].(map[string]any)
+	if m["protocol"] != "freedom" {
+		t.Fatalf("expected freedom, got %v", m["protocol"])
+	}
+	settings, ok := m["settings"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected settings map, got %T", m["settings"])
+	}
+	if settings["domainStrategy"] != "AsIs" {
+		t.Fatalf("expected AsIs, got %v", settings["domainStrategy"])
+	}
+	fragment, ok := settings["fragment"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected fragment map, got %T", settings["fragment"])
+	}
+	if fragment["packets"] != "tlshello" {
+		t.Fatalf("expected tlshello, got %v", fragment["packets"])
+	}
+	noises, ok := settings["noises"].([]any)
+	if !ok || len(noises) != 1 {
+		t.Fatalf("expected 1 noise, got %v", settings["noises"])
+	}
+}
+
+func TestExpandOutbounds_Vmess(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"tag":      "vmess-out",
+			"protocol": "vmess",
+			"vmess_settings": []any{
+				map[string]any{
+					"address":  "example.com",
+					"port":     443,
+					"id":       "test-uuid",
+					"security": "auto",
+				},
+			},
+		},
+	}
+	result := expandOutbounds(list)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 outbound")
+	}
+	settings := result[0].(map[string]any)["settings"].(map[string]any)
+	vnext, ok := settings["vnext"].([]any)
+	if !ok || len(vnext) != 1 {
+		t.Fatalf("expected vnext with 1 server, got %v", settings["vnext"])
+	}
+	server := vnext[0].(map[string]any)
+	if server["address"] != "example.com" {
+		t.Fatalf("expected example.com, got %v", server["address"])
+	}
+	users := server["users"].([]any)
+	if len(users) != 1 {
+		t.Fatalf("expected 1 user")
+	}
+	user := users[0].(map[string]any)
+	if user["id"] != "test-uuid" || user["security"] != "auto" {
+		t.Fatalf("unexpected user: %v", user)
+	}
+}
+
+func TestExpandOutbounds_Vless(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"tag":      "vless-out",
+			"protocol": "vless",
+			"vless_settings": []any{
+				map[string]any{
+					"address":    "example.com",
+					"port":       443,
+					"id":         "test-uuid",
+					"flow":       "xtls-rprx-vision",
+					"encryption": "none",
+				},
+			},
+		},
+	}
+	result := expandOutbounds(list)
+	settings := result[0].(map[string]any)["settings"].(map[string]any)
+	vnext := settings["vnext"].([]any)
+	server := vnext[0].(map[string]any)
+	user := server["users"].([]any)[0].(map[string]any)
+	if user["flow"] != "xtls-rprx-vision" {
+		t.Fatalf("expected xtls-rprx-vision, got %v", user["flow"])
+	}
+	if user["encryption"] != "none" {
+		t.Fatalf("expected none, got %v", user["encryption"])
+	}
+}
+
+func TestExpandOutbounds_Trojan(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"tag":      "trojan-out",
+			"protocol": "trojan",
+			"trojan_settings": []any{
+				map[string]any{
+					"address":  "example.com",
+					"port":     443,
+					"password": "secret",
+				},
+			},
+		},
+	}
+	result := expandOutbounds(list)
+	settings := result[0].(map[string]any)["settings"].(map[string]any)
+	servers := settings["servers"].([]any)
+	if len(servers) != 1 {
+		t.Fatalf("expected 1 server")
+	}
+	server := servers[0].(map[string]any)
+	if server["password"] != "secret" {
+		t.Fatalf("expected secret, got %v", server["password"])
+	}
+}
+
+func TestExpandOutbounds_Socks(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"tag":      "socks-out",
+			"protocol": "socks",
+			"socks_settings": []any{
+				map[string]any{
+					"address": "127.0.0.1",
+					"port":    1080,
+					"user":    "admin",
+					"pass":    "password",
+				},
+			},
+		},
+	}
+	result := expandOutbounds(list)
+	settings := result[0].(map[string]any)["settings"].(map[string]any)
+	servers := settings["servers"].([]any)
+	server := servers[0].(map[string]any)
+	if server["address"] != "127.0.0.1" {
+		t.Fatalf("expected 127.0.0.1, got %v", server["address"])
+	}
+	users := server["users"].([]any)
+	user := users[0].(map[string]any)
+	if user["user"] != "admin" || user["pass"] != "password" {
+		t.Fatalf("unexpected user: %v", user)
+	}
+}
+
+func TestExpandOutbounds_HTTP(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"tag":      "http-out",
+			"protocol": "http",
+			"http_settings": []any{
+				map[string]any{
+					"address": "proxy.example.com",
+					"port":    8080,
+					"user":    "user1",
+					"pass":    "pass1",
+				},
+			},
+		},
+	}
+	result := expandOutbounds(list)
+	settings := result[0].(map[string]any)["settings"].(map[string]any)
+	servers := settings["servers"].([]any)
+	server := servers[0].(map[string]any)
+	if server["address"] != "proxy.example.com" {
+		t.Fatalf("expected proxy.example.com, got %v", server["address"])
+	}
+}
+
+func TestExpandOutbounds_Hysteria(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"tag":      "hysteria-out",
+			"protocol": "hysteria",
+			"hysteria_settings": []any{
+				map[string]any{
+					"address": "example.com",
+					"port":    443,
+					"version": 2,
+				},
+			},
+		},
+	}
+	result := expandOutbounds(list)
+	settings := result[0].(map[string]any)["settings"].(map[string]any)
+	servers := settings["servers"].([]any)
+	server := servers[0].(map[string]any)
+	if server["version"] != 2 {
+		t.Fatalf("expected version 2, got %v", server["version"])
+	}
+}
+
+func TestFlattenOutbounds_DNS(t *testing.T) {
+	data := []any{
+		map[string]any{
+			"tag":      "dns-out",
+			"protocol": "dns",
+			"settings": map[string]any{
+				"network": "udp",
+				"address": "1.1.1.1",
+				"port":    float64(53),
+			},
+		},
+	}
+	result := flattenXrayOutboundsToMap(data)
+	outbounds := result["outbound"].([]any)
+	o := outbounds[0].(map[string]any)
+	dnsSettings := o["dns_settings"].([]any)[0].(map[string]any)
+	if dnsSettings["network"] != "udp" {
+		t.Fatalf("expected udp, got %v", dnsSettings["network"])
+	}
+	if dnsSettings["address"] != "1.1.1.1" {
+		t.Fatalf("expected 1.1.1.1, got %v", dnsSettings["address"])
+	}
+	if dnsSettings["port"] != 53 {
+		t.Fatalf("expected 53, got %v", dnsSettings["port"])
+	}
+}
+
+func TestFlattenOutbounds_Vmess(t *testing.T) {
+	data := []any{
+		map[string]any{
+			"tag":      "vmess-out",
+			"protocol": "vmess",
+			"settings": map[string]any{
+				"vnext": []any{
+					map[string]any{
+						"address": "example.com",
+						"port":    float64(443),
+						"users": []any{
+							map[string]any{"id": "uuid-1", "security": "auto"},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := flattenXrayOutboundsToMap(data)
+	outbounds := result["outbound"].([]any)
+	o := outbounds[0].(map[string]any)
+	vmess := o["vmess_settings"].([]any)[0].(map[string]any)
+	if vmess["address"] != "example.com" {
+		t.Fatalf("expected example.com, got %v", vmess["address"])
+	}
+	if vmess["id"] != "uuid-1" {
+		t.Fatalf("expected uuid-1, got %v", vmess["id"])
+	}
+	if vmess["security"] != "auto" {
+		t.Fatalf("expected auto, got %v", vmess["security"])
+	}
+}
+
+func TestFlattenOutbounds_Vless(t *testing.T) {
+	data := []any{
+		map[string]any{
+			"tag":      "vless-out",
+			"protocol": "vless",
+			"settings": map[string]any{
+				"vnext": []any{
+					map[string]any{
+						"address": "example.com",
+						"port":    float64(443),
+						"users": []any{
+							map[string]any{"id": "uuid-2", "flow": "xtls-rprx-vision", "encryption": "none"},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := flattenXrayOutboundsToMap(data)
+	outbounds := result["outbound"].([]any)
+	vless := outbounds[0].(map[string]any)["vless_settings"].([]any)[0].(map[string]any)
+	if vless["flow"] != "xtls-rprx-vision" {
+		t.Fatalf("expected xtls-rprx-vision, got %v", vless["flow"])
+	}
+}
+
+func TestFlattenOutbounds_Trojan(t *testing.T) {
+	data := []any{
+		map[string]any{
+			"tag":      "trojan-out",
+			"protocol": "trojan",
+			"settings": map[string]any{
+				"servers": []any{
+					map[string]any{"address": "example.com", "port": float64(443), "password": "secret"},
+				},
+			},
+		},
+	}
+	result := flattenXrayOutboundsToMap(data)
+	trojan := result["outbound"].([]any)[0].(map[string]any)["trojan_settings"].([]any)[0].(map[string]any)
+	if trojan["password"] != "secret" {
+		t.Fatalf("expected secret, got %v", trojan["password"])
+	}
+}
+
+func TestFlattenOutbounds_Socks(t *testing.T) {
+	data := []any{
+		map[string]any{
+			"tag":      "socks-out",
+			"protocol": "socks",
+			"settings": map[string]any{
+				"servers": []any{
+					map[string]any{
+						"address": "127.0.0.1",
+						"port":    float64(1080),
+						"users": []any{
+							map[string]any{"user": "admin", "pass": "pass"},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := flattenXrayOutboundsToMap(data)
+	socks := result["outbound"].([]any)[0].(map[string]any)["socks_settings"].([]any)[0].(map[string]any)
+	if socks["user"] != "admin" {
+		t.Fatalf("expected admin, got %v", socks["user"])
+	}
+	if socks["pass"] != "pass" {
+		t.Fatalf("expected pass, got %v", socks["pass"])
+	}
+}
+
+func TestFlattenOutbounds_HTTP(t *testing.T) {
+	data := []any{
+		map[string]any{
+			"tag":      "http-out",
+			"protocol": "http",
+			"settings": map[string]any{
+				"servers": []any{
+					map[string]any{
+						"address": "proxy.example.com",
+						"port":    float64(8080),
+						"users": []any{
+							map[string]any{"user": "user1", "pass": "pass1"},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := flattenXrayOutboundsToMap(data)
+	http := result["outbound"].([]any)[0].(map[string]any)["http_settings"].([]any)[0].(map[string]any)
+	if http["user"] != "user1" {
+		t.Fatalf("expected user1, got %v", http["user"])
+	}
+}
+
+func TestFlattenOutbounds_Hysteria(t *testing.T) {
+	data := []any{
+		map[string]any{
+			"tag":      "hysteria-out",
+			"protocol": "hysteria",
+			"settings": map[string]any{
+				"servers": []any{
+					map[string]any{"address": "example.com", "port": float64(443), "version": float64(2)},
+				},
+			},
+		},
+	}
+	result := flattenXrayOutboundsToMap(data)
+	hysteria := result["outbound"].([]any)[0].(map[string]any)["hysteria_settings"].([]any)[0].(map[string]any)
+	if hysteria["version"] != 2 {
+		t.Fatalf("expected 2, got %v", hysteria["version"])
+	}
+}

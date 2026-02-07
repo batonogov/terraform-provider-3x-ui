@@ -17,17 +17,25 @@ repos:
       # go build - проверка компиляции
       - id: go-build-mod
 
+  # Acceptance tests via task test
+  - repo: local
+    hooks:
+      - id: task-test
+        name: task test (acceptance tests)
+        entry: task test
+        language: system
+        pass_filenames: false
+        always_run: true
+
   # Общие хуки для любых файлов
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
       # Trailing whitespace
       - id: trailing-whitespace
-        exclude: ^test_plans/
 
       # Конец файла - пустая строка
       - id: end-of-file-fixer
-        exclude: ^test_plans/
 
       # Проверка YAML
       - id: check-yaml
