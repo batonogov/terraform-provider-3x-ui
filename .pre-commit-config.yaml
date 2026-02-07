@@ -3,35 +3,39 @@
 # Запуск вручную: pre-commit run --all-files
 
 repos:
-  # Go-specific hooks
-  - repo: https://github.com/tekwizely/pre-commit-golang
-    rev: v1.0.0-rc.1
-    hooks:
-      # gofmt - форматирование кода
-      - id: go-fmt
-        args: [-w]
-
-      # go vet - статический анализ
-      - id: go-vet-mod
-
-      # go build - проверка компиляции
-      - id: go-build-mod
-
-  # golangci-lint via task lint
+  # Go checks via Taskfile (same as CI)
   - repo: local
     hooks:
+      - id: task-fmt
+        name: task fmt
+        entry: task fmt
+        language: system
+        pass_filenames: false
+        types: [go]
+
+      - id: task-vet
+        name: task vet
+        entry: task vet
+        language: system
+        pass_filenames: false
+        types: [go]
+
       - id: task-lint
-        name: task lint (golangci-lint)
+        name: task lint
         entry: task lint
         language: system
         pass_filenames: false
         types: [go]
 
-  # Acceptance tests via task test
-  - repo: local
-    hooks:
+      - id: task-build
+        name: task build
+        entry: task build
+        language: system
+        pass_filenames: false
+        types: [go]
+
       - id: task-test
-        name: task test (acceptance tests)
+        name: task test
         entry: task test
         language: system
         pass_filenames: false
@@ -41,25 +45,12 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
-      # Trailing whitespace
       - id: trailing-whitespace
-
-      # Конец файла - пустая строка
       - id: end-of-file-fixer
-
-      # Проверка YAML
       - id: check-yaml
-        args: [--unsafe]  # для docker-compose.yaml с якорями
-
-      # Проверка JSON
+        args: [--unsafe]
       - id: check-json
-
-      # Большие файлы (>500KB)
       - id: check-added-large-files
         args: [--maxkb=500]
-
-      # Merge conflict markers
       - id: check-merge-conflict
-
-      # Проверка case conflicts (для кросс-платформы)
       - id: check-case-conflict
