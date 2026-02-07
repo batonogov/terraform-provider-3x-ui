@@ -17,6 +17,16 @@ repos:
       # go build - проверка компиляции
       - id: go-build-mod
 
+  # golangci-lint via task lint
+  - repo: local
+    hooks:
+      - id: task-lint
+        name: task lint (golangci-lint)
+        entry: task lint
+        language: system
+        pass_filenames: false
+        types: [go]
+
   # Acceptance tests via task test
   - repo: local
     hooks:

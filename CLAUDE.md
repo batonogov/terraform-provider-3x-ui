@@ -132,7 +132,7 @@ task pre-commit  # Запустить все pre-commit проверки вру�
 - **go-build** — проверка компиляции
 - Проверки YAML/JSON, trailing whitespace, EOF
 
-**golangci-lint** намеренно НЕ включён в pre-commit (медленный), но рекомендуется запускать вручную перед PR: `task lint`.
+**golangci-lint** включён в pre-commit и CI.
 
 Конфигурации: `.pre-commit-config.yaml`, `.golangci.yml`
 
