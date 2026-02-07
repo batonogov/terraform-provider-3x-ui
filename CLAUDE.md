@@ -15,14 +15,14 @@ provider/              — весь код провайдера
   types.go             — Inbound, ClientTraffic, APIResponse, ParseJSONField
   resource_inbound.go  — ресурс threexui_inbound (CRUD, Reality, settings defaults)
   resource_inbound_client.go — ресурс threexui_inbound_client (мьютекс, UUID)
-  resource_settings_tabs.go  — panel_general/security/telegram/subscription (json атрибут)
-  resource_xray_settings.go  — CRUD для xray_basics/dns/routing/balancers/reverse/outbounds (json атрибут)
-  xray_basics_schema.go      — build, flatten для xray_basics (log, policy, api, stats)
-  xray_dns_schema.go         — build, flatten для xray_dns (servers, hosts)
-  xray_routing_schema.go     — build, flatten для xray_routing (rules)
-  xray_balancers_schema.go   — build, flatten для xray_balancers
-  xray_reverse_schema.go     — build, flatten для xray_reverse (bridges, portals)
-  xray_outbounds_schema.go   — build, flatten для xray_outbounds (per-protocol settings)
+  resource_settings_tabs.go  — panel_general/security/telegram/subscription (typed атрибуты)
+  resource_xray_settings.go  — CRUD для xray_basics/dns/routing/balancers/reverse/outbounds (typed атрибуты)
+  xray_basics_schema.go      — модель, схема, expand/flatten для xray_basics (log, policy, api, stats)
+  xray_dns_schema.go         — модель, схема, expand/flatten для xray_dns (servers, hosts)
+  xray_routing_schema.go     — модель, схема, expand/flatten для xray_routing (rules)
+  xray_balancers_schema.go   — модель, схема, expand/flatten для xray_balancers
+  xray_reverse_schema.go     — модель, схема, expand/flatten для xray_reverse (bridges, portals)
+  xray_outbounds_schema.go   — модель, схема, expand/flatten для xray_outbounds (per-protocol settings)
   settings.go          — buildSettingsJSON(map[string]any), flattenSettings(string), expand/flatten clients/fallbacks/peers
   stream_settings.go   — buildStreamSettingsJSON(map[string]any), flattenStreamSettings(string)
   sniffing.go          — buildSniffingJSON(map[string]any), flattenSniffing(string)
@@ -41,16 +41,16 @@ Taskfile.yml           — task build / test / fmt
 |---|---|---|
 | `threexui_inbound` | resource_inbound.go | Inbound (vless/vmess/trojan/ss/http/mixed/wg/tunnel). Typed атрибуты + JSON-строки для settings/stream_settings/sniffing |
 | `threexui_inbound_client` | resource_inbound_client.go | Клиент внутри inbound. Typed атрибуты |
-| `threexui_panel_general` | resource_settings_tabs.go | Настройки панели (web, LDAP). `json` атрибут |
-| `threexui_panel_security` | resource_settings_tabs.go | 2FA. `json` атрибут |
-| `threexui_panel_telegram` | resource_settings_tabs.go | Telegram-бот. `json` атрибут |
-| `threexui_panel_subscription` | resource_settings_tabs.go | Подписки. `json` атрибут |
-| `threexui_xray_basics` | resource_xray_settings.go + xray_basics_schema.go | Базовый Xray-конфиг (merge root). `json` атрибут |
-| `threexui_xray_dns` | resource_xray_settings.go + xray_dns_schema.go | DNS (set path). `json` атрибут |
-| `threexui_xray_routing` | resource_xray_settings.go + xray_routing_schema.go | Маршрутизация (set path). `json` атрибут |
-| `threexui_xray_balancers` | resource_xray_settings.go + xray_balancers_schema.go | Балансировщики (set path). `json` атрибут |
-| `threexui_xray_reverse` | resource_xray_settings.go + xray_reverse_schema.go | Reverse proxy (set path). `json` атрибут |
-| `threexui_xray_outbounds` | resource_xray_settings.go + xray_outbounds_schema.go | Outbound'ы (set path). `json` атрибут |
+| `threexui_panel_general` | resource_settings_tabs.go | Настройки панели (web, LDAP). Typed атрибуты |
+| `threexui_panel_security` | resource_settings_tabs.go | 2FA. Typed атрибуты |
+| `threexui_panel_telegram` | resource_settings_tabs.go | Telegram-бот. Typed атрибуты |
+| `threexui_panel_subscription` | resource_settings_tabs.go | Подписки. Typed атрибуты |
+| `threexui_xray_basics` | resource_xray_settings.go + xray_basics_schema.go | Базовый Xray-конфиг (merge root). Typed блоки |
+| `threexui_xray_dns` | resource_xray_settings.go + xray_dns_schema.go | DNS (set path). Typed блоки |
+| `threexui_xray_routing` | resource_xray_settings.go + xray_routing_schema.go | Маршрутизация (set path). Typed блоки |
+| `threexui_xray_balancers` | resource_xray_settings.go + xray_balancers_schema.go | Балансировщики (set path). Typed блоки |
+| `threexui_xray_reverse` | resource_xray_settings.go + xray_reverse_schema.go | Reverse proxy (set path). Typed блоки |
+| `threexui_xray_outbounds` | resource_xray_settings.go + xray_outbounds_schema.go | Outbound'ы (set path). Typed блоки |
 
 ## Data Sources
 
@@ -104,8 +104,9 @@ Taskfile.yml           — task build / test / fmt
 
 ### Panel Settings
 - Settings-ресурсы — синглтоны (ID = `"settings"`), один экземпляр на тип
-- Используют единый `json` атрибут (JSON-строка с настройками)
-- `settingsApplyHelper` / `settingsReadHelper` — shared CRUD логика
+- Typed атрибуты (Optional + Computed + UseStateForUnknown) — каждое поле отдельный атрибут в schema
+- Per-resource модели: `PanelGeneralModel`, `PanelSecurityModel`, `PanelTelegramModel`, `PanelSubscriptionModel`
+- `settingsApplyTyped` / `settingsReadTyped` — shared CRUD логика (expand model → API → flatten → model)
 - Delete только очищает TF state, **не** сбрасывает настройки в API
 - Subscription resource делает двойной apply (обходит баг 3x-ui: sub_json_enable не сохраняется при первом apply совместно с sub_enable)
 - Включение 2FA блокирует провайдер (login не поддерживает 2FA-код) — добавлен Warning
@@ -113,12 +114,13 @@ Taskfile.yml           — task build / test / fmt
 - `panelSettingsNeedRestart` — ключи: webListen, webDomain, webPort, webBasePath, webCertFile, webKeyFile, sessionMaxAge
 
 ### Xray Settings
-- Xray-ресурсы используют единый `json` атрибут с `jsonencode()` в HCL
-- Каждый ресурс имеет свой `*_schema.go` файл с функциями `buildJSON(d map[string]any)`, `flattenToMap(data)`
+- Typed блоки (ListNestedBlock) — каждый ресурс имеет свою модель и schema в `*_schema.go`
+- Per-resource модели: `XrayBasicsModel`, `XrayDNSModel`, `XrayRoutingModel`, `XrayBalancersModel`, `XrayReverseModel`, `XrayOutboundsModel`
+- Двухслойная конвертация: typed model ↔ untyped map (expand/flatten) ↔ Xray JSON (build/flattenToMap)
 - Xray-ресурсы работают в 2 режимах: merge root (`xray_basics`), set path (остальные)
 - `xrayTemplateMu` — мьютекс для сериализации read-modify-write на xray template (предотвращает race condition)
-- `xrayApplyHelper` / `xrayReadHelper` — shared CRUD логика
-- CRUD: `buildFunc` собирает map/slice из JSON map → `applyXraySection` → API; Read: API → `extractXraySection` → `flattenFunc` → JSON → state
+- `xrayApplyTyped` / `xrayReadSection` — shared CRUD логика
+- CRUD: plan.Get → expand → build → xrayApplyTyped → xrayReadSection → flattenToMap → flatten → state.Set
 - DNS servers: address-only → сериализуется как строка в JSON, с доп. полями → как объект
 - Outbound settings: per-protocol блоки (`freedom_settings`, `blackhole_settings`, ...) определяются значением `protocol`
 - Policy levels: в Xray JSON map `{"0": {...}}`, в TF list `[{id=0, ...}]`
@@ -160,7 +162,7 @@ docker compose up -d   # Запуск 3x-ui v2.8.9 на localhost:2053
 Acc-тесты используют `terraform-plugin-testing`:
 - `testAccProtoV6ProviderFactories()` — возвращает `map[string]func() (tfprotov6.ProviderServer, error)`
 - `ProtoV6ProviderFactories` в TestCase (не `ProviderFactories`)
-- HCL-конфиги используют `jsonencode()` для json атрибутов
+- HCL-конфиги используют typed блоки и атрибуты (не `jsonencode()`)
 
 Acc-тесты требуют OpenTofu и переменные окружения для корректного provider namespace:
 - `TF_ACC_TERRAFORM_PATH` — абсолютный путь к `tofu`

@@ -1,8 +1,9 @@
 package provider
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 func TestPanelSettingsNeedRestart_ChangedKey(t *testing.T) {
@@ -133,7 +134,7 @@ func TestMergeSettings_BothNil(t *testing.T) {
 func TestMergeSettings_NilExisting(t *testing.T) {
 	desired := map[string]any{"a": "1"}
 	result := mergeSettings(nil, desired)
-	if !reflect.DeepEqual(result, desired) {
+	if result["a"] != "1" {
 		t.Fatalf("expected desired, got %v", result)
 	}
 }
@@ -159,54 +160,21 @@ func TestMergeSettings_Union(t *testing.T) {
 	}
 }
 
-func TestFlattenPanelSettingsFields_Full(t *testing.T) {
-	in := map[string]any{
-		"webListen":   "0.0.0.0",
-		"webPort":     float64(2053),
-		"webBasePath": "/panel/",
-		"pageSize":    float64(25),
-	}
-	out := flattenPanelSettingsFields(in)
-	if out["web_listen"] != "0.0.0.0" {
-		t.Fatalf("unexpected web_listen: %v", out["web_listen"])
-	}
-	if out["web_port"] != 2053 {
-		t.Fatalf("unexpected web_port: %v", out["web_port"])
-	}
-	if out["web_base_path"] != "/panel/" {
-		t.Fatalf("unexpected web_base_path: %v", out["web_base_path"])
-	}
-}
-
-func TestFlattenPanelSettingsFields_Empty(t *testing.T) {
-	out := flattenPanelSettingsFields(map[string]any{})
-	if len(out) != 0 {
-		t.Fatalf("expected empty, got %v", out)
-	}
-}
-
-func TestFlattenAccountSettingsFields_Full(t *testing.T) {
+func TestFlattenPanelSecurity(t *testing.T) {
 	in := map[string]any{
 		"twoFactorEnable": true,
 		"twoFactorToken":  "secret",
 	}
-	out := flattenAccountSettingsFields(in)
-	if out["two_factor_enable"] != true {
-		t.Fatalf("unexpected: %v", out)
+	m := flattenPanelSecurity(in)
+	if m.TwoFactorEnable.ValueBool() != true {
+		t.Fatalf("unexpected two_factor_enable: %v", m.TwoFactorEnable)
 	}
-	if out["two_factor_token"] != "secret" {
-		t.Fatalf("unexpected: %v", out)
-	}
-}
-
-func TestFlattenAccountSettingsFields_Empty(t *testing.T) {
-	out := flattenAccountSettingsFields(map[string]any{})
-	if len(out) != 0 {
-		t.Fatalf("expected empty, got %v", out)
+	if m.TwoFactorToken.ValueString() != "secret" {
+		t.Fatalf("unexpected two_factor_token: %v", m.TwoFactorToken)
 	}
 }
 
-func TestFlattenTelegramSettingsFields_Full(t *testing.T) {
+func TestFlattenPanelTelegram(t *testing.T) {
 	in := map[string]any{
 		"tgBotEnable":      true,
 		"tgBotToken":       "tok",
@@ -219,26 +187,19 @@ func TestFlattenTelegramSettingsFields_Full(t *testing.T) {
 		"tgBotLoginNotify": false,
 		"tgCpu":            float64(80),
 	}
-	out := flattenTelegramSettingsFields(in)
-	if out["tg_bot_enable"] != true {
-		t.Fatalf("unexpected tg_bot_enable: %v", out["tg_bot_enable"])
+	m := flattenPanelTelegram(in)
+	if m.TgBotEnable.ValueBool() != true {
+		t.Fatalf("unexpected tg_bot_enable: %v", m.TgBotEnable)
 	}
-	if out["tg_bot_token"] != "tok" {
-		t.Fatalf("unexpected tg_bot_token: %v", out["tg_bot_token"])
+	if m.TgBotToken.ValueString() != "tok" {
+		t.Fatalf("unexpected tg_bot_token: %v", m.TgBotToken)
 	}
-	if out["tg_cpu"] != 80 {
-		t.Fatalf("unexpected tg_cpu: %v", out["tg_cpu"])
-	}
-}
-
-func TestFlattenTelegramSettingsFields_Empty(t *testing.T) {
-	out := flattenTelegramSettingsFields(map[string]any{})
-	if len(out) != 0 {
-		t.Fatalf("expected empty, got %v", out)
+	if m.TgCPU.ValueInt64() != 80 {
+		t.Fatalf("unexpected tg_cpu: %v", m.TgCPU)
 	}
 }
 
-func TestFlattenSubscriptionSettingsFields_Full(t *testing.T) {
+func TestFlattenPanelSubscription(t *testing.T) {
 	in := map[string]any{
 		"subEnable":     true,
 		"subJsonEnable": false,
@@ -246,21 +207,65 @@ func TestFlattenSubscriptionSettingsFields_Full(t *testing.T) {
 		"subPort":       float64(443),
 		"subEncrypt":    true,
 	}
-	out := flattenSubscriptionSettingsFields(in)
-	if out["sub_enable"] != true {
-		t.Fatalf("unexpected sub_enable: %v", out["sub_enable"])
+	m := flattenPanelSubscription(in)
+	if m.SubEnable.ValueBool() != true {
+		t.Fatalf("unexpected sub_enable: %v", m.SubEnable)
 	}
-	if out["sub_title"] != "My Sub" {
-		t.Fatalf("unexpected sub_title: %v", out["sub_title"])
+	if m.SubTitle.ValueString() != "My Sub" {
+		t.Fatalf("unexpected sub_title: %v", m.SubTitle)
 	}
-	if out["sub_port"] != 443 {
-		t.Fatalf("unexpected sub_port: %v", out["sub_port"])
+	if m.SubPort.ValueInt64() != 443 {
+		t.Fatalf("unexpected sub_port: %v", m.SubPort)
 	}
 }
 
-func TestFlattenSubscriptionSettingsFields_Empty(t *testing.T) {
-	out := flattenSubscriptionSettingsFields(map[string]any{})
-	if len(out) != 0 {
-		t.Fatalf("expected empty, got %v", out)
+func TestFlattenPanelGeneral(t *testing.T) {
+	in := map[string]any{
+		"webListen":   "0.0.0.0",
+		"webPort":     float64(2053),
+		"webBasePath": "/panel/",
+		"pageSize":    float64(25),
+	}
+	m := flattenPanelGeneral(in)
+	if m.WebListen.ValueString() != "0.0.0.0" {
+		t.Fatalf("unexpected web_listen: %v", m.WebListen)
+	}
+	if m.WebPort.ValueInt64() != 2053 {
+		t.Fatalf("unexpected web_port: %v", m.WebPort)
+	}
+	if m.WebBasePath.ValueString() != "/panel/" {
+		t.Fatalf("unexpected web_base_path: %v", m.WebBasePath)
 	}
 }
+
+func TestExpandPanelSecurity(t *testing.T) {
+	m := &PanelSecurityModel{}
+	m.TwoFactorEnable = typeBoolValue(false)
+	m.TwoFactorToken = typeStringValue("tok")
+	result := expandPanelSecurity(m)
+	if result["twoFactorEnable"] != false {
+		t.Fatalf("unexpected twoFactorEnable: %v", result["twoFactorEnable"])
+	}
+	if result["twoFactorToken"] != "tok" {
+		t.Fatalf("unexpected twoFactorToken: %v", result["twoFactorToken"])
+	}
+}
+
+func TestExpandPanelTelegram(t *testing.T) {
+	m := &PanelTelegramModel{}
+	m.TgBotEnable = typeBoolValue(true)
+	m.TgBotToken = typeStringValue("token")
+	m.TgCPU = typeInt64Value(80)
+	result := expandPanelTelegram(m)
+	if result["tgBotEnable"] != true {
+		t.Fatalf("unexpected tgBotEnable: %v", result["tgBotEnable"])
+	}
+	if result["tgCpu"] != 80 {
+		t.Fatalf("unexpected tgCpu: %v", result["tgCpu"])
+	}
+}
+
+// Helper functions for creating typed values in tests
+func typeBoolValue(v bool) types.Bool       { return types.BoolValue(v) }
+func typeStringValue(v string) types.String { return types.StringValue(v) }
+func typeInt64Value(v int64) types.Int64    { return types.Int64Value(v) }

@@ -9,10 +9,6 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var xrayTemplateMu sync.Mutex
@@ -39,105 +35,49 @@ var (
 	xraySectionOutbounds = xraySection{id: "xray_outbounds", mode: xraySectionSetPath, path: []string{"outbounds"}}
 )
 
-type xrayBuildFunc func(d map[string]any) any
 type xrayFlattenFunc func(data any) map[string]any
 
-// xrayResourceModel is shared by all xray resources: they store config as JSON.
-type xrayResourceModel struct {
-	ID   types.String `tfsdk:"id"`
-	JSON types.String `tfsdk:"json"`
-}
-
-func xrayResourceSchema() schema.Schema {
-	return schema.Schema{
-		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
-			"json": schema.StringAttribute{
-				Required:    true,
-				Description: "JSON representation of the xray section config.",
-				PlanModifiers: []planmodifier.String{
-					jsonSubsetPlanModifier{},
-				},
-			},
-		},
-	}
-}
-
 // ---------------------------------------------------------------------------
-// Shared CRUD helpers
+// Shared typed CRUD helpers
 // ---------------------------------------------------------------------------
 
-func xrayApplyHelper(
+// xrayApplyTyped applies the desired value to the xray template.
+func xrayApplyTyped(
 	ctx context.Context,
-	jsonStr string,
+	desired any,
 	diags *diag.Diagnostics,
 	client *Client,
 	section xraySection,
-	build xrayBuildFunc,
-	flatten xrayFlattenFunc,
-) *xrayResourceModel {
-	var input map[string]any
-	if err := json.Unmarshal([]byte(jsonStr), &input); err != nil {
-		diags.AddError("Invalid JSON", err.Error())
-		return nil
-	}
-
-	desired := build(input)
-
+) {
 	xrayTemplateMu.Lock()
 	defer xrayTemplateMu.Unlock()
 
 	current, err := client.GetXrayTemplate(ctx)
 	if err != nil {
 		diags.AddError("Failed to get xray template", err.Error())
-		return nil
+		return
 	}
 
 	updated, err := applyXraySection(current, desired, section)
 	if err != nil {
 		diags.AddError("Failed to apply xray section", err.Error())
-		return nil
+		return
 	}
 
 	if err := client.UpdateXrayTemplate(ctx, updated); err != nil {
 		diags.AddError("Failed to update xray template", err.Error())
-		return nil
+		return
 	}
-
-	result := xrayReadHelperLocked(ctx, diags, client, section, flatten)
-	if result == nil {
-		return nil
-	}
-
-	// Preserve plan JSON if it is a subset of the flatten result.
-	// This prevents "inconsistent result" when flatten adds API defaults
-	// (e.g. xray_basics flatten may add "error":"" to log).
-	var planVal, stateVal any
-	if json.Unmarshal([]byte(jsonStr), &planVal) == nil {
-		if json.Unmarshal([]byte(result.JSON.ValueString()), &stateVal) == nil {
-			if isSubset(planVal, stateVal) {
-				result.JSON = types.StringValue(jsonStr)
-			}
-		}
-	}
-
-	return result
 }
 
-// xrayReadHelperLocked reads the xray template without acquiring the mutex.
-// The caller must hold xrayTemplateMu if concurrent access is possible.
-func xrayReadHelperLocked(
+// xrayReadSection reads the xray template and extracts+flattens the specified section.
+func xrayReadSection(
 	ctx context.Context,
 	diags *diag.Diagnostics,
 	client *Client,
 	section xraySection,
 	flatten xrayFlattenFunc,
-) *xrayResourceModel {
+) map[string]any {
 	current, err := client.GetXrayTemplate(ctx)
 	if err != nil {
 		diags.AddError("Failed to get xray template", err.Error())
@@ -145,44 +85,7 @@ func xrayReadHelperLocked(
 	}
 
 	value := extractXraySection(current, section)
-	flat := flatten(value)
-
-	payload, err := json.Marshal(flat)
-	if err != nil {
-		diags.AddError("Failed to marshal state", err.Error())
-		return nil
-	}
-
-	return &xrayResourceModel{
-		ID:   types.StringValue(section.id),
-		JSON: types.StringValue(string(payload)),
-	}
-}
-
-// xrayReadHelper reads the xray template (acquires no mutex — Read is safe to
-// call without the write-side lock).
-func xrayReadHelper(
-	ctx context.Context,
-	diags *diag.Diagnostics,
-	client *Client,
-	section xraySection,
-	flatten xrayFlattenFunc,
-) *xrayResourceModel {
-	return xrayReadHelperLocked(ctx, diags, client, section, flatten)
-}
-
-func xrayImportState(
-	ctx context.Context,
-	_ resource.ImportStateRequest,
-	resp *resource.ImportStateResponse,
-	section xraySection,
-	flatten xrayFlattenFunc,
-	client *Client,
-) {
-	state := xrayReadHelper(ctx, &resp.Diagnostics, client, section, flatten)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
-	}
+	return flatten(value)
 }
 
 // ---------------------------------------------------------------------------
@@ -203,7 +106,7 @@ func (r *XrayBasicsResource) Metadata(_ context.Context, req resource.MetadataRe
 }
 
 func (r *XrayBasicsResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = xrayResourceSchema()
+	resp.Schema = xrayBasicsSchema()
 }
 
 func (r *XrayBasicsResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -219,51 +122,69 @@ func (r *XrayBasicsResource) Configure(_ context.Context, req resource.Configure
 }
 
 func (r *XrayBasicsResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan xrayResourceModel
+	var plan XrayBasicsModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client, xraySectionBasics,
-		buildXrayBasicsJSON,
-		flattenXrayBasicsToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
-	}
-}
 
-func (r *XrayBasicsResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var cur xrayResourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &cur)...)
+	input := expandXrayBasics(&plan)
+	desired := buildXrayBasicsJSON(input)
+	xrayApplyTyped(ctx, desired, &resp.Diagnostics, r.client, xraySectionBasics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayReadHelper(ctx, &resp.Diagnostics, r.client, xraySectionBasics, flattenXrayBasicsToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionBasics, flattenXrayBasicsToMap)
+	if flat == nil {
+		return
 	}
+	state := flattenXrayBasics(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *XrayBasicsResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionBasics, flattenXrayBasicsToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayBasics(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *XrayBasicsResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan xrayResourceModel
+	var plan XrayBasicsModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client, xraySectionBasics,
-		buildXrayBasicsJSON,
-		flattenXrayBasicsToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+
+	input := expandXrayBasics(&plan)
+	desired := buildXrayBasicsJSON(input)
+	xrayApplyTyped(ctx, desired, &resp.Diagnostics, r.client, xraySectionBasics)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionBasics, flattenXrayBasicsToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayBasics(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *XrayBasicsResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
 	resp.State.RemoveResource(ctx)
 }
 
-func (r *XrayBasicsResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	xrayImportState(ctx, req, resp, xraySectionBasics, flattenXrayBasicsToMap, r.client)
+func (r *XrayBasicsResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionBasics, flattenXrayBasicsToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayBasics(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 // ---------------------------------------------------------------------------
@@ -284,7 +205,7 @@ func (r *XrayDNSResource) Metadata(_ context.Context, req resource.MetadataReque
 }
 
 func (r *XrayDNSResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = xrayResourceSchema()
+	resp.Schema = xrayDNSSchema()
 }
 
 func (r *XrayDNSResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -300,51 +221,69 @@ func (r *XrayDNSResource) Configure(_ context.Context, req resource.ConfigureReq
 }
 
 func (r *XrayDNSResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan xrayResourceModel
+	var plan XrayDNSModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client, xraySectionDNS,
-		buildXrayDNSJSON,
-		flattenXrayDNSToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
-	}
-}
 
-func (r *XrayDNSResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var cur xrayResourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &cur)...)
+	input := expandXrayDNS(&plan)
+	desired := buildXrayDNSJSON(input)
+	xrayApplyTyped(ctx, desired, &resp.Diagnostics, r.client, xraySectionDNS)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayReadHelper(ctx, &resp.Diagnostics, r.client, xraySectionDNS, flattenXrayDNSToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionDNS, flattenXrayDNSToMap)
+	if flat == nil {
+		return
 	}
+	state := flattenXrayDNS(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *XrayDNSResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionDNS, flattenXrayDNSToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayDNS(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *XrayDNSResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan xrayResourceModel
+	var plan XrayDNSModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client, xraySectionDNS,
-		buildXrayDNSJSON,
-		flattenXrayDNSToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+
+	input := expandXrayDNS(&plan)
+	desired := buildXrayDNSJSON(input)
+	xrayApplyTyped(ctx, desired, &resp.Diagnostics, r.client, xraySectionDNS)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionDNS, flattenXrayDNSToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayDNS(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *XrayDNSResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
 	resp.State.RemoveResource(ctx)
 }
 
-func (r *XrayDNSResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	xrayImportState(ctx, req, resp, xraySectionDNS, flattenXrayDNSToMap, r.client)
+func (r *XrayDNSResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionDNS, flattenXrayDNSToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayDNS(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 // ---------------------------------------------------------------------------
@@ -365,7 +304,7 @@ func (r *XrayRoutingResource) Metadata(_ context.Context, req resource.MetadataR
 }
 
 func (r *XrayRoutingResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = xrayResourceSchema()
+	resp.Schema = xrayRoutingSchema()
 }
 
 func (r *XrayRoutingResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -381,51 +320,69 @@ func (r *XrayRoutingResource) Configure(_ context.Context, req resource.Configur
 }
 
 func (r *XrayRoutingResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan xrayResourceModel
+	var plan XrayRoutingModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client, xraySectionRouting,
-		buildXrayRoutingJSON,
-		flattenXrayRoutingToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
-	}
-}
 
-func (r *XrayRoutingResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var cur xrayResourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &cur)...)
+	input := expandXrayRouting(&plan)
+	desired := buildXrayRoutingJSON(input)
+	xrayApplyTyped(ctx, desired, &resp.Diagnostics, r.client, xraySectionRouting)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayReadHelper(ctx, &resp.Diagnostics, r.client, xraySectionRouting, flattenXrayRoutingToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionRouting, flattenXrayRoutingToMap)
+	if flat == nil {
+		return
 	}
+	state := flattenXrayRouting(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *XrayRoutingResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionRouting, flattenXrayRoutingToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayRouting(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *XrayRoutingResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan xrayResourceModel
+	var plan XrayRoutingModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client, xraySectionRouting,
-		buildXrayRoutingJSON,
-		flattenXrayRoutingToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+
+	input := expandXrayRouting(&plan)
+	desired := buildXrayRoutingJSON(input)
+	xrayApplyTyped(ctx, desired, &resp.Diagnostics, r.client, xraySectionRouting)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionRouting, flattenXrayRoutingToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayRouting(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *XrayRoutingResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
 	resp.State.RemoveResource(ctx)
 }
 
-func (r *XrayRoutingResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	xrayImportState(ctx, req, resp, xraySectionRouting, flattenXrayRoutingToMap, r.client)
+func (r *XrayRoutingResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionRouting, flattenXrayRoutingToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayRouting(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 // ---------------------------------------------------------------------------
@@ -446,7 +403,7 @@ func (r *XrayBalancersResource) Metadata(_ context.Context, req resource.Metadat
 }
 
 func (r *XrayBalancersResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = xrayResourceSchema()
+	resp.Schema = xrayBalancersSchema()
 }
 
 func (r *XrayBalancersResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -462,51 +419,69 @@ func (r *XrayBalancersResource) Configure(_ context.Context, req resource.Config
 }
 
 func (r *XrayBalancersResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan xrayResourceModel
+	var plan XrayBalancersModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client, xraySectionBalancers,
-		buildXrayBalancersJSON,
-		flattenXrayBalancersToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
-	}
-}
 
-func (r *XrayBalancersResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var cur xrayResourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &cur)...)
+	input := expandXrayBalancers(&plan)
+	desired := buildXrayBalancersJSON(input)
+	xrayApplyTyped(ctx, desired, &resp.Diagnostics, r.client, xraySectionBalancers)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayReadHelper(ctx, &resp.Diagnostics, r.client, xraySectionBalancers, flattenXrayBalancersToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionBalancers, flattenXrayBalancersToMap)
+	if flat == nil {
+		return
 	}
+	state := flattenXrayBalancers(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *XrayBalancersResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionBalancers, flattenXrayBalancersToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayBalancers(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *XrayBalancersResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan xrayResourceModel
+	var plan XrayBalancersModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client, xraySectionBalancers,
-		buildXrayBalancersJSON,
-		flattenXrayBalancersToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+
+	input := expandXrayBalancers(&plan)
+	desired := buildXrayBalancersJSON(input)
+	xrayApplyTyped(ctx, desired, &resp.Diagnostics, r.client, xraySectionBalancers)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionBalancers, flattenXrayBalancersToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayBalancers(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *XrayBalancersResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
 	resp.State.RemoveResource(ctx)
 }
 
-func (r *XrayBalancersResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	xrayImportState(ctx, req, resp, xraySectionBalancers, flattenXrayBalancersToMap, r.client)
+func (r *XrayBalancersResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionBalancers, flattenXrayBalancersToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayBalancers(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 // ---------------------------------------------------------------------------
@@ -527,7 +502,7 @@ func (r *XrayReverseResource) Metadata(_ context.Context, req resource.MetadataR
 }
 
 func (r *XrayReverseResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = xrayResourceSchema()
+	resp.Schema = xrayReverseSchema()
 }
 
 func (r *XrayReverseResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -543,51 +518,69 @@ func (r *XrayReverseResource) Configure(_ context.Context, req resource.Configur
 }
 
 func (r *XrayReverseResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan xrayResourceModel
+	var plan XrayReverseModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client, xraySectionReverse,
-		buildXrayReverseJSON,
-		flattenXrayReverseToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
-	}
-}
 
-func (r *XrayReverseResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var cur xrayResourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &cur)...)
+	input := expandXrayReverse(&plan)
+	desired := buildXrayReverseJSON(input)
+	xrayApplyTyped(ctx, desired, &resp.Diagnostics, r.client, xraySectionReverse)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayReadHelper(ctx, &resp.Diagnostics, r.client, xraySectionReverse, flattenXrayReverseToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionReverse, flattenXrayReverseToMap)
+	if flat == nil {
+		return
 	}
+	state := flattenXrayReverse(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *XrayReverseResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionReverse, flattenXrayReverseToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayReverse(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *XrayReverseResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan xrayResourceModel
+	var plan XrayReverseModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client, xraySectionReverse,
-		buildXrayReverseJSON,
-		flattenXrayReverseToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+
+	input := expandXrayReverse(&plan)
+	desired := buildXrayReverseJSON(input)
+	xrayApplyTyped(ctx, desired, &resp.Diagnostics, r.client, xraySectionReverse)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionReverse, flattenXrayReverseToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayReverse(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *XrayReverseResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
 	resp.State.RemoveResource(ctx)
 }
 
-func (r *XrayReverseResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	xrayImportState(ctx, req, resp, xraySectionReverse, flattenXrayReverseToMap, r.client)
+func (r *XrayReverseResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionReverse, flattenXrayReverseToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayReverse(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 // ---------------------------------------------------------------------------
@@ -608,7 +601,7 @@ func (r *XrayOutboundsResource) Metadata(_ context.Context, req resource.Metadat
 }
 
 func (r *XrayOutboundsResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = xrayResourceSchema()
+	resp.Schema = xrayOutboundsSchema()
 }
 
 func (r *XrayOutboundsResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -624,51 +617,69 @@ func (r *XrayOutboundsResource) Configure(_ context.Context, req resource.Config
 }
 
 func (r *XrayOutboundsResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan xrayResourceModel
+	var plan XrayOutboundsModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client, xraySectionOutbounds,
-		buildXrayOutboundsJSON,
-		flattenXrayOutboundsToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
-	}
-}
 
-func (r *XrayOutboundsResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var cur xrayResourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &cur)...)
+	input := expandXrayOutbounds(&plan)
+	desired := buildXrayOutboundsJSON(input)
+	xrayApplyTyped(ctx, desired, &resp.Diagnostics, r.client, xraySectionOutbounds)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayReadHelper(ctx, &resp.Diagnostics, r.client, xraySectionOutbounds, flattenXrayOutboundsToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionOutbounds, flattenXrayOutboundsToMap)
+	if flat == nil {
+		return
 	}
+	state := flattenXrayOutbounds(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *XrayOutboundsResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionOutbounds, flattenXrayOutboundsToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayOutbounds(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *XrayOutboundsResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan xrayResourceModel
+	var plan XrayOutboundsModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state := xrayApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client, xraySectionOutbounds,
-		buildXrayOutboundsJSON,
-		flattenXrayOutboundsToMap)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+
+	input := expandXrayOutbounds(&plan)
+	desired := buildXrayOutboundsJSON(input)
+	xrayApplyTyped(ctx, desired, &resp.Diagnostics, r.client, xraySectionOutbounds)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionOutbounds, flattenXrayOutboundsToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayOutbounds(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *XrayOutboundsResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
 	resp.State.RemoveResource(ctx)
 }
 
-func (r *XrayOutboundsResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	xrayImportState(ctx, req, resp, xraySectionOutbounds, flattenXrayOutboundsToMap, r.client)
+func (r *XrayOutboundsResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionOutbounds, flattenXrayOutboundsToMap)
+	if flat == nil {
+		return
+	}
+	state := flattenXrayOutbounds(flat)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 // ---------------------------------------------------------------------------
