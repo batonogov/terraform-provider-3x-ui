@@ -264,6 +264,74 @@ resource "threexui_panel_general" "ldap" {
 	})
 }
 
+// --- Panel Security: two_factor_enable + two_factor_token, update, idempotency ---
+
+func TestAccPanelSecurity(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_security" "test" {
+  json = jsonencode({
+    two_factor_enable = false
+    two_factor_token  = ""
+  })
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_security.test", "id", "settings"),
+					resource.TestCheckResourceAttrSet("threexui_panel_security.test", "json"),
+				),
+			},
+			// Update: set a token value (but keep 2FA disabled to not block provider)
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_security" "test" {
+  json = jsonencode({
+    two_factor_enable = false
+    two_factor_token  = "test-token-value"
+  })
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_security.test", "id", "settings"),
+					resource.TestCheckResourceAttrSet("threexui_panel_security.test", "json"),
+				),
+			},
+			// Idempotency
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_security" "test" {
+  json = jsonencode({
+    two_factor_enable = false
+    two_factor_token  = "test-token-value"
+  })
+}
+`,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+			// Restore defaults
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_security" "test" {
+  json = jsonencode({
+    two_factor_enable = false
+    two_factor_token  = ""
+  })
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_security.test", "id", "settings"),
+					resource.TestCheckResourceAttrSet("threexui_panel_security.test", "json"),
+				),
+			},
+		},
+	})
+}
+
 // --- Telegram: enable + token/chat_id/run_time/lang, update ---
 
 func TestAccPanelTelegram(t *testing.T) {
