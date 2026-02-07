@@ -123,7 +123,7 @@ func resourceInbound() *schema.Resource {
 	}
 }
 
-func jsonSubsetDiffSuppress(k, old, new string, d *schema.ResourceData) bool {
+func jsonSubsetDiffSuppress(k, old, new string, d *schema.ResourceData) bool { //nolint:unparam // k required by schema.DiffSuppressFunc
 	if strings.TrimSpace(new) == "" {
 		return true
 	}

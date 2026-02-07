@@ -7,7 +7,7 @@ description: |-
 
 # threexui_xray_reverse (Resource)
 
-Manages the reverse proxy section of the Xray template configuration. Uses a **set path** strategy -- the provided JSON completely replaces the `reverse` key in the Xray template.
+Manages the reverse proxy section of the Xray template configuration. Uses a **set path** strategy -- the provided configuration completely replaces the `reverse` key in the Xray template.
 
 This is a singleton resource. Deleting this resource only removes it from Terraform state; it does not reset the reverse proxy configuration.
 
@@ -15,22 +15,30 @@ This is a singleton resource. Deleting this resource only removes it from Terraf
 
 ```hcl
 resource "threexui_xray_reverse" "config" {
-  json = jsonencode({
-    bridges = [
-      {
-        tag    = "bridge"
-        domain = "test.example.com"
-      }
-    ]
-  })
+  bridge {
+    tag    = "bridge"
+    domain = "test.example.com"
+  }
+
+  portal {
+    tag    = "portal"
+    domain = "test.example.com"
+  }
 }
 ```
 
 ## Argument Reference
 
-- `json` (Optional, String) - Reverse proxy configuration as a JSON string.
+### bridge (Block, Optional, List)
+
+- `tag` (String, Required) - Bridge tag name.
+- `domain` (String, Required) - Bridge domain.
+
+### portal (Block, Optional, List)
+
+- `tag` (String, Required) - Portal tag name.
+- `domain` (String, Required) - Portal domain.
 
 ## Attribute Reference
 
 - `id` - The resource identifier (`xray_reverse`).
-- `json` - The current reverse proxy configuration from the Xray template.

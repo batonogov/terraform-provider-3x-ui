@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -19,7 +18,6 @@ type xraySectionMode int
 const (
 	xraySectionMergeRoot xraySectionMode = iota
 	xraySectionSetPath
-	xraySectionReplaceAll
 )
 
 type xraySection struct {
@@ -35,75 +33,139 @@ var (
 	xraySectionBalancers = xraySection{id: "xray_balancers", mode: xraySectionSetPath, path: []string{"routing", "balancers"}}
 	xraySectionReverse   = xraySection{id: "xray_reverse", mode: xraySectionSetPath, path: []string{"reverse"}}
 	xraySectionOutbounds = xraySection{id: "xray_outbounds", mode: xraySectionSetPath, path: []string{"outbounds"}}
-	xraySectionAdvanced  = xraySection{id: "xray_advanced", mode: xraySectionReplaceAll}
 )
 
+// buildFunc builds a JSON-compatible value from ResourceData.
+// For map-based sections it returns map[string]any, for array-based (outbounds, balancers) it returns []any.
+type buildFunc func(d *schema.ResourceData) (any, error)
+
+// flattenFunc reads API data and sets attributes on ResourceData.
+type flattenFunc func(d *schema.ResourceData, data any) error
+
 func resourceXrayBasics() *schema.Resource {
-	return resourceXraySection(xraySectionBasics)
+	return xrayResource(xraySectionBasics, xrayBasicsSchema(),
+		func(d *schema.ResourceData) (any, error) {
+			return buildXrayBasicsJSON(d)
+		},
+		func(d *schema.ResourceData, data any) error {
+			flat := flattenXrayBasicsToMap(data)
+			for k, v := range flat {
+				if err := d.Set(k, v); err != nil {
+					return fmt.Errorf("setting %s: %w", k, err)
+				}
+			}
+			return nil
+		},
+	)
 }
 
 func resourceXrayDNS() *schema.Resource {
-	return resourceXraySection(xraySectionDNS)
+	return xrayResource(xraySectionDNS, xrayDNSSchema(),
+		func(d *schema.ResourceData) (any, error) {
+			return buildXrayDNSJSON(d)
+		},
+		func(d *schema.ResourceData, data any) error {
+			flat := flattenXrayDNSToMap(data)
+			for k, v := range flat {
+				if err := d.Set(k, v); err != nil {
+					return fmt.Errorf("setting %s: %w", k, err)
+				}
+			}
+			return nil
+		},
+	)
 }
 
 func resourceXrayRouting() *schema.Resource {
-	return resourceXraySection(xraySectionRouting)
+	return xrayResource(xraySectionRouting, xrayRoutingSchema(),
+		func(d *schema.ResourceData) (any, error) {
+			return buildXrayRoutingJSON(d)
+		},
+		func(d *schema.ResourceData, data any) error {
+			flat := flattenXrayRoutingToMap(data)
+			for k, v := range flat {
+				if err := d.Set(k, v); err != nil {
+					return fmt.Errorf("setting %s: %w", k, err)
+				}
+			}
+			return nil
+		},
+	)
 }
 
 func resourceXrayBalancers() *schema.Resource {
-	return resourceXraySection(xraySectionBalancers)
+	return xrayResource(xraySectionBalancers, xrayBalancersSchema(),
+		func(d *schema.ResourceData) (any, error) {
+			return buildXrayBalancersJSON(d)
+		},
+		func(d *schema.ResourceData, data any) error {
+			flat := flattenXrayBalancersToMap(data)
+			for k, v := range flat {
+				if err := d.Set(k, v); err != nil {
+					return fmt.Errorf("setting %s: %w", k, err)
+				}
+			}
+			return nil
+		},
+	)
 }
 
 func resourceXrayReverse() *schema.Resource {
-	return resourceXraySection(xraySectionReverse)
+	return xrayResource(xraySectionReverse, xrayReverseSchema(),
+		func(d *schema.ResourceData) (any, error) {
+			return buildXrayReverseJSON(d)
+		},
+		func(d *schema.ResourceData, data any) error {
+			flat := flattenXrayReverseToMap(data)
+			for k, v := range flat {
+				if err := d.Set(k, v); err != nil {
+					return fmt.Errorf("setting %s: %w", k, err)
+				}
+			}
+			return nil
+		},
+	)
 }
 
 func resourceXrayOutbounds() *schema.Resource {
-	return resourceXraySection(xraySectionOutbounds)
+	return xrayResource(xraySectionOutbounds, xrayOutboundsSchema(),
+		func(d *schema.ResourceData) (any, error) {
+			return buildXrayOutboundsJSON(d)
+		},
+		func(d *schema.ResourceData, data any) error {
+			flat := flattenXrayOutboundsToMap(data)
+			for k, v := range flat {
+				if err := d.Set(k, v); err != nil {
+					return fmt.Errorf("setting %s: %w", k, err)
+				}
+			}
+			return nil
+		},
+	)
 }
 
-func resourceXrayAdvanced() *schema.Resource {
-	return resourceXraySection(xraySectionAdvanced)
-}
-
-func resourceXraySection(section xraySection) *schema.Resource {
-	diffSuppress := jsonEqualDiffSuppress
-	if section.mode == xraySectionMergeRoot {
-		diffSuppress = jsonSubsetDiffSuppress
-	}
+func xrayResource(section xraySection, s map[string]*schema.Schema, build buildFunc, flatten flattenFunc) *schema.Resource {
 	return &schema.Resource{
 		CreateContext: func(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-			return resourceXraySectionApply(ctx, d, meta, section)
+			return xrayApply(ctx, d, meta, section, build, flatten)
 		},
 		ReadContext: func(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-			return resourceXraySectionRead(ctx, d, meta, section)
+			return xrayRead(ctx, d, meta, section, flatten)
 		},
 		UpdateContext: func(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-			return resourceXraySectionApply(ctx, d, meta, section)
+			return xrayApply(ctx, d, meta, section, build, flatten)
 		},
 		DeleteContext: resourceSettingsDelete,
-		Schema: map[string]*schema.Schema{
-			"json": {
-				Type:             schema.TypeString,
-				Optional:         true,
-				DiffSuppressFunc: diffSuppress,
-				StateFunc:        normalizeJSONString,
-			},
-		},
+		Schema:        s,
 	}
 }
 
-func resourceXraySectionApply(ctx context.Context, d *schema.ResourceData, meta any, section xraySection) diag.Diagnostics {
+func xrayApply(ctx context.Context, d *schema.ResourceData, meta any, section xraySection, build buildFunc, flatten flattenFunc) diag.Diagnostics {
 	client := meta.(*Client)
-	desired, ok, err := getJSONField(d, "json")
+
+	desired, err := build(d)
 	if err != nil {
 		return diag.FromErr(err)
-	}
-	if !ok {
-		if d.Id() == "" {
-			d.SetId(section.id)
-		}
-		return resourceXraySectionRead(ctx, d, meta, section)
 	}
 
 	xrayTemplateMu.Lock()
@@ -124,10 +186,10 @@ func resourceXraySectionApply(ctx context.Context, d *schema.ResourceData, meta 
 	}
 
 	d.SetId(section.id)
-	return resourceXraySectionRead(ctx, d, meta, section)
+	return xrayRead(ctx, d, meta, section, flatten)
 }
 
-func resourceXraySectionRead(ctx context.Context, d *schema.ResourceData, meta any, section xraySection) diag.Diagnostics {
+func xrayRead(ctx context.Context, d *schema.ResourceData, meta any, section xraySection, flatten flattenFunc) diag.Diagnostics {
 	client := meta.(*Client)
 	current, err := client.GetXrayTemplate(ctx)
 	if err != nil {
@@ -135,67 +197,13 @@ func resourceXraySectionRead(ctx context.Context, d *schema.ResourceData, meta a
 	}
 
 	value := extractXraySection(current, section)
-	payload, err := json.Marshal(value)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	if err := d.Set("json", string(payload)); err != nil {
+	if err := flatten(d, value); err != nil {
 		return diag.FromErr(err)
 	}
 	if d.Id() == "" {
 		d.SetId(section.id)
 	}
 	return nil
-}
-
-func getJSONField(d *schema.ResourceData, path string) (any, bool, error) {
-	v, ok := d.GetOkExists(path) //nolint:staticcheck // GetOkExists needed for zero-value vs unset
-	if !ok {
-		return nil, false, nil
-	}
-	raw, _ := v.(string)
-	if strings.TrimSpace(raw) == "" {
-		return nil, true, fmt.Errorf("%s must be valid JSON, got empty string", path)
-	}
-	var out any
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		return nil, true, fmt.Errorf("%s must be valid JSON: %w", path, err)
-	}
-	return out, true, nil
-}
-
-func normalizeJSONString(v any) string {
-	raw, _ := v.(string)
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return raw
-	}
-	var out any
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		return raw
-	}
-	encoded, err := json.Marshal(out)
-	if err != nil {
-		return raw
-	}
-	return string(encoded)
-}
-
-func jsonEqualDiffSuppress(k, old, new string, d *schema.ResourceData) bool {
-	old = strings.TrimSpace(old)
-	new = strings.TrimSpace(new)
-	if old == "" || new == "" {
-		return old == new
-	}
-	var o any
-	var n any
-	if err := json.Unmarshal([]byte(old), &o); err != nil {
-		return false
-	}
-	if err := json.Unmarshal([]byte(new), &n); err != nil {
-		return false
-	}
-	return deepEqualJSON(o, n)
 }
 
 func deepEqualJSON(a, b any) bool {
@@ -216,15 +224,9 @@ func applyXraySection(current map[string]any, desired any, section xraySection) 
 	case xraySectionMergeRoot:
 		desiredMap, ok := desired.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("json must be an object for %s", section.id)
+			return nil, fmt.Errorf("value must be an object for %s", section.id)
 		}
 		root = deepMergeJSON(root, desiredMap)
-	case xraySectionReplaceAll:
-		desiredMap, ok := desired.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("json must be an object for %s", section.id)
-		}
-		root = desiredMap
 	case xraySectionSetPath:
 		if len(section.path) == 0 {
 			return nil, fmt.Errorf("invalid section path for %s", section.id)
@@ -240,14 +242,12 @@ func extractXraySection(current map[string]any, section xraySection) any {
 	switch section.mode {
 	case xraySectionMergeRoot:
 		out := map[string]any{}
-		for _, key := range []string{"log", "policy", "routing", "outbounds"} {
+		for _, key := range []string{"log", "policy", "api", "stats"} {
 			if v, ok := current[key]; ok {
 				out[key] = v
 			}
 		}
 		return out
-	case xraySectionReplaceAll:
-		return current
 	case xraySectionSetPath:
 		return getJSONPath(current, section.path)
 	default:

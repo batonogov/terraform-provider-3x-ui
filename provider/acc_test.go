@@ -49,7 +49,28 @@ func testAccProviderConfig() string {
 		password = "admin"
 	}
 
-	config := fmt.Sprintf("provider \"threexui\" {\n  endpoint            = %q\n  username            = %q\n  password            = %q\n", endpoint, username, password)
+	namespace := os.Getenv("TF_ACC_PROVIDER_NAMESPACE")
+	host := os.Getenv("TF_ACC_PROVIDER_HOST")
+	if namespace == "" {
+		namespace = "hashicorp"
+	}
+	if host == "" {
+		host = "registry.terraform.io"
+	}
+
+	config := fmt.Sprintf(`terraform {
+  required_providers {
+    threexui = {
+      source = "%s/%s/threexui"
+    }
+  }
+}
+
+provider "threexui" {
+  endpoint            = %q
+  username            = %q
+  password            = %q
+`, host, namespace, endpoint, username, password)
 	if basePath != "" {
 		config += fmt.Sprintf("  base_path           = %q\n", basePath)
 	}
@@ -238,10 +259,6 @@ resource "threexui_inbound" "test" {
   enable   = true
   settings {
     decryption = "none"
-    clients {
-      email = "acc-client@example.com"
-      flow  = "xtls-rprx-vision"
-    }
   }
 }
 `, remark)
@@ -256,10 +273,6 @@ resource "threexui_inbound" "test" {
   enable   = true
   settings {
     decryption = "none"
-    clients {
-      email = "acc-client@example.com"
-      flow  = "xtls-rprx-vision"
-    }
   }
   stream_settings {
     network  = "tcp"

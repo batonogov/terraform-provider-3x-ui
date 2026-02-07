@@ -7,7 +7,7 @@ description: |-
 
 # threexui_xray_routing (Resource)
 
-Manages the routing section of the Xray template configuration. Uses a **set path** strategy -- the provided JSON completely replaces the `routing` key in the Xray template.
+Manages the routing section of the Xray template configuration. Uses a **set path** strategy -- the provided configuration completely replaces the `routing` key in the Xray template.
 
 This is a singleton resource. Deleting this resource only removes it from Terraform state; it does not reset the routing configuration.
 
@@ -15,24 +15,52 @@ This is a singleton resource. Deleting this resource only removes it from Terraf
 
 ```hcl
 resource "threexui_xray_routing" "config" {
-  json = jsonencode({
-    domainStrategy = "AsIs"
-    rules = [
-      {
-        type        = "field"
-        ip          = ["geoip:private"]
-        outboundTag = "blocked"
-      }
-    ]
-  })
+  domain_strategy = "AsIs"
+  domain_matcher  = "hybrid"
+
+  rule {
+    type         = "field"
+    ip           = ["geoip:private"]
+    outbound_tag = "blocked"
+  }
+
+  rule {
+    type         = "field"
+    domain       = ["geosite:category-ads"]
+    outbound_tag = "blocked"
+  }
+
+  rule {
+    type         = "field"
+    inbound_tag  = ["api"]
+    outbound_tag = "api"
+  }
 }
 ```
 
 ## Argument Reference
 
-- `json` (Optional, String) - Routing configuration as a JSON string.
+### Top-level attributes
+
+- `domain_strategy` (String, Optional) - Domain resolution strategy (e.g. `AsIs`, `IPIfNonMatch`, `IPOnDemand`).
+- `domain_matcher` (String, Optional) - Domain matcher type (e.g. `hybrid`, `linear`).
+
+### rule (Block, Optional, List)
+
+- `type` (String, Optional, Default: `"field"`) - Rule type.
+- `domain` (List of String, Optional) - Domain matching patterns.
+- `ip` (List of String, Optional) - IP/CIDR matching patterns (e.g. `geoip:private`).
+- `port` (String, Optional) - Port range (e.g. `"80"`, `"1000-2000"`).
+- `source_port` (String, Optional) - Source port range.
+- `network` (String, Optional) - Network type (`tcp`, `udp`, `tcp,udp`).
+- `source` (List of String, Optional) - Source IP/CIDR patterns.
+- `user` (List of String, Optional) - User email patterns.
+- `inbound_tag` (List of String, Optional) - Inbound tags to match.
+- `protocol` (List of String, Optional) - Protocols to match (e.g. `http`, `tls`, `bittorrent`).
+- `attrs` (String, Optional) - Advanced attribute matching (JSON string).
+- `outbound_tag` (String, Optional) - Target outbound tag.
+- `balancer_tag` (String, Optional) - Target balancer tag.
 
 ## Attribute Reference
 
 - `id` - The resource identifier (`xray_routing`).
-- `json` - The current routing configuration from the Xray template.
