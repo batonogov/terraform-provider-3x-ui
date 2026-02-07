@@ -108,6 +108,13 @@ resource "threexui_panel_general" "test" {
 					resource.TestCheckResourceAttrSet("threexui_panel_general.test", "json"),
 				),
 			},
+			// ImportState
+			{
+				ResourceName:      "threexui_panel_general.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateId:     "settings",
+			},
 			// Idempotency
 			{
 				Config: testAccProviderConfig() + `
@@ -300,6 +307,13 @@ resource "threexui_panel_security" "test" {
 					resource.TestCheckResourceAttrSet("threexui_panel_security.test", "json"),
 				),
 			},
+			// ImportState
+			{
+				ResourceName:      "threexui_panel_security.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateId:     "settings",
+			},
 			// Idempotency
 			{
 				Config: testAccProviderConfig() + `
@@ -383,6 +397,13 @@ resource "threexui_panel_telegram" "test" {
 					resource.TestCheckResourceAttr("threexui_panel_telegram.test", "id", "settings"),
 					resource.TestCheckResourceAttrSet("threexui_panel_telegram.test", "json"),
 				),
+			},
+			// ImportState
+			{
+				ResourceName:      "threexui_panel_telegram.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateId:     "settings",
 			},
 			// Idempotency
 			{
@@ -488,6 +509,13 @@ resource "threexui_panel_subscription" "test" {
 					resource.TestCheckResourceAttr("threexui_panel_subscription.test", "id", "settings"),
 					resource.TestCheckResourceAttrSet("threexui_panel_subscription.test", "json"),
 				),
+			},
+			// ImportState
+			{
+				ResourceName:      "threexui_panel_subscription.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateId:     "settings",
 			},
 			// Idempotency
 			{

@@ -207,6 +207,74 @@ resource "threexui_inbound_client" "trojan_cl" {
 	})
 }
 
+// --- Client removal: 2 clients -> 1 client ---
+
+func TestAccInboundClientRemoval(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "removal_host" {
+  port     = 25106
+  protocol = "vless"
+  remark   = "acc-removal-host"
+  enable   = true
+  settings = jsonencode({
+    decryption = "none"
+  })
+}
+
+resource "threexui_inbound_client" "remove1" {
+  inbound_id = threexui_inbound.removal_host.id
+  email      = "remove1@test.com"
+  enable     = true
+  flow       = "xtls-rprx-vision"
+}
+
+resource "threexui_inbound_client" "remove2" {
+  inbound_id = threexui_inbound.removal_host.id
+  email      = "remove2@test.com"
+  enable     = true
+  flow       = "xtls-rprx-vision"
+  depends_on = [threexui_inbound_client.remove1]
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound_client.remove1", "id"),
+					resource.TestCheckResourceAttrSet("threexui_inbound_client.remove2", "id"),
+				),
+			},
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "removal_host" {
+  port     = 25106
+  protocol = "vless"
+  remark   = "acc-removal-host"
+  enable   = true
+  settings = jsonencode({
+    decryption = "none"
+  })
+}
+
+resource "threexui_inbound_client" "remove1" {
+  inbound_id = threexui_inbound.removal_host.id
+  email      = "remove1@test.com"
+  enable     = true
+  flow       = "xtls-rprx-vision"
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound_client.remove1", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound_client.remove1", "email", "remove1@test.com"),
+				),
+			},
+		},
+	})
+}
+
 // --- Config helpers ---
 
 func testAccInboundClientUpdateConfig(email string, enable bool, limitIP int, comment string) string {

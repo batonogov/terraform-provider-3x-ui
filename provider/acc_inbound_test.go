@@ -511,6 +511,190 @@ resource "threexui_inbound" "idem" {
 	})
 }
 
+// --- Negative: duplicate client email ---
+
+func TestAccInboundClientDuplicateEmail(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "dup_host" {
+  port     = 25021
+  protocol = "vless"
+  remark   = "acc-dup-email-host"
+  enable   = true
+  settings = jsonencode({
+    decryption = "none"
+  })
+}
+
+resource "threexui_inbound_client" "dup1" {
+  inbound_id = threexui_inbound.dup_host.id
+  email      = "duplicate@test.com"
+  enable     = true
+  flow       = "xtls-rprx-vision"
+}
+
+resource "threexui_inbound_client" "dup2" {
+  inbound_id = threexui_inbound.dup_host.id
+  email      = "duplicate@test.com"
+  enable     = true
+  flow       = "xtls-rprx-vision"
+  depends_on = [threexui_inbound_client.dup1]
+}
+`,
+				ExpectError: regexp.MustCompile(`(?i)(error|fail|duplicate|exist|already)`),
+			},
+		},
+	})
+}
+
+// --- Stream settings: WebSocket transport ---
+
+func TestAccInboundWebSocket(t *testing.T) {
+	config := testAccProviderConfig() + `
+resource "threexui_inbound" "ws" {
+  port     = 25022
+  protocol = "vless"
+  remark   = "acc-ws"
+  enable   = true
+  settings = jsonencode({
+    decryption = "none"
+  })
+  stream_settings = jsonencode({
+    network  = "ws"
+    security = "none"
+    wsSettings = {
+      path = "/ws"
+    }
+  })
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound.ws", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound.ws", "protocol", "vless"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.ws", "stream_settings"),
+				),
+			},
+			{
+				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+// --- Stream settings: gRPC transport ---
+
+func TestAccInboundGRPC(t *testing.T) {
+	config := testAccProviderConfig() + `
+resource "threexui_inbound" "grpc" {
+  port     = 25023
+  protocol = "vless"
+  remark   = "acc-grpc"
+  enable   = true
+  settings = jsonencode({
+    decryption = "none"
+  })
+  stream_settings = jsonencode({
+    network  = "grpc"
+    security = "none"
+    grpcSettings = {
+      serviceName = "mygrpc"
+    }
+  })
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound.grpc", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound.grpc", "protocol", "vless"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.grpc", "stream_settings"),
+				),
+			},
+			{
+				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+// --- Mixed protocol + listen ---
+
+func TestAccInboundMixed(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "mixed" {
+  port     = 25024
+  protocol = "mixed"
+  remark   = "acc-mixed"
+  listen   = "127.0.0.1"
+  enable   = true
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound.mixed", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound.mixed", "protocol", "mixed"),
+					resource.TestCheckResourceAttr("threexui_inbound.mixed", "listen", "127.0.0.1"),
+				),
+			},
+		},
+	})
+}
+
+// --- Listen field ---
+
+func TestAccInboundListen(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "listen" {
+  port     = 25025
+  protocol = "vless"
+  remark   = "acc-listen"
+  listen   = "0.0.0.0"
+  enable   = true
+  settings = jsonencode({
+    decryption = "none"
+  })
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound.listen", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound.listen", "listen", "0.0.0.0"),
+				),
+			},
+		},
+	})
+}
+
 // --- Config helpers ---
 
 func testAccInboundUpdateConfig(remark string, port int, enable bool) string {

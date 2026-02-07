@@ -26,6 +26,14 @@ func TestAccXrayBasics(t *testing.T) {
 					resource.TestCheckResourceAttrSet("threexui_xray_basics.test", "json"),
 				),
 			},
+			// ImportState
+			{
+				ResourceName:            "threexui_xray_basics.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateId:           "xray_basics",
+				ImportStateVerifyIgnore: []string{"json"},
+			},
 			// Idempotency
 			{
 				Config:             testAccProviderConfig() + testAccXrayBasicsConfigUpdated(),
@@ -55,6 +63,13 @@ func TestAccXrayDNS(t *testing.T) {
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "id", "xray_dns"),
 					resource.TestCheckResourceAttrSet("threexui_xray_dns.test", "json"),
 				),
+			},
+			// ImportState
+			{
+				ResourceName:      "threexui_xray_dns.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateId:     "xray_dns",
 			},
 			// Idempotency
 			{
@@ -86,6 +101,13 @@ func TestAccXrayRouting(t *testing.T) {
 					resource.TestCheckResourceAttrSet("threexui_xray_routing.test", "json"),
 				),
 			},
+			// ImportState
+			{
+				ResourceName:      "threexui_xray_routing.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateId:     "xray_routing",
+			},
 			// Idempotency
 			{
 				Config:             testAccProviderConfig() + testAccXrayRoutingConfigUpdated(),
@@ -108,9 +130,24 @@ func TestAccXrayBalancers(t *testing.T) {
 					resource.TestCheckResourceAttrSet("threexui_xray_balancers.test", "json"),
 				),
 			},
+			// Update
+			{
+				Config: testAccProviderConfig() + testAccXrayBalancersConfigUpdated(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_xray_balancers.test", "id", "xray_balancers"),
+					resource.TestCheckResourceAttrSet("threexui_xray_balancers.test", "json"),
+				),
+			},
+			// ImportState
+			{
+				ResourceName:      "threexui_xray_balancers.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateId:     "xray_balancers",
+			},
 			// Idempotency
 			{
-				Config:             testAccProviderConfig() + testAccXrayBalancersConfig(),
+				Config:             testAccProviderConfig() + testAccXrayBalancersConfigUpdated(),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
 			},
@@ -130,9 +167,24 @@ func TestAccXrayReverse(t *testing.T) {
 					resource.TestCheckResourceAttrSet("threexui_xray_reverse.test", "json"),
 				),
 			},
+			// Update
+			{
+				Config: testAccProviderConfig() + testAccXrayReverseConfigUpdated(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_xray_reverse.test", "id", "xray_reverse"),
+					resource.TestCheckResourceAttrSet("threexui_xray_reverse.test", "json"),
+				),
+			},
+			// ImportState
+			{
+				ResourceName:      "threexui_xray_reverse.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateId:     "xray_reverse",
+			},
 			// Idempotency
 			{
-				Config:             testAccProviderConfig() + testAccXrayReverseConfig(),
+				Config:             testAccProviderConfig() + testAccXrayReverseConfigUpdated(),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
 			},
@@ -159,6 +211,13 @@ func TestAccXrayOutbounds(t *testing.T) {
 					resource.TestCheckResourceAttr("threexui_xray_outbounds.test", "id", "xray_outbounds"),
 					resource.TestCheckResourceAttrSet("threexui_xray_outbounds.test", "json"),
 				),
+			},
+			// ImportState
+			{
+				ResourceName:      "threexui_xray_outbounds.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateId:     "xray_outbounds",
 			},
 			// Idempotency
 			{
@@ -336,6 +395,26 @@ resource "threexui_xray_balancers" "test" {
 `
 }
 
+func testAccXrayBalancersConfigUpdated() string {
+	return `
+resource "threexui_xray_balancers" "test" {
+  json = jsonencode({
+    balancer = [
+      {
+        tag      = "bal-updated"
+        selector = ["proxy-*", "direct-*"]
+        strategy = [
+          {
+            type = "random"
+          }
+        ]
+      }
+    ]
+  })
+}
+`
+}
+
 func testAccXrayReverseConfig() string {
 	return `
 resource "threexui_xray_reverse" "test" {
@@ -350,6 +429,27 @@ resource "threexui_xray_reverse" "test" {
       {
         tag    = "portal1"
         domain = "test.example.com"
+      }
+    ]
+  })
+}
+`
+}
+
+func testAccXrayReverseConfigUpdated() string {
+	return `
+resource "threexui_xray_reverse" "test" {
+  json = jsonencode({
+    bridge = [
+      {
+        tag    = "bridge-updated"
+        domain = "updated.example.com"
+      }
+    ]
+    portal = [
+      {
+        tag    = "portal-updated"
+        domain = "updated.example.com"
       }
     ]
   })
