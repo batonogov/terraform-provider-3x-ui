@@ -74,6 +74,15 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_wrapper: false
+
+      - name: Get OpenTofu path
+        id: tofu
+        run: echo "path=$(which tofu)" >> "$GITHUB_OUTPUT"
+
       - name: Start 3x-ui
         run: docker compose up -d --wait
 
@@ -94,6 +103,12 @@ jobs:
       - name: Run acceptance tests
         env:
           TF_ACC: "1"
+          TF_ACC_TERRAFORM_PATH: ${{ steps.tofu.outputs.path }}
+          TF_ACC_PROVIDER_NAMESPACE: batonogov
+          TF_ACC_PROVIDER_HOST: registry.opentofu.org
+          THREEXUI_ENDPOINT: http://localhost:2053
+          THREEXUI_USERNAME: admin
+          THREEXUI_PASSWORD: admin
         run: go test ./provider -run '^TestAcc' -count=1 -timeout 10m -v
 
       - name: Stop 3x-ui
