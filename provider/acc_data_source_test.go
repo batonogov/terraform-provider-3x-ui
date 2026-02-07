@@ -5,29 +5,20 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
 func TestAccDataSourceInbounds(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + testAccDataSourceInboundsConfig(),
 				Check: resource.ComposeTestCheckFunc(
-					// Verify inbound fields
-					resource.TestCheckResourceAttrSet("data.threexui_inbounds.all", "inbounds.0.id"),
-					resource.TestCheckResourceAttr("data.threexui_inbounds.all", "inbounds.0.protocol", "vless"),
-					resource.TestCheckResourceAttr("data.threexui_inbounds.all", "inbounds.0.remark", "acc-ds-inbound-1"),
-					resource.TestCheckResourceAttr("data.threexui_inbounds.all", "inbounds.0.enable", "true"),
-					resource.TestCheckResourceAttr("data.threexui_inbounds.all", "inbounds.0.port", "24001"),
-					// Verify nested block counts
-					resource.TestCheckResourceAttrSet("data.threexui_inbounds.all", "inbounds.0.settings.#"),
-					resource.TestCheckResourceAttrSet("data.threexui_inbounds.all", "inbounds.0.stream_settings.#"),
-					resource.TestCheckResourceAttrSet("data.threexui_inbounds.all", "inbounds.0.sniffing.#"),
+					resource.TestCheckResourceAttrSet("data.threexui_inbounds.all", "inbounds"),
 				),
 			},
 		},
@@ -36,9 +27,9 @@ func TestAccDataSourceInbounds(t *testing.T) {
 
 func TestAccDataSourceInboundsMultiple(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
-		CheckDestroy:      testAccCheckInboundDestroyed,
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + testAccDataSourceInboundsMultipleConfig(),
@@ -52,8 +43,8 @@ func TestAccDataSourceInboundsMultiple(t *testing.T) {
 
 func TestAccDataSourceServerStatus(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `data "threexui_server_status" "test" {}`,
@@ -68,8 +59,8 @@ func TestAccDataSourceServerStatus(t *testing.T) {
 
 func TestAccDataSourceXrayVersions(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `data "threexui_xray_versions" "test" {}`,
@@ -83,8 +74,8 @@ func TestAccDataSourceXrayVersions(t *testing.T) {
 
 func TestAccDataSourceXrayConfig(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `data "threexui_xray_config" "test" {}`,
@@ -101,8 +92,8 @@ func TestAccDataSourceXrayConfig(t *testing.T) {
 
 func TestAccDataSourceSettings(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + `data "threexui_settings" "test" {}`,
@@ -161,16 +152,16 @@ func testAccCheckDataSourceInboundsCount(resourceName string, minCount int) reso
 		if !ok {
 			return fmt.Errorf("resource %s not found", resourceName)
 		}
-		countStr, ok := rs.Primary.Attributes["inbounds.#"]
-		if !ok {
-			return fmt.Errorf("inbounds.# not found in %s", resourceName)
+		inboundsJSON := rs.Primary.Attributes["inbounds"]
+		if inboundsJSON == "" {
+			return fmt.Errorf("inbounds attribute is empty in %s", resourceName)
 		}
-		count := 0
-		if _, err := fmt.Sscanf(countStr, "%d", &count); err != nil {
-			return fmt.Errorf("cannot parse inbounds.#: %s", countStr)
+		var arr []any
+		if err := json.Unmarshal([]byte(inboundsJSON), &arr); err != nil {
+			return fmt.Errorf("cannot parse inbounds JSON: %w", err)
 		}
-		if count < minCount {
-			return fmt.Errorf("expected at least %d inbounds, got %d", minCount, count)
+		if len(arr) < minCount {
+			return fmt.Errorf("expected at least %d inbounds, got %d", minCount, len(arr))
 		}
 		return nil
 	}

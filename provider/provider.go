@@ -4,107 +4,157 @@ import (
 	"context"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// Provider returns a terraform resource provider for 3x-ui.
-func Provider() *schema.Provider {
-	return &schema.Provider{
-		Schema: map[string]*schema.Schema{
-			"endpoint": {
-				Type:        schema.TypeString,
+var _ provider.Provider = &ThreeXUIProvider{}
+
+type ThreeXUIProvider struct{}
+
+type ThreeXUIProviderModel struct {
+	Endpoint           types.String `tfsdk:"endpoint"`
+	BasePath           types.String `tfsdk:"base_path"`
+	Username           types.String `tfsdk:"username"`
+	Password           types.String `tfsdk:"password"`
+	TwoFactorCode      types.String `tfsdk:"two_factor_code"`
+	InsecureSkipVerify types.Bool   `tfsdk:"insecure_skip_verify"`
+	RequestTimeout     types.String `tfsdk:"request_timeout"`
+}
+
+func New() provider.Provider {
+	return &ThreeXUIProvider{}
+}
+
+func (p *ThreeXUIProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "threexui"
+}
+
+func (p *ThreeXUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"endpoint": schema.StringAttribute{
 				Required:    true,
 				Description: "Base URL of the 3x-ui panel, e.g. http://localhost:2053.",
 			},
-			"base_path": {
-				Type:        schema.TypeString,
+			"base_path": schema.StringAttribute{
 				Optional:    true,
-				Default:     "/",
 				Description: "Base path configured in 3x-ui (webBasePath). Default is '/'.",
 			},
-			"username": {
-				Type:        schema.TypeString,
+			"username": schema.StringAttribute{
 				Optional:    true,
-				Default:     "admin",
 				Description: "3x-ui username.",
 			},
-			"password": {
-				Type:        schema.TypeString,
+			"password": schema.StringAttribute{
 				Optional:    true,
-				Default:     "admin",
 				Sensitive:   true,
 				Description: "3x-ui password.",
 			},
-			"two_factor_code": {
-				Type:        schema.TypeString,
+			"two_factor_code": schema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
 				Description: "Optional 2FA code for login.",
 			},
-			"insecure_skip_verify": {
-				Type:        schema.TypeBool,
+			"insecure_skip_verify": schema.BoolAttribute{
 				Optional:    true,
-				Default:     false,
 				Description: "Skip TLS certificate verification (useful for self-signed certs).",
 			},
-			"request_timeout": {
-				Type:        schema.TypeString,
+			"request_timeout": schema.StringAttribute{
 				Optional:    true,
-				Default:     "30s",
 				Description: "HTTP request timeout (e.g. 30s, 1m).",
 			},
 		},
-		ResourcesMap: map[string]*schema.Resource{
-			"threexui_inbound":            resourceInbound(),
-			"threexui_inbound_client":     resourceInboundClient(),
-			"threexui_panel_general":      resourcePanelSettings(),
-			"threexui_panel_security":     resourceAccountSettings(),
-			"threexui_panel_telegram":     resourceTelegramSettings(),
-			"threexui_panel_subscription": resourceSubscriptionSettings(),
-			"threexui_xray_basics":        resourceXrayBasics(),
-			"threexui_xray_dns":           resourceXrayDNS(),
-			"threexui_xray_routing":       resourceXrayRouting(),
-			"threexui_xray_balancers":     resourceXrayBalancers(),
-			"threexui_xray_reverse":       resourceXrayReverse(),
-			"threexui_xray_outbounds":     resourceXrayOutbounds(),
-		},
-		DataSourcesMap: map[string]*schema.Resource{
-			"threexui_inbounds":      dataSourceInbounds(),
-			"threexui_server_status": dataSourceServerStatus(),
-			"threexui_xray_versions": dataSourceXrayVersions(),
-			"threexui_xray_config":   dataSourceXrayConfig(),
-			"threexui_settings":      dataSourceSettings(),
-		},
-		ConfigureContextFunc: configureClient,
 	}
 }
 
-func configureClient(ctx context.Context, d *schema.ResourceData) (any, diag.Diagnostics) {
-	var diags diag.Diagnostics
+func (p *ThreeXUIProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+	var config ThreeXUIProviderModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	timeoutStr := d.Get("request_timeout").(string)
+	endpoint := config.Endpoint.ValueString()
+	basePath := "/"
+	if !config.BasePath.IsNull() && !config.BasePath.IsUnknown() {
+		basePath = config.BasePath.ValueString()
+	}
+	username := "admin"
+	if !config.Username.IsNull() && !config.Username.IsUnknown() {
+		username = config.Username.ValueString()
+	}
+	password := "admin"
+	if !config.Password.IsNull() && !config.Password.IsUnknown() {
+		password = config.Password.ValueString()
+	}
+	twoFactorCode := ""
+	if !config.TwoFactorCode.IsNull() && !config.TwoFactorCode.IsUnknown() {
+		twoFactorCode = config.TwoFactorCode.ValueString()
+	}
+	insecureSkipVerify := false
+	if !config.InsecureSkipVerify.IsNull() && !config.InsecureSkipVerify.IsUnknown() {
+		insecureSkipVerify = config.InsecureSkipVerify.ValueBool()
+	}
+	timeoutStr := "30s"
+	if !config.RequestTimeout.IsNull() && !config.RequestTimeout.IsUnknown() {
+		timeoutStr = config.RequestTimeout.ValueString()
+	}
+
 	timeout, err := time.ParseDuration(timeoutStr)
 	if err != nil {
-		return nil, diag.Errorf("invalid request_timeout: %v", err)
+		resp.Diagnostics.AddError("Invalid request_timeout", err.Error())
+		return
 	}
 
 	client, err := NewClient(ClientConfig{
-		Endpoint:           d.Get("endpoint").(string),
-		BasePath:           d.Get("base_path").(string),
-		Username:           d.Get("username").(string),
-		Password:           d.Get("password").(string),
-		TwoFactorCode:      d.Get("two_factor_code").(string),
-		InsecureSkipVerify: d.Get("insecure_skip_verify").(bool),
+		Endpoint:           endpoint,
+		BasePath:           basePath,
+		Username:           username,
+		Password:           password,
+		TwoFactorCode:      twoFactorCode,
+		InsecureSkipVerify: insecureSkipVerify,
 		Timeout:            timeout,
 	})
 	if err != nil {
-		return nil, diag.Errorf("client init failed: %v", err)
+		resp.Diagnostics.AddError("Client init failed", err.Error())
+		return
 	}
 
 	if err := client.Login(ctx); err != nil {
-		return nil, diag.Errorf("login failed: %v", err)
+		resp.Diagnostics.AddError("Login failed", err.Error())
+		return
 	}
 
-	return client, diags
+	resp.DataSourceData = client
+	resp.ResourceData = client
+}
+
+func (p *ThreeXUIProvider) Resources(_ context.Context) []func() resource.Resource {
+	return []func() resource.Resource{
+		NewInboundResource,
+		NewInboundClientResource,
+		NewPanelGeneralResource,
+		NewPanelSecurityResource,
+		NewPanelTelegramResource,
+		NewPanelSubscriptionResource,
+		NewXrayBasicsResource,
+		NewXrayDNSResource,
+		NewXrayRoutingResource,
+		NewXrayBalancersResource,
+		NewXrayReverseResource,
+		NewXrayOutboundsResource,
+	}
+}
+
+func (p *ThreeXUIProvider) DataSources(_ context.Context) []func() datasource.DataSource {
+	return []func() datasource.DataSource{
+		NewInboundsDataSource,
+		NewServerStatusDataSource,
+		NewXrayVersionsDataSource,
+		NewXrayConfigDataSource,
+		NewSettingsDataSource,
+	}
 }

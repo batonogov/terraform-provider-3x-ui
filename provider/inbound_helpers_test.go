@@ -324,21 +324,3 @@ func TestIsSubset_Scalars(t *testing.T) {
 		t.Fatalf("expected not equal")
 	}
 }
-
-func TestJsonSubsetDiffSuppress_EmptyNew(t *testing.T) {
-	if !jsonSubsetDiffSuppress("k", `{"a":1}`, "", nil) {
-		t.Fatalf("expected suppress for empty new")
-	}
-}
-
-func TestJsonSubsetDiffSuppress_Subset(t *testing.T) {
-	if !jsonSubsetDiffSuppress("k", `{"a":1,"b":2}`, `{"a":1}`, nil) {
-		t.Fatalf("expected suppress for subset")
-	}
-}
-
-func TestJsonSubsetDiffSuppress_NotSubset(t *testing.T) {
-	if jsonSubsetDiffSuppress("k", `{"a":1}`, `{"a":1,"c":3}`, nil) {
-		t.Fatalf("expected no suppress for non-subset")
-	}
-}

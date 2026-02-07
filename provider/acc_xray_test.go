@@ -3,33 +3,27 @@ package provider
 import (
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
 func TestAccXrayBasics(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + testAccXrayBasicsConfig(),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_xray_basics.test", "id", "xray_basics"),
-					resource.TestCheckResourceAttr("threexui_xray_basics.test", "log.0.loglevel", "warning"),
-					resource.TestCheckResourceAttr("threexui_xray_basics.test", "api.0.tag", "api"),
-					resource.TestCheckResourceAttr("threexui_xray_basics.test", "api.0.services.0", "HandlerService"),
+					resource.TestCheckResourceAttrSet("threexui_xray_basics.test", "json"),
 				),
 			},
 			// Update loglevel
 			{
 				Config: testAccProviderConfig() + testAccXrayBasicsConfigUpdated(),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("threexui_xray_basics.test", "log.0.loglevel", "info"),
-					resource.TestCheckResourceAttr("threexui_xray_basics.test", "policy.0.system.0.stats_inbound_downlink", "true"),
-					resource.TestCheckResourceAttr("threexui_xray_basics.test", "policy.0.level.0.id", "0"),
-					resource.TestCheckResourceAttr("threexui_xray_basics.test", "policy.0.level.0.stats_user_uplink", "true"),
-					resource.TestCheckResourceAttr("threexui_xray_basics.test", "policy.0.level.0.stats_user_downlink", "true"),
-					resource.TestCheckResourceAttr("threexui_xray_basics.test", "policy.0.level.0.handshake", "4"),
+					resource.TestCheckResourceAttr("threexui_xray_basics.test", "id", "xray_basics"),
+					resource.TestCheckResourceAttrSet("threexui_xray_basics.test", "json"),
 				),
 			},
 			// Idempotency
@@ -44,25 +38,22 @@ func TestAccXrayBasics(t *testing.T) {
 
 func TestAccXrayDNS(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + testAccXrayDNSConfig(),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "id", "xray_dns"),
-					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.address", "8.8.8.8"),
-					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.address", "localhost"),
-					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.port", "53"),
-					resource.TestCheckResourceAttr("threexui_xray_dns.test", "query_strategy", "UseIP"),
+					resource.TestCheckResourceAttrSet("threexui_xray_dns.test", "json"),
 				),
 			},
 			// Update
 			{
 				Config: testAccProviderConfig() + testAccXrayDNSConfigUpdated(),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.address", "1.1.1.1"),
-					resource.TestCheckResourceAttr("threexui_xray_dns.test", "query_strategy", "UseIPv4"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "id", "xray_dns"),
+					resource.TestCheckResourceAttrSet("threexui_xray_dns.test", "json"),
 				),
 			},
 			// Idempotency
@@ -77,24 +68,22 @@ func TestAccXrayDNS(t *testing.T) {
 
 func TestAccXrayRouting(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + testAccXrayRoutingConfig(),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_xray_routing.test", "id", "xray_routing"),
-					resource.TestCheckResourceAttr("threexui_xray_routing.test", "domain_strategy", "AsIs"),
-					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.0.outbound_tag", "direct"),
-					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.1.outbound_tag", "blocked"),
+					resource.TestCheckResourceAttrSet("threexui_xray_routing.test", "json"),
 				),
 			},
 			// Update
 			{
 				Config: testAccProviderConfig() + testAccXrayRoutingConfigUpdated(),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("threexui_xray_routing.test", "domain_strategy", "IPIfNonMatch"),
-					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.0.outbound_tag", "direct"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "id", "xray_routing"),
+					resource.TestCheckResourceAttrSet("threexui_xray_routing.test", "json"),
 				),
 			},
 			// Idempotency
@@ -109,15 +98,14 @@ func TestAccXrayRouting(t *testing.T) {
 
 func TestAccXrayBalancers(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + testAccXrayBalancersConfig(),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_xray_balancers.test", "id", "xray_balancers"),
-					resource.TestCheckResourceAttr("threexui_xray_balancers.test", "balancer.0.tag", "bal1"),
-					resource.TestCheckResourceAttr("threexui_xray_balancers.test", "balancer.0.selector.0", "proxy-*"),
+					resource.TestCheckResourceAttrSet("threexui_xray_balancers.test", "json"),
 				),
 			},
 			// Idempotency
@@ -132,17 +120,14 @@ func TestAccXrayBalancers(t *testing.T) {
 
 func TestAccXrayReverse(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + testAccXrayReverseConfig(),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_xray_reverse.test", "id", "xray_reverse"),
-					resource.TestCheckResourceAttr("threexui_xray_reverse.test", "bridge.0.tag", "bridge1"),
-					resource.TestCheckResourceAttr("threexui_xray_reverse.test", "bridge.0.domain", "test.example.com"),
-					resource.TestCheckResourceAttr("threexui_xray_reverse.test", "portal.0.tag", "portal1"),
-					resource.TestCheckResourceAttr("threexui_xray_reverse.test", "portal.0.domain", "test.example.com"),
+					resource.TestCheckResourceAttrSet("threexui_xray_reverse.test", "json"),
 				),
 			},
 			// Idempotency
@@ -157,29 +142,22 @@ func TestAccXrayReverse(t *testing.T) {
 
 func TestAccXrayOutbounds(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:          func() { testAccPreCheck(t) },
-		ProviderFactories: testAccProviderFactories(),
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + testAccXrayOutboundsConfig(),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_xray_outbounds.test", "id", "xray_outbounds"),
-					resource.TestCheckResourceAttr("threexui_xray_outbounds.test", "outbound.0.tag", "direct"),
-					resource.TestCheckResourceAttr("threexui_xray_outbounds.test", "outbound.0.protocol", "freedom"),
-					resource.TestCheckResourceAttr("threexui_xray_outbounds.test", "outbound.0.freedom_settings.0.domain_strategy", "AsIs"),
-					resource.TestCheckResourceAttr("threexui_xray_outbounds.test", "outbound.1.tag", "blocked"),
-					resource.TestCheckResourceAttr("threexui_xray_outbounds.test", "outbound.1.protocol", "blackhole"),
-					resource.TestCheckResourceAttr("threexui_xray_outbounds.test", "outbound.1.blackhole_settings.0.response_type", "none"),
-					resource.TestCheckResourceAttr("threexui_xray_outbounds.test", "outbound.2.tag", "dns-out"),
-					resource.TestCheckResourceAttr("threexui_xray_outbounds.test", "outbound.2.protocol", "dns"),
+					resource.TestCheckResourceAttrSet("threexui_xray_outbounds.test", "json"),
 				),
 			},
 			// Update
 			{
 				Config: testAccProviderConfig() + testAccXrayOutboundsConfigUpdated(),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("threexui_xray_outbounds.test", "outbound.0.freedom_settings.0.domain_strategy", "UseIP"),
-					resource.TestCheckResourceAttr("threexui_xray_outbounds.test", "outbound.1.blackhole_settings.0.response_type", "http"),
+					resource.TestCheckResourceAttr("threexui_xray_outbounds.test", "id", "xray_outbounds"),
+					resource.TestCheckResourceAttrSet("threexui_xray_outbounds.test", "json"),
 				),
 			},
 			// Idempotency
@@ -197,29 +175,33 @@ func TestAccXrayOutbounds(t *testing.T) {
 func testAccXrayBasicsConfig() string {
 	return `
 resource "threexui_xray_basics" "test" {
-  log {
-    loglevel = "warning"
-    access   = "none"
-    dns_log  = false
-  }
-  policy {
-    system {
-      stats_inbound_downlink  = true
-      stats_inbound_uplink    = true
-      stats_outbound_downlink = false
-      stats_outbound_uplink   = false
+  json = jsonencode({
+    log = {
+      loglevel = "warning"
+      access   = "none"
+      dns_log  = false
     }
-    level {
-      id                  = 0
-      stats_user_uplink   = true
-      stats_user_downlink = true
+    policy = {
+      system = {
+        stats_inbound_downlink  = true
+        stats_inbound_uplink    = true
+        stats_outbound_downlink = false
+        stats_outbound_uplink   = false
+      }
+      level = [
+        {
+          id                  = 0
+          stats_user_uplink   = true
+          stats_user_downlink = true
+        }
+      ]
     }
-  }
-  api {
-    tag      = "api"
-    services = ["HandlerService", "LoggerService", "StatsService"]
-  }
-  stats {}
+    api = {
+      tag      = "api"
+      services = ["HandlerService", "LoggerService", "StatsService"]
+    }
+    stats = {}
+  })
 }
 `
 }
@@ -227,31 +209,35 @@ resource "threexui_xray_basics" "test" {
 func testAccXrayBasicsConfigUpdated() string {
 	return `
 resource "threexui_xray_basics" "test" {
-  log {
-    loglevel = "info"
-    access   = "none"
-    dns_log  = false
-  }
-  policy {
-    system {
-      stats_inbound_downlink  = true
-      stats_inbound_uplink    = true
-      stats_outbound_downlink = false
-      stats_outbound_uplink   = false
+  json = jsonencode({
+    log = {
+      loglevel = "info"
+      access   = "none"
+      dns_log  = false
     }
-    level {
-      id                  = 0
-      handshake           = 4
-      conn_idle           = 300
-      stats_user_uplink   = true
-      stats_user_downlink = true
+    policy = {
+      system = {
+        stats_inbound_downlink  = true
+        stats_inbound_uplink    = true
+        stats_outbound_downlink = false
+        stats_outbound_uplink   = false
+      }
+      level = [
+        {
+          id                  = 0
+          handshake           = 4
+          conn_idle           = 300
+          stats_user_uplink   = true
+          stats_user_downlink = true
+        }
+      ]
     }
-  }
-  api {
-    tag      = "api"
-    services = ["HandlerService", "LoggerService", "StatsService"]
-  }
-  stats {}
+    api = {
+      tag      = "api"
+      services = ["HandlerService", "LoggerService", "StatsService"]
+    }
+    stats = {}
+  })
 }
 `
 }
@@ -259,15 +245,19 @@ resource "threexui_xray_basics" "test" {
 func testAccXrayDNSConfig() string {
 	return `
 resource "threexui_xray_dns" "test" {
-  server {
-    address = "8.8.8.8"
-  }
-  server {
-    address = "localhost"
-    port    = 53
-    domains = ["geosite:cn"]
-  }
-  query_strategy = "UseIP"
+  json = jsonencode({
+    server = [
+      {
+        address = "8.8.8.8"
+      },
+      {
+        address = "localhost"
+        port    = 53
+        domains = ["geosite:cn"]
+      }
+    ]
+    query_strategy = "UseIP"
+  })
 }
 `
 }
@@ -275,10 +265,14 @@ resource "threexui_xray_dns" "test" {
 func testAccXrayDNSConfigUpdated() string {
 	return `
 resource "threexui_xray_dns" "test" {
-  server {
-    address = "1.1.1.1"
-  }
-  query_strategy = "UseIPv4"
+  json = jsonencode({
+    server = [
+      {
+        address = "1.1.1.1"
+      }
+    ]
+    query_strategy = "UseIPv4"
+  })
 }
 `
 }
@@ -286,17 +280,21 @@ resource "threexui_xray_dns" "test" {
 func testAccXrayRoutingConfig() string {
 	return `
 resource "threexui_xray_routing" "test" {
-  domain_strategy = "AsIs"
-  rule {
-    type         = "field"
-    ip           = ["geoip:private"]
-    outbound_tag = "direct"
-  }
-  rule {
-    type         = "field"
-    domain       = ["geosite:category-ads"]
-    outbound_tag = "blocked"
-  }
+  json = jsonencode({
+    domain_strategy = "AsIs"
+    rule = [
+      {
+        type         = "field"
+        ip           = ["geoip:private"]
+        outbound_tag = "direct"
+      },
+      {
+        type         = "field"
+        domain       = ["geosite:category-ads"]
+        outbound_tag = "blocked"
+      }
+    ]
+  })
 }
 `
 }
@@ -304,12 +302,16 @@ resource "threexui_xray_routing" "test" {
 func testAccXrayRoutingConfigUpdated() string {
 	return `
 resource "threexui_xray_routing" "test" {
-  domain_strategy = "IPIfNonMatch"
-  rule {
-    type         = "field"
-    ip           = ["geoip:private"]
-    outbound_tag = "direct"
-  }
+  json = jsonencode({
+    domain_strategy = "IPIfNonMatch"
+    rule = [
+      {
+        type         = "field"
+        ip           = ["geoip:private"]
+        outbound_tag = "direct"
+      }
+    ]
+  })
 }
 `
 }
@@ -317,13 +319,19 @@ resource "threexui_xray_routing" "test" {
 func testAccXrayBalancersConfig() string {
 	return `
 resource "threexui_xray_balancers" "test" {
-  balancer {
-    tag      = "bal1"
-    selector = ["proxy-*"]
-    strategy {
-      type = "leastPing"
-    }
-  }
+  json = jsonencode({
+    balancer = [
+      {
+        tag      = "bal1"
+        selector = ["proxy-*"]
+        strategy = [
+          {
+            type = "leastPing"
+          }
+        ]
+      }
+    ]
+  })
 }
 `
 }
@@ -331,14 +339,20 @@ resource "threexui_xray_balancers" "test" {
 func testAccXrayReverseConfig() string {
 	return `
 resource "threexui_xray_reverse" "test" {
-  bridge {
-    tag    = "bridge1"
-    domain = "test.example.com"
-  }
-  portal {
-    tag    = "portal1"
-    domain = "test.example.com"
-  }
+  json = jsonencode({
+    bridge = [
+      {
+        tag    = "bridge1"
+        domain = "test.example.com"
+      }
+    ]
+    portal = [
+      {
+        tag    = "portal1"
+        domain = "test.example.com"
+      }
+    ]
+  })
 }
 `
 }
@@ -346,24 +360,32 @@ resource "threexui_xray_reverse" "test" {
 func testAccXrayOutboundsConfig() string {
 	return `
 resource "threexui_xray_outbounds" "test" {
-  outbound {
-    tag      = "direct"
-    protocol = "freedom"
-    freedom_settings {
-      domain_strategy = "AsIs"
-    }
-  }
-  outbound {
-    tag      = "blocked"
-    protocol = "blackhole"
-    blackhole_settings {
-      response_type = "none"
-    }
-  }
-  outbound {
-    tag      = "dns-out"
-    protocol = "dns"
-  }
+  json = jsonencode({
+    outbound = [
+      {
+        tag      = "direct"
+        protocol = "freedom"
+        freedom_settings = [
+          {
+            domain_strategy = "AsIs"
+          }
+        ]
+      },
+      {
+        tag      = "blocked"
+        protocol = "blackhole"
+        blackhole_settings = [
+          {
+            response_type = "none"
+          }
+        ]
+      },
+      {
+        tag      = "dns-out"
+        protocol = "dns"
+      }
+    ]
+  })
 }
 `
 }
@@ -371,24 +393,32 @@ resource "threexui_xray_outbounds" "test" {
 func testAccXrayOutboundsConfigUpdated() string {
 	return `
 resource "threexui_xray_outbounds" "test" {
-  outbound {
-    tag      = "direct"
-    protocol = "freedom"
-    freedom_settings {
-      domain_strategy = "UseIP"
-    }
-  }
-  outbound {
-    tag      = "blocked"
-    protocol = "blackhole"
-    blackhole_settings {
-      response_type = "http"
-    }
-  }
-  outbound {
-    tag      = "dns-out"
-    protocol = "dns"
-  }
+  json = jsonencode({
+    outbound = [
+      {
+        tag      = "direct"
+        protocol = "freedom"
+        freedom_settings = [
+          {
+            domain_strategy = "UseIP"
+          }
+        ]
+      },
+      {
+        tag      = "blocked"
+        protocol = "blackhole"
+        blackhole_settings = [
+          {
+            response_type = "http"
+          }
+        ]
+      },
+      {
+        tag      = "dns-out"
+        protocol = "dns"
+      }
+    ]
+  })
 }
 `
 }

@@ -106,14 +106,3 @@ func TestClientGetSettings(t *testing.T) {
 		t.Fatalf("unexpected settings: %#v", settings)
 	}
 }
-
-func TestFlattenInbound(t *testing.T) {
-	in := Inbound{ID: 1, Port: 1234, Protocol: "vmess", Settings: "{}", Enable: true}
-	out := flattenInbound(in)
-	if out["id"].(int) != 1 {
-		t.Fatalf("unexpected id: %#v", out)
-	}
-	if out["port"].(int) != 1234 {
-		t.Fatalf("unexpected port: %#v", out)
-	}
-}

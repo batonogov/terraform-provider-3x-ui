@@ -1,48 +1,17 @@
 package provider
 
-import (
-	"encoding/json"
+import "encoding/json"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-)
-
-func xrayBalancersSchema() map[string]*schema.Schema {
-	return map[string]*schema.Schema{
-		"balancer": {
-			Type:     schema.TypeList,
-			Optional: true,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"tag": {
-					Type:     schema.TypeString,
-					Required: true,
-				},
-				"selector": {
-					Type:     schema.TypeList,
-					Required: true,
-					Elem:     &schema.Schema{Type: schema.TypeString},
-				},
-				"strategy": {
-					Type:     schema.TypeList,
-					Optional: true,
-					MaxItems: 1,
-					Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-						"type": {
-							Type:     schema.TypeString,
-							Optional: true,
-						},
-					}},
-				},
-			}},
-		},
-	}
-}
-
-func buildXrayBalancersJSON(d *schema.ResourceData) ([]any, error) { //nolint:unparam // error required by buildFunc interface
-	v, ok := d.GetOk("balancer")
+func buildXrayBalancersJSON(d map[string]any) any {
+	v, ok := d["balancer"]
 	if !ok {
-		return []any{}, nil
+		return []any{}
 	}
-	return expandBalancers(v.([]any)), nil
+	list, ok := v.([]any)
+	if !ok {
+		return []any{}
+	}
+	return expandBalancers(list)
 }
 
 func expandBalancers(list []any) []any {
@@ -57,11 +26,15 @@ func expandBalancers(list []any) []any {
 			entry["tag"] = v
 		}
 		if v, ok := m["selector"]; ok {
-			entry["selector"] = expandStringList(v.([]any))
+			if list, ok := v.([]any); ok {
+				entry["selector"] = expandStringList(list)
+			}
 		}
 		if v, ok := m["strategy"]; ok {
-			if s := expandBalancerStrategy(v.([]any)); s != nil {
-				entry["strategy"] = s
+			if list, ok := v.([]any); ok {
+				if s := expandBalancerStrategy(list); s != nil {
+					entry["strategy"] = s
+				}
 			}
 		}
 		if len(entry) > 0 {

@@ -1,103 +1,23 @@
 package provider
 
-import (
-	"encoding/json"
+import "encoding/json"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-)
-
-func xrayRoutingSchema() map[string]*schema.Schema {
-	return map[string]*schema.Schema{
-		"domain_strategy": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"domain_matcher": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"rule": {
-			Type:     schema.TypeList,
-			Optional: true,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"type": {
-					Type:     schema.TypeString,
-					Optional: true,
-					Default:  "field",
-				},
-				"domain": {
-					Type:     schema.TypeList,
-					Optional: true,
-					Elem:     &schema.Schema{Type: schema.TypeString},
-				},
-				"ip": {
-					Type:     schema.TypeList,
-					Optional: true,
-					Elem:     &schema.Schema{Type: schema.TypeString},
-				},
-				"port": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"source_port": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"network": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"source": {
-					Type:     schema.TypeList,
-					Optional: true,
-					Elem:     &schema.Schema{Type: schema.TypeString},
-				},
-				"user": {
-					Type:     schema.TypeList,
-					Optional: true,
-					Elem:     &schema.Schema{Type: schema.TypeString},
-				},
-				"inbound_tag": {
-					Type:     schema.TypeList,
-					Optional: true,
-					Elem:     &schema.Schema{Type: schema.TypeString},
-				},
-				"protocol": {
-					Type:     schema.TypeList,
-					Optional: true,
-					Elem:     &schema.Schema{Type: schema.TypeString},
-				},
-				"attrs": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"outbound_tag": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"balancer_tag": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-			}},
-		},
-	}
-}
-
-func buildXrayRoutingJSON(d *schema.ResourceData) (map[string]any, error) { //nolint:unparam // error required by buildFunc interface
+func buildXrayRoutingJSON(d map[string]any) any {
 	payload := map[string]any{}
 
-	if v, ok := d.GetOk("domain_strategy"); ok {
-		payload["domainStrategy"] = v.(string)
+	if v, ok := d["domain_strategy"].(string); ok && v != "" {
+		payload["domainStrategy"] = v
 	}
-	if v, ok := d.GetOk("domain_matcher"); ok {
-		payload["domainMatcher"] = v.(string)
+	if v, ok := d["domain_matcher"].(string); ok && v != "" {
+		payload["domainMatcher"] = v
 	}
-	if v, ok := d.GetOk("rule"); ok {
-		payload["rules"] = expandRoutingRules(v.([]any))
+	if v, ok := d["rule"]; ok {
+		if list, ok := v.([]any); ok {
+			payload["rules"] = expandRoutingRules(list)
+		}
 	}
 
-	return payload, nil
+	return payload
 }
 
 func expandRoutingRules(list []any) []any {

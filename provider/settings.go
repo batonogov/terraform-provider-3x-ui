@@ -3,165 +3,10 @@ package provider
 import (
 	"encoding/json"
 	"strings"
-
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-func settingsSchema() map[string]*schema.Schema {
-	return map[string]*schema.Schema{
-		"decryption": {
-			Type:             schema.TypeString,
-			Optional:         true,
-			Computed:         true,
-			Sensitive:        true,
-			DiffSuppressFunc: suppressIfNewEmpty,
-		},
-		"encryption": {
-			Type:             schema.TypeString,
-			Optional:         true,
-			Computed:         true,
-			Sensitive:        true,
-			DiffSuppressFunc: suppressIfNewEmpty,
-		},
-		"fallbacks": {
-			Type:     schema.TypeList,
-			Optional: true,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"name": {Type: schema.TypeString, Optional: true},
-				"alpn": {Type: schema.TypeString, Optional: true},
-				"path": {Type: schema.TypeString, Optional: true},
-				"dest": {Type: schema.TypeString, Optional: true},
-				"xver": {Type: schema.TypeInt, Optional: true},
-			}},
-		},
-		"selected_auth": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"testseed": {
-			Type:             schema.TypeList,
-			Optional:         true,
-			DiffSuppressFunc: suppressIfNewEmptyList,
-			Elem:             &schema.Schema{Type: schema.TypeInt},
-		},
-		"method": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"password": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"network": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"iv_check": {
-			Type:     schema.TypeBool,
-			Optional: true,
-		},
-		"allow_transparent": {
-			Type:     schema.TypeBool,
-			Optional: true,
-		},
-		"auth": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"accounts": {
-			Type:     schema.TypeList,
-			Optional: true,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"user": {Type: schema.TypeString, Optional: true},
-				"pass": {Type: schema.TypeString, Optional: true},
-			}},
-		},
-		"udp": {
-			Type:     schema.TypeBool,
-			Optional: true,
-		},
-		"ip": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"address": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"port": {
-			Type:     schema.TypeInt,
-			Optional: true,
-		},
-		"port_map": {
-			Type:     schema.TypeMap,
-			Optional: true,
-			Elem:     &schema.Schema{Type: schema.TypeString},
-		},
-		"follow_redirect": {
-			Type:     schema.TypeBool,
-			Optional: true,
-		},
-		"mtu": {
-			Type:     schema.TypeInt,
-			Optional: true,
-		},
-		"secret_key": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"no_kernel_tun": {
-			Type:     schema.TypeBool,
-			Optional: true,
-		},
-		"peers": {
-			Type:     schema.TypeList,
-			Optional: true,
-			Elem: &schema.Resource{Schema: map[string]*schema.Schema{
-				"private_key": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"public_key": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"pre_shared_key": {
-					Type:     schema.TypeString,
-					Optional: true,
-				},
-				"allowed_ips": {
-					Type:     schema.TypeList,
-					Optional: true,
-					Elem:     &schema.Schema{Type: schema.TypeString},
-				},
-				"keep_alive": {
-					Type:     schema.TypeInt,
-					Optional: true,
-				},
-			}},
-		},
-		"name": {
-			Type:     schema.TypeString,
-			Optional: true,
-		},
-		"user_level": {
-			Type:     schema.TypeInt,
-			Optional: true,
-		},
-	}
-}
-
-func buildSettingsJSON(d *schema.ResourceData) string {
-	raw, ok := d.GetOk("settings")
-	if !ok {
-		return "{}"
-	}
-	list, ok := raw.([]any)
-	if !ok || len(list) == 0 {
-		return "{}"
-	}
-	item, ok := list[0].(map[string]any)
-	if !ok {
+func buildSettingsJSON(item map[string]any) string {
+	if item == nil {
 		return "{}"
 	}
 
@@ -173,13 +18,17 @@ func buildSettingsJSON(d *schema.ResourceData) string {
 		payload["encryption"] = v
 	}
 	if v, ok := item["fallbacks"]; ok {
-		payload["fallbacks"] = expandFallbacks(v.([]any))
+		if list, ok := v.([]any); ok {
+			payload["fallbacks"] = expandFallbacks(list)
+		}
 	}
 	if v, ok := item["selected_auth"].(string); ok && v != "" {
 		payload["selectedAuth"] = v
 	}
 	if v, ok := item["testseed"]; ok {
-		payload["testseed"] = expandIntList(v.([]any))
+		if list, ok := v.([]any); ok {
+			payload["testseed"] = expandIntList(list)
+		}
 	}
 	if v, ok := item["method"].(string); ok && v != "" {
 		payload["method"] = v
@@ -190,20 +39,22 @@ func buildSettingsJSON(d *schema.ResourceData) string {
 	if v, ok := item["network"].(string); ok && v != "" {
 		payload["network"] = v
 	}
-	if v, ok := item["iv_check"].(bool); ok {
-		payload["ivCheck"] = v
+	if v, ok := item["iv_check"]; ok {
+		payload["ivCheck"] = boolValue(v)
 	}
-	if v, ok := item["allow_transparent"].(bool); ok {
-		payload["allowTransparent"] = v
+	if v, ok := item["allow_transparent"]; ok {
+		payload["allowTransparent"] = boolValue(v)
 	}
 	if v, ok := item["auth"].(string); ok && v != "" {
 		payload["auth"] = v
 	}
 	if v, ok := item["accounts"]; ok {
-		payload["accounts"] = expandAccounts(v.([]any))
+		if list, ok := v.([]any); ok {
+			payload["accounts"] = expandAccounts(list)
+		}
 	}
-	if v, ok := item["udp"].(bool); ok {
-		payload["udp"] = v
+	if v, ok := item["udp"]; ok {
+		payload["udp"] = boolValue(v)
 	}
 	if v, ok := item["ip"].(string); ok && v != "" {
 		payload["ip"] = v
@@ -211,32 +62,42 @@ func buildSettingsJSON(d *schema.ResourceData) string {
 	if v, ok := item["address"].(string); ok && v != "" {
 		payload["address"] = v
 	}
-	if v, ok := item["port"].(int); ok && v != 0 {
-		payload["port"] = v
+	if v, ok := item["port"]; ok {
+		if p := intValue(v); p != 0 {
+			payload["port"] = p
+		}
 	}
 	if v, ok := item["port_map"]; ok {
-		payload["portMap"] = expandStringMap(v.(map[string]any))
+		if m, ok := v.(map[string]any); ok {
+			payload["portMap"] = expandStringMap(m)
+		}
 	}
-	if v, ok := item["follow_redirect"].(bool); ok {
-		payload["followRedirect"] = v
+	if v, ok := item["follow_redirect"]; ok {
+		payload["followRedirect"] = boolValue(v)
 	}
-	if v, ok := item["mtu"].(int); ok && v != 0 {
-		payload["mtu"] = v
+	if v, ok := item["mtu"]; ok {
+		if m := intValue(v); m != 0 {
+			payload["mtu"] = m
+		}
 	}
 	if v, ok := item["secret_key"].(string); ok && v != "" {
 		payload["secretKey"] = v
 	}
-	if v, ok := item["no_kernel_tun"].(bool); ok {
-		payload["noKernelTun"] = v
+	if v, ok := item["no_kernel_tun"]; ok {
+		payload["noKernelTun"] = boolValue(v)
 	}
 	if v, ok := item["peers"]; ok {
-		payload["peers"] = expandPeers(v.([]any))
+		if list, ok := v.([]any); ok {
+			payload["peers"] = expandPeers(list)
+		}
 	}
 	if v, ok := item["name"].(string); ok && v != "" {
 		payload["name"] = v
 	}
-	if v, ok := item["user_level"].(int); ok && v != 0 {
-		payload["userLevel"] = v
+	if v, ok := item["user_level"]; ok {
+		if ul := intValue(v); ul != 0 {
+			payload["userLevel"] = ul
+		}
 	}
 
 	if len(payload) == 0 {
@@ -356,8 +217,8 @@ func expandFallbacks(list []any) []any {
 		if v, ok := m["dest"].(string); ok && v != "" {
 			entry["dest"] = v
 		}
-		if v, ok := m["xver"].(int); ok {
-			entry["xver"] = v
+		if v, ok := m["xver"]; ok {
+			entry["xver"] = intValue(v)
 		}
 		if len(entry) > 0 {
 			out = append(out, entry)
@@ -452,10 +313,14 @@ func expandPeers(list []any) []any {
 			entry["preSharedKey"] = v
 		}
 		if v, ok := m["allowed_ips"]; ok {
-			entry["allowedIPs"] = expandStringList(v.([]any))
+			if list, ok := v.([]any); ok {
+				entry["allowedIPs"] = expandStringList(list)
+			}
 		}
-		if v, ok := m["keep_alive"].(int); ok && v != 0 {
-			entry["keepAlive"] = v
+		if v, ok := m["keep_alive"]; ok {
+			if ka := intValue(v); ka != 0 {
+				entry["keepAlive"] = ka
+			}
 		}
 		if len(entry) > 0 {
 			out = append(out, entry)
@@ -526,13 +391,4 @@ func flattenIntList(list []any) []int {
 		out = append(out, intValue(v))
 	}
 	return out
-}
-
-func suppressIfNewEmpty(k, old, new string, d *schema.ResourceData) bool {
-	return strings.TrimSpace(new) == ""
-}
-
-func suppressIfNewEmptyList(k, old, new string, d *schema.ResourceData) bool {
-	n := strings.TrimSpace(new)
-	return n == "" || n == "[]" || n == "null"
 }

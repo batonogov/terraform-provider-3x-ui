@@ -5,35 +5,70 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func dataSourceXrayConfig() *schema.Resource {
-	return &schema.Resource{
-		ReadContext: dataSourceXrayConfigRead,
-		Schema: map[string]*schema.Schema{
-			"json": {
-				Type:     schema.TypeString,
+var _ datasource.DataSource = &XrayConfigDataSource{}
+
+type XrayConfigDataSource struct {
+	client *Client
+}
+
+type XrayConfigDataSourceModel struct {
+	ID   types.String `tfsdk:"id"`
+	JSON types.String `tfsdk:"json"`
+}
+
+func NewXrayConfigDataSource() datasource.DataSource {
+	return &XrayConfigDataSource{}
+}
+
+func (d *XrayConfigDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_xray_config"
+}
+
+func (d *XrayConfigDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+			},
+			"json": schema.StringAttribute{
 				Computed: true,
 			},
 		},
 	}
 }
 
-func dataSourceXrayConfigRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
-	client := meta.(*Client)
-	config, err := client.GetXrayConfig(ctx)
+func (d *XrayConfigDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	client, ok := req.ProviderData.(*Client)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected Data Source Configure Type", "Expected *Client")
+		return
+	}
+	d.client = client
+}
+
+func (d *XrayConfigDataSource) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {
+	config, err := d.client.GetXrayConfig(ctx)
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("Failed to get xray config", err.Error())
+		return
 	}
 	payload, err := json.Marshal(config)
 	if err != nil {
-		return diag.FromErr(err)
+		resp.Diagnostics.AddError("Failed to marshal xray config", err.Error())
+		return
 	}
-	if err := d.Set("json", string(payload)); err != nil {
-		return diag.FromErr(err)
-	}
-	d.SetId(strconv.FormatInt(int64(len(payload)), 10))
-	return nil
+
+	var state XrayConfigDataSourceModel
+	state.JSON = types.StringValue(string(payload))
+	state.ID = types.StringValue(strconv.FormatInt(int64(len(payload)), 10))
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
