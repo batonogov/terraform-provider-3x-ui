@@ -1082,3 +1082,335 @@ func TestFlattenOutbounds_Hysteria(t *testing.T) {
 		t.Fatalf("expected 2, got %v", hysteria["version"])
 	}
 }
+
+func TestExpandOutbounds_Blackhole(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"tag":      "blocked",
+			"protocol": "blackhole",
+			"blackhole_settings": []any{
+				map[string]any{"response_type": "http"},
+			},
+		},
+	}
+	result := expandOutbounds(list)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 outbound, got %d", len(result))
+	}
+	settings := result[0].(map[string]any)["settings"].(map[string]any)
+	resp := settings["response"].(map[string]any)
+	if resp["type"] != "http" {
+		t.Fatalf("expected http, got %v", resp["type"])
+	}
+}
+
+func TestExpandOutbounds_DNS(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"tag":      "dns-out",
+			"protocol": "dns",
+			"dns_settings": []any{
+				map[string]any{"network": "udp", "address": "1.1.1.1", "port": 53},
+			},
+		},
+	}
+	result := expandOutbounds(list)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 outbound, got %d", len(result))
+	}
+	settings := result[0].(map[string]any)["settings"].(map[string]any)
+	if settings["network"] != "udp" {
+		t.Fatalf("expected udp, got %v", settings["network"])
+	}
+	if settings["address"] != "1.1.1.1" {
+		t.Fatalf("expected 1.1.1.1, got %v", settings["address"])
+	}
+	if settings["port"] != 53 {
+		t.Fatalf("expected 53, got %v", settings["port"])
+	}
+}
+
+func TestExpandOutbounds_Shadowsocks(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"tag":      "ss-out",
+			"protocol": "shadowsocks",
+			"shadowsocks_settings": []any{
+				map[string]any{
+					"address": "ss.example.com", "port": 8388,
+					"password": "secret", "method": "aes-256-gcm", "uot": true,
+				},
+			},
+		},
+	}
+	result := expandOutbounds(list)
+	server := result[0].(map[string]any)["settings"].(map[string]any)["servers"].([]any)[0].(map[string]any)
+	if server["address"] != "ss.example.com" {
+		t.Fatalf("expected ss.example.com, got %v", server["address"])
+	}
+	if server["method"] != "aes-256-gcm" {
+		t.Fatalf("expected aes-256-gcm, got %v", server["method"])
+	}
+	if server["uot"] != true {
+		t.Fatalf("expected uot true, got %v", server["uot"])
+	}
+}
+
+func TestExpandOutbounds_Wireguard(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"tag": "wg-out", "protocol": "wireguard",
+			"wireguard_settings": []any{
+				map[string]any{
+					"secret_key": "wg-secret", "address": []any{"10.0.0.2/32"},
+					"mtu": 1420, "domain_strategy": "ForceIPv4",
+					"peer": []any{
+						map[string]any{
+							"public_key": "wg-pub", "endpoint": "wg.example.com:51820",
+							"allowed_ips": []any{"0.0.0.0/0"}, "keep_alive": 25,
+						},
+					},
+				},
+			},
+		},
+	}
+	result := expandOutbounds(list)
+	settings := result[0].(map[string]any)["settings"].(map[string]any)
+	if settings["secretKey"] != "wg-secret" {
+		t.Fatalf("expected wg-secret, got %v", settings["secretKey"])
+	}
+	if settings["mtu"] != 1420 {
+		t.Fatalf("expected 1420, got %v", settings["mtu"])
+	}
+	peers := settings["peers"].([]any)
+	if len(peers) != 1 {
+		t.Fatalf("expected 1 peer, got %d", len(peers))
+	}
+	if peers[0].(map[string]any)["publicKey"] != "wg-pub" {
+		t.Fatalf("expected wg-pub, got %v", peers[0].(map[string]any)["publicKey"])
+	}
+}
+
+func TestFlattenOutbounds_Shadowsocks(t *testing.T) {
+	data := []any{
+		map[string]any{
+			"tag": "ss-out", "protocol": "shadowsocks",
+			"settings": map[string]any{
+				"servers": []any{
+					map[string]any{
+						"address": "ss.example.com", "port": float64(8388),
+						"password": "secret", "method": "aes-256-gcm", "uot": true,
+					},
+				},
+			},
+		},
+	}
+	result := flattenXrayOutboundsToMap(data)
+	ss := result["outbound"].([]any)[0].(map[string]any)["shadowsocks_settings"].([]any)[0].(map[string]any)
+	if ss["address"] != "ss.example.com" {
+		t.Fatalf("expected ss.example.com, got %v", ss["address"])
+	}
+	if ss["method"] != "aes-256-gcm" {
+		t.Fatalf("expected aes-256-gcm, got %v", ss["method"])
+	}
+	if ss["uot"] != true {
+		t.Fatalf("expected uot true, got %v", ss["uot"])
+	}
+}
+
+func TestExpandOutboundMux(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"enabled": true, "concurrency": 8,
+			"xudp_concurrency": 16, "xudp_proxy_udp443": "reject",
+		},
+	}
+	result := expandOutboundMux(list)
+	if result == nil {
+		t.Fatal("expected non-nil mux")
+	}
+	if result["enabled"] != true {
+		t.Fatalf("expected enabled true, got %v", result["enabled"])
+	}
+	if result["concurrency"] != 8 {
+		t.Fatalf("expected 8, got %v", result["concurrency"])
+	}
+	if result["xudpConcurrency"] != 16 {
+		t.Fatalf("expected 16, got %v", result["xudpConcurrency"])
+	}
+	if result["xudpProxyUDP443"] != "reject" {
+		t.Fatalf("expected reject, got %v", result["xudpProxyUDP443"])
+	}
+}
+
+func TestFlattenOutboundMux(t *testing.T) {
+	in := map[string]any{
+		"enabled": true, "concurrency": float64(8),
+		"xudpConcurrency": float64(16), "xudpProxyUDP443": "reject",
+	}
+	result := flattenOutboundMux(in)
+	if result == nil {
+		t.Fatal("expected non-nil mux")
+	}
+	if result["enabled"] != true {
+		t.Fatalf("expected true, got %v", result["enabled"])
+	}
+	if result["concurrency"] != 8 {
+		t.Fatalf("expected 8, got %v", result["concurrency"])
+	}
+	if result["xudp_concurrency"] != 16 {
+		t.Fatalf("expected 16, got %v", result["xudp_concurrency"])
+	}
+	if result["xudp_proxy_udp443"] != "reject" {
+		t.Fatalf("expected reject, got %v", result["xudp_proxy_udp443"])
+	}
+}
+
+func TestExpandDNSServers_WithAllFields(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"address": "dns.example.com", "port": 53,
+			"domains":       []any{"example.com", "example.org"},
+			"expect_ips":    []any{"1.2.3.0/24"},
+			"skip_fallback": true, "query_strategy": "UseIPv4",
+		},
+	}
+	result := expandDNSServers(list)
+	m := result[0].(map[string]any)
+	if m["address"] != "dns.example.com" {
+		t.Fatalf("expected dns.example.com, got %v", m["address"])
+	}
+	if m["port"] != 53 {
+		t.Fatalf("expected 53, got %v", m["port"])
+	}
+	if m["skipFallback"] != true {
+		t.Fatalf("expected skipFallback true, got %v", m["skipFallback"])
+	}
+	if m["queryStrategy"] != "UseIPv4" {
+		t.Fatalf("expected UseIPv4, got %v", m["queryStrategy"])
+	}
+}
+
+func TestBuildXrayDNSJSON_Roundtrip(t *testing.T) {
+	input := map[string]any{
+		"server": []any{
+			map[string]any{"address": "8.8.8.8"},
+			map[string]any{"address": "localhost", "port": 53, "domains": []any{"example.com"}},
+		},
+		"query_strategy": "UseIP",
+	}
+	flattened := flattenXrayDNSToMap(buildXrayDNSJSON(input))
+	if flattened["query_strategy"] != "UseIP" {
+		t.Fatalf("expected UseIP, got %v", flattened["query_strategy"])
+	}
+	servers := flattened["server"].([]any)
+	if len(servers) != 2 {
+		t.Fatalf("expected 2 servers, got %d", len(servers))
+	}
+	if servers[0].(map[string]any)["address"] != "8.8.8.8" {
+		t.Fatalf("expected 8.8.8.8, got %v", servers[0].(map[string]any)["address"])
+	}
+}
+
+func TestBuildXrayRoutingJSON_Roundtrip(t *testing.T) {
+	input := map[string]any{
+		"domain_strategy": "IPIfNonMatch",
+		"rule": []any{
+			map[string]any{"type": "field", "ip": []any{"geoip:private"}, "outbound_tag": "direct"},
+		},
+	}
+	flattened := flattenXrayRoutingToMap(buildXrayRoutingJSON(input))
+	if flattened["domain_strategy"] != "IPIfNonMatch" {
+		t.Fatalf("expected IPIfNonMatch, got %v", flattened["domain_strategy"])
+	}
+	rules := flattened["rule"].([]any)
+	if len(rules) != 1 {
+		t.Fatalf("expected 1 rule, got %d", len(rules))
+	}
+	if rules[0].(map[string]any)["outbound_tag"] != "direct" {
+		t.Fatalf("expected direct, got %v", rules[0].(map[string]any)["outbound_tag"])
+	}
+}
+
+func TestBuildXrayBasicsJSON_Roundtrip(t *testing.T) {
+	input := map[string]any{
+		"log":   map[string]any{"loglevel": "debug", "dns_log": true},
+		"api":   map[string]any{"tag": "api", "services": []any{"HandlerService", "StatsService"}},
+		"stats": map[string]any{},
+	}
+	flattened := flattenXrayBasicsToMap(buildXrayBasicsJSON(input))
+	log := flattened["log"].(map[string]any)
+	if log["loglevel"] != "debug" {
+		t.Fatalf("expected debug, got %v", log["loglevel"])
+	}
+	if log["dns_log"] != true {
+		t.Fatalf("expected dns_log true, got %v", log["dns_log"])
+	}
+	if _, ok := flattened["stats"]; !ok {
+		t.Fatalf("expected stats block")
+	}
+}
+
+func TestBuildXrayReverseJSON_Roundtrip(t *testing.T) {
+	input := map[string]any{
+		"bridge": []any{map[string]any{"tag": "b1", "domain": "bridge.example.com"}},
+		"portal": []any{map[string]any{"tag": "p1", "domain": "portal.example.com"}},
+	}
+	flattened := flattenXrayReverseToMap(buildXrayReverseJSON(input))
+	b := flattened["bridge"].([]any)[0].(map[string]any)
+	if b["tag"] != "b1" || b["domain"] != "bridge.example.com" {
+		t.Fatalf("unexpected bridge: %v", b)
+	}
+	p := flattened["portal"].([]any)[0].(map[string]any)
+	if p["tag"] != "p1" || p["domain"] != "portal.example.com" {
+		t.Fatalf("unexpected portal: %v", p)
+	}
+}
+
+func TestBuildXrayBalancersJSON_Roundtrip(t *testing.T) {
+	input := map[string]any{
+		"balancer": []any{
+			map[string]any{
+				"tag": "bal1", "selector": []any{"proxy-*"},
+				"strategy": []any{map[string]any{"type": "random"}},
+			},
+		},
+	}
+	flattened := flattenXrayBalancersToMap(buildXrayBalancersJSON(input))
+	bal := flattened["balancer"].([]any)[0].(map[string]any)
+	if bal["tag"] != "bal1" {
+		t.Fatalf("expected bal1, got %v", bal["tag"])
+	}
+	strategy := bal["strategy"].([]any)[0].(map[string]any)
+	if strategy["type"] != "random" {
+		t.Fatalf("expected random, got %v", strategy["type"])
+	}
+}
+
+func TestBuildXrayOutboundsJSON_Roundtrip(t *testing.T) {
+	input := map[string]any{
+		"outbound": []any{
+			map[string]any{
+				"tag": "direct", "protocol": "freedom",
+				"freedom_settings": []any{map[string]any{"domain_strategy": "AsIs"}},
+			},
+			map[string]any{
+				"tag": "blocked", "protocol": "blackhole",
+				"blackhole_settings": []any{map[string]any{"response_type": "none"}},
+			},
+		},
+	}
+	flattened := flattenXrayOutboundsToMap(buildXrayOutboundsJSON(input))
+	outbounds := flattened["outbound"].([]any)
+	if len(outbounds) != 2 {
+		t.Fatalf("expected 2 outbounds, got %d", len(outbounds))
+	}
+	freedom := outbounds[0].(map[string]any)["freedom_settings"].([]any)[0].(map[string]any)
+	if freedom["domain_strategy"] != "AsIs" {
+		t.Fatalf("expected AsIs, got %v", freedom["domain_strategy"])
+	}
+	bh := outbounds[1].(map[string]any)["blackhole_settings"].([]any)[0].(map[string]any)
+	if bh["response_type"] != "none" {
+		t.Fatalf("expected none, got %v", bh["response_type"])
+	}
+}
