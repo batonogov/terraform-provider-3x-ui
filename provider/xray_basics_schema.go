@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -712,8 +713,15 @@ func flattenBasicsPolicyLevels(in map[string]any) []any {
 	if len(in) == 0 {
 		return nil
 	}
+	keys := make([]string, 0, len(in))
+	for k := range in {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	out := make([]any, 0, len(in))
-	for key, val := range in {
+	for _, key := range keys {
+		val := in[key]
 		m, ok := val.(map[string]any)
 		if !ok {
 			continue

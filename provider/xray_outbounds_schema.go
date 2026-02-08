@@ -151,10 +151,13 @@ type XrayHysteriaOutSettings struct {
 // expandInt64List converts a types.List of Int64Type to []any ([]int) for the
 // untyped map format.
 func expandInt64List(l types.List) []any {
+	if l.IsNull() || l.IsUnknown() {
+		return nil
+	}
 	elems := l.Elements()
 	out := make([]any, 0, len(elems))
 	for _, e := range elems {
-		if iv, ok := e.(types.Int64); ok {
+		if iv, ok := e.(types.Int64); ok && !iv.IsNull() && !iv.IsUnknown() {
 			out = append(out, int(iv.ValueInt64()))
 		}
 	}
@@ -497,6 +500,18 @@ func xrayOutboundsSchema() schema.Schema {
 // Typed model -> untyped map (for buildXrayOutboundsJSON)
 // ---------------------------------------------------------------------------
 
+// hasNonEmptyEntries returns true if at least one entry in the slice is a
+// non-empty map. This prevents emitting keys whose expand produced only empty
+// maps (e.g. when all typed fields are null/unknown).
+func hasNonEmptyEntries(list []any) bool {
+	for _, item := range list {
+		if m, ok := item.(map[string]any); ok && len(m) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // expandXrayOutbounds converts the typed model to the untyped map format that
 // buildXrayOutboundsJSON expects.
 func expandXrayOutbounds(m *XrayOutboundsModel) map[string]any {
@@ -521,42 +536,66 @@ func expandXrayOutbounds(m *XrayOutboundsModel) map[string]any {
 
 		// Mux
 		if len(ob.Mux) > 0 {
-			entry["mux"] = expandOutboundMuxFromModel(ob.Mux)
+			if result := expandOutboundMuxFromModel(ob.Mux); hasNonEmptyEntries(result) {
+				entry["mux"] = result
+			}
 		}
 
 		// Protocol-specific settings
 		if len(ob.FreedomSettings) > 0 {
-			entry["freedom_settings"] = expandFreedomSettingsFromModel(ob.FreedomSettings)
+			if result := expandFreedomSettingsFromModel(ob.FreedomSettings); hasNonEmptyEntries(result) {
+				entry["freedom_settings"] = result
+			}
 		}
 		if len(ob.BlackholeSettings) > 0 {
-			entry["blackhole_settings"] = expandBlackholeSettingsFromModel(ob.BlackholeSettings)
+			if result := expandBlackholeSettingsFromModel(ob.BlackholeSettings); hasNonEmptyEntries(result) {
+				entry["blackhole_settings"] = result
+			}
 		}
 		if len(ob.DNSSettings) > 0 {
-			entry["dns_settings"] = expandDNSSettingsFromModel(ob.DNSSettings)
+			if result := expandDNSSettingsFromModel(ob.DNSSettings); hasNonEmptyEntries(result) {
+				entry["dns_settings"] = result
+			}
 		}
 		if len(ob.VmessSettings) > 0 {
-			entry["vmess_settings"] = expandVmessSettingsFromModel(ob.VmessSettings)
+			if result := expandVmessSettingsFromModel(ob.VmessSettings); hasNonEmptyEntries(result) {
+				entry["vmess_settings"] = result
+			}
 		}
 		if len(ob.VlessSettings) > 0 {
-			entry["vless_settings"] = expandVlessSettingsFromModel(ob.VlessSettings)
+			if result := expandVlessSettingsFromModel(ob.VlessSettings); hasNonEmptyEntries(result) {
+				entry["vless_settings"] = result
+			}
 		}
 		if len(ob.TrojanSettings) > 0 {
-			entry["trojan_settings"] = expandTrojanSettingsFromModel(ob.TrojanSettings)
+			if result := expandTrojanSettingsFromModel(ob.TrojanSettings); hasNonEmptyEntries(result) {
+				entry["trojan_settings"] = result
+			}
 		}
 		if len(ob.ShadowsocksSettings) > 0 {
-			entry["shadowsocks_settings"] = expandShadowsocksSettingsFromModel(ob.ShadowsocksSettings)
+			if result := expandShadowsocksSettingsFromModel(ob.ShadowsocksSettings); hasNonEmptyEntries(result) {
+				entry["shadowsocks_settings"] = result
+			}
 		}
 		if len(ob.SocksSettings) > 0 {
-			entry["socks_settings"] = expandSocksSettingsFromModel(ob.SocksSettings)
+			if result := expandSocksSettingsFromModel(ob.SocksSettings); hasNonEmptyEntries(result) {
+				entry["socks_settings"] = result
+			}
 		}
 		if len(ob.HTTPSettings) > 0 {
-			entry["http_settings"] = expandHTTPSettingsFromModel(ob.HTTPSettings)
+			if result := expandHTTPSettingsFromModel(ob.HTTPSettings); hasNonEmptyEntries(result) {
+				entry["http_settings"] = result
+			}
 		}
 		if len(ob.WireguardSettings) > 0 {
-			entry["wireguard_settings"] = expandWireguardSettingsFromModel(ob.WireguardSettings)
+			if result := expandWireguardSettingsFromModel(ob.WireguardSettings); hasNonEmptyEntries(result) {
+				entry["wireguard_settings"] = result
+			}
 		}
 		if len(ob.HysteriaSettings) > 0 {
-			entry["hysteria_settings"] = expandHysteriaSettingsFromModel(ob.HysteriaSettings)
+			if result := expandHysteriaSettingsFromModel(ob.HysteriaSettings); hasNonEmptyEntries(result) {
+				entry["hysteria_settings"] = result
+			}
 		}
 
 		if len(entry) > 0 {

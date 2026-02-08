@@ -44,6 +44,12 @@ type xrayFlattenFunc func(data any) map[string]any
 // xrayApplyTyped applies the desired value to the xray template.
 // If desired is empty (empty map or empty/nil slice), the apply is skipped
 // to avoid overwriting an existing section with an empty value.
+//
+// This means a user cannot "clear" a section by supplying an empty block in
+// Terraform — the empty value is treated as a no-op. The Delete operation
+// only removes the resource from Terraform state; it does not reset the
+// corresponding section in the 3x-ui xray config. To clear a section
+// manually, edit the xray template directly in the 3x-ui panel.
 func xrayApplyTyped(
 	ctx context.Context,
 	desired any,

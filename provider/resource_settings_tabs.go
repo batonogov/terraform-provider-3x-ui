@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -930,6 +931,8 @@ func flattenPanelGeneral(in map[string]any) *PanelGeneralModel {
 // Shared typed settings helper: apply settings to API and read back
 // ---------------------------------------------------------------------------
 
+var settingsMu sync.Mutex
+
 func settingsApplyTyped(
 	ctx context.Context,
 	desired map[string]any,
@@ -939,6 +942,9 @@ func settingsApplyTyped(
 	if len(desired) == 0 {
 		return
 	}
+
+	settingsMu.Lock()
+	defer settingsMu.Unlock()
 
 	existing, err := client.GetSettings(ctx)
 	if err != nil {
@@ -1425,6 +1431,9 @@ func (r *PanelSubscriptionResource) applySubscription(ctx context.Context, plan 
 	if len(desired) == 0 {
 		return
 	}
+
+	settingsMu.Lock()
+	defer settingsMu.Unlock()
 
 	// First apply.
 	existing, err := r.client.GetSettings(ctx)
