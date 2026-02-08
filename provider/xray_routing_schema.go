@@ -52,9 +52,11 @@ func xrayRoutingSchema() schema.Schema {
 			},
 			"domain_strategy": schema.StringAttribute{
 				Optional: true,
+				Computed: true,
 			},
 			"domain_matcher": schema.StringAttribute{
 				Optional: true,
+				Computed: true,
 			},
 		},
 		Blocks: map[string]schema.Block{
@@ -63,48 +65,61 @@ func xrayRoutingSchema() schema.Schema {
 					Attributes: map[string]schema.Attribute{
 						"type": schema.StringAttribute{
 							Optional: true,
+							Computed: true,
 						},
 						"domain": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 						},
 						"ip": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 						},
 						"port": schema.StringAttribute{
 							Optional: true,
+							Computed: true,
 						},
 						"source_port": schema.StringAttribute{
 							Optional: true,
+							Computed: true,
 						},
 						"network": schema.StringAttribute{
 							Optional: true,
+							Computed: true,
 						},
 						"source": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 						},
 						"user": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 						},
 						"inbound_tag": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 						},
 						"protocol": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 						},
 						"attrs": schema.StringAttribute{
 							Optional: true,
+							Computed: true,
 						},
 						"outbound_tag": schema.StringAttribute{
 							Optional: true,
+							Computed: true,
 						},
 						"balancer_tag": schema.StringAttribute{
 							Optional: true,
+							Computed: true,
 						},
 					},
 				},
@@ -273,7 +288,7 @@ func typesListToAnySlice(l types.List) []any {
 	elems := l.Elements()
 	out := make([]any, 0, len(elems))
 	for _, e := range elems {
-		if sv, ok := e.(types.String); ok {
+		if sv, ok := e.(types.String); ok && !sv.IsNull() && !sv.IsUnknown() {
 			out = append(out, sv.ValueString())
 		}
 	}

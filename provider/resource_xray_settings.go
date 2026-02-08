@@ -42,6 +42,8 @@ type xrayFlattenFunc func(data any) map[string]any
 // ---------------------------------------------------------------------------
 
 // xrayApplyTyped applies the desired value to the xray template.
+// If desired is empty (empty map or empty/nil slice), the apply is skipped
+// to avoid overwriting an existing section with an empty value.
 func xrayApplyTyped(
 	ctx context.Context,
 	desired any,
@@ -49,6 +51,10 @@ func xrayApplyTyped(
 	client *Client,
 	section xraySection,
 ) {
+	if isEmptyXrayValue(desired) {
+		return
+	}
+
 	xrayTemplateMu.Lock()
 	defer xrayTemplateMu.Unlock()
 
@@ -789,4 +795,18 @@ func getJSONPath(root map[string]any, path []string) any {
 		}
 	}
 	return current
+}
+
+// isEmptyXrayValue returns true if v is nil, an empty map, or an empty/nil slice.
+func isEmptyXrayValue(v any) bool {
+	if v == nil {
+		return true
+	}
+	switch val := v.(type) {
+	case map[string]any:
+		return len(val) == 0
+	case []any:
+		return len(val) == 0
+	}
+	return false
 }

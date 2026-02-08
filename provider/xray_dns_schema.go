@@ -51,22 +51,22 @@ func xrayDNSSchema() schema.Schema {
 				},
 			},
 			"query_strategy": schema.StringAttribute{
-				Optional: true,
+				Optional: true, Computed: true,
 			},
 			"tag": schema.StringAttribute{
-				Optional: true,
+				Optional: true, Computed: true,
 			},
 			"disable_cache": schema.BoolAttribute{
-				Optional: true,
+				Optional: true, Computed: true,
 			},
 			"disable_fallback": schema.BoolAttribute{
-				Optional: true,
+				Optional: true, Computed: true,
 			},
 			"disable_fallback_if_match": schema.BoolAttribute{
-				Optional: true,
+				Optional: true, Computed: true,
 			},
 			"client_ip": schema.StringAttribute{
-				Optional: true,
+				Optional: true, Computed: true,
 			},
 		},
 		Blocks: map[string]schema.Block{
@@ -77,31 +77,34 @@ func xrayDNSSchema() schema.Schema {
 							Required: true,
 						},
 						"port": schema.Int64Attribute{
-							Optional: true,
+							Optional: true, Computed: true,
 						},
 						"domains": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 						},
 						"expect_ips": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 						},
 						"unexpected_ips": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 						},
 						"skip_fallback": schema.BoolAttribute{
-							Optional: true,
+							Optional: true, Computed: true,
 						},
 						"query_strategy": schema.StringAttribute{
-							Optional: true,
+							Optional: true, Computed: true,
 						},
 						"disable_cache": schema.BoolAttribute{
-							Optional: true,
+							Optional: true, Computed: true,
 						},
 						"final_query": schema.BoolAttribute{
-							Optional: true,
+							Optional: true, Computed: true,
 						},
 					},
 				},
@@ -200,7 +203,13 @@ func expandAttrStringList(elems []attr.Value) []any {
 
 func flattenXrayDNS(data map[string]any) *XrayDNSModel {
 	m := &XrayDNSModel{
-		ID: types.StringValue(xraySectionDNS.id),
+		ID:                     types.StringValue(xraySectionDNS.id),
+		QueryStrategy:          types.StringNull(),
+		Tag:                    types.StringNull(),
+		DisableCache:           types.BoolNull(),
+		DisableFallback:        types.BoolNull(),
+		DisableFallbackIfMatch: types.BoolNull(),
+		ClientIP:               types.StringNull(),
 	}
 
 	if v, ok := data["server"].([]any); ok {
@@ -238,7 +247,17 @@ func flattenDNSServerList(list []any) []XrayDNSServer {
 		if !ok {
 			continue
 		}
-		entry := XrayDNSServer{}
+		entry := XrayDNSServer{
+			Address:       types.StringNull(),
+			Port:          types.Int64Null(),
+			Domains:       types.ListNull(types.StringType),
+			ExpectIPs:     types.ListNull(types.StringType),
+			UnexpectedIPs: types.ListNull(types.StringType),
+			SkipFallback:  types.BoolNull(),
+			QueryStrategy: types.StringNull(),
+			DisableCache:  types.BoolNull(),
+			FinalQuery:    types.BoolNull(),
+		}
 		if v, ok := m["address"].(string); ok {
 			entry.Address = types.StringValue(v)
 		}
@@ -247,18 +266,12 @@ func flattenDNSServerList(list []any) []XrayDNSServer {
 		}
 		if v, ok := m["domains"].([]any); ok && len(v) > 0 {
 			entry.Domains = flattenToStringList(v)
-		} else {
-			entry.Domains = types.ListNull(types.StringType)
 		}
 		if v, ok := m["expect_ips"].([]any); ok && len(v) > 0 {
 			entry.ExpectIPs = flattenToStringList(v)
-		} else {
-			entry.ExpectIPs = types.ListNull(types.StringType)
 		}
 		if v, ok := m["unexpected_ips"].([]any); ok && len(v) > 0 {
 			entry.UnexpectedIPs = flattenToStringList(v)
-		} else {
-			entry.UnexpectedIPs = types.ListNull(types.StringType)
 		}
 		if v, ok := m["skip_fallback"].(bool); ok {
 			entry.SkipFallback = types.BoolValue(v)

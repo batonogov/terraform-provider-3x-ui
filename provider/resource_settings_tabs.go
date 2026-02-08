@@ -37,7 +37,7 @@ func panelSecuritySchema() schema.Schema {
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"two_factor_token": schema.StringAttribute{
-				Optional: true, Computed: true,
+				Optional: true, Computed: true, Sensitive: true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 		},
@@ -100,7 +100,7 @@ func panelTelegramSchema() schema.Schema {
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"tg_bot_token": schema.StringAttribute{
-				Optional: true, Computed: true,
+				Optional: true, Computed: true, Sensitive: true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"tg_bot_proxy": schema.StringAttribute{

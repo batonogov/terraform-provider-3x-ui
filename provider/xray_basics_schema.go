@@ -79,16 +79,16 @@ func xrayBasicsSchema() schema.Schema {
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"loglevel": schema.StringAttribute{
-							Optional: true,
+							Optional: true, Computed: true,
 						},
 						"access": schema.StringAttribute{
-							Optional: true,
+							Optional: true, Computed: true,
 						},
 						"error": schema.StringAttribute{
-							Optional: true,
+							Optional: true, Computed: true,
 						},
 						"dns_log": schema.BoolAttribute{
-							Optional: true,
+							Optional: true, Computed: true,
 						},
 					},
 				},
@@ -100,16 +100,16 @@ func xrayBasicsSchema() schema.Schema {
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"stats_inbound_downlink": schema.BoolAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"stats_inbound_uplink": schema.BoolAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"stats_outbound_downlink": schema.BoolAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"stats_outbound_uplink": schema.BoolAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 								},
 							},
@@ -121,25 +121,25 @@ func xrayBasicsSchema() schema.Schema {
 										Required: true,
 									},
 									"handshake": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"conn_idle": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"uplink_only": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"downlink_only": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"stats_user_uplink": schema.BoolAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"stats_user_downlink": schema.BoolAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"buffer_size": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 								},
 							},
@@ -151,10 +151,11 @@ func xrayBasicsSchema() schema.Schema {
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"tag": schema.StringAttribute{
-							Optional: true,
+							Optional: true, Computed: true,
 						},
 						"services": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 						},
 					},

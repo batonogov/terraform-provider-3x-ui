@@ -48,7 +48,7 @@ func xrayBalancersSchema() schema.Schema {
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"tag": schema.StringAttribute{
-							Required: true,
+							Optional: true, Computed: true,
 						},
 						"selector": schema.ListAttribute{
 							Required:    true,

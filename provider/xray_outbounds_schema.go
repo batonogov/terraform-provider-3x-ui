@@ -197,13 +197,13 @@ func xrayOutboundsSchema() schema.Schema {
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"tag": schema.StringAttribute{
-							Optional: true,
+							Optional: true, Computed: true,
 						},
 						"protocol": schema.StringAttribute{
 							Required: true,
 						},
 						"send_through": schema.StringAttribute{
-							Optional: true,
+							Optional: true, Computed: true,
 						},
 					},
 					Blocks: map[string]schema.Block{
@@ -211,16 +211,16 @@ func xrayOutboundsSchema() schema.Schema {
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"enabled": schema.BoolAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"concurrency": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"xudp_concurrency": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"xudp_proxy_udp443": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 								},
 							},
@@ -229,10 +229,10 @@ func xrayOutboundsSchema() schema.Schema {
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"domain_strategy": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"redirect": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 								},
 								Blocks: map[string]schema.Block{
@@ -240,13 +240,13 @@ func xrayOutboundsSchema() schema.Schema {
 										NestedObject: schema.NestedBlockObject{
 											Attributes: map[string]schema.Attribute{
 												"packets": schema.StringAttribute{
-													Optional: true,
+													Optional: true, Computed: true,
 												},
 												"length": schema.StringAttribute{
-													Optional: true,
+													Optional: true, Computed: true,
 												},
 												"interval": schema.StringAttribute{
-													Optional: true,
+													Optional: true, Computed: true,
 												},
 											},
 										},
@@ -255,13 +255,13 @@ func xrayOutboundsSchema() schema.Schema {
 										NestedObject: schema.NestedBlockObject{
 											Attributes: map[string]schema.Attribute{
 												"type": schema.StringAttribute{
-													Optional: true,
+													Optional: true, Computed: true,
 												},
 												"packet": schema.StringAttribute{
-													Optional: true,
+													Optional: true, Computed: true,
 												},
 												"delay": schema.StringAttribute{
-													Optional: true,
+													Optional: true, Computed: true,
 												},
 											},
 										},
@@ -273,7 +273,7 @@ func xrayOutboundsSchema() schema.Schema {
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"response_type": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 								},
 							},
@@ -282,19 +282,20 @@ func xrayOutboundsSchema() schema.Schema {
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"network": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"address": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"port": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"non_ip_query": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"block_types": schema.ListAttribute{
 										Optional:    true,
+										Computed:    true,
 										ElementType: types.Int64Type,
 									},
 								},
@@ -304,16 +305,16 @@ func xrayOutboundsSchema() schema.Schema {
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"address": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"port": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"id": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"security": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 								},
 							},
@@ -322,19 +323,19 @@ func xrayOutboundsSchema() schema.Schema {
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"address": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"port": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"id": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"flow": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"encryption": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 								},
 							},
@@ -343,13 +344,13 @@ func xrayOutboundsSchema() schema.Schema {
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"address": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"port": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"password": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true, Sensitive: true,
 									},
 								},
 							},
@@ -358,22 +359,22 @@ func xrayOutboundsSchema() schema.Schema {
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"address": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"port": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"password": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true, Sensitive: true,
 									},
 									"method": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"uot": schema.BoolAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"uot_version": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 								},
 							},
@@ -382,16 +383,16 @@ func xrayOutboundsSchema() schema.Schema {
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"address": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"port": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"user": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"pass": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true, Sensitive: true,
 									},
 								},
 							},
@@ -400,16 +401,16 @@ func xrayOutboundsSchema() schema.Schema {
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"address": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"port": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"user": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"pass": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true, Sensitive: true,
 									},
 								},
 							},
@@ -418,27 +419,29 @@ func xrayOutboundsSchema() schema.Schema {
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"mtu": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"secret_key": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true, Sensitive: true,
 									},
 									"address": schema.ListAttribute{
 										Optional:    true,
+										Computed:    true,
 										ElementType: types.StringType,
 									},
 									"workers": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"domain_strategy": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"reserved": schema.ListAttribute{
 										Optional:    true,
+										Computed:    true,
 										ElementType: types.Int64Type,
 									},
 									"no_kernel_tun": schema.BoolAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 								},
 								Blocks: map[string]schema.Block{
@@ -446,20 +449,21 @@ func xrayOutboundsSchema() schema.Schema {
 										NestedObject: schema.NestedBlockObject{
 											Attributes: map[string]schema.Attribute{
 												"public_key": schema.StringAttribute{
-													Optional: true,
+													Optional: true, Computed: true,
 												},
 												"pre_shared_key": schema.StringAttribute{
-													Optional: true,
+													Optional: true, Computed: true, Sensitive: true,
 												},
 												"allowed_ips": schema.ListAttribute{
 													Optional:    true,
+													Computed:    true,
 													ElementType: types.StringType,
 												},
 												"endpoint": schema.StringAttribute{
-													Optional: true,
+													Optional: true, Computed: true,
 												},
 												"keep_alive": schema.Int64Attribute{
-													Optional: true,
+													Optional: true, Computed: true,
 												},
 											},
 										},
@@ -471,13 +475,13 @@ func xrayOutboundsSchema() schema.Schema {
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"address": schema.StringAttribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"port": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 									"version": schema.Int64Attribute{
-										Optional: true,
+										Optional: true, Computed: true,
 									},
 								},
 							},
