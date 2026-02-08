@@ -16,6 +16,7 @@ provider/              — весь код провайдера
   resource_inbound.go  — ресурс threexui_inbound (CRUD, Reality, settings defaults)
   resource_inbound_client.go — ресурс threexui_inbound_client (мьютекс, UUID)
   resource_settings_tabs.go  — panel_general/security/telegram/subscription (typed атрибуты)
+  resource_panel_user.go     — ресурс threexui_panel_user (смена логина/пароля админа)
   resource_xray_settings.go  — CRUD для xray_basics/dns/routing/balancers/reverse/outbounds (typed атрибуты)
   xray_basics_schema.go      — модель, схема, expand/flatten для xray_basics (log, policy, api, stats)
   xray_dns_schema.go         — модель, схема, expand/flatten для xray_dns (servers, hosts)
@@ -43,6 +44,7 @@ Taskfile.yml           — task build / test / fmt
 | `threexui_inbound_client` | resource_inbound_client.go | Клиент внутри inbound. Typed атрибуты |
 | `threexui_panel_general` | resource_settings_tabs.go | Настройки панели (web, LDAP). Typed атрибуты |
 | `threexui_panel_security` | resource_settings_tabs.go | 2FA. Typed атрибуты |
+| `threexui_panel_user` | resource_panel_user.go | Смена логина/пароля админа. Write-only (нет read API) |
 | `threexui_panel_telegram` | resource_settings_tabs.go | Telegram-бот. Typed атрибуты |
 | `threexui_panel_subscription` | resource_settings_tabs.go | Подписки. Typed атрибуты |
 | `threexui_xray_basics` | resource_xray_settings.go + xray_basics_schema.go | Базовый Xray-конфиг (merge root). Typed блоки |
@@ -75,6 +77,7 @@ Taskfile.yml           — task build / test / fmt
 - `POST /panel/api/inbounds/:id/delClient/:clientId` — удалить клиента
 - `POST /panel/setting/all` — все настройки
 - `POST /panel/setting/update` — обновить настройки (JSON body)
+- `POST /panel/setting/updateUser` — сменить логин/пароль админа (JSON: oldUsername, oldPassword, newUsername, newPassword)
 - `POST /panel/xray` — Xray template (xraySetting)
 - `POST /panel/xray/update` — обновить Xray template
 
@@ -112,6 +115,15 @@ Taskfile.yml           — task build / test / fmt
 - Включение 2FA блокирует провайдер (login не поддерживает 2FA-код) — добавлен Warning
 - Изменение `web_base_path` требует обновления `base_path` в provider config — добавлен Warning
 - `panelSettingsNeedRestart` — ключи: webListen, webDomain, webPort, webBasePath, webCertFile, webKeyFile, sessionMaxAge
+
+### Panel User
+- `threexui_panel_user` — синглтон (ID = `"user"`), управляет admin credentials
+- Write-only: нет API для чтения username/password, Read — no-op (state preserved)
+- Create использует `r.client.username/password` как old credentials
+- Update использует предыдущий state как old credentials
+- После успешного UpdateUser клиент обновляет свои хранимые credentials для последующих запросов
+- Delete только очищает TF state, credentials на панели не откатываются
+- Warning напоминает обновить provider config после смены credentials
 
 ### Xray Settings
 - Typed блоки (ListNestedBlock) — каждый ресурс имеет свою модель и schema в `*_schema.go`
