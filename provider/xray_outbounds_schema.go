@@ -1,6 +1,1588 @@
 package provider
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+)
+
+// ---------------------------------------------------------------------------
+// Typed models
+// ---------------------------------------------------------------------------
+
+type XrayOutboundsModel struct {
+	ID       types.String        `tfsdk:"id"`
+	Outbound []XrayOutboundEntry `tfsdk:"outbound"`
+}
+
+type XrayOutboundEntry struct {
+	Tag                 types.String                 `tfsdk:"tag"`
+	Protocol            types.String                 `tfsdk:"protocol"`
+	SendThrough         types.String                 `tfsdk:"send_through"`
+	Mux                 []XrayOutboundMux            `tfsdk:"mux"`
+	FreedomSettings     []XrayFreedomSettings        `tfsdk:"freedom_settings"`
+	BlackholeSettings   []XrayBlackholeSettings      `tfsdk:"blackhole_settings"`
+	DNSSettings         []XrayOutboundDNSSettings    `tfsdk:"dns_settings"`
+	VmessSettings       []XrayVmessOutSettings       `tfsdk:"vmess_settings"`
+	VlessSettings       []XrayVlessOutSettings       `tfsdk:"vless_settings"`
+	TrojanSettings      []XrayTrojanOutSettings      `tfsdk:"trojan_settings"`
+	ShadowsocksSettings []XrayShadowsocksOutSettings `tfsdk:"shadowsocks_settings"`
+	SocksSettings       []XraySocksOutSettings       `tfsdk:"socks_settings"`
+	HTTPSettings        []XrayHTTPOutSettings        `tfsdk:"http_settings"`
+	WireguardSettings   []XrayWireguardOutSettings   `tfsdk:"wireguard_settings"`
+	HysteriaSettings    []XrayHysteriaOutSettings    `tfsdk:"hysteria_settings"`
+}
+
+type XrayOutboundMux struct {
+	Enabled         types.Bool   `tfsdk:"enabled"`
+	Concurrency     types.Int64  `tfsdk:"concurrency"`
+	XudpConcurrency types.Int64  `tfsdk:"xudp_concurrency"`
+	XudpProxyUDP443 types.String `tfsdk:"xudp_proxy_udp443"`
+}
+
+type XrayFreedomSettings struct {
+	DomainStrategy types.String          `tfsdk:"domain_strategy"`
+	Redirect       types.String          `tfsdk:"redirect"`
+	Fragment       []XrayFreedomFragment `tfsdk:"fragment"`
+	Noises         []XrayFreedomNoise    `tfsdk:"noises"`
+}
+
+type XrayFreedomFragment struct {
+	Packets  types.String `tfsdk:"packets"`
+	Length   types.String `tfsdk:"length"`
+	Interval types.String `tfsdk:"interval"`
+}
+
+type XrayFreedomNoise struct {
+	Type   types.String `tfsdk:"type"`
+	Packet types.String `tfsdk:"packet"`
+	Delay  types.String `tfsdk:"delay"`
+}
+
+type XrayBlackholeSettings struct {
+	ResponseType types.String `tfsdk:"response_type"`
+}
+
+type XrayOutboundDNSSettings struct {
+	Network    types.String `tfsdk:"network"`
+	Address    types.String `tfsdk:"address"`
+	Port       types.Int64  `tfsdk:"port"`
+	NonIPQuery types.String `tfsdk:"non_ip_query"`
+	BlockTypes types.List   `tfsdk:"block_types"` // list of int64
+}
+
+type XrayVmessOutSettings struct {
+	Address  types.String `tfsdk:"address"`
+	Port     types.Int64  `tfsdk:"port"`
+	ID       types.String `tfsdk:"id"`
+	Security types.String `tfsdk:"security"`
+}
+
+type XrayVlessOutSettings struct {
+	Address    types.String `tfsdk:"address"`
+	Port       types.Int64  `tfsdk:"port"`
+	ID         types.String `tfsdk:"id"`
+	Flow       types.String `tfsdk:"flow"`
+	Encryption types.String `tfsdk:"encryption"`
+}
+
+type XrayTrojanOutSettings struct {
+	Address  types.String `tfsdk:"address"`
+	Port     types.Int64  `tfsdk:"port"`
+	Password types.String `tfsdk:"password"`
+}
+
+type XrayShadowsocksOutSettings struct {
+	Address    types.String `tfsdk:"address"`
+	Port       types.Int64  `tfsdk:"port"`
+	Password   types.String `tfsdk:"password"`
+	Method     types.String `tfsdk:"method"`
+	UOT        types.Bool   `tfsdk:"uot"`
+	UOTVersion types.Int64  `tfsdk:"uot_version"`
+}
+
+type XraySocksOutSettings struct {
+	Address types.String `tfsdk:"address"`
+	Port    types.Int64  `tfsdk:"port"`
+	User    types.String `tfsdk:"user"`
+	Pass    types.String `tfsdk:"pass"`
+}
+
+type XrayHTTPOutSettings struct {
+	Address types.String `tfsdk:"address"`
+	Port    types.Int64  `tfsdk:"port"`
+	User    types.String `tfsdk:"user"`
+	Pass    types.String `tfsdk:"pass"`
+}
+
+type XrayWireguardOutSettings struct {
+	MTU            types.Int64         `tfsdk:"mtu"`
+	SecretKey      types.String        `tfsdk:"secret_key"`
+	Address        types.List          `tfsdk:"address"` // list of strings
+	Workers        types.Int64         `tfsdk:"workers"`
+	DomainStrategy types.String        `tfsdk:"domain_strategy"`
+	Reserved       types.List          `tfsdk:"reserved"` // list of int64
+	NoKernelTun    types.Bool          `tfsdk:"no_kernel_tun"`
+	Peer           []XrayWireguardPeer `tfsdk:"peer"`
+}
+
+type XrayWireguardPeer struct {
+	PublicKey    types.String `tfsdk:"public_key"`
+	PreSharedKey types.String `tfsdk:"pre_shared_key"`
+	AllowedIPs   types.List   `tfsdk:"allowed_ips"` // list of strings
+	Endpoint     types.String `tfsdk:"endpoint"`
+	KeepAlive    types.Int64  `tfsdk:"keep_alive"`
+}
+
+type XrayHysteriaOutSettings struct {
+	Address types.String `tfsdk:"address"`
+	Port    types.Int64  `tfsdk:"port"`
+	Version types.Int64  `tfsdk:"version"`
+}
+
+// ---------------------------------------------------------------------------
+// Int64 list helpers (local to this file)
+// ---------------------------------------------------------------------------
+
+// expandInt64List converts a types.List of Int64Type to []any ([]int) for the
+// untyped map format.
+func expandInt64List(l types.List) []any {
+	if l.IsNull() || l.IsUnknown() {
+		return nil
+	}
+	elems := l.Elements()
+	out := make([]any, 0, len(elems))
+	for _, e := range elems {
+		if iv, ok := e.(types.Int64); ok && !iv.IsNull() && !iv.IsUnknown() {
+			out = append(out, int(iv.ValueInt64()))
+		}
+	}
+	return out
+}
+
+// flattenToInt64List converts a []any of numbers (from the untyped map) to a
+// types.List of Int64Type. Returns types.ListNull if the slice is nil or empty.
+func flattenToInt64List(v any) types.List {
+	slice, ok := v.([]any)
+	if !ok || len(slice) == 0 {
+		return types.ListNull(types.Int64Type)
+	}
+	elems := make([]attr.Value, 0, len(slice))
+	for _, item := range slice {
+		elems = append(elems, types.Int64Value(int64(intValue(item))))
+	}
+	if len(elems) == 0 {
+		return types.ListNull(types.Int64Type)
+	}
+	return types.ListValueMust(types.Int64Type, elems)
+}
+
+// ---------------------------------------------------------------------------
+// Schema
+// ---------------------------------------------------------------------------
+
+func xrayOutboundsSchema() schema.Schema {
+	return schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+		},
+		Blocks: map[string]schema.Block{
+			"outbound": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"tag": schema.StringAttribute{
+							Optional: true, Computed: true,
+						},
+						"protocol": schema.StringAttribute{
+							Required: true,
+						},
+						"send_through": schema.StringAttribute{
+							Optional: true, Computed: true,
+						},
+					},
+					Blocks: map[string]schema.Block{
+						"mux": schema.ListNestedBlock{
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"enabled": schema.BoolAttribute{
+										Optional: true, Computed: true,
+									},
+									"concurrency": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"xudp_concurrency": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"xudp_proxy_udp443": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+								},
+							},
+						},
+						"freedom_settings": schema.ListNestedBlock{
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"domain_strategy": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"redirect": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+								},
+								Blocks: map[string]schema.Block{
+									"fragment": schema.ListNestedBlock{
+										NestedObject: schema.NestedBlockObject{
+											Attributes: map[string]schema.Attribute{
+												"packets": schema.StringAttribute{
+													Optional: true, Computed: true,
+												},
+												"length": schema.StringAttribute{
+													Optional: true, Computed: true,
+												},
+												"interval": schema.StringAttribute{
+													Optional: true, Computed: true,
+												},
+											},
+										},
+									},
+									"noises": schema.ListNestedBlock{
+										NestedObject: schema.NestedBlockObject{
+											Attributes: map[string]schema.Attribute{
+												"type": schema.StringAttribute{
+													Optional: true, Computed: true,
+												},
+												"packet": schema.StringAttribute{
+													Optional: true, Computed: true,
+												},
+												"delay": schema.StringAttribute{
+													Optional: true, Computed: true,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						"blackhole_settings": schema.ListNestedBlock{
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"response_type": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+								},
+							},
+						},
+						"dns_settings": schema.ListNestedBlock{
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"network": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"address": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"port": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"non_ip_query": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"block_types": schema.ListAttribute{
+										Optional:    true,
+										Computed:    true,
+										ElementType: types.Int64Type,
+									},
+								},
+							},
+						},
+						"vmess_settings": schema.ListNestedBlock{
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"address": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"port": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"id": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"security": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+								},
+							},
+						},
+						"vless_settings": schema.ListNestedBlock{
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"address": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"port": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"id": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"flow": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"encryption": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+								},
+							},
+						},
+						"trojan_settings": schema.ListNestedBlock{
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"address": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"port": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"password": schema.StringAttribute{
+										Optional: true, Computed: true, Sensitive: true,
+									},
+								},
+							},
+						},
+						"shadowsocks_settings": schema.ListNestedBlock{
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"address": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"port": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"password": schema.StringAttribute{
+										Optional: true, Computed: true, Sensitive: true,
+									},
+									"method": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"uot": schema.BoolAttribute{
+										Optional: true, Computed: true,
+									},
+									"uot_version": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+								},
+							},
+						},
+						"socks_settings": schema.ListNestedBlock{
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"address": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"port": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"user": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"pass": schema.StringAttribute{
+										Optional: true, Computed: true, Sensitive: true,
+									},
+								},
+							},
+						},
+						"http_settings": schema.ListNestedBlock{
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"address": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"port": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"user": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"pass": schema.StringAttribute{
+										Optional: true, Computed: true, Sensitive: true,
+									},
+								},
+							},
+						},
+						"wireguard_settings": schema.ListNestedBlock{
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"mtu": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"secret_key": schema.StringAttribute{
+										Optional: true, Computed: true, Sensitive: true,
+									},
+									"address": schema.ListAttribute{
+										Optional:    true,
+										Computed:    true,
+										ElementType: types.StringType,
+									},
+									"workers": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"domain_strategy": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"reserved": schema.ListAttribute{
+										Optional:    true,
+										Computed:    true,
+										ElementType: types.Int64Type,
+									},
+									"no_kernel_tun": schema.BoolAttribute{
+										Optional: true, Computed: true,
+									},
+								},
+								Blocks: map[string]schema.Block{
+									"peer": schema.ListNestedBlock{
+										NestedObject: schema.NestedBlockObject{
+											Attributes: map[string]schema.Attribute{
+												"public_key": schema.StringAttribute{
+													Optional: true, Computed: true,
+												},
+												"pre_shared_key": schema.StringAttribute{
+													Optional: true, Computed: true, Sensitive: true,
+												},
+												"allowed_ips": schema.ListAttribute{
+													Optional:    true,
+													Computed:    true,
+													ElementType: types.StringType,
+												},
+												"endpoint": schema.StringAttribute{
+													Optional: true, Computed: true,
+												},
+												"keep_alive": schema.Int64Attribute{
+													Optional: true, Computed: true,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						"hysteria_settings": schema.ListNestedBlock{
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"address": schema.StringAttribute{
+										Optional: true, Computed: true,
+									},
+									"port": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"version": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Typed model -> untyped map (for buildXrayOutboundsJSON)
+// ---------------------------------------------------------------------------
+
+// hasNonEmptyEntries returns true if at least one entry in the slice is a
+// non-empty map. This prevents emitting keys whose expand produced only empty
+// maps (e.g. when all typed fields are null/unknown).
+func hasNonEmptyEntries(list []any) bool {
+	for _, item := range list {
+		if m, ok := item.(map[string]any); ok && len(m) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// expandXrayOutbounds converts the typed model to the untyped map format that
+// buildXrayOutboundsJSON expects.
+func expandXrayOutbounds(m *XrayOutboundsModel) map[string]any {
+	payload := map[string]any{}
+	if m.Outbound == nil {
+		return payload
+	}
+
+	outbounds := make([]any, 0, len(m.Outbound))
+	for _, ob := range m.Outbound {
+		entry := map[string]any{}
+
+		if !ob.Tag.IsNull() && !ob.Tag.IsUnknown() {
+			entry["tag"] = ob.Tag.ValueString()
+		}
+		if !ob.Protocol.IsNull() && !ob.Protocol.IsUnknown() {
+			entry["protocol"] = ob.Protocol.ValueString()
+		}
+		if !ob.SendThrough.IsNull() && !ob.SendThrough.IsUnknown() {
+			entry["send_through"] = ob.SendThrough.ValueString()
+		}
+
+		// Mux
+		if len(ob.Mux) > 0 {
+			if result := expandOutboundMuxFromModel(ob.Mux); hasNonEmptyEntries(result) {
+				entry["mux"] = result
+			}
+		}
+
+		// Protocol-specific settings
+		if len(ob.FreedomSettings) > 0 {
+			if result := expandFreedomSettingsFromModel(ob.FreedomSettings); hasNonEmptyEntries(result) {
+				entry["freedom_settings"] = result
+			}
+		}
+		if len(ob.BlackholeSettings) > 0 {
+			if result := expandBlackholeSettingsFromModel(ob.BlackholeSettings); hasNonEmptyEntries(result) {
+				entry["blackhole_settings"] = result
+			}
+		}
+		if len(ob.DNSSettings) > 0 {
+			if result := expandDNSSettingsFromModel(ob.DNSSettings); hasNonEmptyEntries(result) {
+				entry["dns_settings"] = result
+			}
+		}
+		if len(ob.VmessSettings) > 0 {
+			if result := expandVmessSettingsFromModel(ob.VmessSettings); hasNonEmptyEntries(result) {
+				entry["vmess_settings"] = result
+			}
+		}
+		if len(ob.VlessSettings) > 0 {
+			if result := expandVlessSettingsFromModel(ob.VlessSettings); hasNonEmptyEntries(result) {
+				entry["vless_settings"] = result
+			}
+		}
+		if len(ob.TrojanSettings) > 0 {
+			if result := expandTrojanSettingsFromModel(ob.TrojanSettings); hasNonEmptyEntries(result) {
+				entry["trojan_settings"] = result
+			}
+		}
+		if len(ob.ShadowsocksSettings) > 0 {
+			if result := expandShadowsocksSettingsFromModel(ob.ShadowsocksSettings); hasNonEmptyEntries(result) {
+				entry["shadowsocks_settings"] = result
+			}
+		}
+		if len(ob.SocksSettings) > 0 {
+			if result := expandSocksSettingsFromModel(ob.SocksSettings); hasNonEmptyEntries(result) {
+				entry["socks_settings"] = result
+			}
+		}
+		if len(ob.HTTPSettings) > 0 {
+			if result := expandHTTPSettingsFromModel(ob.HTTPSettings); hasNonEmptyEntries(result) {
+				entry["http_settings"] = result
+			}
+		}
+		if len(ob.WireguardSettings) > 0 {
+			if result := expandWireguardSettingsFromModel(ob.WireguardSettings); hasNonEmptyEntries(result) {
+				entry["wireguard_settings"] = result
+			}
+		}
+		if len(ob.HysteriaSettings) > 0 {
+			if result := expandHysteriaSettingsFromModel(ob.HysteriaSettings); hasNonEmptyEntries(result) {
+				entry["hysteria_settings"] = result
+			}
+		}
+
+		if len(entry) > 0 {
+			outbounds = append(outbounds, entry)
+		}
+	}
+
+	payload["outbound"] = outbounds
+	return payload
+}
+
+func expandOutboundMuxFromModel(muxList []XrayOutboundMux) []any {
+	out := make([]any, 0, len(muxList))
+	for _, mux := range muxList {
+		entry := map[string]any{}
+		if !mux.Enabled.IsNull() && !mux.Enabled.IsUnknown() {
+			entry["enabled"] = mux.Enabled.ValueBool()
+		}
+		if !mux.Concurrency.IsNull() && !mux.Concurrency.IsUnknown() {
+			entry["concurrency"] = int(mux.Concurrency.ValueInt64())
+		}
+		if !mux.XudpConcurrency.IsNull() && !mux.XudpConcurrency.IsUnknown() {
+			entry["xudp_concurrency"] = int(mux.XudpConcurrency.ValueInt64())
+		}
+		if !mux.XudpProxyUDP443.IsNull() && !mux.XudpProxyUDP443.IsUnknown() {
+			entry["xudp_proxy_udp443"] = mux.XudpProxyUDP443.ValueString()
+		}
+		if len(entry) > 0 {
+			out = append(out, entry)
+		}
+	}
+	return out
+}
+
+func expandFreedomSettingsFromModel(list []XrayFreedomSettings) []any {
+	out := make([]any, 0, len(list))
+	for _, fs := range list {
+		entry := map[string]any{}
+		if !fs.DomainStrategy.IsNull() && !fs.DomainStrategy.IsUnknown() {
+			entry["domain_strategy"] = fs.DomainStrategy.ValueString()
+		}
+		if !fs.Redirect.IsNull() && !fs.Redirect.IsUnknown() {
+			entry["redirect"] = fs.Redirect.ValueString()
+		}
+		if len(fs.Fragment) > 0 {
+			frags := make([]any, 0, len(fs.Fragment))
+			for _, f := range fs.Fragment {
+				fEntry := map[string]any{}
+				if !f.Packets.IsNull() && !f.Packets.IsUnknown() {
+					fEntry["packets"] = f.Packets.ValueString()
+				}
+				if !f.Length.IsNull() && !f.Length.IsUnknown() {
+					fEntry["length"] = f.Length.ValueString()
+				}
+				if !f.Interval.IsNull() && !f.Interval.IsUnknown() {
+					fEntry["interval"] = f.Interval.ValueString()
+				}
+				if len(fEntry) > 0 {
+					frags = append(frags, fEntry)
+				}
+			}
+			entry["fragment"] = frags
+		}
+		if len(fs.Noises) > 0 {
+			noises := make([]any, 0, len(fs.Noises))
+			for _, n := range fs.Noises {
+				nEntry := map[string]any{}
+				if !n.Type.IsNull() && !n.Type.IsUnknown() {
+					nEntry["type"] = n.Type.ValueString()
+				}
+				if !n.Packet.IsNull() && !n.Packet.IsUnknown() {
+					nEntry["packet"] = n.Packet.ValueString()
+				}
+				if !n.Delay.IsNull() && !n.Delay.IsUnknown() {
+					nEntry["delay"] = n.Delay.ValueString()
+				}
+				if len(nEntry) > 0 {
+					noises = append(noises, nEntry)
+				}
+			}
+			entry["noises"] = noises
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func expandBlackholeSettingsFromModel(list []XrayBlackholeSettings) []any {
+	out := make([]any, 0, len(list))
+	for _, bh := range list {
+		entry := map[string]any{}
+		if !bh.ResponseType.IsNull() && !bh.ResponseType.IsUnknown() {
+			entry["response_type"] = bh.ResponseType.ValueString()
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func expandDNSSettingsFromModel(list []XrayOutboundDNSSettings) []any {
+	out := make([]any, 0, len(list))
+	for _, ds := range list {
+		entry := map[string]any{}
+		if !ds.Network.IsNull() && !ds.Network.IsUnknown() {
+			entry["network"] = ds.Network.ValueString()
+		}
+		if !ds.Address.IsNull() && !ds.Address.IsUnknown() {
+			entry["address"] = ds.Address.ValueString()
+		}
+		if !ds.Port.IsNull() && !ds.Port.IsUnknown() {
+			entry["port"] = int(ds.Port.ValueInt64())
+		}
+		if !ds.NonIPQuery.IsNull() && !ds.NonIPQuery.IsUnknown() {
+			entry["non_ip_query"] = ds.NonIPQuery.ValueString()
+		}
+		if !ds.BlockTypes.IsNull() && !ds.BlockTypes.IsUnknown() {
+			entry["block_types"] = expandInt64List(ds.BlockTypes)
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func expandVmessSettingsFromModel(list []XrayVmessOutSettings) []any {
+	out := make([]any, 0, len(list))
+	for _, vs := range list {
+		entry := map[string]any{}
+		if !vs.Address.IsNull() && !vs.Address.IsUnknown() {
+			entry["address"] = vs.Address.ValueString()
+		}
+		if !vs.Port.IsNull() && !vs.Port.IsUnknown() {
+			entry["port"] = int(vs.Port.ValueInt64())
+		}
+		if !vs.ID.IsNull() && !vs.ID.IsUnknown() {
+			entry["id"] = vs.ID.ValueString()
+		}
+		if !vs.Security.IsNull() && !vs.Security.IsUnknown() {
+			entry["security"] = vs.Security.ValueString()
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func expandVlessSettingsFromModel(list []XrayVlessOutSettings) []any {
+	out := make([]any, 0, len(list))
+	for _, vs := range list {
+		entry := map[string]any{}
+		if !vs.Address.IsNull() && !vs.Address.IsUnknown() {
+			entry["address"] = vs.Address.ValueString()
+		}
+		if !vs.Port.IsNull() && !vs.Port.IsUnknown() {
+			entry["port"] = int(vs.Port.ValueInt64())
+		}
+		if !vs.ID.IsNull() && !vs.ID.IsUnknown() {
+			entry["id"] = vs.ID.ValueString()
+		}
+		if !vs.Flow.IsNull() && !vs.Flow.IsUnknown() {
+			entry["flow"] = vs.Flow.ValueString()
+		}
+		if !vs.Encryption.IsNull() && !vs.Encryption.IsUnknown() {
+			entry["encryption"] = vs.Encryption.ValueString()
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func expandTrojanSettingsFromModel(list []XrayTrojanOutSettings) []any {
+	out := make([]any, 0, len(list))
+	for _, ts := range list {
+		entry := map[string]any{}
+		if !ts.Address.IsNull() && !ts.Address.IsUnknown() {
+			entry["address"] = ts.Address.ValueString()
+		}
+		if !ts.Port.IsNull() && !ts.Port.IsUnknown() {
+			entry["port"] = int(ts.Port.ValueInt64())
+		}
+		if !ts.Password.IsNull() && !ts.Password.IsUnknown() {
+			entry["password"] = ts.Password.ValueString()
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func expandShadowsocksSettingsFromModel(list []XrayShadowsocksOutSettings) []any {
+	out := make([]any, 0, len(list))
+	for _, ss := range list {
+		entry := map[string]any{}
+		if !ss.Address.IsNull() && !ss.Address.IsUnknown() {
+			entry["address"] = ss.Address.ValueString()
+		}
+		if !ss.Port.IsNull() && !ss.Port.IsUnknown() {
+			entry["port"] = int(ss.Port.ValueInt64())
+		}
+		if !ss.Password.IsNull() && !ss.Password.IsUnknown() {
+			entry["password"] = ss.Password.ValueString()
+		}
+		if !ss.Method.IsNull() && !ss.Method.IsUnknown() {
+			entry["method"] = ss.Method.ValueString()
+		}
+		if !ss.UOT.IsNull() && !ss.UOT.IsUnknown() {
+			entry["uot"] = ss.UOT.ValueBool()
+		}
+		if !ss.UOTVersion.IsNull() && !ss.UOTVersion.IsUnknown() {
+			entry["uot_version"] = int(ss.UOTVersion.ValueInt64())
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func expandSocksSettingsFromModel(list []XraySocksOutSettings) []any {
+	out := make([]any, 0, len(list))
+	for _, ss := range list {
+		entry := map[string]any{}
+		if !ss.Address.IsNull() && !ss.Address.IsUnknown() {
+			entry["address"] = ss.Address.ValueString()
+		}
+		if !ss.Port.IsNull() && !ss.Port.IsUnknown() {
+			entry["port"] = int(ss.Port.ValueInt64())
+		}
+		if !ss.User.IsNull() && !ss.User.IsUnknown() {
+			entry["user"] = ss.User.ValueString()
+		}
+		if !ss.Pass.IsNull() && !ss.Pass.IsUnknown() {
+			entry["pass"] = ss.Pass.ValueString()
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func expandHTTPSettingsFromModel(list []XrayHTTPOutSettings) []any {
+	out := make([]any, 0, len(list))
+	for _, hs := range list {
+		entry := map[string]any{}
+		if !hs.Address.IsNull() && !hs.Address.IsUnknown() {
+			entry["address"] = hs.Address.ValueString()
+		}
+		if !hs.Port.IsNull() && !hs.Port.IsUnknown() {
+			entry["port"] = int(hs.Port.ValueInt64())
+		}
+		if !hs.User.IsNull() && !hs.User.IsUnknown() {
+			entry["user"] = hs.User.ValueString()
+		}
+		if !hs.Pass.IsNull() && !hs.Pass.IsUnknown() {
+			entry["pass"] = hs.Pass.ValueString()
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func expandWireguardSettingsFromModel(list []XrayWireguardOutSettings) []any {
+	out := make([]any, 0, len(list))
+	for _, wg := range list {
+		entry := map[string]any{}
+		if !wg.MTU.IsNull() && !wg.MTU.IsUnknown() {
+			entry["mtu"] = int(wg.MTU.ValueInt64())
+		}
+		if !wg.SecretKey.IsNull() && !wg.SecretKey.IsUnknown() {
+			entry["secret_key"] = wg.SecretKey.ValueString()
+		}
+		if !wg.Address.IsNull() && !wg.Address.IsUnknown() {
+			entry["address"] = typesListToAnySlice(wg.Address)
+		}
+		if !wg.Workers.IsNull() && !wg.Workers.IsUnknown() {
+			entry["workers"] = int(wg.Workers.ValueInt64())
+		}
+		if !wg.DomainStrategy.IsNull() && !wg.DomainStrategy.IsUnknown() {
+			entry["domain_strategy"] = wg.DomainStrategy.ValueString()
+		}
+		if !wg.Reserved.IsNull() && !wg.Reserved.IsUnknown() {
+			entry["reserved"] = expandInt64List(wg.Reserved)
+		}
+		if !wg.NoKernelTun.IsNull() && !wg.NoKernelTun.IsUnknown() {
+			entry["no_kernel_tun"] = wg.NoKernelTun.ValueBool()
+		}
+		if len(wg.Peer) > 0 {
+			peers := make([]any, 0, len(wg.Peer))
+			for _, p := range wg.Peer {
+				pEntry := map[string]any{}
+				if !p.PublicKey.IsNull() && !p.PublicKey.IsUnknown() {
+					pEntry["public_key"] = p.PublicKey.ValueString()
+				}
+				if !p.PreSharedKey.IsNull() && !p.PreSharedKey.IsUnknown() {
+					pEntry["pre_shared_key"] = p.PreSharedKey.ValueString()
+				}
+				if !p.AllowedIPs.IsNull() && !p.AllowedIPs.IsUnknown() {
+					pEntry["allowed_ips"] = typesListToAnySlice(p.AllowedIPs)
+				}
+				if !p.Endpoint.IsNull() && !p.Endpoint.IsUnknown() {
+					pEntry["endpoint"] = p.Endpoint.ValueString()
+				}
+				if !p.KeepAlive.IsNull() && !p.KeepAlive.IsUnknown() {
+					pEntry["keep_alive"] = int(p.KeepAlive.ValueInt64())
+				}
+				if len(pEntry) > 0 {
+					peers = append(peers, pEntry)
+				}
+			}
+			entry["peer"] = peers
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func expandHysteriaSettingsFromModel(list []XrayHysteriaOutSettings) []any {
+	out := make([]any, 0, len(list))
+	for _, hs := range list {
+		entry := map[string]any{}
+		if !hs.Address.IsNull() && !hs.Address.IsUnknown() {
+			entry["address"] = hs.Address.ValueString()
+		}
+		if !hs.Port.IsNull() && !hs.Port.IsUnknown() {
+			entry["port"] = int(hs.Port.ValueInt64())
+		}
+		if !hs.Version.IsNull() && !hs.Version.IsUnknown() {
+			entry["version"] = int(hs.Version.ValueInt64())
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+// ---------------------------------------------------------------------------
+// Untyped map -> typed model (from flattenXrayOutboundsToMap output)
+// ---------------------------------------------------------------------------
+
+// flattenXrayOutbounds converts the output of flattenXrayOutboundsToMap back
+// to the typed model.
+func flattenXrayOutbounds(data map[string]any) *XrayOutboundsModel {
+	m := &XrayOutboundsModel{
+		ID: types.StringValue("xray_outbounds"),
+	}
+
+	v, ok := data["outbound"]
+	if !ok {
+		return m
+	}
+
+	list, ok := v.([]any)
+	if !ok {
+		return m
+	}
+
+	outbounds := make([]XrayOutboundEntry, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		entry := XrayOutboundEntry{}
+
+		// Tag
+		if v, ok := raw["tag"].(string); ok && v != "" {
+			entry.Tag = types.StringValue(v)
+		} else {
+			entry.Tag = types.StringNull()
+		}
+
+		// Protocol
+		if v, ok := raw["protocol"].(string); ok && v != "" {
+			entry.Protocol = types.StringValue(v)
+		} else {
+			entry.Protocol = types.StringNull()
+		}
+
+		// SendThrough
+		if v, ok := raw["send_through"].(string); ok && v != "" {
+			entry.SendThrough = types.StringValue(v)
+		} else {
+			entry.SendThrough = types.StringNull()
+		}
+
+		// Mux
+		if v, ok := raw["mux"].([]any); ok && len(v) > 0 {
+			entry.Mux = flattenOutboundMuxToModel(v)
+		}
+
+		// Protocol-specific settings
+		if v, ok := raw["freedom_settings"].([]any); ok && len(v) > 0 {
+			entry.FreedomSettings = flattenFreedomSettingsToModel(v)
+		}
+		if v, ok := raw["blackhole_settings"].([]any); ok && len(v) > 0 {
+			entry.BlackholeSettings = flattenBlackholeSettingsToModel(v)
+		}
+		if v, ok := raw["dns_settings"].([]any); ok && len(v) > 0 {
+			entry.DNSSettings = flattenDNSSettingsToModel(v)
+		}
+		if v, ok := raw["vmess_settings"].([]any); ok && len(v) > 0 {
+			entry.VmessSettings = flattenVmessSettingsToModel(v)
+		}
+		if v, ok := raw["vless_settings"].([]any); ok && len(v) > 0 {
+			entry.VlessSettings = flattenVlessSettingsToModel(v)
+		}
+		if v, ok := raw["trojan_settings"].([]any); ok && len(v) > 0 {
+			entry.TrojanSettings = flattenTrojanSettingsToModel(v)
+		}
+		if v, ok := raw["shadowsocks_settings"].([]any); ok && len(v) > 0 {
+			entry.ShadowsocksSettings = flattenShadowsocksSettingsToModel(v)
+		}
+		if v, ok := raw["socks_settings"].([]any); ok && len(v) > 0 {
+			entry.SocksSettings = flattenSocksSettingsToModel(v)
+		}
+		if v, ok := raw["http_settings"].([]any); ok && len(v) > 0 {
+			entry.HTTPSettings = flattenHTTPSettingsToModel(v)
+		}
+		if v, ok := raw["wireguard_settings"].([]any); ok && len(v) > 0 {
+			entry.WireguardSettings = flattenWireguardSettingsToModel(v)
+		}
+		if v, ok := raw["hysteria_settings"].([]any); ok && len(v) > 0 {
+			entry.HysteriaSettings = flattenHysteriaSettingsToModel(v)
+		}
+
+		outbounds = append(outbounds, entry)
+	}
+
+	m.Outbound = outbounds
+	return m
+}
+
+func flattenOutboundMuxToModel(list []any) []XrayOutboundMux {
+	out := make([]XrayOutboundMux, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		mux := XrayOutboundMux{}
+
+		if v, ok := raw["enabled"].(bool); ok {
+			mux.Enabled = types.BoolValue(v)
+		} else {
+			mux.Enabled = types.BoolNull()
+		}
+
+		if v, ok := raw["concurrency"]; ok {
+			mux.Concurrency = types.Int64Value(int64(intValue(v)))
+		} else {
+			mux.Concurrency = types.Int64Null()
+		}
+
+		if v, ok := raw["xudp_concurrency"]; ok {
+			mux.XudpConcurrency = types.Int64Value(int64(intValue(v)))
+		} else {
+			mux.XudpConcurrency = types.Int64Null()
+		}
+
+		if v, ok := raw["xudp_proxy_udp443"].(string); ok && v != "" {
+			mux.XudpProxyUDP443 = types.StringValue(v)
+		} else {
+			mux.XudpProxyUDP443 = types.StringNull()
+		}
+
+		out = append(out, mux)
+	}
+	return out
+}
+
+func flattenFreedomSettingsToModel(list []any) []XrayFreedomSettings {
+	out := make([]XrayFreedomSettings, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		fs := XrayFreedomSettings{}
+
+		if v, ok := raw["domain_strategy"].(string); ok && v != "" {
+			fs.DomainStrategy = types.StringValue(v)
+		} else {
+			fs.DomainStrategy = types.StringNull()
+		}
+
+		if v, ok := raw["redirect"].(string); ok && v != "" {
+			fs.Redirect = types.StringValue(v)
+		} else {
+			fs.Redirect = types.StringNull()
+		}
+
+		if v, ok := raw["fragment"].([]any); ok && len(v) > 0 {
+			frags := make([]XrayFreedomFragment, 0, len(v))
+			for _, fi := range v {
+				fm, ok := fi.(map[string]any)
+				if !ok {
+					continue
+				}
+				f := XrayFreedomFragment{}
+				if p, ok := fm["packets"].(string); ok && p != "" {
+					f.Packets = types.StringValue(p)
+				} else {
+					f.Packets = types.StringNull()
+				}
+				if l, ok := fm["length"].(string); ok && l != "" {
+					f.Length = types.StringValue(l)
+				} else {
+					f.Length = types.StringNull()
+				}
+				if i, ok := fm["interval"].(string); ok && i != "" {
+					f.Interval = types.StringValue(i)
+				} else {
+					f.Interval = types.StringNull()
+				}
+				frags = append(frags, f)
+			}
+			fs.Fragment = frags
+		}
+
+		if v, ok := raw["noises"].([]any); ok && len(v) > 0 {
+			noises := make([]XrayFreedomNoise, 0, len(v))
+			for _, ni := range v {
+				nm, ok := ni.(map[string]any)
+				if !ok {
+					continue
+				}
+				n := XrayFreedomNoise{}
+				if t, ok := nm["type"].(string); ok && t != "" {
+					n.Type = types.StringValue(t)
+				} else {
+					n.Type = types.StringNull()
+				}
+				if p, ok := nm["packet"].(string); ok && p != "" {
+					n.Packet = types.StringValue(p)
+				} else {
+					n.Packet = types.StringNull()
+				}
+				if d, ok := nm["delay"].(string); ok && d != "" {
+					n.Delay = types.StringValue(d)
+				} else {
+					n.Delay = types.StringNull()
+				}
+				noises = append(noises, n)
+			}
+			fs.Noises = noises
+		}
+
+		out = append(out, fs)
+	}
+	return out
+}
+
+func flattenBlackholeSettingsToModel(list []any) []XrayBlackholeSettings {
+	out := make([]XrayBlackholeSettings, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		bh := XrayBlackholeSettings{}
+		if v, ok := raw["response_type"].(string); ok && v != "" {
+			bh.ResponseType = types.StringValue(v)
+		} else {
+			bh.ResponseType = types.StringNull()
+		}
+		out = append(out, bh)
+	}
+	return out
+}
+
+func flattenDNSSettingsToModel(list []any) []XrayOutboundDNSSettings {
+	out := make([]XrayOutboundDNSSettings, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		ds := XrayOutboundDNSSettings{}
+
+		if v, ok := raw["network"].(string); ok && v != "" {
+			ds.Network = types.StringValue(v)
+		} else {
+			ds.Network = types.StringNull()
+		}
+
+		if v, ok := raw["address"].(string); ok && v != "" {
+			ds.Address = types.StringValue(v)
+		} else {
+			ds.Address = types.StringNull()
+		}
+
+		if v, ok := raw["port"]; ok {
+			ds.Port = types.Int64Value(int64(intValue(v)))
+		} else {
+			ds.Port = types.Int64Null()
+		}
+
+		if v, ok := raw["non_ip_query"].(string); ok && v != "" {
+			ds.NonIPQuery = types.StringValue(v)
+		} else {
+			ds.NonIPQuery = types.StringNull()
+		}
+
+		if v, ok := raw["block_types"]; ok {
+			ds.BlockTypes = flattenToInt64List(v)
+		} else {
+			ds.BlockTypes = types.ListNull(types.Int64Type)
+		}
+
+		out = append(out, ds)
+	}
+	return out
+}
+
+func flattenVmessSettingsToModel(list []any) []XrayVmessOutSettings {
+	out := make([]XrayVmessOutSettings, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		vs := XrayVmessOutSettings{}
+
+		if v, ok := raw["address"].(string); ok && v != "" {
+			vs.Address = types.StringValue(v)
+		} else {
+			vs.Address = types.StringNull()
+		}
+
+		if v, ok := raw["port"]; ok {
+			vs.Port = types.Int64Value(int64(intValue(v)))
+		} else {
+			vs.Port = types.Int64Null()
+		}
+
+		if v, ok := raw["id"].(string); ok && v != "" {
+			vs.ID = types.StringValue(v)
+		} else {
+			vs.ID = types.StringNull()
+		}
+
+		if v, ok := raw["security"].(string); ok && v != "" {
+			vs.Security = types.StringValue(v)
+		} else {
+			vs.Security = types.StringNull()
+		}
+
+		out = append(out, vs)
+	}
+	return out
+}
+
+func flattenVlessSettingsToModel(list []any) []XrayVlessOutSettings {
+	out := make([]XrayVlessOutSettings, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		vs := XrayVlessOutSettings{}
+
+		if v, ok := raw["address"].(string); ok && v != "" {
+			vs.Address = types.StringValue(v)
+		} else {
+			vs.Address = types.StringNull()
+		}
+
+		if v, ok := raw["port"]; ok {
+			vs.Port = types.Int64Value(int64(intValue(v)))
+		} else {
+			vs.Port = types.Int64Null()
+		}
+
+		if v, ok := raw["id"].(string); ok && v != "" {
+			vs.ID = types.StringValue(v)
+		} else {
+			vs.ID = types.StringNull()
+		}
+
+		if v, ok := raw["flow"].(string); ok && v != "" {
+			vs.Flow = types.StringValue(v)
+		} else {
+			vs.Flow = types.StringNull()
+		}
+
+		if v, ok := raw["encryption"].(string); ok && v != "" {
+			vs.Encryption = types.StringValue(v)
+		} else {
+			vs.Encryption = types.StringNull()
+		}
+
+		out = append(out, vs)
+	}
+	return out
+}
+
+func flattenTrojanSettingsToModel(list []any) []XrayTrojanOutSettings {
+	out := make([]XrayTrojanOutSettings, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		ts := XrayTrojanOutSettings{}
+
+		if v, ok := raw["address"].(string); ok && v != "" {
+			ts.Address = types.StringValue(v)
+		} else {
+			ts.Address = types.StringNull()
+		}
+
+		if v, ok := raw["port"]; ok {
+			ts.Port = types.Int64Value(int64(intValue(v)))
+		} else {
+			ts.Port = types.Int64Null()
+		}
+
+		if v, ok := raw["password"].(string); ok && v != "" {
+			ts.Password = types.StringValue(v)
+		} else {
+			ts.Password = types.StringNull()
+		}
+
+		out = append(out, ts)
+	}
+	return out
+}
+
+func flattenShadowsocksSettingsToModel(list []any) []XrayShadowsocksOutSettings {
+	out := make([]XrayShadowsocksOutSettings, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		ss := XrayShadowsocksOutSettings{}
+
+		if v, ok := raw["address"].(string); ok && v != "" {
+			ss.Address = types.StringValue(v)
+		} else {
+			ss.Address = types.StringNull()
+		}
+
+		if v, ok := raw["port"]; ok {
+			ss.Port = types.Int64Value(int64(intValue(v)))
+		} else {
+			ss.Port = types.Int64Null()
+		}
+
+		if v, ok := raw["password"].(string); ok && v != "" {
+			ss.Password = types.StringValue(v)
+		} else {
+			ss.Password = types.StringNull()
+		}
+
+		if v, ok := raw["method"].(string); ok && v != "" {
+			ss.Method = types.StringValue(v)
+		} else {
+			ss.Method = types.StringNull()
+		}
+
+		if v, ok := raw["uot"].(bool); ok {
+			ss.UOT = types.BoolValue(v)
+		} else {
+			ss.UOT = types.BoolNull()
+		}
+
+		if v, ok := raw["uot_version"]; ok {
+			ss.UOTVersion = types.Int64Value(int64(intValue(v)))
+		} else {
+			ss.UOTVersion = types.Int64Null()
+		}
+
+		out = append(out, ss)
+	}
+	return out
+}
+
+func flattenSocksSettingsToModel(list []any) []XraySocksOutSettings {
+	out := make([]XraySocksOutSettings, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		ss := XraySocksOutSettings{}
+
+		if v, ok := raw["address"].(string); ok && v != "" {
+			ss.Address = types.StringValue(v)
+		} else {
+			ss.Address = types.StringNull()
+		}
+
+		if v, ok := raw["port"]; ok {
+			ss.Port = types.Int64Value(int64(intValue(v)))
+		} else {
+			ss.Port = types.Int64Null()
+		}
+
+		if v, ok := raw["user"].(string); ok && v != "" {
+			ss.User = types.StringValue(v)
+		} else {
+			ss.User = types.StringNull()
+		}
+
+		if v, ok := raw["pass"].(string); ok && v != "" {
+			ss.Pass = types.StringValue(v)
+		} else {
+			ss.Pass = types.StringNull()
+		}
+
+		out = append(out, ss)
+	}
+	return out
+}
+
+func flattenHTTPSettingsToModel(list []any) []XrayHTTPOutSettings {
+	out := make([]XrayHTTPOutSettings, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		hs := XrayHTTPOutSettings{}
+
+		if v, ok := raw["address"].(string); ok && v != "" {
+			hs.Address = types.StringValue(v)
+		} else {
+			hs.Address = types.StringNull()
+		}
+
+		if v, ok := raw["port"]; ok {
+			hs.Port = types.Int64Value(int64(intValue(v)))
+		} else {
+			hs.Port = types.Int64Null()
+		}
+
+		if v, ok := raw["user"].(string); ok && v != "" {
+			hs.User = types.StringValue(v)
+		} else {
+			hs.User = types.StringNull()
+		}
+
+		if v, ok := raw["pass"].(string); ok && v != "" {
+			hs.Pass = types.StringValue(v)
+		} else {
+			hs.Pass = types.StringNull()
+		}
+
+		out = append(out, hs)
+	}
+	return out
+}
+
+func flattenWireguardSettingsToModel(list []any) []XrayWireguardOutSettings {
+	out := make([]XrayWireguardOutSettings, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		wg := XrayWireguardOutSettings{}
+
+		if v, ok := raw["mtu"]; ok {
+			wg.MTU = types.Int64Value(int64(intValue(v)))
+		} else {
+			wg.MTU = types.Int64Null()
+		}
+
+		if v, ok := raw["secret_key"].(string); ok && v != "" {
+			wg.SecretKey = types.StringValue(v)
+		} else {
+			wg.SecretKey = types.StringNull()
+		}
+
+		if v, ok := raw["address"]; ok {
+			wg.Address = anySliceToTypesList(v)
+		} else {
+			wg.Address = types.ListNull(types.StringType)
+		}
+
+		if v, ok := raw["workers"]; ok {
+			wg.Workers = types.Int64Value(int64(intValue(v)))
+		} else {
+			wg.Workers = types.Int64Null()
+		}
+
+		if v, ok := raw["domain_strategy"].(string); ok && v != "" {
+			wg.DomainStrategy = types.StringValue(v)
+		} else {
+			wg.DomainStrategy = types.StringNull()
+		}
+
+		if v, ok := raw["reserved"]; ok {
+			wg.Reserved = flattenToInt64List(v)
+		} else {
+			wg.Reserved = types.ListNull(types.Int64Type)
+		}
+
+		if v, ok := raw["no_kernel_tun"].(bool); ok {
+			wg.NoKernelTun = types.BoolValue(v)
+		} else {
+			wg.NoKernelTun = types.BoolNull()
+		}
+
+		if v, ok := raw["peer"].([]any); ok && len(v) > 0 {
+			wg.Peer = flattenWireguardPeersToModel(v)
+		}
+
+		out = append(out, wg)
+	}
+	return out
+}
+
+func flattenWireguardPeersToModel(list []any) []XrayWireguardPeer {
+	out := make([]XrayWireguardPeer, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		p := XrayWireguardPeer{}
+
+		if v, ok := raw["public_key"].(string); ok && v != "" {
+			p.PublicKey = types.StringValue(v)
+		} else {
+			p.PublicKey = types.StringNull()
+		}
+
+		if v, ok := raw["pre_shared_key"].(string); ok && v != "" {
+			p.PreSharedKey = types.StringValue(v)
+		} else {
+			p.PreSharedKey = types.StringNull()
+		}
+
+		if v, ok := raw["allowed_ips"]; ok {
+			p.AllowedIPs = anySliceToTypesList(v)
+		} else {
+			p.AllowedIPs = types.ListNull(types.StringType)
+		}
+
+		if v, ok := raw["endpoint"].(string); ok && v != "" {
+			p.Endpoint = types.StringValue(v)
+		} else {
+			p.Endpoint = types.StringNull()
+		}
+
+		if v, ok := raw["keep_alive"]; ok {
+			p.KeepAlive = types.Int64Value(int64(intValue(v)))
+		} else {
+			p.KeepAlive = types.Int64Null()
+		}
+
+		out = append(out, p)
+	}
+	return out
+}
+
+func flattenHysteriaSettingsToModel(list []any) []XrayHysteriaOutSettings {
+	out := make([]XrayHysteriaOutSettings, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		hs := XrayHysteriaOutSettings{}
+
+		if v, ok := raw["address"].(string); ok && v != "" {
+			hs.Address = types.StringValue(v)
+		} else {
+			hs.Address = types.StringNull()
+		}
+
+		if v, ok := raw["port"]; ok {
+			hs.Port = types.Int64Value(int64(intValue(v)))
+		} else {
+			hs.Port = types.Int64Null()
+		}
+
+		if v, ok := raw["version"]; ok {
+			hs.Version = types.Int64Value(int64(intValue(v)))
+		} else {
+			hs.Version = types.Int64Null()
+		}
+
+		out = append(out, hs)
+	}
+	return out
+}
+
+// ---------------------------------------------------------------------------
+// Existing build/flatten functions (untyped map <-> Xray JSON)
+// ---------------------------------------------------------------------------
 
 func buildXrayOutboundsJSON(d map[string]any) any {
 	v, ok := d["outbound"]

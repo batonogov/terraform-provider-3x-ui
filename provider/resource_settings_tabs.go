@@ -2,97 +2,973 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // ---------------------------------------------------------------------------
-// Shared model and schema
+// Panel Security model, schema, expand/flatten
 // ---------------------------------------------------------------------------
 
-type settingsResourceModel struct {
-	ID   types.String `tfsdk:"id"`
-	JSON types.String `tfsdk:"json"`
+type PanelSecurityModel struct {
+	ID              types.String `tfsdk:"id"`
+	TwoFactorEnable types.Bool   `tfsdk:"two_factor_enable"`
+	TwoFactorToken  types.String `tfsdk:"two_factor_token"`
 }
 
-func settingsResourceSchema() schema.Schema {
+func panelSecuritySchema() schema.Schema {
 	return schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{Computed: true},
-			"json": schema.StringAttribute{
-				Required:    true,
-				Description: "JSON object with settings fields (snake_case keys).",
+			"id": schema.StringAttribute{
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"two_factor_enable": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"two_factor_token": schema.StringAttribute{
+				Optional: true, Computed: true, Sensitive: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 		},
 	}
 }
 
+func expandPanelSecurity(m *PanelSecurityModel) map[string]any {
+	payload := map[string]any{}
+	if !m.TwoFactorEnable.IsNull() && !m.TwoFactorEnable.IsUnknown() {
+		payload["twoFactorEnable"] = m.TwoFactorEnable.ValueBool()
+	}
+	if !m.TwoFactorToken.IsNull() && !m.TwoFactorToken.IsUnknown() {
+		payload["twoFactorToken"] = m.TwoFactorToken.ValueString()
+	}
+	return payload
+}
+
+func flattenPanelSecurity(in map[string]any) *PanelSecurityModel {
+	m := &PanelSecurityModel{
+		ID: types.StringValue("settings"),
+	}
+	if v, ok := in["twoFactorEnable"]; ok {
+		m.TwoFactorEnable = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["twoFactorToken"]; ok {
+		m.TwoFactorToken = types.StringValue(stringValue(v))
+	}
+	return m
+}
+
 // ---------------------------------------------------------------------------
-// settingsApplyHelper: shared apply logic for all settings resources
+// Panel Telegram model, schema, expand/flatten
 // ---------------------------------------------------------------------------
 
-func settingsApplyHelper(
+type PanelTelegramModel struct {
+	ID               types.String `tfsdk:"id"`
+	TgBotEnable      types.Bool   `tfsdk:"tg_bot_enable"`
+	TgBotToken       types.String `tfsdk:"tg_bot_token"`
+	TgBotProxy       types.String `tfsdk:"tg_bot_proxy"`
+	TgBotAPIServer   types.String `tfsdk:"tg_bot_api_server"`
+	TgBotChatID      types.String `tfsdk:"tg_bot_chat_id"`
+	TgLang           types.String `tfsdk:"tg_lang"`
+	TgRunTime        types.String `tfsdk:"tg_run_time"`
+	TgBotBackup      types.Bool   `tfsdk:"tg_bot_backup"`
+	TgBotLoginNotify types.Bool   `tfsdk:"tg_bot_login_notify"`
+	TgCPU            types.Int64  `tfsdk:"tg_cpu"`
+}
+
+func panelTelegramSchema() schema.Schema {
+	return schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"tg_bot_enable": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"tg_bot_token": schema.StringAttribute{
+				Optional: true, Computed: true, Sensitive: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"tg_bot_proxy": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"tg_bot_api_server": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"tg_bot_chat_id": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"tg_lang": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"tg_run_time": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"tg_bot_backup": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"tg_bot_login_notify": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"tg_cpu": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+		},
+	}
+}
+
+func expandPanelTelegram(m *PanelTelegramModel) map[string]any {
+	payload := map[string]any{}
+	if !m.TgBotEnable.IsNull() && !m.TgBotEnable.IsUnknown() {
+		payload["tgBotEnable"] = m.TgBotEnable.ValueBool()
+	}
+	if !m.TgBotToken.IsNull() && !m.TgBotToken.IsUnknown() {
+		payload["tgBotToken"] = m.TgBotToken.ValueString()
+	}
+	if !m.TgBotProxy.IsNull() && !m.TgBotProxy.IsUnknown() {
+		payload["tgBotProxy"] = m.TgBotProxy.ValueString()
+	}
+	if !m.TgBotAPIServer.IsNull() && !m.TgBotAPIServer.IsUnknown() {
+		payload["tgBotAPIServer"] = m.TgBotAPIServer.ValueString()
+	}
+	if !m.TgBotChatID.IsNull() && !m.TgBotChatID.IsUnknown() {
+		payload["tgBotChatId"] = m.TgBotChatID.ValueString()
+	}
+	if !m.TgLang.IsNull() && !m.TgLang.IsUnknown() {
+		payload["tgLang"] = m.TgLang.ValueString()
+	}
+	if !m.TgRunTime.IsNull() && !m.TgRunTime.IsUnknown() {
+		payload["tgRunTime"] = m.TgRunTime.ValueString()
+	}
+	if !m.TgBotBackup.IsNull() && !m.TgBotBackup.IsUnknown() {
+		payload["tgBotBackup"] = m.TgBotBackup.ValueBool()
+	}
+	if !m.TgBotLoginNotify.IsNull() && !m.TgBotLoginNotify.IsUnknown() {
+		payload["tgBotLoginNotify"] = m.TgBotLoginNotify.ValueBool()
+	}
+	if !m.TgCPU.IsNull() && !m.TgCPU.IsUnknown() {
+		payload["tgCpu"] = int(m.TgCPU.ValueInt64())
+	}
+	return payload
+}
+
+func flattenPanelTelegram(in map[string]any) *PanelTelegramModel {
+	m := &PanelTelegramModel{
+		ID: types.StringValue("settings"),
+	}
+	if v, ok := in["tgBotEnable"]; ok {
+		m.TgBotEnable = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["tgBotToken"]; ok {
+		m.TgBotToken = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["tgBotProxy"]; ok {
+		m.TgBotProxy = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["tgBotAPIServer"]; ok {
+		m.TgBotAPIServer = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["tgBotChatId"]; ok {
+		m.TgBotChatID = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["tgLang"]; ok {
+		m.TgLang = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["tgRunTime"]; ok {
+		m.TgRunTime = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["tgBotBackup"]; ok {
+		m.TgBotBackup = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["tgBotLoginNotify"]; ok {
+		m.TgBotLoginNotify = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["tgCpu"]; ok {
+		m.TgCPU = types.Int64Value(int64(intValue(v)))
+	}
+	return m
+}
+
+// ---------------------------------------------------------------------------
+// Panel Subscription model, schema, expand/flatten
+// ---------------------------------------------------------------------------
+
+type PanelSubscriptionModel struct {
+	ID               types.String `tfsdk:"id"`
+	SubEnable        types.Bool   `tfsdk:"sub_enable"`
+	SubJsonEnable    types.Bool   `tfsdk:"sub_json_enable"`
+	SubTitle         types.String `tfsdk:"sub_title"`
+	SubSupportURL    types.String `tfsdk:"sub_support_url"`
+	SubProfileURL    types.String `tfsdk:"sub_profile_url"`
+	SubAnnounce      types.String `tfsdk:"sub_announce"`
+	SubEnableRouting types.Bool   `tfsdk:"sub_enable_routing"`
+	SubRoutingRules  types.String `tfsdk:"sub_routing_rules"`
+	SubListen        types.String `tfsdk:"sub_listen"`
+	SubPort          types.Int64  `tfsdk:"sub_port"`
+	SubPath          types.String `tfsdk:"sub_path"`
+	SubDomain        types.String `tfsdk:"sub_domain"`
+	SubCertFile      types.String `tfsdk:"sub_cert_file"`
+	SubKeyFile       types.String `tfsdk:"sub_key_file"`
+	SubUpdates       types.Int64  `tfsdk:"sub_updates"`
+	SubEncrypt       types.Bool   `tfsdk:"sub_encrypt"`
+	SubShowInfo      types.Bool   `tfsdk:"sub_show_info"`
+	SubURI           types.String `tfsdk:"sub_uri"`
+	SubJsonPath      types.String `tfsdk:"sub_json_path"`
+	SubJsonURI       types.String `tfsdk:"sub_json_uri"`
+	SubJsonFragment  types.String `tfsdk:"sub_json_fragment"`
+	SubJsonNoises    types.String `tfsdk:"sub_json_noises"`
+	SubJsonMux       types.String `tfsdk:"sub_json_mux"`
+	SubJsonRules     types.String `tfsdk:"sub_json_rules"`
+}
+
+func panelSubscriptionSchema() schema.Schema {
+	return schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"sub_enable": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"sub_json_enable": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"sub_title": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_support_url": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_profile_url": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_announce": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_enable_routing": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"sub_routing_rules": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_listen": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_port": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+			"sub_path": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_domain": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_cert_file": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_key_file": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_updates": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+			"sub_encrypt": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"sub_show_info": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"sub_uri": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_json_path": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_json_uri": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_json_fragment": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_json_noises": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_json_mux": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_json_rules": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+		},
+	}
+}
+
+func expandPanelSubscription(m *PanelSubscriptionModel) map[string]any {
+	payload := map[string]any{}
+	if !m.SubEnable.IsNull() && !m.SubEnable.IsUnknown() {
+		payload["subEnable"] = m.SubEnable.ValueBool()
+	}
+	if !m.SubJsonEnable.IsNull() && !m.SubJsonEnable.IsUnknown() {
+		payload["subJsonEnable"] = m.SubJsonEnable.ValueBool()
+	}
+	if !m.SubTitle.IsNull() && !m.SubTitle.IsUnknown() {
+		payload["subTitle"] = m.SubTitle.ValueString()
+	}
+	if !m.SubSupportURL.IsNull() && !m.SubSupportURL.IsUnknown() {
+		payload["subSupportUrl"] = m.SubSupportURL.ValueString()
+	}
+	if !m.SubProfileURL.IsNull() && !m.SubProfileURL.IsUnknown() {
+		payload["subProfileUrl"] = m.SubProfileURL.ValueString()
+	}
+	if !m.SubAnnounce.IsNull() && !m.SubAnnounce.IsUnknown() {
+		payload["subAnnounce"] = m.SubAnnounce.ValueString()
+	}
+	if !m.SubEnableRouting.IsNull() && !m.SubEnableRouting.IsUnknown() {
+		payload["subEnableRouting"] = m.SubEnableRouting.ValueBool()
+	}
+	if !m.SubRoutingRules.IsNull() && !m.SubRoutingRules.IsUnknown() {
+		payload["subRoutingRules"] = m.SubRoutingRules.ValueString()
+	}
+	if !m.SubListen.IsNull() && !m.SubListen.IsUnknown() {
+		payload["subListen"] = m.SubListen.ValueString()
+	}
+	if !m.SubPort.IsNull() && !m.SubPort.IsUnknown() {
+		payload["subPort"] = int(m.SubPort.ValueInt64())
+	}
+	if !m.SubPath.IsNull() && !m.SubPath.IsUnknown() {
+		payload["subPath"] = m.SubPath.ValueString()
+	}
+	if !m.SubDomain.IsNull() && !m.SubDomain.IsUnknown() {
+		payload["subDomain"] = m.SubDomain.ValueString()
+	}
+	if !m.SubCertFile.IsNull() && !m.SubCertFile.IsUnknown() {
+		payload["subCertFile"] = m.SubCertFile.ValueString()
+	}
+	if !m.SubKeyFile.IsNull() && !m.SubKeyFile.IsUnknown() {
+		payload["subKeyFile"] = m.SubKeyFile.ValueString()
+	}
+	if !m.SubUpdates.IsNull() && !m.SubUpdates.IsUnknown() {
+		payload["subUpdates"] = int(m.SubUpdates.ValueInt64())
+	}
+	if !m.SubEncrypt.IsNull() && !m.SubEncrypt.IsUnknown() {
+		payload["subEncrypt"] = m.SubEncrypt.ValueBool()
+	}
+	if !m.SubShowInfo.IsNull() && !m.SubShowInfo.IsUnknown() {
+		payload["subShowInfo"] = m.SubShowInfo.ValueBool()
+	}
+	if !m.SubURI.IsNull() && !m.SubURI.IsUnknown() {
+		payload["subURI"] = m.SubURI.ValueString()
+	}
+	if !m.SubJsonPath.IsNull() && !m.SubJsonPath.IsUnknown() {
+		payload["subJsonPath"] = m.SubJsonPath.ValueString()
+	}
+	if !m.SubJsonURI.IsNull() && !m.SubJsonURI.IsUnknown() {
+		payload["subJsonURI"] = m.SubJsonURI.ValueString()
+	}
+	if !m.SubJsonFragment.IsNull() && !m.SubJsonFragment.IsUnknown() {
+		payload["subJsonFragment"] = m.SubJsonFragment.ValueString()
+	}
+	if !m.SubJsonNoises.IsNull() && !m.SubJsonNoises.IsUnknown() {
+		payload["subJsonNoises"] = m.SubJsonNoises.ValueString()
+	}
+	if !m.SubJsonMux.IsNull() && !m.SubJsonMux.IsUnknown() {
+		payload["subJsonMux"] = m.SubJsonMux.ValueString()
+	}
+	if !m.SubJsonRules.IsNull() && !m.SubJsonRules.IsUnknown() {
+		payload["subJsonRules"] = m.SubJsonRules.ValueString()
+	}
+	return payload
+}
+
+func flattenPanelSubscription(in map[string]any) *PanelSubscriptionModel {
+	m := &PanelSubscriptionModel{
+		ID: types.StringValue("settings"),
+	}
+	if v, ok := in["subEnable"]; ok {
+		m.SubEnable = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["subJsonEnable"]; ok {
+		m.SubJsonEnable = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["subTitle"]; ok {
+		m.SubTitle = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subSupportUrl"]; ok {
+		m.SubSupportURL = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subProfileUrl"]; ok {
+		m.SubProfileURL = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subAnnounce"]; ok {
+		m.SubAnnounce = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subEnableRouting"]; ok {
+		m.SubEnableRouting = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["subRoutingRules"]; ok {
+		m.SubRoutingRules = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subListen"]; ok {
+		m.SubListen = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subPort"]; ok {
+		m.SubPort = types.Int64Value(int64(intValue(v)))
+	}
+	if v, ok := in["subPath"]; ok {
+		m.SubPath = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subDomain"]; ok {
+		m.SubDomain = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subCertFile"]; ok {
+		m.SubCertFile = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subKeyFile"]; ok {
+		m.SubKeyFile = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subUpdates"]; ok {
+		m.SubUpdates = types.Int64Value(int64(intValue(v)))
+	}
+	if v, ok := in["subEncrypt"]; ok {
+		m.SubEncrypt = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["subShowInfo"]; ok {
+		m.SubShowInfo = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["subURI"]; ok {
+		m.SubURI = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subJsonPath"]; ok {
+		m.SubJsonPath = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subJsonURI"]; ok {
+		m.SubJsonURI = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subJsonFragment"]; ok {
+		m.SubJsonFragment = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subJsonNoises"]; ok {
+		m.SubJsonNoises = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subJsonMux"]; ok {
+		m.SubJsonMux = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subJsonRules"]; ok {
+		m.SubJsonRules = types.StringValue(stringValue(v))
+	}
+	return m
+}
+
+// ---------------------------------------------------------------------------
+// Panel General model, schema, expand/flatten
+// ---------------------------------------------------------------------------
+
+type PanelGeneralModel struct {
+	ID                          types.String `tfsdk:"id"`
+	WebListen                   types.String `tfsdk:"web_listen"`
+	WebDomain                   types.String `tfsdk:"web_domain"`
+	WebPort                     types.Int64  `tfsdk:"web_port"`
+	WebBasePath                 types.String `tfsdk:"web_base_path"`
+	SessionMaxAge               types.Int64  `tfsdk:"session_max_age"`
+	PageSize                    types.Int64  `tfsdk:"page_size"`
+	RemarkModel                 types.String `tfsdk:"remark_model"`
+	DatePicker                  types.String `tfsdk:"date_picker"`
+	TimeLocation                types.String `tfsdk:"time_location"`
+	ExpireDiff                  types.Int64  `tfsdk:"expire_diff"`
+	TrafficDiff                 types.Int64  `tfsdk:"traffic_diff"`
+	WebCertFile                 types.String `tfsdk:"web_cert_file"`
+	WebKeyFile                  types.String `tfsdk:"web_key_file"`
+	ExternalTrafficInformEnable types.Bool   `tfsdk:"external_traffic_inform_enable"`
+	ExternalTrafficInformURI    types.String `tfsdk:"external_traffic_inform_uri"`
+	LDAPEnable                  types.Bool   `tfsdk:"ldap_enable"`
+	LDAPHost                    types.String `tfsdk:"ldap_host"`
+	LDAPPort                    types.Int64  `tfsdk:"ldap_port"`
+	LDAPUseTLS                  types.Bool   `tfsdk:"ldap_use_tls"`
+	LDAPBindDN                  types.String `tfsdk:"ldap_bind_dn"`
+	LDAPPassword                types.String `tfsdk:"ldap_password"`
+	LDAPBaseDN                  types.String `tfsdk:"ldap_base_dn"`
+	LDAPUserFilter              types.String `tfsdk:"ldap_user_filter"`
+	LDAPUserAttr                types.String `tfsdk:"ldap_user_attr"`
+	LDAPVlessField              types.String `tfsdk:"ldap_vless_field"`
+	LDAPSyncCron                types.String `tfsdk:"ldap_sync_cron"`
+	LDAPFlagField               types.String `tfsdk:"ldap_flag_field"`
+	LDAPTruthyValues            types.String `tfsdk:"ldap_truthy_values"`
+	LDAPInvertFlag              types.Bool   `tfsdk:"ldap_invert_flag"`
+	LDAPInboundTags             types.String `tfsdk:"ldap_inbound_tags"`
+	LDAPAutoCreate              types.Bool   `tfsdk:"ldap_auto_create"`
+	LDAPAutoDelete              types.Bool   `tfsdk:"ldap_auto_delete"`
+	LDAPDefaultTotalGB          types.Int64  `tfsdk:"ldap_default_total_gb"`
+	LDAPDefaultExpiryDays       types.Int64  `tfsdk:"ldap_default_expiry_days"`
+	LDAPDefaultLimitIP          types.Int64  `tfsdk:"ldap_default_limit_ip"`
+}
+
+func panelGeneralSchema() schema.Schema {
+	return schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"web_listen": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"web_domain": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"web_port": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+			"web_base_path": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"session_max_age": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+			"page_size": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+			"remark_model": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"date_picker": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"time_location": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"expire_diff": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+			"traffic_diff": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+			"web_cert_file": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"web_key_file": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"external_traffic_inform_enable": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"external_traffic_inform_uri": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_enable": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_host": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_port": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+			"ldap_use_tls": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_bind_dn": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_password": schema.StringAttribute{
+				Optional: true, Computed: true, Sensitive: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_base_dn": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_user_filter": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_user_attr": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_vless_field": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_sync_cron": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_flag_field": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_truthy_values": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_invert_flag": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_inbound_tags": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_auto_create": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_auto_delete": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_default_total_gb": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+			"ldap_default_expiry_days": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+			"ldap_default_limit_ip": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+		},
+	}
+}
+
+func expandPanelGeneral(m *PanelGeneralModel) map[string]any {
+	payload := map[string]any{}
+	if !m.WebListen.IsNull() && !m.WebListen.IsUnknown() {
+		payload["webListen"] = m.WebListen.ValueString()
+	}
+	if !m.WebDomain.IsNull() && !m.WebDomain.IsUnknown() {
+		payload["webDomain"] = m.WebDomain.ValueString()
+	}
+	if !m.WebPort.IsNull() && !m.WebPort.IsUnknown() {
+		payload["webPort"] = int(m.WebPort.ValueInt64())
+	}
+	if !m.WebBasePath.IsNull() && !m.WebBasePath.IsUnknown() {
+		payload["webBasePath"] = m.WebBasePath.ValueString()
+	}
+	if !m.SessionMaxAge.IsNull() && !m.SessionMaxAge.IsUnknown() {
+		payload["sessionMaxAge"] = int(m.SessionMaxAge.ValueInt64())
+	}
+	if !m.PageSize.IsNull() && !m.PageSize.IsUnknown() {
+		payload["pageSize"] = int(m.PageSize.ValueInt64())
+	}
+	if !m.RemarkModel.IsNull() && !m.RemarkModel.IsUnknown() {
+		payload["remarkModel"] = m.RemarkModel.ValueString()
+	}
+	if !m.DatePicker.IsNull() && !m.DatePicker.IsUnknown() {
+		payload["datepicker"] = m.DatePicker.ValueString()
+	}
+	if !m.TimeLocation.IsNull() && !m.TimeLocation.IsUnknown() {
+		payload["timeLocation"] = m.TimeLocation.ValueString()
+	}
+	if !m.ExpireDiff.IsNull() && !m.ExpireDiff.IsUnknown() {
+		payload["expireDiff"] = int(m.ExpireDiff.ValueInt64())
+	}
+	if !m.TrafficDiff.IsNull() && !m.TrafficDiff.IsUnknown() {
+		payload["trafficDiff"] = int(m.TrafficDiff.ValueInt64())
+	}
+	if !m.WebCertFile.IsNull() && !m.WebCertFile.IsUnknown() {
+		payload["webCertFile"] = m.WebCertFile.ValueString()
+	}
+	if !m.WebKeyFile.IsNull() && !m.WebKeyFile.IsUnknown() {
+		payload["webKeyFile"] = m.WebKeyFile.ValueString()
+	}
+	if !m.ExternalTrafficInformEnable.IsNull() && !m.ExternalTrafficInformEnable.IsUnknown() {
+		payload["externalTrafficInformEnable"] = m.ExternalTrafficInformEnable.ValueBool()
+	}
+	if !m.ExternalTrafficInformURI.IsNull() && !m.ExternalTrafficInformURI.IsUnknown() {
+		payload["externalTrafficInformURI"] = m.ExternalTrafficInformURI.ValueString()
+	}
+	if !m.LDAPEnable.IsNull() && !m.LDAPEnable.IsUnknown() {
+		payload["ldapEnable"] = m.LDAPEnable.ValueBool()
+	}
+	if !m.LDAPHost.IsNull() && !m.LDAPHost.IsUnknown() {
+		payload["ldapHost"] = m.LDAPHost.ValueString()
+	}
+	if !m.LDAPPort.IsNull() && !m.LDAPPort.IsUnknown() {
+		payload["ldapPort"] = int(m.LDAPPort.ValueInt64())
+	}
+	if !m.LDAPUseTLS.IsNull() && !m.LDAPUseTLS.IsUnknown() {
+		payload["ldapUseTLS"] = m.LDAPUseTLS.ValueBool()
+	}
+	if !m.LDAPBindDN.IsNull() && !m.LDAPBindDN.IsUnknown() {
+		payload["ldapBindDN"] = m.LDAPBindDN.ValueString()
+	}
+	if !m.LDAPPassword.IsNull() && !m.LDAPPassword.IsUnknown() {
+		payload["ldapPassword"] = m.LDAPPassword.ValueString()
+	}
+	if !m.LDAPBaseDN.IsNull() && !m.LDAPBaseDN.IsUnknown() {
+		payload["ldapBaseDN"] = m.LDAPBaseDN.ValueString()
+	}
+	if !m.LDAPUserFilter.IsNull() && !m.LDAPUserFilter.IsUnknown() {
+		payload["ldapUserFilter"] = m.LDAPUserFilter.ValueString()
+	}
+	if !m.LDAPUserAttr.IsNull() && !m.LDAPUserAttr.IsUnknown() {
+		payload["ldapUserAttr"] = m.LDAPUserAttr.ValueString()
+	}
+	if !m.LDAPVlessField.IsNull() && !m.LDAPVlessField.IsUnknown() {
+		payload["ldapVlessField"] = m.LDAPVlessField.ValueString()
+	}
+	if !m.LDAPSyncCron.IsNull() && !m.LDAPSyncCron.IsUnknown() {
+		payload["ldapSyncCron"] = m.LDAPSyncCron.ValueString()
+	}
+	if !m.LDAPFlagField.IsNull() && !m.LDAPFlagField.IsUnknown() {
+		payload["ldapFlagField"] = m.LDAPFlagField.ValueString()
+	}
+	if !m.LDAPTruthyValues.IsNull() && !m.LDAPTruthyValues.IsUnknown() {
+		payload["ldapTruthyValues"] = m.LDAPTruthyValues.ValueString()
+	}
+	if !m.LDAPInvertFlag.IsNull() && !m.LDAPInvertFlag.IsUnknown() {
+		payload["ldapInvertFlag"] = m.LDAPInvertFlag.ValueBool()
+	}
+	if !m.LDAPInboundTags.IsNull() && !m.LDAPInboundTags.IsUnknown() {
+		payload["ldapInboundTags"] = m.LDAPInboundTags.ValueString()
+	}
+	if !m.LDAPAutoCreate.IsNull() && !m.LDAPAutoCreate.IsUnknown() {
+		payload["ldapAutoCreate"] = m.LDAPAutoCreate.ValueBool()
+	}
+	if !m.LDAPAutoDelete.IsNull() && !m.LDAPAutoDelete.IsUnknown() {
+		payload["ldapAutoDelete"] = m.LDAPAutoDelete.ValueBool()
+	}
+	if !m.LDAPDefaultTotalGB.IsNull() && !m.LDAPDefaultTotalGB.IsUnknown() {
+		payload["ldapDefaultTotalGB"] = int(m.LDAPDefaultTotalGB.ValueInt64())
+	}
+	if !m.LDAPDefaultExpiryDays.IsNull() && !m.LDAPDefaultExpiryDays.IsUnknown() {
+		payload["ldapDefaultExpiryDays"] = int(m.LDAPDefaultExpiryDays.ValueInt64())
+	}
+	if !m.LDAPDefaultLimitIP.IsNull() && !m.LDAPDefaultLimitIP.IsUnknown() {
+		payload["ldapDefaultLimitIP"] = int(m.LDAPDefaultLimitIP.ValueInt64())
+	}
+	return payload
+}
+
+func flattenPanelGeneral(in map[string]any) *PanelGeneralModel {
+	m := &PanelGeneralModel{
+		ID: types.StringValue("settings"),
+	}
+	if v, ok := in["webListen"]; ok {
+		m.WebListen = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["webDomain"]; ok {
+		m.WebDomain = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["webPort"]; ok {
+		m.WebPort = types.Int64Value(int64(intValue(v)))
+	}
+	if v, ok := in["webBasePath"]; ok {
+		m.WebBasePath = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["sessionMaxAge"]; ok {
+		m.SessionMaxAge = types.Int64Value(int64(intValue(v)))
+	}
+	if v, ok := in["pageSize"]; ok {
+		m.PageSize = types.Int64Value(int64(intValue(v)))
+	}
+	if v, ok := in["remarkModel"]; ok {
+		m.RemarkModel = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["datepicker"]; ok {
+		m.DatePicker = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["timeLocation"]; ok {
+		m.TimeLocation = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["expireDiff"]; ok {
+		m.ExpireDiff = types.Int64Value(int64(intValue(v)))
+	}
+	if v, ok := in["trafficDiff"]; ok {
+		m.TrafficDiff = types.Int64Value(int64(intValue(v)))
+	}
+	if v, ok := in["webCertFile"]; ok {
+		m.WebCertFile = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["webKeyFile"]; ok {
+		m.WebKeyFile = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["externalTrafficInformEnable"]; ok {
+		m.ExternalTrafficInformEnable = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["externalTrafficInformURI"]; ok {
+		m.ExternalTrafficInformURI = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["ldapEnable"]; ok {
+		m.LDAPEnable = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["ldapHost"]; ok {
+		m.LDAPHost = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["ldapPort"]; ok {
+		m.LDAPPort = types.Int64Value(int64(intValue(v)))
+	}
+	if v, ok := in["ldapUseTLS"]; ok {
+		m.LDAPUseTLS = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["ldapBindDN"]; ok {
+		m.LDAPBindDN = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["ldapPassword"]; ok {
+		m.LDAPPassword = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["ldapBaseDN"]; ok {
+		m.LDAPBaseDN = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["ldapUserFilter"]; ok {
+		m.LDAPUserFilter = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["ldapUserAttr"]; ok {
+		m.LDAPUserAttr = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["ldapVlessField"]; ok {
+		m.LDAPVlessField = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["ldapSyncCron"]; ok {
+		m.LDAPSyncCron = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["ldapFlagField"]; ok {
+		m.LDAPFlagField = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["ldapTruthyValues"]; ok {
+		m.LDAPTruthyValues = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["ldapInvertFlag"]; ok {
+		m.LDAPInvertFlag = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["ldapInboundTags"]; ok {
+		m.LDAPInboundTags = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["ldapAutoCreate"]; ok {
+		m.LDAPAutoCreate = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["ldapAutoDelete"]; ok {
+		m.LDAPAutoDelete = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["ldapDefaultTotalGB"]; ok {
+		m.LDAPDefaultTotalGB = types.Int64Value(int64(intValue(v)))
+	}
+	if v, ok := in["ldapDefaultExpiryDays"]; ok {
+		m.LDAPDefaultExpiryDays = types.Int64Value(int64(intValue(v)))
+	}
+	if v, ok := in["ldapDefaultLimitIP"]; ok {
+		m.LDAPDefaultLimitIP = types.Int64Value(int64(intValue(v)))
+	}
+	return m
+}
+
+// ---------------------------------------------------------------------------
+// Shared typed settings helper: apply settings to API and read back
+// ---------------------------------------------------------------------------
+
+var settingsMu sync.Mutex
+
+func settingsApplyTyped(
 	ctx context.Context,
-	jsonStr string,
+	desired map[string]any,
 	diags *diag.Diagnostics,
 	client *Client,
-	expand func(map[string]any) (map[string]any, bool),
-	flatten func(map[string]any) map[string]any,
-) *settingsResourceModel {
-	var input map[string]any
-	if err := json.Unmarshal([]byte(jsonStr), &input); err != nil {
-		diags.AddError("Invalid JSON", err.Error())
-		return nil
+) {
+	if len(desired) == 0 {
+		return
 	}
 
-	desired, ok := expand(input)
-	if !ok {
-		// Nothing to apply; read current state.
-		return settingsReadHelper(ctx, diags, client, flatten)
-	}
+	settingsMu.Lock()
+	defer settingsMu.Unlock()
 
 	existing, err := client.GetSettings(ctx)
 	if err != nil {
 		diags.AddError("Failed to get settings", err.Error())
-		return nil
+		return
 	}
 
 	merged := mergeSettings(existing, desired)
 	if err := client.UpdateSettings(ctx, merged); err != nil {
 		diags.AddError("Failed to update settings", err.Error())
-		return nil
 	}
-
-	return settingsReadHelper(ctx, diags, client, flatten)
 }
 
-func settingsReadHelper(
+func settingsReadTyped(
 	ctx context.Context,
 	diags *diag.Diagnostics,
 	client *Client,
-	flatten func(map[string]any) map[string]any,
-) *settingsResourceModel {
+) map[string]any {
 	settings, err := client.GetSettings(ctx)
 	if err != nil {
 		diags.AddError("Failed to get settings", err.Error())
 		return nil
 	}
-
-	flat := flatten(settings)
-	payload, err := json.Marshal(flat)
-	if err != nil {
-		diags.AddError("Failed to marshal settings", err.Error())
-		return nil
-	}
-
-	return &settingsResourceModel{
-		ID:   types.StringValue("settings"),
-		JSON: types.StringValue(string(payload)),
-	}
+	return settings
 }
 
 // ---------------------------------------------------------------------------
@@ -118,7 +994,7 @@ func (r *PanelGeneralResource) Metadata(_ context.Context, req resource.Metadata
 }
 
 func (r *PanelGeneralResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = settingsResourceSchema()
+	resp.Schema = panelGeneralSchema()
 }
 
 func (r *PanelGeneralResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -134,46 +1010,52 @@ func (r *PanelGeneralResource) Configure(_ context.Context, req resource.Configu
 }
 
 func (r *PanelGeneralResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan settingsResourceModel
+	var plan PanelGeneralModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	r.applyPanelGeneral(ctx, plan.JSON.ValueString(), &resp.Diagnostics)
+	r.applyPanelGeneral(ctx, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenPanelSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
 	}
+	state := flattenPanelGeneral(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *PanelGeneralResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
-	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenPanelSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
 	}
+	state := flattenPanelGeneral(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *PanelGeneralResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan settingsResourceModel
+	var plan PanelGeneralModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	r.applyPanelGeneral(ctx, plan.JSON.ValueString(), &resp.Diagnostics)
+	r.applyPanelGeneral(ctx, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenPanelSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
 	}
+	state := flattenPanelGeneral(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *PanelGeneralResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -181,21 +1063,17 @@ func (r *PanelGeneralResource) Delete(ctx context.Context, _ resource.DeleteRequ
 }
 
 func (r *PanelGeneralResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenPanelSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
-	}
-}
-
-func (r *PanelGeneralResource) applyPanelGeneral(ctx context.Context, jsonStr string, diags *diag.Diagnostics) {
-	var input map[string]any
-	if err := json.Unmarshal([]byte(jsonStr), &input); err != nil {
-		diags.AddError("Invalid JSON", err.Error())
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
 		return
 	}
+	state := flattenPanelGeneral(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
 
-	desired, ok := expandPanelSettingsFields(input)
-	if !ok {
+func (r *PanelGeneralResource) applyPanelGeneral(ctx context.Context, plan *PanelGeneralModel, diags *diag.Diagnostics) {
+	desired := expandPanelGeneral(plan)
+	if len(desired) == 0 {
 		return
 	}
 
@@ -251,7 +1129,7 @@ func (r *PanelSecurityResource) Metadata(_ context.Context, req resource.Metadat
 }
 
 func (r *PanelSecurityResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = settingsResourceSchema()
+	resp.Schema = panelSecuritySchema()
 }
 
 func (r *PanelSecurityResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -267,42 +1145,58 @@ func (r *PanelSecurityResource) Configure(_ context.Context, req resource.Config
 }
 
 func (r *PanelSecurityResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan settingsResourceModel
+	var plan PanelSecurityModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	r.warnIfTwoFactor(plan.JSON.ValueString(), &resp.Diagnostics)
+	r.warnIfTwoFactor(&plan, &resp.Diagnostics)
 
-	state := settingsApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client,
-		expandAccountSettingsFields, flattenAccountSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	desired := expandPanelSecurity(&plan)
+	settingsApplyTyped(ctx, desired, &resp.Diagnostics, r.client)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
+	}
+	state := flattenPanelSecurity(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *PanelSecurityResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
-	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenAccountSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
 	}
+	state := flattenPanelSecurity(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *PanelSecurityResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan settingsResourceModel
+	var plan PanelSecurityModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	r.warnIfTwoFactor(plan.JSON.ValueString(), &resp.Diagnostics)
+	r.warnIfTwoFactor(&plan, &resp.Diagnostics)
 
-	state := settingsApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client,
-		expandAccountSettingsFields, flattenAccountSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	desired := expandPanelSecurity(&plan)
+	settingsApplyTyped(ctx, desired, &resp.Diagnostics, r.client)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
+	}
+	state := flattenPanelSecurity(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *PanelSecurityResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -310,24 +1204,20 @@ func (r *PanelSecurityResource) Delete(ctx context.Context, _ resource.DeleteReq
 }
 
 func (r *PanelSecurityResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenAccountSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
-	}
-}
-
-func (r *PanelSecurityResource) warnIfTwoFactor(jsonStr string, diags *diag.Diagnostics) {
-	var input map[string]any
-	if err := json.Unmarshal([]byte(jsonStr), &input); err != nil {
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
 		return
 	}
-	if v, ok := input["two_factor_enable"]; ok {
-		if b, isBool := v.(bool); isBool && b {
-			diags.AddWarning(
-				"Enabling 2FA will block provider authentication",
-				"The provider does not support two-factor authentication codes during login. Enabling 2FA will prevent the provider from connecting to the panel. You will need to disable 2FA via the API or UI to restore provider access.",
-			)
-		}
+	state := flattenPanelSecurity(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *PanelSecurityResource) warnIfTwoFactor(plan *PanelSecurityModel, diags *diag.Diagnostics) {
+	if !plan.TwoFactorEnable.IsNull() && !plan.TwoFactorEnable.IsUnknown() && plan.TwoFactorEnable.ValueBool() {
+		diags.AddWarning(
+			"Enabling 2FA will block provider authentication",
+			"The provider does not support two-factor authentication codes during login. Enabling 2FA will prevent the provider from connecting to the panel. You will need to disable 2FA via the API or UI to restore provider access.",
+		)
 	}
 }
 
@@ -354,7 +1244,7 @@ func (r *PanelTelegramResource) Metadata(_ context.Context, req resource.Metadat
 }
 
 func (r *PanelTelegramResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = settingsResourceSchema()
+	resp.Schema = panelTelegramSchema()
 }
 
 func (r *PanelTelegramResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -370,38 +1260,54 @@ func (r *PanelTelegramResource) Configure(_ context.Context, req resource.Config
 }
 
 func (r *PanelTelegramResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan settingsResourceModel
+	var plan PanelTelegramModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	state := settingsApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client,
-		expandTelegramSettingsFields, flattenTelegramSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	desired := expandPanelTelegram(&plan)
+	settingsApplyTyped(ctx, desired, &resp.Diagnostics, r.client)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
+	}
+	state := flattenPanelTelegram(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *PanelTelegramResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
-	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenTelegramSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
 	}
+	state := flattenPanelTelegram(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *PanelTelegramResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan settingsResourceModel
+	var plan PanelTelegramModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	state := settingsApplyHelper(ctx, plan.JSON.ValueString(), &resp.Diagnostics, r.client,
-		expandTelegramSettingsFields, flattenTelegramSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	desired := expandPanelTelegram(&plan)
+	settingsApplyTyped(ctx, desired, &resp.Diagnostics, r.client)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
+	}
+	state := flattenPanelTelegram(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *PanelTelegramResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -409,10 +1315,12 @@ func (r *PanelTelegramResource) Delete(ctx context.Context, _ resource.DeleteReq
 }
 
 func (r *PanelTelegramResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenTelegramSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
 	}
+	state := flattenPanelTelegram(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 // ---------------------------------------------------------------------------
@@ -438,7 +1346,7 @@ func (r *PanelSubscriptionResource) Metadata(_ context.Context, req resource.Met
 }
 
 func (r *PanelSubscriptionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = settingsResourceSchema()
+	resp.Schema = panelSubscriptionSchema()
 }
 
 func (r *PanelSubscriptionResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -454,46 +1362,52 @@ func (r *PanelSubscriptionResource) Configure(_ context.Context, req resource.Co
 }
 
 func (r *PanelSubscriptionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan settingsResourceModel
+	var plan PanelSubscriptionModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	r.applySubscription(ctx, plan.JSON.ValueString(), &resp.Diagnostics)
+	r.applySubscription(ctx, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenSubscriptionSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
 	}
+	state := flattenPanelSubscription(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *PanelSubscriptionResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
-	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenSubscriptionSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
 	}
+	state := flattenPanelSubscription(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *PanelSubscriptionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan settingsResourceModel
+	var plan PanelSubscriptionModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	r.applySubscription(ctx, plan.JSON.ValueString(), &resp.Diagnostics)
+	r.applySubscription(ctx, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenSubscriptionSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
 	}
+	state := flattenPanelSubscription(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *PanelSubscriptionResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -501,26 +1415,25 @@ func (r *PanelSubscriptionResource) Delete(ctx context.Context, _ resource.Delet
 }
 
 func (r *PanelSubscriptionResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	state := settingsReadHelper(ctx, &resp.Diagnostics, r.client, flattenSubscriptionSettingsFields)
-	if state != nil {
-		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
 	}
+	state := flattenPanelSubscription(settings)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 // applySubscription applies subscription settings twice to work around a 3x-ui
 // bug where subJsonEnable is not persisted when subEnable changes in the same
 // request.
-func (r *PanelSubscriptionResource) applySubscription(ctx context.Context, jsonStr string, diags *diag.Diagnostics) {
-	var input map[string]any
-	if err := json.Unmarshal([]byte(jsonStr), &input); err != nil {
-		diags.AddError("Invalid JSON", err.Error())
+func (r *PanelSubscriptionResource) applySubscription(ctx context.Context, plan *PanelSubscriptionModel, diags *diag.Diagnostics) {
+	desired := expandPanelSubscription(plan)
+	if len(desired) == 0 {
 		return
 	}
 
-	desired, ok := expandSubscriptionSettingsFields(input)
-	if !ok {
-		return
-	}
+	settingsMu.Lock()
+	defer settingsMu.Unlock()
 
 	// First apply.
 	existing, err := r.client.GetSettings(ctx)
@@ -545,498 +1458,6 @@ func (r *PanelSubscriptionResource) applySubscription(ctx context.Context, jsonS
 		diags.AddError("Failed to update settings (second apply)", err.Error())
 		return
 	}
-}
-
-// ---------------------------------------------------------------------------
-// Expand functions: snake_case map[string]any -> camelCase API payload
-// ---------------------------------------------------------------------------
-
-func expandPanelSettingsFields(input map[string]any) (map[string]any, bool) {
-	payload := map[string]any{}
-	if v, ok := input["web_listen"].(string); ok {
-		payload["webListen"] = v
-	}
-	if v, ok := input["web_domain"].(string); ok {
-		payload["webDomain"] = v
-	}
-	if v, ok := input["web_port"]; ok {
-		payload["webPort"] = jsonNumber(v)
-	}
-	if v, ok := input["web_base_path"].(string); ok {
-		payload["webBasePath"] = v
-	}
-	if v, ok := input["session_max_age"]; ok {
-		payload["sessionMaxAge"] = jsonNumber(v)
-	}
-	if v, ok := input["page_size"]; ok {
-		payload["pageSize"] = jsonNumber(v)
-	}
-	if v, ok := input["remark_model"].(string); ok {
-		payload["remarkModel"] = v
-	}
-	if v, ok := input["date_picker"].(string); ok {
-		payload["datepicker"] = v
-	}
-	if v, ok := input["time_location"].(string); ok {
-		payload["timeLocation"] = v
-	}
-	if v, ok := input["expire_diff"]; ok {
-		payload["expireDiff"] = jsonNumber(v)
-	}
-	if v, ok := input["traffic_diff"]; ok {
-		payload["trafficDiff"] = jsonNumber(v)
-	}
-	if v, ok := input["web_cert_file"].(string); ok {
-		payload["webCertFile"] = v
-	}
-	if v, ok := input["web_key_file"].(string); ok {
-		payload["webKeyFile"] = v
-	}
-	if v, ok := input["external_traffic_inform_enable"].(bool); ok {
-		payload["externalTrafficInformEnable"] = v
-	}
-	if v, ok := input["external_traffic_inform_uri"].(string); ok {
-		payload["externalTrafficInformURI"] = v
-	}
-	if v, ok := input["ldap_enable"].(bool); ok {
-		payload["ldapEnable"] = v
-	}
-	if v, ok := input["ldap_host"].(string); ok {
-		payload["ldapHost"] = v
-	}
-	if v, ok := input["ldap_port"]; ok {
-		payload["ldapPort"] = jsonNumber(v)
-	}
-	if v, ok := input["ldap_use_tls"].(bool); ok {
-		payload["ldapUseTLS"] = v
-	}
-	if v, ok := input["ldap_bind_dn"].(string); ok {
-		payload["ldapBindDN"] = v
-	}
-	if v, ok := input["ldap_password"].(string); ok {
-		payload["ldapPassword"] = v
-	}
-	if v, ok := input["ldap_base_dn"].(string); ok {
-		payload["ldapBaseDN"] = v
-	}
-	if v, ok := input["ldap_user_filter"].(string); ok {
-		payload["ldapUserFilter"] = v
-	}
-	if v, ok := input["ldap_user_attr"].(string); ok {
-		payload["ldapUserAttr"] = v
-	}
-	if v, ok := input["ldap_vless_field"].(string); ok {
-		payload["ldapVlessField"] = v
-	}
-	if v, ok := input["ldap_sync_cron"].(string); ok {
-		payload["ldapSyncCron"] = v
-	}
-	if v, ok := input["ldap_flag_field"].(string); ok {
-		payload["ldapFlagField"] = v
-	}
-	if v, ok := input["ldap_truthy_values"].(string); ok {
-		payload["ldapTruthyValues"] = v
-	}
-	if v, ok := input["ldap_invert_flag"].(bool); ok {
-		payload["ldapInvertFlag"] = v
-	}
-	if v, ok := input["ldap_inbound_tags"].(string); ok {
-		payload["ldapInboundTags"] = v
-	}
-	if v, ok := input["ldap_auto_create"].(bool); ok {
-		payload["ldapAutoCreate"] = v
-	}
-	if v, ok := input["ldap_auto_delete"].(bool); ok {
-		payload["ldapAutoDelete"] = v
-	}
-	if v, ok := input["ldap_default_total_gb"]; ok {
-		payload["ldapDefaultTotalGB"] = jsonNumber(v)
-	}
-	if v, ok := input["ldap_default_expiry_days"]; ok {
-		payload["ldapDefaultExpiryDays"] = jsonNumber(v)
-	}
-	if v, ok := input["ldap_default_limit_ip"]; ok {
-		payload["ldapDefaultLimitIP"] = jsonNumber(v)
-	}
-	return payload, len(payload) > 0
-}
-
-func expandAccountSettingsFields(input map[string]any) (map[string]any, bool) {
-	payload := map[string]any{}
-	if v, ok := input["two_factor_enable"].(bool); ok {
-		payload["twoFactorEnable"] = v
-	}
-	if v, ok := input["two_factor_token"].(string); ok {
-		payload["twoFactorToken"] = v
-	}
-	return payload, len(payload) > 0
-}
-
-func expandTelegramSettingsFields(input map[string]any) (map[string]any, bool) {
-	payload := map[string]any{}
-	if v, ok := input["tg_bot_enable"].(bool); ok {
-		payload["tgBotEnable"] = v
-	}
-	if v, ok := input["tg_bot_token"].(string); ok {
-		payload["tgBotToken"] = v
-	}
-	if v, ok := input["tg_bot_proxy"].(string); ok {
-		payload["tgBotProxy"] = v
-	}
-	if v, ok := input["tg_bot_api_server"].(string); ok {
-		payload["tgBotAPIServer"] = v
-	}
-	if v, ok := input["tg_bot_chat_id"].(string); ok {
-		payload["tgBotChatId"] = v
-	}
-	if v, ok := input["tg_lang"].(string); ok {
-		payload["tgLang"] = v
-	}
-	if v, ok := input["tg_run_time"].(string); ok {
-		payload["tgRunTime"] = v
-	}
-	if v, ok := input["tg_bot_backup"].(bool); ok {
-		payload["tgBotBackup"] = v
-	}
-	if v, ok := input["tg_bot_login_notify"].(bool); ok {
-		payload["tgBotLoginNotify"] = v
-	}
-	if v, ok := input["tg_cpu"]; ok {
-		payload["tgCpu"] = jsonNumber(v)
-	}
-	return payload, len(payload) > 0
-}
-
-func expandSubscriptionSettingsFields(input map[string]any) (map[string]any, bool) {
-	payload := map[string]any{}
-	if v, ok := input["sub_enable"].(bool); ok {
-		payload["subEnable"] = v
-	}
-	if v, ok := input["sub_json_enable"].(bool); ok {
-		payload["subJsonEnable"] = v
-	}
-	if v, ok := input["sub_title"].(string); ok {
-		payload["subTitle"] = v
-	}
-	if v, ok := input["sub_support_url"].(string); ok {
-		payload["subSupportUrl"] = v
-	}
-	if v, ok := input["sub_profile_url"].(string); ok {
-		payload["subProfileUrl"] = v
-	}
-	if v, ok := input["sub_announce"].(string); ok {
-		payload["subAnnounce"] = v
-	}
-	if v, ok := input["sub_enable_routing"].(bool); ok {
-		payload["subEnableRouting"] = v
-	}
-	if v, ok := input["sub_routing_rules"].(string); ok {
-		payload["subRoutingRules"] = v
-	}
-	if v, ok := input["sub_listen"].(string); ok {
-		payload["subListen"] = v
-	}
-	if v, ok := input["sub_port"]; ok {
-		payload["subPort"] = jsonNumber(v)
-	}
-	if v, ok := input["sub_path"].(string); ok {
-		payload["subPath"] = v
-	}
-	if v, ok := input["sub_domain"].(string); ok {
-		payload["subDomain"] = v
-	}
-	if v, ok := input["sub_cert_file"].(string); ok {
-		payload["subCertFile"] = v
-	}
-	if v, ok := input["sub_key_file"].(string); ok {
-		payload["subKeyFile"] = v
-	}
-	if v, ok := input["sub_updates"]; ok {
-		payload["subUpdates"] = jsonNumber(v)
-	}
-	if v, ok := input["sub_encrypt"].(bool); ok {
-		payload["subEncrypt"] = v
-	}
-	if v, ok := input["sub_show_info"].(bool); ok {
-		payload["subShowInfo"] = v
-	}
-	if v, ok := input["sub_uri"].(string); ok {
-		payload["subURI"] = v
-	}
-	if v, ok := input["sub_json_path"].(string); ok {
-		payload["subJsonPath"] = v
-	}
-	if v, ok := input["sub_json_uri"].(string); ok {
-		payload["subJsonURI"] = v
-	}
-	if v, ok := input["sub_json_fragment"].(string); ok {
-		payload["subJsonFragment"] = v
-	}
-	if v, ok := input["sub_json_noises"].(string); ok {
-		payload["subJsonNoises"] = v
-	}
-	if v, ok := input["sub_json_mux"].(string); ok {
-		payload["subJsonMux"] = v
-	}
-	if v, ok := input["sub_json_rules"].(string); ok {
-		payload["subJsonRules"] = v
-	}
-	return payload, len(payload) > 0
-}
-
-// jsonNumber converts a JSON-decoded number (float64) to int for the API.
-// JSON numbers from json.Unmarshal are always float64.
-func jsonNumber(v any) int {
-	switch n := v.(type) {
-	case float64:
-		return int(n)
-	case float32:
-		return int(n)
-	case int:
-		return n
-	case int64:
-		return int(n)
-	default:
-		return 0
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Flatten functions: camelCase API response -> snake_case map[string]any
-// These have no SDK dependency and are preserved as-is.
-// ---------------------------------------------------------------------------
-
-func flattenPanelSettingsFields(in map[string]any) map[string]any {
-	out := map[string]any{}
-	if v, ok := in["webListen"]; ok {
-		out["web_listen"] = stringValue(v)
-	}
-	if v, ok := in["webDomain"]; ok {
-		out["web_domain"] = stringValue(v)
-	}
-	if v, ok := in["webPort"]; ok {
-		out["web_port"] = intValue(v)
-	}
-	if v, ok := in["webBasePath"]; ok {
-		out["web_base_path"] = stringValue(v)
-	}
-	if v, ok := in["sessionMaxAge"]; ok {
-		out["session_max_age"] = intValue(v)
-	}
-	if v, ok := in["pageSize"]; ok {
-		out["page_size"] = intValue(v)
-	}
-	if v, ok := in["remarkModel"]; ok {
-		out["remark_model"] = stringValue(v)
-	}
-	if v, ok := in["datepicker"]; ok {
-		out["date_picker"] = stringValue(v)
-	}
-	if v, ok := in["timeLocation"]; ok {
-		out["time_location"] = stringValue(v)
-	}
-	if v, ok := in["expireDiff"]; ok {
-		out["expire_diff"] = intValue(v)
-	}
-	if v, ok := in["trafficDiff"]; ok {
-		out["traffic_diff"] = intValue(v)
-	}
-	if v, ok := in["webCertFile"]; ok {
-		out["web_cert_file"] = stringValue(v)
-	}
-	if v, ok := in["webKeyFile"]; ok {
-		out["web_key_file"] = stringValue(v)
-	}
-	if v, ok := in["externalTrafficInformEnable"]; ok {
-		out["external_traffic_inform_enable"] = boolValue(v)
-	}
-	if v, ok := in["externalTrafficInformURI"]; ok {
-		out["external_traffic_inform_uri"] = stringValue(v)
-	}
-	if v, ok := in["ldapEnable"]; ok {
-		out["ldap_enable"] = boolValue(v)
-	}
-	if v, ok := in["ldapHost"]; ok {
-		out["ldap_host"] = stringValue(v)
-	}
-	if v, ok := in["ldapPort"]; ok {
-		out["ldap_port"] = intValue(v)
-	}
-	if v, ok := in["ldapUseTLS"]; ok {
-		out["ldap_use_tls"] = boolValue(v)
-	}
-	if v, ok := in["ldapBindDN"]; ok {
-		out["ldap_bind_dn"] = stringValue(v)
-	}
-	if v, ok := in["ldapPassword"]; ok {
-		out["ldap_password"] = stringValue(v)
-	}
-	if v, ok := in["ldapBaseDN"]; ok {
-		out["ldap_base_dn"] = stringValue(v)
-	}
-	if v, ok := in["ldapUserFilter"]; ok {
-		out["ldap_user_filter"] = stringValue(v)
-	}
-	if v, ok := in["ldapUserAttr"]; ok {
-		out["ldap_user_attr"] = stringValue(v)
-	}
-	if v, ok := in["ldapVlessField"]; ok {
-		out["ldap_vless_field"] = stringValue(v)
-	}
-	if v, ok := in["ldapSyncCron"]; ok {
-		out["ldap_sync_cron"] = stringValue(v)
-	}
-	if v, ok := in["ldapFlagField"]; ok {
-		out["ldap_flag_field"] = stringValue(v)
-	}
-	if v, ok := in["ldapTruthyValues"]; ok {
-		out["ldap_truthy_values"] = stringValue(v)
-	}
-	if v, ok := in["ldapInvertFlag"]; ok {
-		out["ldap_invert_flag"] = boolValue(v)
-	}
-	if v, ok := in["ldapInboundTags"]; ok {
-		out["ldap_inbound_tags"] = stringValue(v)
-	}
-	if v, ok := in["ldapAutoCreate"]; ok {
-		out["ldap_auto_create"] = boolValue(v)
-	}
-	if v, ok := in["ldapAutoDelete"]; ok {
-		out["ldap_auto_delete"] = boolValue(v)
-	}
-	if v, ok := in["ldapDefaultTotalGB"]; ok {
-		out["ldap_default_total_gb"] = intValue(v)
-	}
-	if v, ok := in["ldapDefaultExpiryDays"]; ok {
-		out["ldap_default_expiry_days"] = intValue(v)
-	}
-	if v, ok := in["ldapDefaultLimitIP"]; ok {
-		out["ldap_default_limit_ip"] = intValue(v)
-	}
-	return out
-}
-
-func flattenAccountSettingsFields(in map[string]any) map[string]any {
-	out := map[string]any{}
-	if v, ok := in["twoFactorEnable"]; ok {
-		out["two_factor_enable"] = boolValue(v)
-	}
-	if v, ok := in["twoFactorToken"]; ok {
-		out["two_factor_token"] = stringValue(v)
-	}
-	return out
-}
-
-func flattenTelegramSettingsFields(in map[string]any) map[string]any {
-	out := map[string]any{}
-	if v, ok := in["tgBotEnable"]; ok {
-		out["tg_bot_enable"] = boolValue(v)
-	}
-	if v, ok := in["tgBotToken"]; ok {
-		out["tg_bot_token"] = stringValue(v)
-	}
-	if v, ok := in["tgBotProxy"]; ok {
-		out["tg_bot_proxy"] = stringValue(v)
-	}
-	if v, ok := in["tgBotAPIServer"]; ok {
-		out["tg_bot_api_server"] = stringValue(v)
-	}
-	if v, ok := in["tgBotChatId"]; ok {
-		out["tg_bot_chat_id"] = stringValue(v)
-	}
-	if v, ok := in["tgLang"]; ok {
-		out["tg_lang"] = stringValue(v)
-	}
-	if v, ok := in["tgRunTime"]; ok {
-		out["tg_run_time"] = stringValue(v)
-	}
-	if v, ok := in["tgBotBackup"]; ok {
-		out["tg_bot_backup"] = boolValue(v)
-	}
-	if v, ok := in["tgBotLoginNotify"]; ok {
-		out["tg_bot_login_notify"] = boolValue(v)
-	}
-	if v, ok := in["tgCpu"]; ok {
-		out["tg_cpu"] = intValue(v)
-	}
-	return out
-}
-
-func flattenSubscriptionSettingsFields(in map[string]any) map[string]any {
-	out := map[string]any{}
-	if v, ok := in["subEnable"]; ok {
-		out["sub_enable"] = boolValue(v)
-	}
-	if v, ok := in["subJsonEnable"]; ok {
-		out["sub_json_enable"] = boolValue(v)
-	}
-	if v, ok := in["subTitle"]; ok {
-		out["sub_title"] = stringValue(v)
-	}
-	if v, ok := in["subSupportUrl"]; ok {
-		out["sub_support_url"] = stringValue(v)
-	}
-	if v, ok := in["subProfileUrl"]; ok {
-		out["sub_profile_url"] = stringValue(v)
-	}
-	if v, ok := in["subAnnounce"]; ok {
-		out["sub_announce"] = stringValue(v)
-	}
-	if v, ok := in["subEnableRouting"]; ok {
-		out["sub_enable_routing"] = boolValue(v)
-	}
-	if v, ok := in["subRoutingRules"]; ok {
-		out["sub_routing_rules"] = stringValue(v)
-	}
-	if v, ok := in["subListen"]; ok {
-		out["sub_listen"] = stringValue(v)
-	}
-	if v, ok := in["subPort"]; ok {
-		out["sub_port"] = intValue(v)
-	}
-	if v, ok := in["subPath"]; ok {
-		out["sub_path"] = stringValue(v)
-	}
-	if v, ok := in["subDomain"]; ok {
-		out["sub_domain"] = stringValue(v)
-	}
-	if v, ok := in["subCertFile"]; ok {
-		out["sub_cert_file"] = stringValue(v)
-	}
-	if v, ok := in["subKeyFile"]; ok {
-		out["sub_key_file"] = stringValue(v)
-	}
-	if v, ok := in["subUpdates"]; ok {
-		out["sub_updates"] = intValue(v)
-	}
-	if v, ok := in["subEncrypt"]; ok {
-		out["sub_encrypt"] = boolValue(v)
-	}
-	if v, ok := in["subShowInfo"]; ok {
-		out["sub_show_info"] = boolValue(v)
-	}
-	if v, ok := in["subURI"]; ok {
-		out["sub_uri"] = stringValue(v)
-	}
-	if v, ok := in["subJsonPath"]; ok {
-		out["sub_json_path"] = stringValue(v)
-	}
-	if v, ok := in["subJsonURI"]; ok {
-		out["sub_json_uri"] = stringValue(v)
-	}
-	if v, ok := in["subJsonFragment"]; ok {
-		out["sub_json_fragment"] = stringValue(v)
-	}
-	if v, ok := in["subJsonNoises"]; ok {
-		out["sub_json_noises"] = stringValue(v)
-	}
-	if v, ok := in["subJsonMux"]; ok {
-		out["sub_json_mux"] = stringValue(v)
-	}
-	if v, ok := in["subJsonRules"]; ok {
-		out["sub_json_rules"] = stringValue(v)
-	}
-	return out
 }
 
 // ---------------------------------------------------------------------------

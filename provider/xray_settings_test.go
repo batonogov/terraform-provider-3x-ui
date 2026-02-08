@@ -3,6 +3,9 @@ package provider
 import (
 	"reflect"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 func TestDeepMergeJSON_Flat(t *testing.T) {
@@ -1412,5 +1415,111 @@ func TestBuildXrayOutboundsJSON_Roundtrip(t *testing.T) {
 	bh := outbounds[1].(map[string]any)["blackhole_settings"].([]any)[0].(map[string]any)
 	if bh["response_type"] != "none" {
 		t.Fatalf("expected none, got %v", bh["response_type"])
+	}
+}
+
+// --- Tests for review fixes ---
+
+func TestFlattenBasicsPolicyLevels_Sorted(t *testing.T) {
+	in := map[string]any{
+		"2": map[string]any{"handshake": float64(8)},
+		"0": map[string]any{"handshake": float64(4)},
+		"1": map[string]any{"handshake": float64(6)},
+	}
+	// Run 20 times to catch non-determinism.
+	for i := 0; i < 20; i++ {
+		result := flattenBasicsPolicyLevels(in)
+		if len(result) != 3 {
+			t.Fatalf("expected 3 levels, got %d", len(result))
+		}
+		ids := make([]int, len(result))
+		for j, item := range result {
+			ids[j] = item.(map[string]any)["id"].(int)
+		}
+		if ids[0] != 0 || ids[1] != 1 || ids[2] != 2 {
+			t.Fatalf("iteration %d: expected sorted [0,1,2], got %v", i, ids)
+		}
+	}
+}
+
+func TestExpandInt64List_WithNullAndUnknown(t *testing.T) {
+	elems := []attr.Value{
+		types.Int64Value(1),
+		types.Int64Null(),
+		types.Int64Unknown(),
+		types.Int64Value(3),
+	}
+	l, diags := types.ListValue(types.Int64Type, elems)
+	if diags.HasError() {
+		t.Fatalf("failed to create list: %v", diags)
+	}
+	result := expandInt64List(l)
+	expected := []any{1, 3}
+	if !reflect.DeepEqual(result, expected) {
+		t.Fatalf("expected %v, got %v", expected, result)
+	}
+}
+
+func TestExpandInt64List_NullList(t *testing.T) {
+	l := types.ListNull(types.Int64Type)
+	result := expandInt64List(l)
+	if result != nil {
+		t.Fatalf("expected nil, got %v", result)
+	}
+}
+
+func TestExpandInt64List_UnknownList(t *testing.T) {
+	l := types.ListUnknown(types.Int64Type)
+	result := expandInt64List(l)
+	if result != nil {
+		t.Fatalf("expected nil, got %v", result)
+	}
+}
+
+func TestExpandXrayOutbounds_EmptyMuxBlock(t *testing.T) {
+	m := &XrayOutboundsModel{
+		Outbound: []XrayOutboundEntry{
+			{
+				Tag:      types.StringValue("test"),
+				Protocol: types.StringValue("freedom"),
+				Mux: []XrayOutboundMux{
+					{
+						Enabled:         types.BoolNull(),
+						Concurrency:     types.Int64Null(),
+						XudpConcurrency: types.Int64Null(),
+						XudpProxyUDP443: types.StringNull(),
+					},
+				},
+			},
+		},
+	}
+	result := expandXrayOutbounds(m)
+	outbounds := result["outbound"].([]any)
+	if len(outbounds) != 1 {
+		t.Fatalf("expected 1 outbound, got %d", len(outbounds))
+	}
+	entry := outbounds[0].(map[string]any)
+	if _, ok := entry["mux"]; ok {
+		t.Fatalf("mux with all-null fields should not be in result")
+	}
+}
+
+func TestExpandXrayOutbounds_EmptySettingsBlock(t *testing.T) {
+	m := &XrayOutboundsModel{
+		Outbound: []XrayOutboundEntry{
+			{
+				Tag:      types.StringValue("test"),
+				Protocol: types.StringValue("blackhole"),
+				BlackholeSettings: []XrayBlackholeSettings{
+					{ResponseType: types.StringNull()},
+				},
+			},
+		},
+	}
+	result := expandXrayOutbounds(m)
+	outbounds := result["outbound"].([]any)
+	entry := outbounds[0].(map[string]any)
+	if _, ok := entry["blackhole_settings"]; ok {
+		t.Fatalf("blackhole_settings with all-null fields should not be in result")
 	}
 }

@@ -3,7 +3,438 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
+
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+// ---------------------------------------------------------------------------
+// Typed models
+// ---------------------------------------------------------------------------
+
+type XrayBasicsModel struct {
+	ID     types.String       `tfsdk:"id"`
+	Log    []XrayBasicsLog    `tfsdk:"log"`
+	Policy []XrayBasicsPolicy `tfsdk:"policy"`
+	API    []XrayBasicsAPI    `tfsdk:"api"`
+	Stats  []XrayBasicsStats  `tfsdk:"stats"`
+}
+
+type XrayBasicsLog struct {
+	Loglevel types.String `tfsdk:"loglevel"`
+	Access   types.String `tfsdk:"access"`
+	Error    types.String `tfsdk:"error"`
+	DNSLog   types.Bool   `tfsdk:"dns_log"`
+}
+
+type XrayBasicsPolicy struct {
+	System []XrayBasicsPolicySystem `tfsdk:"system"`
+	Level  []XrayBasicsPolicyLevel  `tfsdk:"level"`
+}
+
+type XrayBasicsPolicySystem struct {
+	StatsInboundDownlink  types.Bool `tfsdk:"stats_inbound_downlink"`
+	StatsInboundUplink    types.Bool `tfsdk:"stats_inbound_uplink"`
+	StatsOutboundDownlink types.Bool `tfsdk:"stats_outbound_downlink"`
+	StatsOutboundUplink   types.Bool `tfsdk:"stats_outbound_uplink"`
+}
+
+type XrayBasicsPolicyLevel struct {
+	ID                types.Int64 `tfsdk:"id"`
+	Handshake         types.Int64 `tfsdk:"handshake"`
+	ConnIdle          types.Int64 `tfsdk:"conn_idle"`
+	UplinkOnly        types.Int64 `tfsdk:"uplink_only"`
+	DownlinkOnly      types.Int64 `tfsdk:"downlink_only"`
+	StatsUserUplink   types.Bool  `tfsdk:"stats_user_uplink"`
+	StatsUserDownlink types.Bool  `tfsdk:"stats_user_downlink"`
+	BufferSize        types.Int64 `tfsdk:"buffer_size"`
+}
+
+type XrayBasicsAPI struct {
+	Tag      types.String `tfsdk:"tag"`
+	Services types.List   `tfsdk:"services"`
+}
+
+type XrayBasicsStats struct{}
+
+// ---------------------------------------------------------------------------
+// Schema
+// ---------------------------------------------------------------------------
+
+func xrayBasicsSchema() schema.Schema {
+	return schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+		},
+		Blocks: map[string]schema.Block{
+			"log": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"loglevel": schema.StringAttribute{
+							Optional: true, Computed: true,
+						},
+						"access": schema.StringAttribute{
+							Optional: true, Computed: true,
+						},
+						"error": schema.StringAttribute{
+							Optional: true, Computed: true,
+						},
+						"dns_log": schema.BoolAttribute{
+							Optional: true, Computed: true,
+						},
+					},
+				},
+			},
+			"policy": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Blocks: map[string]schema.Block{
+						"system": schema.ListNestedBlock{
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"stats_inbound_downlink": schema.BoolAttribute{
+										Optional: true, Computed: true,
+									},
+									"stats_inbound_uplink": schema.BoolAttribute{
+										Optional: true, Computed: true,
+									},
+									"stats_outbound_downlink": schema.BoolAttribute{
+										Optional: true, Computed: true,
+									},
+									"stats_outbound_uplink": schema.BoolAttribute{
+										Optional: true, Computed: true,
+									},
+								},
+							},
+						},
+						"level": schema.ListNestedBlock{
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"id": schema.Int64Attribute{
+										Required: true,
+									},
+									"handshake": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"conn_idle": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"uplink_only": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"downlink_only": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+									"stats_user_uplink": schema.BoolAttribute{
+										Optional: true, Computed: true,
+									},
+									"stats_user_downlink": schema.BoolAttribute{
+										Optional: true, Computed: true,
+									},
+									"buffer_size": schema.Int64Attribute{
+										Optional: true, Computed: true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"api": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"tag": schema.StringAttribute{
+							Optional: true, Computed: true,
+						},
+						"services": schema.ListAttribute{
+							Optional:    true,
+							Computed:    true,
+							ElementType: types.StringType,
+						},
+					},
+				},
+			},
+			"stats": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{},
+				},
+			},
+		},
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Expand: typed model -> untyped map (for buildXrayBasicsJSON)
+// ---------------------------------------------------------------------------
+
+func expandXrayBasics(m *XrayBasicsModel) map[string]any {
+	out := map[string]any{}
+
+	if len(m.Log) > 0 {
+		log := m.Log[0]
+		logMap := map[string]any{}
+		if !log.Loglevel.IsNull() && !log.Loglevel.IsUnknown() {
+			logMap["loglevel"] = log.Loglevel.ValueString()
+		}
+		if !log.Access.IsNull() && !log.Access.IsUnknown() {
+			logMap["access"] = log.Access.ValueString()
+		}
+		if !log.Error.IsNull() && !log.Error.IsUnknown() {
+			logMap["error"] = log.Error.ValueString()
+		}
+		if !log.DNSLog.IsNull() && !log.DNSLog.IsUnknown() {
+			logMap["dns_log"] = log.DNSLog.ValueBool()
+		}
+		out["log"] = logMap
+	}
+
+	if len(m.Policy) > 0 {
+		pol := m.Policy[0]
+		polMap := map[string]any{}
+
+		if len(pol.System) > 0 {
+			sys := pol.System[0]
+			sysMap := map[string]any{}
+			if !sys.StatsInboundDownlink.IsNull() && !sys.StatsInboundDownlink.IsUnknown() {
+				sysMap["stats_inbound_downlink"] = sys.StatsInboundDownlink.ValueBool()
+			}
+			if !sys.StatsInboundUplink.IsNull() && !sys.StatsInboundUplink.IsUnknown() {
+				sysMap["stats_inbound_uplink"] = sys.StatsInboundUplink.ValueBool()
+			}
+			if !sys.StatsOutboundDownlink.IsNull() && !sys.StatsOutboundDownlink.IsUnknown() {
+				sysMap["stats_outbound_downlink"] = sys.StatsOutboundDownlink.ValueBool()
+			}
+			if !sys.StatsOutboundUplink.IsNull() && !sys.StatsOutboundUplink.IsUnknown() {
+				sysMap["stats_outbound_uplink"] = sys.StatsOutboundUplink.ValueBool()
+			}
+			polMap["system"] = sysMap
+		}
+
+		if len(pol.Level) > 0 {
+			levels := make([]any, 0, len(pol.Level))
+			for _, lvl := range pol.Level {
+				entry := map[string]any{}
+				if !lvl.ID.IsNull() && !lvl.ID.IsUnknown() {
+					entry["id"] = int(lvl.ID.ValueInt64())
+				}
+				if !lvl.Handshake.IsNull() && !lvl.Handshake.IsUnknown() {
+					entry["handshake"] = int(lvl.Handshake.ValueInt64())
+				}
+				if !lvl.ConnIdle.IsNull() && !lvl.ConnIdle.IsUnknown() {
+					entry["conn_idle"] = int(lvl.ConnIdle.ValueInt64())
+				}
+				if !lvl.UplinkOnly.IsNull() && !lvl.UplinkOnly.IsUnknown() {
+					entry["uplink_only"] = int(lvl.UplinkOnly.ValueInt64())
+				}
+				if !lvl.DownlinkOnly.IsNull() && !lvl.DownlinkOnly.IsUnknown() {
+					entry["downlink_only"] = int(lvl.DownlinkOnly.ValueInt64())
+				}
+				if !lvl.StatsUserUplink.IsNull() && !lvl.StatsUserUplink.IsUnknown() {
+					entry["stats_user_uplink"] = lvl.StatsUserUplink.ValueBool()
+				}
+				if !lvl.StatsUserDownlink.IsNull() && !lvl.StatsUserDownlink.IsUnknown() {
+					entry["stats_user_downlink"] = lvl.StatsUserDownlink.ValueBool()
+				}
+				if !lvl.BufferSize.IsNull() && !lvl.BufferSize.IsUnknown() {
+					entry["buffer_size"] = int(lvl.BufferSize.ValueInt64())
+				}
+				levels = append(levels, entry)
+			}
+			polMap["level"] = levels
+		}
+
+		out["policy"] = polMap
+	}
+
+	if len(m.API) > 0 {
+		api := m.API[0]
+		apiMap := map[string]any{}
+		if !api.Tag.IsNull() && !api.Tag.IsUnknown() {
+			apiMap["tag"] = api.Tag.ValueString()
+		}
+		if !api.Services.IsNull() && !api.Services.IsUnknown() {
+			elems := api.Services.Elements()
+			svcList := make([]any, 0, len(elems))
+			for _, e := range elems {
+				if sv, ok := e.(types.String); ok {
+					svcList = append(svcList, sv.ValueString())
+				}
+			}
+			apiMap["services"] = svcList
+		}
+		out["api"] = apiMap
+	}
+
+	if len(m.Stats) > 0 {
+		out["stats"] = map[string]any{}
+	}
+
+	return out
+}
+
+// ---------------------------------------------------------------------------
+// Flatten: untyped map (from flattenXrayBasicsToMap) -> typed model
+// ---------------------------------------------------------------------------
+
+func flattenXrayBasics(data map[string]any) *XrayBasicsModel {
+	m := &XrayBasicsModel{
+		ID: types.StringValue(xraySectionBasics.id),
+	}
+
+	if logRaw, ok := data["log"]; ok {
+		if logMap, ok := logRaw.(map[string]any); ok && len(logMap) > 0 {
+			log := XrayBasicsLog{}
+			if v, ok := logMap["loglevel"].(string); ok && v != "" {
+				log.Loglevel = types.StringValue(v)
+			} else {
+				log.Loglevel = types.StringNull()
+			}
+			if v, ok := logMap["access"].(string); ok && v != "" {
+				log.Access = types.StringValue(v)
+			} else {
+				log.Access = types.StringNull()
+			}
+			if v, ok := logMap["error"].(string); ok && v != "" {
+				log.Error = types.StringValue(v)
+			} else {
+				log.Error = types.StringNull()
+			}
+			if v, ok := logMap["dns_log"].(bool); ok {
+				log.DNSLog = types.BoolValue(v)
+			} else {
+				log.DNSLog = types.BoolNull()
+			}
+			m.Log = []XrayBasicsLog{log}
+		}
+	}
+
+	if polRaw, ok := data["policy"]; ok {
+		if polMap, ok := polRaw.(map[string]any); ok && len(polMap) > 0 {
+			pol := XrayBasicsPolicy{}
+
+			if sysRaw, ok := polMap["system"]; ok {
+				if sysMap, ok := sysRaw.(map[string]any); ok && len(sysMap) > 0 {
+					sys := XrayBasicsPolicySystem{}
+					if v, ok := sysMap["stats_inbound_downlink"].(bool); ok {
+						sys.StatsInboundDownlink = types.BoolValue(v)
+					} else {
+						sys.StatsInboundDownlink = types.BoolNull()
+					}
+					if v, ok := sysMap["stats_inbound_uplink"].(bool); ok {
+						sys.StatsInboundUplink = types.BoolValue(v)
+					} else {
+						sys.StatsInboundUplink = types.BoolNull()
+					}
+					if v, ok := sysMap["stats_outbound_downlink"].(bool); ok {
+						sys.StatsOutboundDownlink = types.BoolValue(v)
+					} else {
+						sys.StatsOutboundDownlink = types.BoolNull()
+					}
+					if v, ok := sysMap["stats_outbound_uplink"].(bool); ok {
+						sys.StatsOutboundUplink = types.BoolValue(v)
+					} else {
+						sys.StatsOutboundUplink = types.BoolNull()
+					}
+					pol.System = []XrayBasicsPolicySystem{sys}
+				}
+			}
+
+			if levelsRaw, ok := polMap["level"]; ok {
+				if levelsList, ok := levelsRaw.([]any); ok && len(levelsList) > 0 {
+					levels := make([]XrayBasicsPolicyLevel, 0, len(levelsList))
+					for _, item := range levelsList {
+						lm, ok := item.(map[string]any)
+						if !ok {
+							continue
+						}
+						lvl := XrayBasicsPolicyLevel{}
+						lvl.ID = types.Int64Value(int64(intValue(lm["id"])))
+						if v, ok := lm["handshake"]; ok {
+							lvl.Handshake = types.Int64Value(int64(intValue(v)))
+						} else {
+							lvl.Handshake = types.Int64Null()
+						}
+						if v, ok := lm["conn_idle"]; ok {
+							lvl.ConnIdle = types.Int64Value(int64(intValue(v)))
+						} else {
+							lvl.ConnIdle = types.Int64Null()
+						}
+						if v, ok := lm["uplink_only"]; ok {
+							lvl.UplinkOnly = types.Int64Value(int64(intValue(v)))
+						} else {
+							lvl.UplinkOnly = types.Int64Null()
+						}
+						if v, ok := lm["downlink_only"]; ok {
+							lvl.DownlinkOnly = types.Int64Value(int64(intValue(v)))
+						} else {
+							lvl.DownlinkOnly = types.Int64Null()
+						}
+						if v, ok := lm["stats_user_uplink"].(bool); ok {
+							lvl.StatsUserUplink = types.BoolValue(v)
+						} else {
+							lvl.StatsUserUplink = types.BoolNull()
+						}
+						if v, ok := lm["stats_user_downlink"].(bool); ok {
+							lvl.StatsUserDownlink = types.BoolValue(v)
+						} else {
+							lvl.StatsUserDownlink = types.BoolNull()
+						}
+						if v, ok := lm["buffer_size"]; ok {
+							lvl.BufferSize = types.Int64Value(int64(intValue(v)))
+						} else {
+							lvl.BufferSize = types.Int64Null()
+						}
+						levels = append(levels, lvl)
+					}
+					pol.Level = levels
+				}
+			}
+
+			m.Policy = []XrayBasicsPolicy{pol}
+		}
+	}
+
+	if apiRaw, ok := data["api"]; ok {
+		if apiMap, ok := apiRaw.(map[string]any); ok && len(apiMap) > 0 {
+			api := XrayBasicsAPI{}
+			if v, ok := apiMap["tag"].(string); ok {
+				api.Tag = types.StringValue(v)
+			} else {
+				api.Tag = types.StringNull()
+			}
+			if v, ok := apiMap["services"].([]any); ok && len(v) > 0 {
+				elems := make([]attr.Value, 0, len(v))
+				for _, s := range v {
+					if str, ok := s.(string); ok {
+						elems = append(elems, types.StringValue(str))
+					}
+				}
+				api.Services = types.ListValueMust(types.StringType, elems)
+			} else {
+				api.Services = types.ListNull(types.StringType)
+			}
+			m.API = []XrayBasicsAPI{api}
+		}
+	}
+
+	if _, ok := data["stats"]; ok {
+		m.Stats = []XrayBasicsStats{{}}
+	}
+
+	return m
+}
+
+// ---------------------------------------------------------------------------
+// Existing build/flatten functions (untyped map <-> Xray JSON)
+// ---------------------------------------------------------------------------
 
 func buildXrayBasicsJSON(d map[string]any) any {
 	payload := map[string]any{}
@@ -282,8 +713,15 @@ func flattenBasicsPolicyLevels(in map[string]any) []any {
 	if len(in) == 0 {
 		return nil
 	}
+	keys := make([]string, 0, len(in))
+	for k := range in {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	out := make([]any, 0, len(in))
-	for key, val := range in {
+	for _, key := range keys {
+		val := in[key]
 		m, ok := val.(map[string]any)
 		if !ok {
 			continue

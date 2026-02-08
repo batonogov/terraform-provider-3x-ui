@@ -1,6 +1,309 @@
 package provider
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+)
+
+// ---------------------------------------------------------------------------
+// Typed models
+// ---------------------------------------------------------------------------
+
+type XrayDNSModel struct {
+	ID                     types.String    `tfsdk:"id"`
+	Server                 []XrayDNSServer `tfsdk:"server"`
+	QueryStrategy          types.String    `tfsdk:"query_strategy"`
+	Tag                    types.String    `tfsdk:"tag"`
+	DisableCache           types.Bool      `tfsdk:"disable_cache"`
+	DisableFallback        types.Bool      `tfsdk:"disable_fallback"`
+	DisableFallbackIfMatch types.Bool      `tfsdk:"disable_fallback_if_match"`
+	ClientIP               types.String    `tfsdk:"client_ip"`
+}
+
+type XrayDNSServer struct {
+	Address       types.String `tfsdk:"address"`
+	Port          types.Int64  `tfsdk:"port"`
+	Domains       types.List   `tfsdk:"domains"`
+	ExpectIPs     types.List   `tfsdk:"expect_ips"`
+	UnexpectedIPs types.List   `tfsdk:"unexpected_ips"`
+	SkipFallback  types.Bool   `tfsdk:"skip_fallback"`
+	QueryStrategy types.String `tfsdk:"query_strategy"`
+	DisableCache  types.Bool   `tfsdk:"disable_cache"`
+	FinalQuery    types.Bool   `tfsdk:"final_query"`
+}
+
+// ---------------------------------------------------------------------------
+// Schema
+// ---------------------------------------------------------------------------
+
+func xrayDNSSchema() schema.Schema {
+	return schema.Schema{
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"query_strategy": schema.StringAttribute{
+				Optional: true, Computed: true,
+			},
+			"tag": schema.StringAttribute{
+				Optional: true, Computed: true,
+			},
+			"disable_cache": schema.BoolAttribute{
+				Optional: true, Computed: true,
+			},
+			"disable_fallback": schema.BoolAttribute{
+				Optional: true, Computed: true,
+			},
+			"disable_fallback_if_match": schema.BoolAttribute{
+				Optional: true, Computed: true,
+			},
+			"client_ip": schema.StringAttribute{
+				Optional: true, Computed: true,
+			},
+		},
+		Blocks: map[string]schema.Block{
+			"server": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"address": schema.StringAttribute{
+							Required: true,
+						},
+						"port": schema.Int64Attribute{
+							Optional: true, Computed: true,
+						},
+						"domains": schema.ListAttribute{
+							Optional:    true,
+							Computed:    true,
+							ElementType: types.StringType,
+						},
+						"expect_ips": schema.ListAttribute{
+							Optional:    true,
+							Computed:    true,
+							ElementType: types.StringType,
+						},
+						"unexpected_ips": schema.ListAttribute{
+							Optional:    true,
+							Computed:    true,
+							ElementType: types.StringType,
+						},
+						"skip_fallback": schema.BoolAttribute{
+							Optional: true, Computed: true,
+						},
+						"query_strategy": schema.StringAttribute{
+							Optional: true, Computed: true,
+						},
+						"disable_cache": schema.BoolAttribute{
+							Optional: true, Computed: true,
+						},
+						"final_query": schema.BoolAttribute{
+							Optional: true, Computed: true,
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Typed model -> untyped map  (for buildXrayDNSJSON)
+// ---------------------------------------------------------------------------
+
+func expandXrayDNS(m *XrayDNSModel) map[string]any {
+	out := map[string]any{}
+
+	if servers := expandDNSServerList(m.Server); len(servers) > 0 {
+		out["server"] = servers
+	}
+	if !m.QueryStrategy.IsNull() && !m.QueryStrategy.IsUnknown() {
+		out["query_strategy"] = m.QueryStrategy.ValueString()
+	}
+	if !m.Tag.IsNull() && !m.Tag.IsUnknown() {
+		out["tag"] = m.Tag.ValueString()
+	}
+	if !m.DisableCache.IsNull() && !m.DisableCache.IsUnknown() {
+		out["disable_cache"] = m.DisableCache.ValueBool()
+	}
+	if !m.DisableFallback.IsNull() && !m.DisableFallback.IsUnknown() {
+		out["disable_fallback"] = m.DisableFallback.ValueBool()
+	}
+	if !m.DisableFallbackIfMatch.IsNull() && !m.DisableFallbackIfMatch.IsUnknown() {
+		out["disable_fallback_if_match"] = m.DisableFallbackIfMatch.ValueBool()
+	}
+	if !m.ClientIP.IsNull() && !m.ClientIP.IsUnknown() {
+		out["client_ip"] = m.ClientIP.ValueString()
+	}
+
+	return out
+}
+
+func expandDNSServerList(servers []XrayDNSServer) []any {
+	if len(servers) == 0 {
+		return nil
+	}
+	out := make([]any, 0, len(servers))
+	for _, s := range servers {
+		entry := map[string]any{}
+		if !s.Address.IsNull() && !s.Address.IsUnknown() {
+			entry["address"] = s.Address.ValueString()
+		}
+		if !s.Port.IsNull() && !s.Port.IsUnknown() {
+			entry["port"] = s.Port.ValueInt64()
+		}
+		if !s.Domains.IsNull() && !s.Domains.IsUnknown() {
+			entry["domains"] = expandAttrStringList(s.Domains.Elements())
+		}
+		if !s.ExpectIPs.IsNull() && !s.ExpectIPs.IsUnknown() {
+			entry["expect_ips"] = expandAttrStringList(s.ExpectIPs.Elements())
+		}
+		if !s.UnexpectedIPs.IsNull() && !s.UnexpectedIPs.IsUnknown() {
+			entry["unexpected_ips"] = expandAttrStringList(s.UnexpectedIPs.Elements())
+		}
+		if !s.SkipFallback.IsNull() && !s.SkipFallback.IsUnknown() {
+			entry["skip_fallback"] = s.SkipFallback.ValueBool()
+		}
+		if !s.QueryStrategy.IsNull() && !s.QueryStrategy.IsUnknown() {
+			entry["query_strategy"] = s.QueryStrategy.ValueString()
+		}
+		if !s.DisableCache.IsNull() && !s.DisableCache.IsUnknown() {
+			entry["disable_cache"] = s.DisableCache.ValueBool()
+		}
+		if !s.FinalQuery.IsNull() && !s.FinalQuery.IsUnknown() {
+			entry["final_query"] = s.FinalQuery.ValueBool()
+		}
+		if len(entry) > 0 {
+			out = append(out, entry)
+		}
+	}
+	return out
+}
+
+// expandAttrStringList converts []attr.Value (from types.List) to []any of strings.
+func expandAttrStringList(elems []attr.Value) []any {
+	out := make([]any, 0, len(elems))
+	for _, e := range elems {
+		if sv, ok := e.(types.String); ok && !sv.IsNull() && !sv.IsUnknown() {
+			out = append(out, sv.ValueString())
+		}
+	}
+	return out
+}
+
+// ---------------------------------------------------------------------------
+// Untyped map -> typed model  (from flattenXrayDNSToMap output)
+// ---------------------------------------------------------------------------
+
+func flattenXrayDNS(data map[string]any) *XrayDNSModel {
+	m := &XrayDNSModel{
+		ID:                     types.StringValue(xraySectionDNS.id),
+		QueryStrategy:          types.StringNull(),
+		Tag:                    types.StringNull(),
+		DisableCache:           types.BoolNull(),
+		DisableFallback:        types.BoolNull(),
+		DisableFallbackIfMatch: types.BoolNull(),
+		ClientIP:               types.StringNull(),
+	}
+
+	if v, ok := data["server"].([]any); ok {
+		m.Server = flattenDNSServerList(v)
+	}
+	if v, ok := data["query_strategy"].(string); ok {
+		m.QueryStrategy = types.StringValue(v)
+	}
+	if v, ok := data["tag"].(string); ok {
+		m.Tag = types.StringValue(v)
+	}
+	if v, ok := data["disable_cache"].(bool); ok {
+		m.DisableCache = types.BoolValue(v)
+	}
+	if v, ok := data["disable_fallback"].(bool); ok {
+		m.DisableFallback = types.BoolValue(v)
+	}
+	if v, ok := data["disable_fallback_if_match"].(bool); ok {
+		m.DisableFallbackIfMatch = types.BoolValue(v)
+	}
+	if v, ok := data["client_ip"].(string); ok {
+		m.ClientIP = types.StringValue(v)
+	}
+
+	return m
+}
+
+func flattenDNSServerList(list []any) []XrayDNSServer {
+	if len(list) == 0 {
+		return nil
+	}
+	out := make([]XrayDNSServer, 0, len(list))
+	for _, item := range list {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		entry := XrayDNSServer{
+			Address:       types.StringNull(),
+			Port:          types.Int64Null(),
+			Domains:       types.ListNull(types.StringType),
+			ExpectIPs:     types.ListNull(types.StringType),
+			UnexpectedIPs: types.ListNull(types.StringType),
+			SkipFallback:  types.BoolNull(),
+			QueryStrategy: types.StringNull(),
+			DisableCache:  types.BoolNull(),
+			FinalQuery:    types.BoolNull(),
+		}
+		if v, ok := m["address"].(string); ok {
+			entry.Address = types.StringValue(v)
+		}
+		if v, ok := m["port"]; ok {
+			entry.Port = types.Int64Value(int64(intValue(v)))
+		}
+		if v, ok := m["domains"].([]any); ok && len(v) > 0 {
+			entry.Domains = flattenToStringList(v)
+		}
+		if v, ok := m["expect_ips"].([]any); ok && len(v) > 0 {
+			entry.ExpectIPs = flattenToStringList(v)
+		}
+		if v, ok := m["unexpected_ips"].([]any); ok && len(v) > 0 {
+			entry.UnexpectedIPs = flattenToStringList(v)
+		}
+		if v, ok := m["skip_fallback"].(bool); ok {
+			entry.SkipFallback = types.BoolValue(v)
+		}
+		if v, ok := m["query_strategy"].(string); ok {
+			entry.QueryStrategy = types.StringValue(v)
+		}
+		if v, ok := m["disable_cache"].(bool); ok {
+			entry.DisableCache = types.BoolValue(v)
+		}
+		if v, ok := m["final_query"].(bool); ok {
+			entry.FinalQuery = types.BoolValue(v)
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+// flattenToStringList converts []any of strings to types.List of StringType.
+func flattenToStringList(list []any) types.List {
+	elems := make([]attr.Value, 0, len(list))
+	for _, item := range list {
+		if s, ok := item.(string); ok {
+			elems = append(elems, types.StringValue(s))
+		}
+	}
+	return types.ListValueMust(types.StringType, elems)
+}
+
+// ---------------------------------------------------------------------------
+// Legacy untyped build / flatten (used by CRUD layer)
+// ---------------------------------------------------------------------------
 
 func buildXrayDNSJSON(d map[string]any) any {
 	payload := map[string]any{}
