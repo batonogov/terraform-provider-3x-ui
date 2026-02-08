@@ -295,6 +295,21 @@ func (c *Client) GetNewVlessEnc(ctx context.Context) ([]VlessEncAuth, error) {
 	return out.Auths, nil
 }
 
+func (c *Client) UpdateUser(ctx context.Context, oldUsername, oldPassword, newUsername, newPassword string) error {
+	payload := map[string]any{
+		"oldUsername": oldUsername,
+		"oldPassword": oldPassword,
+		"newUsername": newUsername,
+		"newPassword": newPassword,
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "panel/setting/updateUser", payload, nil); err != nil {
+		return err
+	}
+	c.username = newUsername
+	c.password = newPassword
+	return nil
+}
+
 func (c *Client) GetSettings(ctx context.Context) (map[string]any, error) {
 	var out map[string]any
 	if err := c.doForm(ctx, http.MethodPost, "panel/setting/all", url.Values{}, &out); err != nil {

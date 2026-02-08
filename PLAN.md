@@ -6,8 +6,8 @@
 
 ### Acceptance-тесты ресурсов
 
-- [x] `threexui_inbound` — 13 тестов (vmess, trojan, shadowsocks, http, wireguard, dokodemo, reality, fallbacks, settings, stream/sniffing, port conflict, update, idempotency)
-- [x] `threexui_inbound_client` — 5 тестов (all fields, update, multiple, vmess, trojan)
+- [x] `threexui_inbound` — 18 тестов (vmess, trojan, shadowsocks, http, wireguard, dokodemo, reality, fallbacks, settings, stream/sniffing, port conflict, update, idempotency, client duplicate email, websocket, grpc, mixed, listen)
+- [x] `threexui_inbound_client` — 6 тестов (all fields, update, multiple, vmess, trojan, removal)
 - [x] `threexui_panel_general` — 2 теста (basic + LDAP)
 - [x] `threexui_panel_security` — 1 тест (create, update, idempotency, restore)
 - [x] `threexui_panel_telegram` — 1 тест (enable/disable, update, idempotency)
@@ -52,7 +52,7 @@
 | Средний | `threexui_warp` | `POST /panel/xray/warp/*` | Cloudflare WARP конфигурация |
 
 - [ ] `threexui_xray_install`
-- [ ] `threexui_panel_user`
+- [x] `threexui_panel_user`
 - [ ] `threexui_warp`
 
 ## Непокрытые операционные эндпоинты

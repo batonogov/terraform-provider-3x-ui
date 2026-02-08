@@ -118,6 +118,35 @@ func testAccClientFromEnv() (*Client, error) {
 	return client, nil
 }
 
+func testAccClientFromEnvNoLogin() (*Client, error) {
+	endpoint := os.Getenv(envEndpoint)
+	basePath := os.Getenv(envBasePath)
+	username := os.Getenv(envUsername)
+	password := os.Getenv(envPassword)
+	insecure := os.Getenv(envInsecureSkipVerify)
+	if username == "" {
+		username = "admin"
+	}
+	if password == "" {
+		password = "admin"
+	}
+	insecureBool := false
+	if insecure != "" {
+		if v, err := strconv.ParseBool(insecure); err == nil {
+			insecureBool = v
+		}
+	}
+
+	return NewClient(ClientConfig{
+		Endpoint:           endpoint,
+		BasePath:           basePath,
+		Username:           username,
+		Password:           password,
+		InsecureSkipVerify: insecureBool,
+		Timeout:            30 * time.Second,
+	})
+}
+
 func testAccCheckInboundDestroyed(state *terraform.State) error {
 	client, err := testAccClientFromEnv()
 	if err != nil {
