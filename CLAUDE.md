@@ -24,8 +24,11 @@ provider/              — весь код провайдера
   xray_balancers_schema.go   — модель, схема, expand/flatten для xray_balancers
   xray_reverse_schema.go     — модель, схема, expand/flatten для xray_reverse (bridges, portals)
   xray_outbounds_schema.go   — модель, схема, expand/flatten для xray_outbounds (per-protocol settings)
+  inbound_settings_schema.go      — модель, схема, expand/flatten для per-protocol settings (vless, trojan, ss, http, socks, wg, dokodemo)
+  inbound_stream_settings_schema.go — модель, схема, expand/flatten для stream_settings (tcp, ws, grpc, httpupgrade, xhttp, kcp, reality, sockopt)
+  inbound_sniffing_schema.go      — модель, схема, expand/flatten для sniffing
   settings.go          — buildSettingsJSON(map[string]any), flattenSettings(string), expand/flatten clients/fallbacks/peers
-  stream_settings.go   — buildStreamSettingsJSON(map[string]any), flattenStreamSettings(string)
+  stream_settings.go   — buildStreamSettingsJSON(map[string]any), flattenStreamSettings(string), expand/flatten per-transport
   sniffing.go          — buildSniffingJSON(map[string]any), flattenSniffing(string)
   settings_helpers.go  — mergeSettings
   default_settings.go  — дефолтные settings по протоколу, applyDefaultInboundSettings
@@ -40,7 +43,7 @@ Taskfile.yml           — task build / test / fmt
 
 | Terraform-ресурс | Файл | Описание |
 |---|---|---|
-| `threexui_inbound` | resource_inbound.go | Inbound (vless/vmess/trojan/ss/http/mixed/wg/tunnel). Typed атрибуты + JSON-строки для settings/stream_settings/sniffing |
+| `threexui_inbound` | resource_inbound.go + inbound_*_schema.go | Inbound (vless/vmess/trojan/ss/http/mixed/wg/tunnel). Typed блоки для settings/stream_settings/sniffing |
 | `threexui_inbound_client` | resource_inbound_client.go | Клиент внутри inbound. Typed атрибуты |
 | `threexui_panel_general` | resource_settings_tabs.go | Настройки панели (web, LDAP). Typed атрибуты |
 | `threexui_panel_security` | resource_settings_tabs.go | 2FA. Typed атрибуты |
@@ -96,7 +99,11 @@ Taskfile.yml           — task build / test / fmt
 - Import: `resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)`
 
 ### Inbound / Client
-- `settings`, `stream_settings`, `sniffing` — JSON-строки и в API, и в TF schema (types.String)
+- `settings`, `stream_settings`, `sniffing` — JSON-строки в API, typed блоки в TF schema
+- Трёхслойная конвертация: Typed Model ↔ Untyped Map (expand/flatten*FromModel/*ToModel) ↔ JSON String (build*/flatten*)
+- Per-protocol settings блоки: `vless_settings`, `trojan_settings`, `shadowsocks_settings`, `http_settings`, `socks_settings`, `wireguard_settings`, `dokodemo_settings`
+- stream_settings поддерживает транспорты: tcp, ws, grpc, httpupgrade, xhttp, kcp + reality, sockopt, external_proxy
+- `alignBlocksWithPlan` — предотвращает ошибки "was absent, but now present" для Optional блоков (Create/Read/Update); пропускается при Import (detect: `state.Protocol.IsNull()`)
 - `preserveInboundSettings` — при update сохраняет clients и testseed из existing inbound
 - `ensureRealityKeys` — автогенерация private/public key и short_ids
 - `ensureInboundClientIDs` — автогенерация UUID для клиентов без id

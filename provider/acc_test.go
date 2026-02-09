@@ -218,8 +218,8 @@ func TestAccInboundBasic(t *testing.T) {
 				Config: testAccProviderConfig() + testAccInboundConfigWithExtras("acc-inbound-3"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_inbound.test", "remark", "acc-inbound-3"),
-					resource.TestCheckResourceAttrSet("threexui_inbound.test", "stream_settings"),
-					resource.TestCheckResourceAttrSet("threexui_inbound.test", "sniffing"),
+					resource.TestCheckResourceAttr("threexui_inbound.test", "stream_settings.network", "tcp"),
+					resource.TestCheckResourceAttr("threexui_inbound.test", "sniffing.enabled", "true"),
 				),
 			},
 			{
@@ -287,9 +287,9 @@ resource "threexui_inbound" "test" {
   protocol = "vless"
   remark   = %q
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
+  }
 }
 `, remark)
 }
@@ -301,25 +301,23 @@ resource "threexui_inbound" "test" {
   protocol = "vless"
   remark   = %q
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
-  stream_settings = jsonencode({
+  }
+  stream_settings {
     network  = "tcp"
     security = "none"
-    tcpSettings = {
-      acceptProxyProtocol = false
-      header = {
-        type = "none"
-      }
+    tcp_settings {
+      accept_proxy_protocol = false
+      header_type           = "none"
     }
-  })
-  sniffing = jsonencode({
+  }
+  sniffing {
     enabled       = true
-    destOverride  = ["http", "tls"]
-    metadataOnly  = false
-    routeOnly     = false
-  })
+    dest_override = ["http", "tls"]
+    metadata_only = false
+    route_only    = false
+  }
 }
 `, remark)
 }
@@ -331,6 +329,9 @@ resource "threexui_inbound" "test" {
   protocol = "vless"
   remark   = "acc-inbound-client"
   enable   = true
+  vless_settings {
+    decryption = "none"
+  }
 }
 
 resource "threexui_inbound_client" "test" {

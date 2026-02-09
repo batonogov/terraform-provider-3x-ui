@@ -25,19 +25,23 @@ resource "threexui_inbound" "example" {
   port     = 8443
   protocol = "vless"
 
-  stream_settings = jsonencode({
+  vless_settings {
+    decryption = "none"
+  }
+
+  stream_settings {
     network  = "tcp"
     security = "reality"
-    realitySettings = {
-      dest        = "www.apple.com:443"
-      serverNames = ["www.apple.com"]
+    reality_settings {
+      target       = "www.apple.com:443"
+      server_names = ["www.apple.com"]
     }
-  })
+  }
 
-  sniffing = jsonencode({
-    enabled      = true
-    destOverride = ["http", "tls", "quic", "fakedns"]
-  })
+  sniffing {
+    enabled       = true
+    dest_override = ["http", "tls", "quic", "fakedns"]
+  }
 }
 ```
 
@@ -45,12 +49,11 @@ Key attributes:
 - `remark` - Inbound label.
 - `port` - Listen port.
 - `protocol` - Protocol (`vless`, `vmess`, `trojan`, `shadowsocks`, ...).
-- `settings` - Protocol settings as a JSON string (clients excluded).
-- `stream_settings` - Transport/security settings as a JSON string.
-- `sniffing` - Sniffing settings as a JSON string.
+- Per-protocol settings block (`vless_settings`, `shadowsocks_settings`, `http_settings`, etc.).
+- `stream_settings` - Transport/security settings block.
+- `sniffing` - Sniffing settings block.
 
 Note:
-- `settings`, `stream_settings`, and `sniffing` are **JSON strings**, not nested blocks. Use `jsonencode()`.
 - Clients are managed exclusively via `threexui_inbound_client`.
 
 ### `threexui_inbound_client`

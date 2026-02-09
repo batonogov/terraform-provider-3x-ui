@@ -176,6 +176,9 @@ resource "threexui_inbound" "ds_test" {
   protocol = "vless"
   remark   = "acc-ds-inbound-1"
   enable   = true
+  vless_settings {
+    decryption = "none"
+  }
 }
 
 data "threexui_inbounds" "all" {
@@ -191,6 +194,9 @@ resource "threexui_inbound" "ds_test1" {
   protocol = "vless"
   remark   = "acc-ds-multi-1"
   enable   = true
+  vless_settings {
+    decryption = "none"
+  }
 }
 
 resource "threexui_inbound" "ds_test2" {

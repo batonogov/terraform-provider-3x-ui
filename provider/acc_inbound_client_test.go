@@ -22,9 +22,9 @@ resource "threexui_inbound" "client_host" {
   protocol = "vless"
   remark   = "acc-client-host-allfields"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
+  }
 }
 
 resource "threexui_inbound_client" "allfields" {
@@ -109,9 +109,9 @@ resource "threexui_inbound" "multi_host" {
   protocol = "vless"
   remark   = "acc-multi-client-host"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
+  }
 }
 
 resource "threexui_inbound_client" "multi1" {
@@ -222,9 +222,9 @@ resource "threexui_inbound" "removal_host" {
   protocol = "vless"
   remark   = "acc-removal-host"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
+  }
 }
 
 resource "threexui_inbound_client" "remove1" {
@@ -254,9 +254,9 @@ resource "threexui_inbound" "removal_host" {
   protocol = "vless"
   remark   = "acc-removal-host"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
+  }
 }
 
 resource "threexui_inbound_client" "remove1" {
@@ -284,9 +284,9 @@ resource "threexui_inbound" "upd_host" {
   protocol = "vless"
   remark   = "acc-client-upd-host"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
+  }
 }
 
 resource "threexui_inbound_client" "upd" {
