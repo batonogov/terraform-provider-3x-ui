@@ -20,23 +20,27 @@ resource "threexui_inbound" "vless" {
   enable   = true
   remark   = "VLESS Reality"
 
-  stream_settings = jsonencode({
+  vless_settings {
+    decryption = "none"
+  }
+
+  stream_settings {
     network  = "tcp"
     security = "reality"
-    realitySettings = {
-      dest        = "www.apple.com:443"
-      serverNames = ["www.apple.com"]
+    reality_settings {
+      target       = "www.apple.com:443"
+      server_names = ["www.apple.com"]
     }
-    tcpSettings = {
-      acceptProxyProtocol = false
-      header = { type = "none" }
+    tcp_settings {
+      accept_proxy_protocol = false
+      header_type           = "none"
     }
-  })
+  }
 
-  sniffing = jsonencode({
-    enabled      = true
-    destOverride = ["http", "tls", "quic", "fakedns"]
-  })
+  sniffing {
+    enabled       = true
+    dest_override = ["http", "tls", "quic", "fakedns"]
+  }
 }
 ```
 
@@ -49,10 +53,10 @@ resource "threexui_inbound" "vmess" {
   enable   = true
   remark   = "VMess"
 
-  stream_settings = jsonencode({
+  stream_settings {
     network  = "tcp"
     security = "none"
-  })
+  }
 }
 ```
 
@@ -65,18 +69,82 @@ resource "threexui_inbound" "ss" {
   enable   = true
   remark   = "Shadowsocks"
 
-  settings = jsonencode({
+  shadowsocks_settings {
     method   = "chacha20-ietf-poly1305"
     password = "my-password"
     network  = "tcp,udp"
-  })
+  }
+}
+```
+
+### VLESS with WebSocket
+
+```hcl
+resource "threexui_inbound" "ws" {
+  port     = 8443
+  protocol = "vless"
+  enable   = true
+  remark   = "VLESS WS"
+
+  vless_settings {
+    decryption = "none"
+  }
+
+  stream_settings {
+    network  = "ws"
+    security = "none"
+    ws_settings {
+      path = "/ws"
+    }
+  }
+}
+```
+
+### HTTP Proxy with Authentication
+
+```hcl
+resource "threexui_inbound" "http" {
+  port     = 8080
+  protocol = "http"
+  enable   = true
+  remark   = "HTTP Proxy"
+
+  http_settings {
+    auth              = "password"
+    allow_transparent = false
+    account {
+      user = "myuser"
+      pass = "mypass"
+    }
+  }
+}
+```
+
+### WireGuard
+
+```hcl
+resource "threexui_inbound" "wg" {
+  port     = 51820
+  protocol = "wireguard"
+  enable   = true
+  remark   = "WireGuard"
+
+  wireguard_settings {
+    mtu = 1420
+    peer {
+      public_key  = "BASE64_PUBLIC_KEY"
+      allowed_ips = ["10.0.0.2/32"]
+    }
+  }
 }
 ```
 
 ## Argument Reference
 
+### Top-level
+
 - `port` (Required, Number) - Port number for the inbound.
-- `protocol` (Required, String) - Protocol type (e.g. `vless`, `vmess`, `trojan`, `shadowsocks`, `http`, `socks`, `mixed`, `wireguard`, `tunnel`).
+- `protocol` (Required, String) - Protocol type (`vless`, `vmess`, `trojan`, `shadowsocks`, `http`, `socks`, `mixed`, `wireguard`, `tunnel`).
 - `enable` (Optional, Boolean) - Whether the inbound is enabled. Default is `true`.
 - `remark` (Optional, String) - A label/name for the inbound.
 - `listen` (Optional, String) - Listen address.
@@ -85,11 +153,135 @@ resource "threexui_inbound" "ss" {
 - `total` (Optional, Number) - Total traffic limit in bytes.
 - `expiry_time` (Optional, Number) - Expiry time as Unix timestamp in milliseconds.
 - `traffic_reset` (Optional, String) - Traffic reset period. Default is `never`.
-- `settings` (Optional, String) - Protocol-specific settings as a JSON string. Default settings are applied per protocol if not specified. Clients are managed separately via `threexui_inbound_client`.
-- `stream_settings` (Optional, String) - Transport and security settings as a JSON string. Uses Xray stream settings format with camelCase keys (e.g. `realitySettings`, `tcpSettings`).
-- `sniffing` (Optional, String) - Traffic sniffing settings as a JSON string (e.g. `enabled`, `destOverride`).
 
--> **Note:** `settings`, `stream_settings`, and `sniffing` use a subset diff suppressor -- only the keys you specify are compared during plan. Keys returned by the API but absent from your config are ignored.
+### Per-protocol Settings Blocks
+
+Use the block matching your `protocol`. Only one should be specified.
+
+#### `vless_settings`
+
+- `decryption` (Optional, String) - Decryption method (usually `none`).
+- `encryption` (Optional, String) - Encryption method.
+- `selected_auth` (Optional, String) - Selected authentication type.
+- `fallback` (Optional, Block List) - Fallback destinations.
+  - `name` (Optional, String)
+  - `alpn` (Optional, String)
+  - `path` (Optional, String)
+  - `dest` (Optional, String)
+  - `xver` (Optional, Number)
+
+#### `trojan_settings`
+
+- `fallback` (Optional, Block List) - Same structure as vless fallback.
+
+#### `shadowsocks_settings`
+
+- `method` (Optional, String) - Encryption method (e.g. `aes-256-gcm`, `chacha20-ietf-poly1305`).
+- `password` (Optional, String) - Password.
+- `network` (Optional, String) - Network type (e.g. `tcp,udp`).
+- `iv_check` (Optional, Boolean) - Enable IV check.
+
+#### `http_settings`
+
+- `auth` (Optional, String) - Auth type (e.g. `password`).
+- `allow_transparent` (Optional, Boolean) - Allow transparent proxy.
+- `account` (Optional, Block List) - Authentication accounts.
+  - `user` (Optional, String)
+  - `pass` (Optional, String)
+
+#### `socks_settings`
+
+- `auth` (Optional, String) - Auth type.
+- `udp` (Optional, Boolean) - Enable UDP.
+- `ip` (Optional, String) - IP address.
+- `account` (Optional, Block List) - Same structure as http account.
+
+#### `wireguard_settings`
+
+- `mtu` (Optional, Number) - MTU value.
+- `secret_key` (Optional, String) - Secret key.
+- `no_kernel_tun` (Optional, Boolean) - Disable kernel TUN.
+- `peer` (Optional, Block List) - WireGuard peers.
+  - `private_key` (Optional, String)
+  - `public_key` (Optional, String)
+  - `pre_shared_key` (Optional, String)
+  - `allowed_ips` (Optional, List of String)
+  - `keep_alive` (Optional, Number)
+
+#### `dokodemo_settings`
+
+- `address` (Optional, String) - Target address.
+- `port` (Optional, Number) - Target port.
+- `network` (Optional, String) - Network type.
+- `follow_redirect` (Optional, Boolean) - Follow redirect.
+
+### `stream_settings` Block
+
+- `network` (Optional, String) - Transport network (`tcp`, `ws`, `grpc`, `httpupgrade`, `xhttp`, `kcp`).
+- `security` (Optional, String) - Security type (`none`, `tls`, `reality`).
+- `tcp_settings` (Optional, Block) - TCP transport settings.
+  - `accept_proxy_protocol` (Optional, Boolean)
+  - `header_type` (Optional, String)
+- `ws_settings` (Optional, Block) - WebSocket settings.
+  - `path` (Optional, String)
+  - `headers` (Optional, Map of String)
+- `grpc_settings` (Optional, Block) - gRPC settings.
+  - `service_name` (Optional, String)
+  - `multi_mode` (Optional, Boolean)
+  - `idle_timeout` (Optional, Number)
+  - `health_check_timeout` (Optional, Number)
+  - `permit_without_stream` (Optional, Boolean)
+  - `initial_windows_size` (Optional, Number)
+- `httpupgrade_settings` (Optional, Block) - HTTP Upgrade settings.
+  - `path` (Optional, String)
+  - `host` (Optional, String)
+- `xhttp_settings` (Optional, Block) - XHTTP settings.
+  - `path` (Optional, String)
+  - `mode` (Optional, String)
+  - `no_sse_header` (Optional, Boolean)
+  - `keep_alive_interval` (Optional, Number)
+- `kcp_settings` (Optional, Block) - mKCP settings.
+  - `mtu` (Optional, Number)
+  - `tti` (Optional, Number)
+  - `uplink_capacity` (Optional, Number)
+  - `downlink_capacity` (Optional, Number)
+  - `congestion` (Optional, Boolean)
+  - `read_buffer_size` (Optional, Number)
+  - `write_buffer_size` (Optional, Number)
+  - `header_type` (Optional, String)
+- `reality_settings` (Optional, Block) - Reality settings.
+  - `show` (Optional, Boolean)
+  - `xver` (Optional, Number)
+  - `target` (Optional, String)
+  - `server_names` (Optional, List of String)
+  - `private_key` (Optional, String) - Auto-generated if not specified.
+  - `short_ids` (Optional, List of String) - Auto-generated if not specified.
+  - `mldsa65_seed` (Optional, String)
+  - `settings` (Optional, Block)
+    - `public_key` (Optional, String) - Auto-generated if not specified.
+    - `fingerprint` (Optional, String)
+    - `server_name` (Optional, String)
+    - `spider_x` (Optional, String)
+    - `mldsa65_verify` (Optional, String)
+- `external_proxy` (Optional, Block List) - External proxy entries.
+  - `dest` (Optional, String)
+  - `port` (Optional, Number)
+  - `remark` (Optional, String)
+  - `force_tls` (Optional, String)
+- `sockopt` (Optional, Block) - Socket options.
+  - `mark` (Optional, Number)
+  - `tcp_keep_alive_interval` (Optional, Number)
+  - `tcp_no_delay` (Optional, Boolean)
+  - `tfo_enable` (Optional, Boolean)
+  - `tproxy` (Optional, String)
+  - `domain_strategy` (Optional, String)
+
+### `sniffing` Block
+
+- `enabled` (Optional, Boolean) - Whether sniffing is enabled.
+- `dest_override` (Optional, List of String) - Destination override protocols (e.g. `http`, `tls`, `quic`, `fakedns`).
+- `metadata_only` (Optional, Boolean) - Only sniff metadata.
+- `route_only` (Optional, Boolean) - Only use sniffing for routing.
 
 ## Attribute Reference
 

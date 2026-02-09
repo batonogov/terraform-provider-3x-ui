@@ -4,23 +4,27 @@ resource "threexui_inbound" "vless" {
   enable   = true
   remark   = "VLESS Reality"
 
-  stream_settings = jsonencode({
+  vless_settings {
+    decryption = "none"
+  }
+
+  stream_settings {
     network  = "tcp"
     security = "reality"
-    realitySettings = {
-      dest        = "www.apple.com:443"
-      serverNames = ["www.apple.com"]
+    reality_settings {
+      target       = "www.apple.com:443"
+      server_names = ["www.apple.com"]
     }
-    tcpSettings = {
-      acceptProxyProtocol = false
-      header = { type = "none" }
+    tcp_settings {
+      accept_proxy_protocol = false
+      header_type           = "none"
     }
-  })
+  }
 
-  sniffing = jsonencode({
-    enabled      = true
-    destOverride = ["http", "tls", "quic", "fakedns"]
-  })
+  sniffing {
+    enabled       = true
+    dest_override = ["http", "tls", "quic", "fakedns"]
+  }
 }
 
 resource "threexui_inbound_client" "user1" {

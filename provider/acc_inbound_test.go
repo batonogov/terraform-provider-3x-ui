@@ -91,17 +91,16 @@ resource "threexui_inbound" "ss" {
   protocol = "shadowsocks"
   remark   = "acc-ss"
   enable   = true
-  settings = jsonencode({
+  shadowsocks_settings {
     method   = "aes-256-gcm"
     password = "testpassword123"
     network  = "tcp,udp"
-  })
+  }
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.ss", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.ss", "protocol", "shadowsocks"),
-					resource.TestCheckResourceAttrSet("threexui_inbound.ss", "settings"),
 				),
 			},
 		},
@@ -123,20 +122,19 @@ resource "threexui_inbound" "http" {
   protocol = "http"
   remark   = "acc-http"
   enable   = true
-  settings = jsonencode({
-    auth             = "password"
-    allowTransparent = false
-    accounts = [{
+  http_settings {
+    auth              = "password"
+    allow_transparent = false
+    account {
       user = "testuser"
       pass = "testpass"
-    }]
-  })
+    }
+  }
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.http", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.http", "protocol", "http"),
-					resource.TestCheckResourceAttrSet("threexui_inbound.http", "settings"),
 				),
 			},
 		},
@@ -158,19 +156,18 @@ resource "threexui_inbound" "wg" {
   protocol = "wireguard"
   remark   = "acc-wireguard"
   enable   = true
-  settings = jsonencode({
+  wireguard_settings {
     mtu = 1420
-    peers = [{
-      publicKey  = "dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXkxMjM0NQ=="
-      allowedIPs = ["10.0.0.2/32"]
-    }]
-  })
+    peer {
+      public_key  = "dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXkxMjM0NQ=="
+      allowed_ips = ["10.0.0.2/32"]
+    }
+  }
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.wg", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.wg", "protocol", "wireguard"),
-					resource.TestCheckResourceAttrSet("threexui_inbound.wg", "settings"),
 				),
 			},
 		},
@@ -192,18 +189,17 @@ resource "threexui_inbound" "dokodemo" {
   protocol = "dokodemo-door"
   remark   = "acc-dokodemo"
   enable   = true
-  settings = jsonencode({
-    address        = "127.0.0.1"
-    port           = 80
-    network        = "tcp"
-    followRedirect = false
-  })
+  dokodemo_settings {
+    address          = "127.0.0.1"
+    port             = 80
+    network          = "tcp"
+    follow_redirect  = false
+  }
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.dokodemo", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.dokodemo", "protocol", "dokodemo-door"),
-					resource.TestCheckResourceAttrSet("threexui_inbound.dokodemo", "settings"),
 				),
 			},
 		},
@@ -225,25 +221,24 @@ resource "threexui_inbound" "reality" {
   protocol = "vless"
   remark   = "acc-reality"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
-  stream_settings = jsonencode({
+  }
+  stream_settings {
     network  = "tcp"
     security = "reality"
-    realitySettings = {
-      target      = "google.com:443"
-      serverNames = ["google.com"]
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
     }
-  })
+  }
 }
 `,
-				// Reality auto-generates keys — the jsonSubsetPlanModifier
-				// suppresses the diff since config is a subset of state.
+				// Reality auto-generates keys — UseStateForUnknown plan modifiers
+				// suppress the diff since auto-generated fields are preserved.
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.reality", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.reality", "protocol", "vless"),
-					resource.TestCheckResourceAttrSet("threexui_inbound.reality", "stream_settings"),
 				),
 			},
 		},
@@ -265,19 +260,18 @@ resource "threexui_inbound" "fallback" {
   protocol = "vless"
   remark   = "acc-fallback"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-    fallbacks = [{
+    fallback {
       name = "default"
       dest = "80"
       xver = 1
-    }]
-  })
+    }
+  }
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.fallback", "id"),
-					resource.TestCheckResourceAttrSet("threexui_inbound.fallback", "settings"),
 				),
 			},
 		},
@@ -299,14 +293,13 @@ resource "threexui_inbound" "settings" {
   protocol = "vless"
   remark   = "acc-settings"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
+  }
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.settings", "id"),
-					resource.TestCheckResourceAttrSet("threexui_inbound.settings", "settings"),
 				),
 			},
 			// Re-apply same config: testseed should be preserved
@@ -317,13 +310,13 @@ resource "threexui_inbound" "settings" {
   protocol = "vless"
   remark   = "acc-settings"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
+  }
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttrSet("threexui_inbound.settings", "settings"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.settings", "id"),
 				),
 			},
 		},
@@ -345,24 +338,23 @@ resource "threexui_inbound" "stream" {
   protocol = "vless"
   remark   = "acc-stream"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
-  stream_settings = jsonencode({
+  }
+  stream_settings {
     network  = "tcp"
     security = "none"
-  })
-  sniffing = jsonencode({
-    enabled      = true
-    destOverride = ["http", "tls"]
-    metadataOnly = false
-    routeOnly    = false
-  })
+  }
+  sniffing {
+    enabled       = true
+    dest_override = ["http", "tls"]
+    metadata_only = false
+    route_only    = false
+  }
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttrSet("threexui_inbound.stream", "stream_settings"),
-					resource.TestCheckResourceAttrSet("threexui_inbound.stream", "sniffing"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.stream", "id"),
 				),
 			},
 			// Update sniffing
@@ -373,23 +365,23 @@ resource "threexui_inbound" "stream" {
   protocol = "vless"
   remark   = "acc-stream"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
-  stream_settings = jsonencode({
+  }
+  stream_settings {
     network  = "tcp"
     security = "none"
-  })
-  sniffing = jsonencode({
-    enabled      = true
-    destOverride = ["http", "tls", "quic", "fakedns"]
-    metadataOnly = true
-    routeOnly    = false
-  })
+  }
+  sniffing {
+    enabled       = true
+    dest_override = ["http", "tls", "quic", "fakedns"]
+    metadata_only = true
+    route_only    = false
+  }
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttrSet("threexui_inbound.stream", "sniffing"),
+					resource.TestCheckResourceAttrSet("threexui_inbound.stream", "id"),
 				),
 			},
 		},
@@ -411,9 +403,9 @@ resource "threexui_inbound" "conflict1" {
   protocol = "vless"
   remark   = "acc-conflict-1"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
+  }
 }
 
 resource "threexui_inbound" "conflict2" {
@@ -421,9 +413,9 @@ resource "threexui_inbound" "conflict2" {
   protocol = "vless"
   remark   = "acc-conflict-2"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
+  }
   depends_on = [threexui_inbound.conflict1]
 }
 `,
@@ -470,25 +462,23 @@ resource "threexui_inbound" "idem" {
   protocol = "vless"
   remark   = "acc-idempotent"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
-  stream_settings = jsonencode({
+  }
+  stream_settings {
     network  = "tcp"
     security = "none"
-    tcpSettings = {
-      acceptProxyProtocol = false
-      header = {
-        type = "none"
-      }
+    tcp_settings {
+      accept_proxy_protocol = false
+      header_type           = "none"
     }
-  })
-  sniffing = jsonencode({
-    enabled      = true
-    destOverride = ["http", "tls"]
-    metadataOnly = false
-    routeOnly    = false
-  })
+  }
+  sniffing {
+    enabled       = true
+    dest_override = ["http", "tls"]
+    metadata_only = false
+    route_only    = false
+  }
 }
 `
 	resource.Test(t, resource.TestCase{
@@ -525,9 +515,9 @@ resource "threexui_inbound" "dup_host" {
   protocol = "vless"
   remark   = "acc-dup-email-host"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
+  }
 }
 
 resource "threexui_inbound_client" "dup1" {
@@ -560,16 +550,16 @@ resource "threexui_inbound" "ws" {
   protocol = "vless"
   remark   = "acc-ws"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
-  stream_settings = jsonencode({
+  }
+  stream_settings {
     network  = "ws"
     security = "none"
-    wsSettings = {
+    ws_settings {
       path = "/ws"
     }
-  })
+  }
 }
 `
 	resource.Test(t, resource.TestCase{
@@ -582,7 +572,6 @@ resource "threexui_inbound" "ws" {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.ws", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.ws", "protocol", "vless"),
-					resource.TestCheckResourceAttrSet("threexui_inbound.ws", "stream_settings"),
 				),
 			},
 			{
@@ -603,16 +592,16 @@ resource "threexui_inbound" "grpc" {
   protocol = "vless"
   remark   = "acc-grpc"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
-  stream_settings = jsonencode({
+  }
+  stream_settings {
     network  = "grpc"
     security = "none"
-    grpcSettings = {
-      serviceName = "mygrpc"
+    grpc_settings {
+      service_name = "mygrpc"
     }
-  })
+  }
 }
 `
 	resource.Test(t, resource.TestCase{
@@ -625,7 +614,6 @@ resource "threexui_inbound" "grpc" {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.grpc", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.grpc", "protocol", "vless"),
-					resource.TestCheckResourceAttrSet("threexui_inbound.grpc", "stream_settings"),
 				),
 			},
 			{
@@ -681,9 +669,9 @@ resource "threexui_inbound" "listen" {
   remark   = "acc-listen"
   listen   = "0.0.0.0"
   enable   = true
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
+  }
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
@@ -704,9 +692,9 @@ resource "threexui_inbound" "update" {
   protocol = "vless"
   remark   = %q
   enable   = %t
-  settings = jsonencode({
+  vless_settings {
     decryption = "none"
-  })
+  }
 }
 `, port, remark, enable)
 }
