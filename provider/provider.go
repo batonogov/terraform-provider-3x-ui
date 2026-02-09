@@ -13,7 +13,9 @@ import (
 
 var _ provider.Provider = &ThreeXUIProvider{}
 
-type ThreeXUIProvider struct{}
+type ThreeXUIProvider struct {
+	version string
+}
 
 type ThreeXUIProviderModel struct {
 	Endpoint           types.String `tfsdk:"endpoint"`
@@ -25,12 +27,15 @@ type ThreeXUIProviderModel struct {
 	RequestTimeout     types.String `tfsdk:"request_timeout"`
 }
 
-func New() provider.Provider {
-	return &ThreeXUIProvider{}
+func New(version string) func() provider.Provider {
+	return func() provider.Provider {
+		return &ThreeXUIProvider{version: version}
+	}
 }
 
 func (p *ThreeXUIProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.TypeName = "threexui"
+	resp.Version = p.version
 }
 
 func (p *ThreeXUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {

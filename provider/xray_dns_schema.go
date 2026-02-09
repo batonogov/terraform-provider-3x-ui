@@ -17,6 +17,7 @@ import (
 type XrayDNSModel struct {
 	ID                     types.String    `tfsdk:"id"`
 	Server                 []XrayDNSServer `tfsdk:"server"`
+	Hosts                  types.Map       `tfsdk:"hosts"`
 	QueryStrategy          types.String    `tfsdk:"query_strategy"`
 	Tag                    types.String    `tfsdk:"tag"`
 	DisableCache           types.Bool      `tfsdk:"disable_cache"`
@@ -67,6 +68,11 @@ func xrayDNSSchema() schema.Schema {
 			},
 			"client_ip": schema.StringAttribute{
 				Optional: true, Computed: true,
+			},
+			"hosts": schema.MapAttribute{
+				Optional:    true,
+				Computed:    true,
+				ElementType: types.StringType,
 			},
 		},
 		Blocks: map[string]schema.Block{
@@ -122,6 +128,17 @@ func expandXrayDNS(m *XrayDNSModel) map[string]any {
 
 	if servers := expandDNSServerList(m.Server); len(servers) > 0 {
 		out["server"] = servers
+	}
+	if !m.Hosts.IsNull() && !m.Hosts.IsUnknown() {
+		hosts := map[string]any{}
+		for k, v := range m.Hosts.Elements() {
+			if sv, ok := v.(types.String); ok && !sv.IsNull() && !sv.IsUnknown() {
+				hosts[k] = sv.ValueString()
+			}
+		}
+		if len(hosts) > 0 {
+			out["hosts"] = hosts
+		}
 	}
 	if !m.QueryStrategy.IsNull() && !m.QueryStrategy.IsUnknown() {
 		out["query_strategy"] = m.QueryStrategy.ValueString()
@@ -204,6 +221,7 @@ func expandAttrStringList(elems []attr.Value) []any {
 func flattenXrayDNS(data map[string]any) *XrayDNSModel {
 	m := &XrayDNSModel{
 		ID:                     types.StringValue(xraySectionDNS.id),
+		Hosts:                  types.MapNull(types.StringType),
 		QueryStrategy:          types.StringNull(),
 		Tag:                    types.StringNull(),
 		DisableCache:           types.BoolNull(),
@@ -214,6 +232,13 @@ func flattenXrayDNS(data map[string]any) *XrayDNSModel {
 
 	if v, ok := data["server"].([]any); ok {
 		m.Server = flattenDNSServerList(v)
+	}
+	if v, ok := data["hosts"].(map[string]string); ok && len(v) > 0 {
+		elems := map[string]attr.Value{}
+		for k, val := range v {
+			elems[k] = types.StringValue(val)
+		}
+		m.Hosts = types.MapValueMust(types.StringType, elems)
 	}
 	if v, ok := data["query_strategy"].(string); ok {
 		m.QueryStrategy = types.StringValue(v)

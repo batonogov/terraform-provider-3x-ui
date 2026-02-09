@@ -1,5 +1,4 @@
 # golangci-lint configuration v2
-# Документация: https://golangci-lint.run/docs/configuration/
 
 version: "2"
 
@@ -10,32 +9,24 @@ run:
 
 linters:
   enable:
-    # Базовые линтеры
-    - errcheck      # проверка обработки ошибок
-    - govet         # go vet
-    - ineffassign   # неиспользуемые присваивания
-    - staticcheck   # много различных проверок (включает gosimple)
-    - unused        # неиспользуемый код
-
-    # Стиль и качество
-    - misspell      # опечатки в комментариях
-    - unconvert     # ненужные конверсии типов
-    - unparam       # неиспользуемые параметры функций
-
-    # Потенциальные баги
-    - gocritic      # множество проверок качества кода
-    - errname       # имена error переменных должны заканчиваться на Err/Error
-    - errorlint     # правильное использование errors.Is/As
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - unconvert
+    - unparam
+    - gocritic
+    - errname
+    - errorlint
 
   settings:
     errcheck:
-      # Игнорировать Close() для defer
       check-blank: true
       exclude-functions:
         - (io.Closer).Close
         - (*os.File).Close
-        # Terraform SDK: d.Set() возвращает error, но SDK сам обрабатывает
-        - (*github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema.ResourceData).Set
 
     gocritic:
       enabled-tags:
@@ -43,7 +34,6 @@ linters:
         - style
         - performance
       disabled-checks:
-        # Terraform SDK паттерны
         - unnamedResult
         - ifElseChain
         - hugeParam
@@ -55,13 +45,11 @@ linters:
 
   exclusions:
     rules:
-      # Тестовые файлы - более мягкие правила
       - path: _test\.go
         linters:
           - errcheck
           - gocritic
 
-      # Генерируемые файлы
       - path: vendor/
         linters:
           - all

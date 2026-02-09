@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     threexui = {
-      source = "hashicorp/threexui"
+      source = "batonogov/threexui"
     }
   }
 }

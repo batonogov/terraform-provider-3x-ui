@@ -8,9 +8,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
 
+var version string = "dev"
+
 func main() {
-	if err := providerserver.Serve(context.Background(), provider.New, providerserver.ServeOpts{
-		Address: "registry.terraform.io/batonogov/threexui",
+	if err := providerserver.Serve(context.Background(), provider.New(version), providerserver.ServeOpts{
+		Address: "registry.opentofu.org/batonogov/threexui",
 	}); err != nil {
 		log.Fatal(err)
 	}

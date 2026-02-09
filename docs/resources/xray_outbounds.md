@@ -181,3 +181,9 @@ Each outbound should have exactly one `*_settings` block matching its `protocol`
 ## Attribute Reference
 
 - `id` - The resource identifier (`xray_outbounds`).
+
+## Import
+
+```shell
+terraform import threexui_xray_outbounds.config xray_outbounds
+```

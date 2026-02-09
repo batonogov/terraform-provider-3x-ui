@@ -47,7 +47,7 @@ resource "threexui_xray_routing" "config" {
 
 ### rule (Block, Optional, List)
 
-- `type` (String, Optional, Default: `"field"`) - Rule type.
+- `type` (String, Optional) - Rule type (e.g. `field`).
 - `domain` (List of String, Optional) - Domain matching patterns.
 - `ip` (List of String, Optional) - IP/CIDR matching patterns (e.g. `geoip:private`).
 - `port` (String, Optional) - Port range (e.g. `"80"`, `"1000-2000"`).
@@ -64,3 +64,9 @@ resource "threexui_xray_routing" "config" {
 ## Attribute Reference
 
 - `id` - The resource identifier (`xray_routing`).
+
+## Import
+
+```shell
+terraform import threexui_xray_routing.config xray_routing
+```

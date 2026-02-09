@@ -42,3 +42,9 @@ resource "threexui_xray_reverse" "config" {
 ## Attribute Reference
 
 - `id` - The resource identifier (`xray_reverse`).
+
+## Import
+
+```shell
+terraform import threexui_xray_reverse.config xray_reverse
+```

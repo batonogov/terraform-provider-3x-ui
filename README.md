@@ -1,21 +1,21 @@
-# Terraform/OpenTofu провайдер для 3x-ui
+# Terraform/OpenTofu Provider for 3x-ui
 
-Провайдер для управления инбаундами и клиентами 3x-ui через HTTP API панели.
+A provider for managing [3x-ui](https://github.com/MHSanaei/3x-ui) panel inbounds, clients, settings, and Xray configuration via its HTTP API.
 
-## Конфигурация провайдера
+## Provider Configuration
 
 ```hcl
 provider "threexui" {
   endpoint            = "http://localhost:2053"
   username            = "admin"
   password            = "admin"
-  # base_path           = "/"           # опционально
-  # insecure_skip_verify = true          # для self-signed HTTPS
+  # base_path           = "/"           # optional
+  # insecure_skip_verify = true          # for self-signed HTTPS
   # request_timeout      = "30s"
 }
 ```
 
-## Ресурсы
+## Resources
 
 ### `threexui_inbound`
 
@@ -25,23 +25,33 @@ resource "threexui_inbound" "example" {
   port     = 8443
   protocol = "vless"
 
-  # Опциональные настройки (пример для VLESS)
-  # settings {
-  #   decryption = "none"
-  #   encryption = "none"
-  # }
+  stream_settings = jsonencode({
+    network  = "tcp"
+    security = "reality"
+    realitySettings = {
+      dest        = "www.apple.com:443"
+      serverNames = ["www.apple.com"]
+    }
+  })
+
+  sniffing = jsonencode({
+    enabled      = true
+    destOverride = ["http", "tls", "quic", "fakedns"]
+  })
 }
 ```
 
-Основные поля:
-- `remark` — описание инбаунда.
-- `port` — порт прослушивания.
-- `protocol` — протокол (`vless`, `vmess`, `trojan`, `shadowsocks`, ...).
-- `settings` — JSON‑настройки инбаунда (без клиентов).
+Key attributes:
+- `remark` - Inbound label.
+- `port` - Listen port.
+- `protocol` - Protocol (`vless`, `vmess`, `trojan`, `shadowsocks`, ...).
+- `settings` - Protocol settings as a JSON string (clients excluded).
+- `stream_settings` - Transport/security settings as a JSON string.
+- `sniffing` - Sniffing settings as a JSON string.
 
-Полезно знать:
-- `settings` инбаунда больше не управляет клиентами.
-- Клиенты создаются только через `threexui_inbound_client`.
+Note:
+- `settings`, `stream_settings`, and `sniffing` are **JSON strings**, not nested blocks. Use `jsonencode()`.
+- Clients are managed exclusively via `threexui_inbound_client`.
 
 ### `threexui_inbound_client`
 
@@ -54,41 +64,17 @@ resource "threexui_inbound_client" "client_a" {
 }
 ```
 
-Основные поля:
-- `inbound_id` — ID инбаунда.
-- `email` — идентификатор клиента.
-- `enable` — включён ли клиент.
-- `flow` — flow для VLESS (`xtls-rprx-vision` и т.д.).
-- `expiry_time` — время истечения в миллисекундах Unix epoch (число).
-- `limit_ip` — лимит IP.
-- `total_gb` — лимит трафика.
-- `security` / `password` — используются для некоторых протоколов (чувствительные).
+Key attributes:
+- `inbound_id` - Inbound ID.
+- `email` - Client identifier (required).
+- `enable` - Whether the client is enabled.
+- `flow` - Flow for VLESS (`xtls-rprx-vision`, etc.).
+- `expiry_time` - Expiry as Unix timestamp in milliseconds.
+- `limit_ip` - IP limit.
+- `total_gb` - Traffic limit.
+- `security` / `password` - Used for some protocols (sensitive).
 
-## Outputs (пример)
-
-```hcl
-output "inbound_clients" {
-  value = {
-    client_a = {
-      id          = threexui_inbound_client.client_a.id
-      client_id   = threexui_inbound_client.client_a.client_id
-      email       = threexui_inbound_client.client_a.email
-      enable      = threexui_inbound_client.client_a.enable
-      flow        = threexui_inbound_client.client_a.flow
-      limit_ip    = threexui_inbound_client.client_a.limit_ip
-      total_gb    = threexui_inbound_client.client_a.total_gb
-      expiry_time = threexui_inbound_client.client_a.expiry_time
-      tg_id       = threexui_inbound_client.client_a.tg_id
-      sub_id      = threexui_inbound_client.client_a.sub_id
-      comment     = threexui_inbound_client.client_a.comment
-      reset       = threexui_inbound_client.client_a.reset
-      security    = threexui_inbound_client.client_a.security
-    }
-  }
-}
-```
-
-## Импорт
+## Import
 
 ```bash
 # inbound
@@ -98,67 +84,62 @@ terraform import threexui_inbound.example 123
 terraform import threexui_inbound_client.client_a 123:client-id
 ```
 
-## Разработка
+## Development
 
-### Требования
+### Requirements
 
 - Go 1.21+
 - [Task](https://taskfile.dev/) - task runner
-- [golangci-lint](https://golangci-lint.run/welcome/install/) - линтер
-- [pre-commit](https://pre-commit.com/) - git hooks фреймворк
-- Docker - для локального окружения 3x-ui
+- [golangci-lint](https://golangci-lint.run/welcome/install/) - linter
+- [pre-commit](https://pre-commit.com/) - git hooks framework
+- Docker - for local 3x-ui environment
 
-### Установка pre-commit hooks
+### Installing pre-commit hooks
 
 ```bash
-# Установить pre-commit (если ещё не установлен)
+# Install pre-commit
 pip install pre-commit
-# или через brew на macOS
+# or via brew on macOS
 brew install pre-commit
 
-# Установить git hooks
+# Install git hooks
 pre-commit install
 
-# Запустить проверки вручную на всех файлах
+# Run checks manually on all files
 pre-commit run --all-files
 ```
 
-### Команды для разработки
+### Development commands
 
 ```bash
-task build        # Собрать провайдер
-task fmt          # Форматировать код (gofmt)
-task vet          # Запустить go vet
-task lint         # Запустить golangci-lint
-task pre-commit   # Запустить все проверки вручную (fmt, vet, lint, build)
-task test         # Запустить acceptance-тесты (запускает docker compose)
+task build        # Build the provider
+task fmt          # Format code (gofmt)
+task vet          # Run go vet
+task lint         # Run golangci-lint
+task pre-commit   # Run all checks manually (fmt, vet, lint, build)
+task test         # Run acceptance tests (starts docker compose)
 ```
 
-### Pre-commit проверки
+### Pre-commit checks
 
-При каждом коммите автоматически запускаются:
-- **gofmt** - форматирование кода
-- **go vet** - статический анализ
-- **go build** - проверка компиляции
-- Проверки YAML/JSON файлов
-- Проверка trailing whitespace
+On every commit the following checks run automatically:
+- **gofmt** - code formatting
+- **go vet** - static analysis
+- **golangci-lint** - linter
+- **go build** - compilation check
+- YAML/JSON file checks
+- Trailing whitespace check
 
-Если проверки не проходят, коммит будет отклонён. Исправьте ошибки и попробуйте снова.
+If checks fail, the commit is rejected. Fix the errors and try again.
 
-**Важно:** `golangci-lint` не запускается автоматически при коммите (он медленный), но рекомендуется запускать вручную перед PR:
-```bash
-task lint
-```
-
-### Локальное окружение
+### Local environment
 
 ```bash
-# Запустить 3x-ui v2.8.9 на localhost:2053
+# Start 3x-ui v2.8.9 on localhost:2053
 docker compose up -d
 
-# Логин: admin / admin
-# webBasePath по умолчанию: /panel/
+# Login: admin / admin
 
-# Остановить
+# Stop
 docker compose down
 ```

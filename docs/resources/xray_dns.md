@@ -69,3 +69,9 @@ resource "threexui_xray_dns" "config" {
 ## Attribute Reference
 
 - `id` - The resource identifier (`xray_dns`).
+
+## Import
+
+```shell
+terraform import threexui_xray_dns.config xray_dns
+```

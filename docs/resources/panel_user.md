@@ -30,3 +30,9 @@ resource "threexui_panel_user" "admin" {
 ## Attribute Reference
 
 - `id` (String) - Always `"user"`.
+
+## Import
+
+```shell
+terraform import threexui_panel_user.admin user
+```

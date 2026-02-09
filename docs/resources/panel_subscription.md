@@ -64,3 +64,9 @@ resource "threexui_panel_subscription" "settings" {
 ## Attribute Reference
 
 All arguments are also exported as attributes.
+
+## Import
+
+```shell
+terraform import threexui_panel_subscription.settings settings
+```
