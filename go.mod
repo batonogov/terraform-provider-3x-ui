@@ -1,6 +1,6 @@
 module github.com/batonogov/terraform-provider-3x-ui
 
-go 1.24.0
+go 1.25.7
 
 require (
 	github.com/hashicorp/terraform-plugin-framework v1.17.0
