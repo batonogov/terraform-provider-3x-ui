@@ -13,7 +13,7 @@ tasks:
         sh: which tofu
     cmds:
       - docker compose down -v 2>/dev/null || true
-      - docker compose up --detach --wait
+      - docker compose up --detach --wait --quiet-pull
       - defer: docker compose down
       - >-
         TF_ACC=1
