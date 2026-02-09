@@ -2,13 +2,6 @@ package provider
 
 import "encoding/json"
 
-// APIResponse mirrors the standard 3x-ui response envelope.
-type APIResponse struct {
-	Success bool            `json:"success"`
-	Msg     string          `json:"msg"`
-	Obj     json.RawMessage `json:"obj"`
-}
-
 // Inbound represents a 3x-ui inbound (model.Inbound).
 // Note: settings/streamSettings/sniffing are JSON strings as used by the API.
 type Inbound struct {

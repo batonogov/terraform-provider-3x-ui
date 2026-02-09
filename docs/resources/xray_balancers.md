@@ -35,13 +35,19 @@ resource "threexui_xray_balancers" "config" {
 
 ### balancer (Block, Optional, List)
 
-- `tag` (String, Required) - Balancer tag name.
+- `tag` (String, Optional) - Balancer tag name.
 - `selector` (List of String, Required) - Outbound tag selectors (supports wildcards).
 
 #### strategy (Block, Optional, Max: 1)
 
-- `type` (String, Optional) - Balancing strategy type (e.g. `random`, `leastPing`, `leastLoad`).
+- `type` (String, Required) - Balancing strategy type (e.g. `random`, `leastPing`, `leastLoad`).
 
 ## Attribute Reference
 
 - `id` - The resource identifier (`xray_balancers`).
+
+## Import
+
+```shell
+terraform import threexui_xray_balancers.config xray_balancers
+```

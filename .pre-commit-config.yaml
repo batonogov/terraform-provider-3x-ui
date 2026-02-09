@@ -1,6 +1,6 @@
 # Pre-commit hooks configuration
-# Установка: pip install pre-commit && pre-commit install
-# Запуск вручную: pre-commit run --all-files
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
 
 repos:
   # Go checks via Taskfile (same as CI)
@@ -41,7 +41,7 @@ repos:
         pass_filenames: false
         always_run: true
 
-  # Общие хуки для любых файлов
+  # Common hooks for any files
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:

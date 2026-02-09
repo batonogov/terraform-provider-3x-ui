@@ -92,3 +92,9 @@ Empty block. Presence enables Xray stats collection.
 ## Attribute Reference
 
 - `id` - The resource identifier (`xray_basics`).
+
+## Import
+
+```shell
+terraform import threexui_xray_basics.config xray_basics
+```

@@ -41,3 +41,9 @@ resource "threexui_panel_telegram" "settings" {
 ## Attribute Reference
 
 All arguments are also exported as attributes.
+
+## Import
+
+```shell
+terraform import threexui_panel_telegram.settings settings
+```

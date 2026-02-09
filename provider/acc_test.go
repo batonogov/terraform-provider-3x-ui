@@ -24,7 +24,7 @@ const (
 
 func testAccProtoV6ProviderFactories() map[string]func() (tfprotov6.ProviderServer, error) {
 	return map[string]func() (tfprotov6.ProviderServer, error){
-		"threexui": providerserver.NewProtocol6WithError(New()),
+		"threexui": providerserver.NewProtocol6WithError(New("test")()),
 	}
 }
 
