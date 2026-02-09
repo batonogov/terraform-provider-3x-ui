@@ -58,4 +58,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/batonogov/terraform-provider-3x-ui
+        - github.com/batonogov/terraform-provider-threexui

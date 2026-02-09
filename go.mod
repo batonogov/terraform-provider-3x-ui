@@ -1,4 +1,4 @@
-module github.com/batonogov/terraform-provider-3x-ui
+module github.com/batonogov/terraform-provider-threexui
 
 go 1.25.7
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/batonogov/terraform-provider-3x-ui/provider"
+	"github.com/batonogov/terraform-provider-threexui/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
 
