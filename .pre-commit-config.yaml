@@ -34,6 +34,13 @@ repos:
         pass_filenames: false
         types: [go]
 
+      - id: task-test
+        name: task test
+        entry: task test
+        language: system
+        pass_filenames: false
+        always_run: true
+
   # Common hooks for any files
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
