@@ -51,12 +51,14 @@ resource "threexui_panel_general" "test" {
   web_key_file                   = ""
   web_listen                     = ""
   web_port                       = 2053
+  xray_outbound_test_url         = "https://example.com/generate_204"
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_panel_general.test", "id", "settings"),
 					resource.TestCheckResourceAttr("threexui_panel_general.test", "page_size", "50"),
 					resource.TestCheckResourceAttr("threexui_panel_general.test", "time_location", "Asia/Tehran"),
+					resource.TestCheckResourceAttr("threexui_panel_general.test", "xray_outbound_test_url", "https://example.com/generate_204"),
 				),
 			},
 			// Update
@@ -98,12 +100,14 @@ resource "threexui_panel_general" "test" {
   web_key_file                   = ""
   web_listen                     = ""
   web_port                       = 2053
+  xray_outbound_test_url         = "https://www.google.com/generate_204"
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_panel_general.test", "id", "settings"),
 					resource.TestCheckResourceAttr("threexui_panel_general.test", "page_size", "25"),
 					resource.TestCheckResourceAttr("threexui_panel_general.test", "time_location", "Local"),
+					resource.TestCheckResourceAttr("threexui_panel_general.test", "xray_outbound_test_url", "https://www.google.com/generate_204"),
 				),
 			},
 			// ImportState
@@ -153,6 +157,7 @@ resource "threexui_panel_general" "test" {
   web_key_file                   = ""
   web_listen                     = ""
   web_port                       = 2053
+  xray_outbound_test_url         = "https://www.google.com/generate_204"
 }
 `,
 				PlanOnly:           true,
@@ -207,6 +212,7 @@ resource "threexui_panel_general" "ldap" {
   web_key_file                   = ""
   web_listen                     = ""
   web_port                       = 2053
+  xray_outbound_test_url         = "https://www.google.com/generate_204"
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
@@ -255,6 +261,7 @@ resource "threexui_panel_general" "ldap" {
   web_key_file                   = ""
   web_listen                     = ""
   web_port                       = 2053
+  xray_outbound_test_url         = "https://www.google.com/generate_204"
 }
 `,
 				Check: resource.ComposeTestCheckFunc(

@@ -1,6 +1,6 @@
 services:
   3xui:
-    image: ghcr.io/mhsanaei/3x-ui:v2.8.9
+    image: ghcr.io/mhsanaei/3x-ui:v2.8.10
     ports:
       - "2053:2053" # HTTP panel
     environment:
