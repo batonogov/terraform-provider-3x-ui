@@ -73,6 +73,10 @@ resource "threexui_panel_general" "settings" {
 - `ldap_default_expiry_days` (Optional, Number) - Default expiry days for LDAP clients. Default is `0`.
 - `ldap_default_limit_ip` (Optional, Number) - Default IP limit for LDAP clients. Default is `0`.
 
+### Xray
+
+- `xray_outbound_test_url` (Optional, String) - URL used for testing outbound connectivity. Default is `https://www.google.com/generate_204`.
+
 ## Attribute Reference
 
 All arguments are also exported as attributes.

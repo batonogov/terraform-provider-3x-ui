@@ -366,6 +366,39 @@ func (c *Client) UpdateXrayTemplate(ctx context.Context, settings map[string]any
 	return c.doForm(ctx, http.MethodPost, "panel/xray/update", form, nil)
 }
 
+func (c *Client) GetXrayOutboundTestURL(ctx context.Context) (string, error) {
+	var raw string
+	if err := c.doForm(ctx, http.MethodPost, "panel/xray", url.Values{}, &raw); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(raw) == "" {
+		return "", nil
+	}
+	var payload struct {
+		OutboundTestURL string `json:"outboundTestUrl"`
+	}
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return "", err
+	}
+	return payload.OutboundTestURL, nil
+}
+
+func (c *Client) SetXrayOutboundTestURL(ctx context.Context, testURL string) error {
+	// Read current xray template to preserve it.
+	tmpl, err := c.GetXrayTemplate(ctx)
+	if err != nil {
+		return err
+	}
+	payload, err := json.Marshal(tmpl)
+	if err != nil {
+		return err
+	}
+	form := url.Values{}
+	form.Set("xraySetting", string(payload))
+	form.Set("outboundTestUrl", testURL)
+	return c.doForm(ctx, http.MethodPost, "panel/xray/update", form, nil)
+}
+
 func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType string, body []byte, out any) error {
 	resp, err := c.doRequestOnce(ctx, method, endpoint, contentType, body)
 	if err != nil {

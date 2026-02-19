@@ -550,6 +550,7 @@ type PanelGeneralModel struct {
 	LDAPDefaultTotalGB          types.Int64  `tfsdk:"ldap_default_total_gb"`
 	LDAPDefaultExpiryDays       types.Int64  `tfsdk:"ldap_default_expiry_days"`
 	LDAPDefaultLimitIP          types.Int64  `tfsdk:"ldap_default_limit_ip"`
+	XrayOutboundTestURL         types.String `tfsdk:"xray_outbound_test_url"`
 }
 
 func panelGeneralSchema() schema.Schema {
@@ -700,6 +701,12 @@ func panelGeneralSchema() schema.Schema {
 			"ldap_default_limit_ip": schema.Int64Attribute{
 				Optional: true, Computed: true,
 				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+			"xray_outbound_test_url": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "URL used for testing outbound connectivity (default: https://www.google.com/generate_204).",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 		},
 	}
@@ -1009,6 +1016,25 @@ func (r *PanelGeneralResource) Configure(_ context.Context, req resource.Configu
 	r.client = client
 }
 
+func (r *PanelGeneralResource) readPanelGeneralState(ctx context.Context, diags *diag.Diagnostics) *PanelGeneralModel {
+	settings := settingsReadTyped(ctx, diags, r.client)
+	if settings == nil {
+		return nil
+	}
+	state := flattenPanelGeneral(settings)
+
+	// xrayOutboundTestUrl is served via the xray endpoint, not the settings API.
+	testURL, err := r.client.GetXrayOutboundTestURL(ctx)
+	if err != nil {
+		diags.AddError("Failed to get xray outbound test URL", err.Error())
+		return nil
+	}
+	if testURL != "" {
+		state.XrayOutboundTestURL = types.StringValue(testURL)
+	}
+	return state
+}
+
 func (r *PanelGeneralResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan PanelGeneralModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -1021,20 +1047,18 @@ func (r *PanelGeneralResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
-	if settings == nil {
+	state := r.readPanelGeneralState(ctx, &resp.Diagnostics)
+	if state == nil {
 		return
 	}
-	state := flattenPanelGeneral(settings)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *PanelGeneralResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
-	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
-	if settings == nil {
+	state := r.readPanelGeneralState(ctx, &resp.Diagnostics)
+	if state == nil {
 		return
 	}
-	state := flattenPanelGeneral(settings)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1050,11 +1074,10 @@ func (r *PanelGeneralResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
-	if settings == nil {
+	state := r.readPanelGeneralState(ctx, &resp.Diagnostics)
+	if state == nil {
 		return
 	}
-	state := flattenPanelGeneral(settings)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1063,19 +1086,15 @@ func (r *PanelGeneralResource) Delete(ctx context.Context, _ resource.DeleteRequ
 }
 
 func (r *PanelGeneralResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
-	if settings == nil {
+	state := r.readPanelGeneralState(ctx, &resp.Diagnostics)
+	if state == nil {
 		return
 	}
-	state := flattenPanelGeneral(settings)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *PanelGeneralResource) applyPanelGeneral(ctx context.Context, plan *PanelGeneralModel, diags *diag.Diagnostics) {
 	desired := expandPanelGeneral(plan)
-	if len(desired) == 0 {
-		return
-	}
 
 	// Warn about web_base_path change.
 	if _, hasBasePath := desired["webBasePath"]; hasBasePath {
@@ -1085,22 +1104,32 @@ func (r *PanelGeneralResource) applyPanelGeneral(ctx context.Context, plan *Pane
 		)
 	}
 
-	existing, err := r.client.GetSettings(ctx)
-	if err != nil {
-		diags.AddError("Failed to get settings", err.Error())
-		return
+	if len(desired) > 0 {
+		existing, err := r.client.GetSettings(ctx)
+		if err != nil {
+			diags.AddError("Failed to get settings", err.Error())
+			return
+		}
+
+		needRestart := panelSettingsNeedRestart(existing, desired)
+		merged := mergeSettings(existing, desired)
+		if err := r.client.UpdateSettings(ctx, merged); err != nil {
+			diags.AddError("Failed to update settings", err.Error())
+			return
+		}
+
+		if needRestart {
+			if err := r.client.RestartPanel(ctx); err != nil {
+				diags.AddError("Failed to restart panel", err.Error())
+				return
+			}
+		}
 	}
 
-	needRestart := panelSettingsNeedRestart(existing, desired)
-	merged := mergeSettings(existing, desired)
-	if err := r.client.UpdateSettings(ctx, merged); err != nil {
-		diags.AddError("Failed to update settings", err.Error())
-		return
-	}
-
-	if needRestart {
-		if err := r.client.RestartPanel(ctx); err != nil {
-			diags.AddError("Failed to restart panel", err.Error())
+	// xrayOutboundTestUrl is managed via xray endpoint, not settings API.
+	if !plan.XrayOutboundTestURL.IsNull() && !plan.XrayOutboundTestURL.IsUnknown() {
+		if err := r.client.SetXrayOutboundTestURL(ctx, plan.XrayOutboundTestURL.ValueString()); err != nil {
+			diags.AddError("Failed to set xray outbound test URL", err.Error())
 			return
 		}
 	}
