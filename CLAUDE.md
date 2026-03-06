@@ -39,8 +39,7 @@ docker-compose.yaml    — 3x-ui on port 2053 (update image tag when bumping ver
 Taskfile.yml           — task build / test / fmt
 .github/workflows/
   ci.yml               — lint, unit tests, acceptance tests (PR + push main)
-  release.yml          — GoReleaser on v* tag (GPG signing, Terraform Registry)
-  release-please.yml   — automatic Release PR (conventional commits → semver tag)
+  release-please.yml   — Release Please + GoReleaser (conventional commits → semver tag → build + sign + publish)
 ```
 
 ## Provider Resources
@@ -200,9 +199,11 @@ Flow: Conventional Commits → Release Please → GoReleaser → Terraform Regis
 
 1. Commits to `main` with prefixes `feat:`, `fix:`, `feat!:`, etc.
 2. Release Please automatically creates/updates a Release PR (version + changelog)
-3. Merging the Release PR → tag `v*` is created → triggers `release.yml`
+3. Merging the Release PR → tag `v*` is created → GoReleaser runs in the same workflow
 4. GoReleaser builds binaries, signs with GPG, publishes GitHub Release
 5. Terraform Registry picks up the release
+
+Note: GoReleaser runs as a dependent job inside `release-please.yml` (not a separate workflow), because tags created by `GITHUB_TOKEN` do not trigger other workflows.
 
 Commits accumulate in the Release PR until merged — release only happens on PR merge.
 
