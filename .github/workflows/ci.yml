@@ -57,10 +57,10 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install OpenTofu
-        uses: opentofu/setup-opentofu@v1
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
-          tofu_wrapper: false
+          terraform_wrapper: false
 
       - name: Install Task
         uses: arduino/setup-task@v2

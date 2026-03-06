@@ -1,4 +1,4 @@
-# Terraform/OpenTofu Provider for 3x-ui
+# Terraform Provider for 3x-ui
 
 A provider for managing [3x-ui](https://github.com/MHSanaei/3x-ui) panel inbounds, clients, settings, and Xray configuration via its HTTP API.
 
@@ -8,8 +8,7 @@ A provider for managing [3x-ui](https://github.com/MHSanaei/3x-ui) panel inbound
 terraform {
   required_providers {
     threexui = {
-      source  = "batonogov/threexui"
-      version = "~> 0.1"
+      source = "batonogov/threexui"
     }
   }
 }
@@ -184,7 +183,7 @@ If checks fail, the commit is rejected. Fix the errors and try again.
 ### Local environment
 
 ```bash
-# Start 3x-ui v2.8.9 on localhost:2053
+# Start 3x-ui on localhost:2053
 docker compose up -d
 
 # Login: admin / admin

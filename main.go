@@ -12,7 +12,7 @@ var version string = "dev"
 
 func main() {
 	if err := providerserver.Serve(context.Background(), provider.New(version), providerserver.ServeOpts{
-		Address: "registry.opentofu.org/batonogov/threexui",
+		Address: "registry.terraform.io/batonogov/threexui",
 	}); err != nil {
 		log.Fatal(err)
 	}
