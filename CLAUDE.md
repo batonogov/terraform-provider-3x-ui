@@ -32,7 +32,7 @@ provider/              — all provider code
   sniffing.go          — buildSniffingJSON(map[string]any), flattenSniffing(string)
   settings_helpers.go  — mergeSettings
   default_settings.go  — default settings per protocol, applyDefaultInboundSettings
-  data_source_*.go     — data sources (inbounds, server_status, settings, xray_config, xray_versions)
+  data_source_*.go     — data sources (inbounds, server_status, settings, xray_config, xray_versions, online_clients)
 examples/              — example TF configs for manual testing
 3x-ui-<version>/      — 3x-ui source snapshots (in .gitignore, for reference/diffing)
 docker-compose.yaml    — 3x-ui on port 2053 (update image tag when bumping version)
@@ -69,6 +69,7 @@ Taskfile.yml           — task build / test / fmt
 | `threexui_xray_versions` | Available Xray versions (list of strings) |
 | `threexui_xray_config` | Current Xray config (JSON) |
 | `threexui_settings` | All panel settings (JSON) |
+| `threexui_online_clients` | List of currently online client emails |
 
 ## 3x-ui API (Key Endpoints)
 

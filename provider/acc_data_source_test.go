@@ -108,6 +108,22 @@ func TestAccDataSourceSettings(t *testing.T) {
 	})
 }
 
+func TestAccDataSourceOnlineClients(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `data "threexui_online_clients" "test" {}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("data.threexui_online_clients.test", "id"),
+					resource.TestCheckResourceAttrSet("data.threexui_online_clients.test", "clients.#"),
+				),
+			},
+		},
+	})
+}
+
 // --- Check helpers ---
 
 func testAccCheckJSONValid(resourceName, attrName string) resource.TestCheckFunc {

@@ -162,5 +162,6 @@ func (p *ThreeXUIProvider) DataSources(_ context.Context) []func() datasource.Da
 		NewXrayVersionsDataSource,
 		NewXrayConfigDataSource,
 		NewSettingsDataSource,
+		NewOnlineClientsDataSource,
 	}
 }
