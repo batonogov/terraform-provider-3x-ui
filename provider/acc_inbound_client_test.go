@@ -275,6 +275,95 @@ resource "threexui_inbound_client" "remove1" {
 	})
 }
 
+// --- Client without client_id: UUID auto-generated, delete+recreate works ---
+
+func TestAccInboundClientAutoUUID(t *testing.T) {
+	config := testAccProviderConfig() + `
+resource "threexui_inbound" "autouuid_host" {
+  port     = 25107
+  protocol = "vless"
+  remark   = "acc-autouuid-host"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+}
+
+resource "threexui_inbound_client" "autouuid" {
+  inbound_id = threexui_inbound.autouuid_host.id
+  email      = "autouuid@test.com"
+  enable     = true
+  flow       = "xtls-rprx-vision"
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
+		Steps: []resource.TestStep{
+			// Step 1: create without client_id — UUID auto-generated
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound_client.autouuid", "id"),
+					resource.TestCheckResourceAttrSet("threexui_inbound_client.autouuid", "client_id"),
+					resource.TestCheckResourceAttr("threexui_inbound_client.autouuid", "email", "autouuid@test.com"),
+				),
+			},
+			// Step 2: idempotency
+			{
+				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+// --- Client with explicit client_id ---
+
+func TestAccInboundClientExplicitID(t *testing.T) {
+	config := testAccProviderConfig() + `
+resource "threexui_inbound" "explicitid_host" {
+  port     = 25108
+  protocol = "vless"
+  remark   = "acc-explicitid-host"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+}
+
+resource "threexui_inbound_client" "explicitid" {
+  inbound_id = threexui_inbound.explicitid_host.id
+  client_id  = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+  email      = "explicitid@test.com"
+  enable     = true
+  flow       = "xtls-rprx-vision"
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound_client.explicitid", "client_id", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+					resource.TestCheckResourceAttr("threexui_inbound_client.explicitid", "email", "explicitid@test.com"),
+				),
+			},
+			// Idempotency
+			{
+				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
 // --- Config helpers ---
 
 func testAccInboundClientUpdateConfig(email string, enable bool, limitIP int, comment string) string {
