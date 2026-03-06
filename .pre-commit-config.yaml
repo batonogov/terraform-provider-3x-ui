@@ -39,7 +39,7 @@ repos:
         entry: task test
         language: system
         pass_filenames: false
-        always_run: true
+        types: [go]
 
   # Common hooks for any files
   - repo: https://github.com/pre-commit/pre-commit-hooks
