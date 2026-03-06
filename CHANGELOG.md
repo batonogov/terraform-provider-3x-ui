@@ -1,1 +1,41 @@
 # Changelog
+
+## [0.4.0](https://github.com/batonogov/terraform-provider-threexui/compare/v0.3.0...v0.4.0) (2026-03-06)
+
+
+### Features
+
+* add 3x-ui v2.8.10 support and xray_outbound_test_url attribute ([#24](https://github.com/batonogov/terraform-provider-threexui/issues/24)) ([4d624b2](https://github.com/batonogov/terraform-provider-threexui/commit/4d624b2f72f5b9a23e5c35c0c628c15dfe41b5df))
+* add 3x-ui v2.8.11 support ([#34](https://github.com/batonogov/terraform-provider-threexui/issues/34)) ([36556eb](https://github.com/batonogov/terraform-provider-threexui/commit/36556eb4e44cb63ec498fd3ac7a58b7a7dfaf41f))
+* add inbound tests and uuid helpers ([09fd75a](https://github.com/batonogov/terraform-provider-threexui/commit/09fd75ae42719ed86479b35e01c78d1de1417718))
+* add inbound tests and uuid helpers ([e625755](https://github.com/batonogov/terraform-provider-threexui/commit/e6257552cb437a712e287cbf42a15eff47066749))
+* add pre-commit hooks configuration ([99d5056](https://github.com/batonogov/terraform-provider-threexui/commit/99d5056724fc72ea24f7617f4716740e5cf64309))
+* add pre-commit hooks configuration ([414aff5](https://github.com/batonogov/terraform-provider-threexui/commit/414aff52b837e9b64bdb876c3bf083d4b8e49f6b))
+* add pre-commit hooks configuration ([433393e](https://github.com/batonogov/terraform-provider-threexui/commit/433393e83ad25d3a9c556231e46295c970c4387c))
+* add provider settings resources and update examples ([705483f](https://github.com/batonogov/terraform-provider-threexui/commit/705483f7f37c60ee21dcfe87d07c615e68573aa3))
+* add provider settings resources and update examples ([ba8fea7](https://github.com/batonogov/terraform-provider-threexui/commit/ba8fea7abed84b0ac3731e863ac7ac05b4fa835d))
+* add Release Please for automated releases ([#29](https://github.com/batonogov/terraform-provider-threexui/issues/29)) ([02f4880](https://github.com/batonogov/terraform-provider-threexui/commit/02f48801e6204c71d5d584ac039806d746dac52d))
+* add test plans, update CLAUDE.md and provider improvements ([ec6fcb2](https://github.com/batonogov/terraform-provider-threexui/commit/ec6fcb2003c1b2373cbb20b2469200664404849e))
+* add threexui_panel_user resource ([#18](https://github.com/batonogov/terraform-provider-threexui/issues/18)) ([e166e92](https://github.com/batonogov/terraform-provider-threexui/commit/e166e92a2601ce25bce44abf2199e92e07903317))
+* implement initial provider skeleton ([2877b0f](https://github.com/batonogov/terraform-provider-threexui/commit/2877b0f7e5f4dfc4df303cee104e000bcb6d1c75))
+* implement initial provider skeleton ([5a590f6](https://github.com/batonogov/terraform-provider-threexui/commit/5a590f628c4bb8bfb65666e061c0bf91e271a0bb))
+* replace JSON string attributes with typed blocks in threexui_inbound ([#22](https://github.com/batonogov/terraform-provider-threexui/issues/22)) ([1a979a7](https://github.com/batonogov/terraform-provider-threexui/commit/1a979a7f6c624ef19c6292aab727ebf0fdbd5f37))
+* switch from OpenTofu to Terraform Registry ([#28](https://github.com/batonogov/terraform-provider-threexui/issues/28)) ([fb26e72](https://github.com/batonogov/terraform-provider-threexui/commit/fb26e72d47deab62b5d8b1346bd5ed5b1320ffaf))
+
+
+### Bug Fixes
+
+* add mutex and subset diff suppress for xray settings ([906c4a7](https://github.com/batonogov/terraform-provider-threexui/commit/906c4a709474ac7156af544e20ef7cc4690dd494))
+* add warnings for 2FA/base_path and fix sub_json_enable persistence ([0cf40e2](https://github.com/batonogov/terraform-provider-threexui/commit/0cf40e22912a5bb4e7e235dac58c2258288349b3))
+* **ci:** use golangci-lint-action v7 for golangci-lint v2 config ([418de60](https://github.com/batonogov/terraform-provider-threexui/commit/418de60fc01139186e6014ff260f1a5f3386e587))
+* correct TestBuildAndFlattenSettings assertions ([4825e90](https://github.com/batonogov/terraform-provider-threexui/commit/4825e90bada76aa587920b11f584af5ee75ccea9))
+* fix remaining golangci-lint v2 config issues ([f1b10c4](https://github.com/batonogov/terraform-provider-threexui/commit/f1b10c405080b77076cbcb0e29418e414e87ca7f))
+* make client email required to prevent 3x-ui SQL errors ([4bc4543](https://github.com/batonogov/terraform-provider-threexui/commit/4bc454376dad4f02a87521f388bd6e72ef52803c))
+* migrate .golangci.yml to v2 format ([e57f5b7](https://github.com/batonogov/terraform-provider-threexui/commit/e57f5b73d0d16b9089b2fa5b22e3ba48144b00a4))
+* preserve testseed in state by adding flattenIntList to flattenSettings ([c6e6c59](https://github.com/batonogov/terraform-provider-threexui/commit/c6e6c592c26283cbca92ec844bef3922788d1821))
+* remove unsupported max-issues options from golangci-lint v2 config ([b471654](https://github.com/batonogov/terraform-provider-threexui/commit/b4716543cf10436ac715f539d9c1152ddc6a9445))
+* reset CHANGELOG.md so Release Please recreates v0.3.0 ([#39](https://github.com/batonogov/terraform-provider-threexui/issues/39)) ([9207002](https://github.com/batonogov/terraform-provider-threexui/commit/920700217cf1cecded95070bfb35636c45f257a8))
+* resolve all golangci-lint v2 warnings ([45015cc](https://github.com/batonogov/terraform-provider-threexui/commit/45015ccfaf315509cbddaebe53afac95ba64dd8f))
+* run GoReleaser inside release-please workflow ([#35](https://github.com/batonogov/terraform-provider-threexui/issues/35)) ([c7599b4](https://github.com/batonogov/terraform-provider-threexui/commit/c7599b4eca9515783f978cf6852596620096458d))
+
+## Changelog
