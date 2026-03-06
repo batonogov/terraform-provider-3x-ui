@@ -171,7 +171,7 @@ task pre-commit  # Запустить все pre-commit проверки вру�
 ## Тестовое окружение
 
 ```bash
-task test              # Полный цикл: docker up, acc-тесты (OpenTofu), docker down
+task test              # Полный цикл: docker up, acc-тесты (Terraform), docker down
 docker compose up -d   # Запуск 3x-ui v2.8.9 на localhost:2053
 # Логин: admin / admin
 # Docker image v2.8.9 по умолчанию webBasePath = / (НЕ /panel/)
@@ -183,10 +183,10 @@ Acc-тесты используют `terraform-plugin-testing`:
 - `ProtoV6ProviderFactories` в TestCase (не `ProviderFactories`)
 - HCL-конфиги используют typed блоки и атрибуты (не `jsonencode()`)
 
-Acc-тесты требуют OpenTofu и переменные окружения для корректного provider namespace:
-- `TF_ACC_TERRAFORM_PATH` — абсолютный путь к `tofu`
+Acc-тесты требуют Terraform и переменные окружения для корректного provider namespace:
+- `TF_ACC_TERRAFORM_PATH` — абсолютный путь к `terraform`
 - `TF_ACC_PROVIDER_NAMESPACE=batonogov`
-- `TF_ACC_PROVIDER_HOST=registry.opentofu.org`
+- `TF_ACC_PROVIDER_HOST=registry.terraform.io`
 
 Всё это уже настроено в `Taskfile.yml` → `task test`.
 
