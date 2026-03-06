@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/batonogov/terraform-provider-threexui/compare/v0.4.0...v0.4.1) (2026-03-06)
+
+
+### Bug Fixes
+
+* add default empty string for inbound remark attribute ([#44](https://github.com/batonogov/terraform-provider-threexui/issues/44)) ([64cd3e3](https://github.com/batonogov/terraform-provider-threexui/commit/64cd3e300b0d41bd5660f03b75e8e6b28a7d84d9))
+
 ## [0.4.0](https://github.com/batonogov/terraform-provider-threexui/compare/v0.3.0...v0.4.0) (2026-03-06)
 
 
