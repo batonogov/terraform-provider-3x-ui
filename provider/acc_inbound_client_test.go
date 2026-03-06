@@ -364,6 +364,86 @@ resource "threexui_inbound_client" "explicitid" {
 	})
 }
 
+// --- Last client replaced with placeholder on delete ---
+
+func TestAccInboundClientDeleteLastPlaceholder(t *testing.T) {
+	// Step 1: create inbound with a single client.
+	step1Config := testAccProviderConfig() + `
+resource "threexui_inbound" "last_client_host" {
+  port     = 25109
+  protocol = "vless"
+  remark   = "acc-last-client"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+}
+
+resource "threexui_inbound_client" "only" {
+  inbound_id = threexui_inbound.last_client_host.id
+  email      = "only@test.com"
+  enable     = true
+  flow       = "xtls-rprx-vision"
+}
+`
+	// Step 2: remove the client from config, keeping the inbound.
+	// The last client should be replaced with a disabled placeholder.
+	step2Config := testAccProviderConfig() + `
+resource "threexui_inbound" "last_client_host" {
+  port     = 25109
+  protocol = "vless"
+  remark   = "acc-last-client"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+}
+`
+	// Step 3: re-add a client with the same email — must succeed because
+	// the placeholder freed the original email.
+	step3Config := testAccProviderConfig() + `
+resource "threexui_inbound" "last_client_host" {
+  port     = 25109
+  protocol = "vless"
+  remark   = "acc-last-client"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+}
+
+resource "threexui_inbound_client" "reused" {
+  inbound_id = threexui_inbound.last_client_host.id
+  email      = "only@test.com"
+  enable     = true
+  flow       = "xtls-rprx-vision"
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: step1Config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound_client.only", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound_client.only", "email", "only@test.com"),
+				),
+			},
+			{
+				Config: step2Config,
+			},
+			{
+				Config: step3Config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound_client.reused", "email", "only@test.com"),
+				),
+			},
+		},
+	})
+}
+
 // --- Config helpers ---
 
 func testAccInboundClientUpdateConfig(email string, enable bool, limitIP int, comment string) string {

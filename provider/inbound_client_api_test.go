@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -67,5 +68,21 @@ func TestClientDeleteInboundClient(t *testing.T) {
 	}
 	if gotPath != "/panel/api/inbounds/9/delClient/cid" {
 		t.Fatalf("unexpected path: %s", gotPath)
+	}
+}
+
+func TestClientDeleteInboundClientLastClient(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(failResponse("Something went wrong (no client remained in Inbound)"))
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	err := client.DeleteInboundClient(context.Background(), 9, "cid")
+	if err == nil {
+		t.Fatal("expected error when deleting last client")
+	}
+	if !strings.Contains(err.Error(), "no client remained in Inbound") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

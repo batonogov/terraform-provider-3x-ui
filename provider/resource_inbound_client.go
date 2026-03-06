@@ -279,16 +279,54 @@ func (r *InboundClientResource) Delete(ctx context.Context, req resource.DeleteR
 	inboundClientMu.Lock()
 	defer inboundClientMu.Unlock()
 
+	// Check if inbound still exists. If it was already deleted (e.g. during
+	// terraform destroy), silently remove the client from state — it was
+	// destroyed together with the inbound.
+	inbound, err := r.client.GetInbound(ctx, inboundID)
+	if err != nil {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
 	if err := ensureInboundClientsKey(ctx, r.client, inboundID); err != nil {
 		resp.Diagnostics.AddError("Failed to ensure clients key", err.Error())
 		return
 	}
 
-	if err := r.client.DeleteInboundClient(ctx, inboundID, clientID); err != nil {
-		if strings.Contains(err.Error(), "no client remained in Inbound") {
-			resp.State.RemoveResource(ctx)
+	// 3x-ui does not allow deleting the last client in an inbound.
+	// If this is the last client, replace it with a disabled placeholder
+	// (random email, enable=false) to free the original email and satisfy
+	// the 3x-ui invariant. The placeholder is cleaned up when the inbound
+	// itself is deleted.
+	settings, parseErr := parseInboundSettings(inbound.Settings)
+	if parseErr == nil && len(settings.Clients) <= 1 {
+		placeholderID, genErr := newUUID()
+		if genErr != nil {
+			resp.Diagnostics.AddError("Failed to generate placeholder UUID", genErr.Error())
 			return
 		}
+		placeholderEmail := fmt.Sprintf("_deleted_%s", placeholderID[:8])
+		placeholder := map[string]any{
+			"email":  placeholderEmail,
+			"enable": false,
+		}
+		switch inbound.Protocol {
+		case "trojan":
+			placeholder["password"] = placeholderID
+		case "shadowsocks":
+			placeholder["email"] = placeholderEmail
+		default:
+			placeholder["id"] = placeholderID
+		}
+		if updateErr := r.client.UpdateInboundClient(ctx, inboundID, clientID, placeholder); updateErr != nil {
+			resp.Diagnostics.AddError("Failed to replace last client with placeholder", updateErr.Error())
+			return
+		}
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	if err := r.client.DeleteInboundClient(ctx, inboundID, clientID); err != nil {
 		resp.Diagnostics.AddError("Failed to delete inbound client", err.Error())
 		return
 	}
