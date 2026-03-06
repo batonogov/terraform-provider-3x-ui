@@ -34,8 +34,8 @@ provider/              — all provider code
   default_settings.go  — default settings per protocol, applyDefaultInboundSettings
   data_source_*.go     — data sources (inbounds, server_status, settings, xray_config, xray_versions)
 examples/              — example TF configs for manual testing
-3x-ui-2.8.9/          — 3x-ui v2.8.9 source (in .gitignore, for reference)
-docker-compose.yaml    — 3x-ui v2.8.9 on port 2053
+3x-ui-<version>/      — 3x-ui source snapshots (in .gitignore, for reference/diffing)
+docker-compose.yaml    — 3x-ui on port 2053 (update image tag when bumping version)
 Taskfile.yml           — task build / test / fmt
 .github/workflows/
   ci.yml               — lint, unit tests, acceptance tests (PR + push main)
@@ -176,9 +176,9 @@ Configuration files: `.pre-commit-config.yaml`, `.golangci.yml`
 
 ```bash
 task test              # Full cycle: docker up, acc tests (Terraform), docker down
-docker compose up -d   # Start 3x-ui v2.8.9 on localhost:2053
+docker compose up -d   # Start 3x-ui on localhost:2053
 # Login: admin / admin
-# Docker image v2.8.9 defaults to webBasePath = / (NOT /panel/)
+# Docker image defaults to webBasePath = / (NOT /panel/)
 # Do not set THREEXUI_BASE_PATH
 ```
 
@@ -205,6 +205,17 @@ Flow: Conventional Commits → Release Please → GoReleaser → Terraform Regis
 5. Terraform Registry picks up the release
 
 Commits accumulate in the Release PR until merged — release only happens on PR merge.
+
+## Updating 3x-ui Version
+
+When a new 3x-ui version is released:
+
+1. **Save source snapshots** — download/copy the new version source into `3x-ui-<version>/` directory
+2. **Diff sources** — compare with previous version: `diff -rq 3x-ui-<old> 3x-ui-<new> --exclude='.git'`, then inspect key files (API endpoints, models, services)
+3. **Assess impact** — determine which changes affect the provider's API surface (new fields, changed formats, renamed endpoints)
+4. **Update docker-compose.yaml** — bump the image tag to the new version
+5. **Run tests** — `task test` (full cycle: docker up, acceptance tests, docker down)
+6. **Adapt provider** — if API changes require it, update provider code, run `task build`, then `task test` again
 
 ## Core Principles
 
