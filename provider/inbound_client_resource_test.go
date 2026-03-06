@@ -1,6 +1,10 @@
 package provider
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/types"
+)
 
 func TestFindClientByID(t *testing.T) {
 	clients := []map[string]any{
@@ -34,4 +38,50 @@ func TestSplitInboundClientID(t *testing.T) {
 	if _, _, err := splitInboundClientID("bad"); err == nil {
 		t.Fatalf("expected error")
 	}
+}
+
+func TestGetClientIDFromModel(t *testing.T) {
+	t.Run("explicit client_id wins", func(t *testing.T) {
+		m := &InboundClientResourceModel{
+			ClientID: types.StringValue("my-uuid"),
+			Email:    types.StringValue("user@test.com"),
+		}
+		got := getClientIDFromModel(m, map[string]any{"email": "user@test.com"})
+		if got != "my-uuid" {
+			t.Fatalf("expected my-uuid, got %q", got)
+		}
+	})
+
+	t.Run("password fallback", func(t *testing.T) {
+		m := &InboundClientResourceModel{
+			ClientID: types.StringUnknown(),
+			Email:    types.StringValue("user@test.com"),
+		}
+		got := getClientIDFromModel(m, map[string]any{"password": "trojan-pass", "email": "user@test.com"})
+		if got != "trojan-pass" {
+			t.Fatalf("expected trojan-pass, got %q", got)
+		}
+	})
+
+	t.Run("no fallback to email", func(t *testing.T) {
+		m := &InboundClientResourceModel{
+			ClientID: types.StringUnknown(),
+			Email:    types.StringValue("user@test.com"),
+		}
+		got := getClientIDFromModel(m, map[string]any{"email": "user@test.com"})
+		if got != "" {
+			t.Fatalf("expected empty string (UUID will be generated), got %q", got)
+		}
+	})
+
+	t.Run("null client_id returns empty", func(t *testing.T) {
+		m := &InboundClientResourceModel{
+			ClientID: types.StringNull(),
+			Email:    types.StringValue("user@test.com"),
+		}
+		got := getClientIDFromModel(m, map[string]any{"email": "user@test.com"})
+		if got != "" {
+			t.Fatalf("expected empty string, got %q", got)
+		}
+	})
 }

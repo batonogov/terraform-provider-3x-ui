@@ -417,9 +417,6 @@ func getClientIDFromModel(m *InboundClientResourceModel, client map[string]any) 
 	if v := stringValue(client["password"]); v != "" {
 		return v
 	}
-	if v := stringValue(client["email"]); v != "" {
-		return v
-	}
 	return ""
 }
 
