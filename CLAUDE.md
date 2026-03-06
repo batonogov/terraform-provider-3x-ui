@@ -226,3 +226,4 @@ When a new 3x-ui version is released:
 - Make targeted changes, avoid mass reformatting.
 - Run `task build` after code changes.
 - Be concise and to the point. Indicate which files were changed.
+- When changing anything documented in CLAUDE.md (workflows, structure, conventions), update CLAUDE.md in the same commit/PR.
