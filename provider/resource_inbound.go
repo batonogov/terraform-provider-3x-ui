@@ -113,6 +113,8 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"remark": schema.StringAttribute{
 				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
 				Description: "Remark / display name for the inbound.",
 			},
 			"enable": schema.BoolAttribute{

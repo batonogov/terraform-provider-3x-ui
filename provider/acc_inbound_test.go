@@ -683,6 +683,73 @@ resource "threexui_inbound" "listen" {
 	})
 }
 
+// --- Remark omitted (default empty string), then set, then removed ---
+
+func TestAccInboundRemarkDefault(t *testing.T) {
+	configNoRemark := testAccProviderConfig() + `
+resource "threexui_inbound" "noremark" {
+  port     = 25026
+  protocol = "vless"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+}
+`
+	configWithRemark := testAccProviderConfig() + `
+resource "threexui_inbound" "noremark" {
+  port     = 25026
+  protocol = "vless"
+  remark   = "now-has-remark"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			// Step 1: create without remark — defaults to ""
+			{
+				Config: configNoRemark,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound.noremark", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound.noremark", "remark", ""),
+				),
+			},
+			// Step 2: idempotency — no diff on re-apply
+			{
+				Config:             configNoRemark,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+			// Step 3: set remark
+			{
+				Config: configWithRemark,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.noremark", "remark", "now-has-remark"),
+				),
+			},
+			// Step 4: remove remark — back to default ""
+			{
+				Config: configNoRemark,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.noremark", "remark", ""),
+				),
+			},
+			// Step 5: idempotency after removing remark
+			{
+				Config:             configNoRemark,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
 // --- Config helpers ---
 
 func testAccInboundUpdateConfig(remark string, port int, enable bool) string {
