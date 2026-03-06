@@ -271,6 +271,17 @@ func (c *Client) GetXrayConfig(ctx context.Context) (map[string]any, error) {
 	return out, nil
 }
 
+func (c *Client) GetOnlineClients(ctx context.Context) ([]string, error) {
+	var out []string
+	if err := c.doJSON(ctx, http.MethodPost, "panel/api/inbounds/onlines", nil, &out); err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []string{}
+	}
+	return out, nil
+}
+
 func (c *Client) GetNewX25519Cert(ctx context.Context) (map[string]any, error) {
 	var out map[string]any
 	if err := c.doJSON(ctx, http.MethodGet, "panel/api/server/getNewX25519Cert", nil, &out); err != nil {
