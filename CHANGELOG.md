@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/batonogov/terraform-provider-threexui/compare/v0.4.1...v0.4.2) (2026-03-06)
+
+
+### Bug Fixes
+
+* remove email fallback in getClientIDFromModel ([#46](https://github.com/batonogov/terraform-provider-threexui/issues/46)) ([d496d93](https://github.com/batonogov/terraform-provider-threexui/commit/d496d9368bf30611b67bc284f0d9faafffcacc46))
+
 ## [0.4.1](https://github.com/batonogov/terraform-provider-threexui/compare/v0.4.0...v0.4.1) (2026-03-06)
 
 
