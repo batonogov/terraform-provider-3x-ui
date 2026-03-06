@@ -1,200 +1,216 @@
 # CLAUDE.md
 
-Правила для агентов, работающих в этом репозитории.
+Rules for agents working in this repository.
 
-## Цель
+## Purpose
 
-Terraform-провайдер для панели [3x-ui](https://github.com/MHSanaei/3x-ui) (Go, terraform-plugin-framework).
+Terraform provider for the [3x-ui](https://github.com/MHSanaei/3x-ui) panel (Go, terraform-plugin-framework).
 
-## Структура проекта
+## Project Structure
 
 ```
-provider/              — весь код провайдера
+provider/              — all provider code
   provider.go          — ThreeXUIProvider (framework): Metadata, Schema, Configure, Resources, DataSources
-  client.go            — HTTP-клиент к 3x-ui API (cookie auth, auto re-login)
+  client.go            — HTTP client for 3x-ui API (cookie auth, auto re-login)
   types.go             — Inbound, ClientTraffic, APIResponse, ParseJSONField
-  resource_inbound.go  — ресурс threexui_inbound (CRUD, Reality, settings defaults)
-  resource_inbound_client.go — ресурс threexui_inbound_client (мьютекс, UUID)
-  resource_settings_tabs.go  — panel_general/security/telegram/subscription (typed атрибуты)
-  resource_panel_user.go     — ресурс threexui_panel_user (смена логина/пароля админа)
-  resource_xray_settings.go  — CRUD для xray_basics/dns/routing/balancers/reverse/outbounds (typed атрибуты)
-  xray_basics_schema.go      — модель, схема, expand/flatten для xray_basics (log, policy, api, stats)
-  xray_dns_schema.go         — модель, схема, expand/flatten для xray_dns (servers, hosts)
-  xray_routing_schema.go     — модель, схема, expand/flatten для xray_routing (rules)
-  xray_balancers_schema.go   — модель, схема, expand/flatten для xray_balancers
-  xray_reverse_schema.go     — модель, схема, expand/flatten для xray_reverse (bridges, portals)
-  xray_outbounds_schema.go   — модель, схема, expand/flatten для xray_outbounds (per-protocol settings)
-  inbound_settings_schema.go      — модель, схема, expand/flatten для per-protocol settings (vless, trojan, ss, http, socks, wg, dokodemo)
-  inbound_stream_settings_schema.go — модель, схема, expand/flatten для stream_settings (tcp, ws, grpc, httpupgrade, xhttp, kcp, reality, sockopt)
-  inbound_sniffing_schema.go      — модель, схема, expand/flatten для sniffing
+  resource_inbound.go  — threexui_inbound resource (CRUD, Reality, settings defaults)
+  resource_inbound_client.go — threexui_inbound_client resource (mutex, UUID)
+  resource_settings_tabs.go  — panel_general/security/telegram/subscription (typed attributes)
+  resource_panel_user.go     — threexui_panel_user resource (admin credentials change)
+  resource_xray_settings.go  — CRUD for xray_basics/dns/routing/balancers/reverse/outbounds (typed attributes)
+  xray_basics_schema.go      — model, schema, expand/flatten for xray_basics (log, policy, api, stats)
+  xray_dns_schema.go         — model, schema, expand/flatten for xray_dns (servers, hosts)
+  xray_routing_schema.go     — model, schema, expand/flatten for xray_routing (rules)
+  xray_balancers_schema.go   — model, schema, expand/flatten for xray_balancers
+  xray_reverse_schema.go     — model, schema, expand/flatten for xray_reverse (bridges, portals)
+  xray_outbounds_schema.go   — model, schema, expand/flatten for xray_outbounds (per-protocol settings)
+  inbound_settings_schema.go      — model, schema, expand/flatten for per-protocol settings (vless, trojan, ss, http, socks, wg, dokodemo)
+  inbound_stream_settings_schema.go — model, schema, expand/flatten for stream_settings (tcp, ws, grpc, httpupgrade, xhttp, kcp, reality, sockopt)
+  inbound_sniffing_schema.go      — model, schema, expand/flatten for sniffing
   settings.go          — buildSettingsJSON(map[string]any), flattenSettings(string), expand/flatten clients/fallbacks/peers
   stream_settings.go   — buildStreamSettingsJSON(map[string]any), flattenStreamSettings(string), expand/flatten per-transport
   sniffing.go          — buildSniffingJSON(map[string]any), flattenSniffing(string)
   settings_helpers.go  — mergeSettings
-  default_settings.go  — дефолтные settings по протоколу, applyDefaultInboundSettings
+  default_settings.go  — default settings per protocol, applyDefaultInboundSettings
   data_source_*.go     — data sources (inbounds, server_status, settings, xray_config, xray_versions)
-examples/              — примеры TF-конфигов для ручного тестирования
-3x-ui-2.8.9/          — исходники 3x-ui v2.8.9 (в .gitignore, для справки)
-docker-compose.yaml    — 3x-ui v2.8.9 на порту 2053
+examples/              — example TF configs for manual testing
+3x-ui-2.8.9/          — 3x-ui v2.8.9 source (in .gitignore, for reference)
+docker-compose.yaml    — 3x-ui v2.8.9 on port 2053
 Taskfile.yml           — task build / test / fmt
+.github/workflows/
+  ci.yml               — lint, unit tests, acceptance tests (PR + push main)
+  release.yml          — GoReleaser on v* tag (GPG signing, Terraform Registry)
+  release-please.yml   — automatic Release PR (conventional commits → semver tag)
 ```
 
-## Ресурсы провайдера
+## Provider Resources
 
-| Terraform-ресурс | Файл | Описание |
+| Terraform Resource | File | Description |
 |---|---|---|
-| `threexui_inbound` | resource_inbound.go + inbound_*_schema.go | Inbound (vless/vmess/trojan/ss/http/mixed/wg/tunnel). Typed блоки для settings/stream_settings/sniffing |
-| `threexui_inbound_client` | resource_inbound_client.go | Клиент внутри inbound. Typed атрибуты |
-| `threexui_panel_general` | resource_settings_tabs.go | Настройки панели (web, LDAP). Typed атрибуты |
-| `threexui_panel_security` | resource_settings_tabs.go | 2FA. Typed атрибуты |
-| `threexui_panel_user` | resource_panel_user.go | Смена логина/пароля админа. Write-only (нет read API) |
-| `threexui_panel_telegram` | resource_settings_tabs.go | Telegram-бот. Typed атрибуты |
-| `threexui_panel_subscription` | resource_settings_tabs.go | Подписки. Typed атрибуты |
-| `threexui_xray_basics` | resource_xray_settings.go + xray_basics_schema.go | Базовый Xray-конфиг (merge root). Typed блоки |
-| `threexui_xray_dns` | resource_xray_settings.go + xray_dns_schema.go | DNS (set path). Typed блоки |
-| `threexui_xray_routing` | resource_xray_settings.go + xray_routing_schema.go | Маршрутизация (set path). Typed блоки |
-| `threexui_xray_balancers` | resource_xray_settings.go + xray_balancers_schema.go | Балансировщики (set path). Typed блоки |
-| `threexui_xray_reverse` | resource_xray_settings.go + xray_reverse_schema.go | Reverse proxy (set path). Typed блоки |
-| `threexui_xray_outbounds` | resource_xray_settings.go + xray_outbounds_schema.go | Outbound'ы (set path). Typed блоки |
+| `threexui_inbound` | resource_inbound.go + inbound_*_schema.go | Inbound (vless/vmess/trojan/ss/http/mixed/wg/tunnel). Typed blocks for settings/stream_settings/sniffing |
+| `threexui_inbound_client` | resource_inbound_client.go | Client within an inbound. Typed attributes |
+| `threexui_panel_general` | resource_settings_tabs.go | Panel settings (web, LDAP). Typed attributes |
+| `threexui_panel_security` | resource_settings_tabs.go | 2FA. Typed attributes |
+| `threexui_panel_user` | resource_panel_user.go | Admin credentials change. Write-only (no read API) |
+| `threexui_panel_telegram` | resource_settings_tabs.go | Telegram bot. Typed attributes |
+| `threexui_panel_subscription` | resource_settings_tabs.go | Subscriptions. Typed attributes |
+| `threexui_xray_basics` | resource_xray_settings.go + xray_basics_schema.go | Base Xray config (merge root). Typed blocks |
+| `threexui_xray_dns` | resource_xray_settings.go + xray_dns_schema.go | DNS (set path). Typed blocks |
+| `threexui_xray_routing` | resource_xray_settings.go + xray_routing_schema.go | Routing (set path). Typed blocks |
+| `threexui_xray_balancers` | resource_xray_settings.go + xray_balancers_schema.go | Balancers (set path). Typed blocks |
+| `threexui_xray_reverse` | resource_xray_settings.go + xray_reverse_schema.go | Reverse proxy (set path). Typed blocks |
+| `threexui_xray_outbounds` | resource_xray_settings.go + xray_outbounds_schema.go | Outbounds (set path). Typed blocks |
 
 ## Data Sources
 
-| Terraform data source | Описание |
+| Terraform Data Source | Description |
 |---|---|
-| `threexui_inbounds` | Список всех inbound'ов (JSON-строка) |
-| `threexui_server_status` | Статус сервера (JSON) |
-| `threexui_xray_versions` | Доступные версии Xray (list of strings) |
-| `threexui_xray_config` | Текущий Xray-конфиг (JSON) |
-| `threexui_settings` | Все настройки панели (JSON) |
+| `threexui_inbounds` | List of all inbounds (JSON string) |
+| `threexui_server_status` | Server status (JSON) |
+| `threexui_xray_versions` | Available Xray versions (list of strings) |
+| `threexui_xray_config` | Current Xray config (JSON) |
+| `threexui_settings` | All panel settings (JSON) |
 
-## API 3x-ui (ключевые эндпоинты)
+## 3x-ui API (Key Endpoints)
 
-- `POST /login` — авторизация (form: username, password, twoFactorCode)
-- `GET /panel/api/inbounds/list` — все inbound'ы
-- `GET /panel/api/inbounds/get/:id` — один inbound
-- `POST /panel/api/inbounds/add` — создать (form-encoded)
-- `POST /panel/api/inbounds/update/:id` — обновить
-- `POST /panel/api/inbounds/del/:id` — удалить
-- `POST /panel/api/inbounds/addClient` — добавить клиента
-- `POST /panel/api/inbounds/updateClient/:clientId` — обновить клиента
-- `POST /panel/api/inbounds/:id/delClient/:clientId` — удалить клиента
-- `POST /panel/setting/all` — все настройки
-- `POST /panel/setting/update` — обновить настройки (JSON body)
-- `POST /panel/setting/updateUser` — сменить логин/пароль админа (JSON: oldUsername, oldPassword, newUsername, newPassword)
+- `POST /login` — authentication (form: username, password, twoFactorCode)
+- `GET /panel/api/inbounds/list` — all inbounds
+- `GET /panel/api/inbounds/get/:id` — single inbound
+- `POST /panel/api/inbounds/add` — create (form-encoded)
+- `POST /panel/api/inbounds/update/:id` — update
+- `POST /panel/api/inbounds/del/:id` — delete
+- `POST /panel/api/inbounds/addClient` — add client
+- `POST /panel/api/inbounds/updateClient/:clientId` — update client
+- `POST /panel/api/inbounds/:id/delClient/:clientId` — delete client
+- `POST /panel/setting/all` — all settings
+- `POST /panel/setting/update` — update settings (JSON body)
+- `POST /panel/setting/updateUser` — change admin credentials (JSON: oldUsername, oldPassword, newUsername, newPassword)
 - `POST /panel/xray` — Xray template (xraySetting)
-- `POST /panel/xray/update` — обновить Xray template
+- `POST /panel/xray/update` — update Xray template
 
-Неавторизованные запросы возвращают 404 (не 401). Клиент делает auto re-login при 401/404.
+Unauthenticated requests return 404 (not 401). The client performs auto re-login on 401/404.
 
-## Важные особенности кода
+## Key Code Details
 
 ### Framework (terraform-plugin-framework)
-- Провайдер: `ThreeXUIProvider` реализует `provider.Provider` (Metadata, Schema, Configure, Resources, DataSources)
-- Фабрика: `New() provider.Provider`
-- Ресурсы реализуют `resource.Resource` + `resource.ResourceWithImportState`
-- Data sources реализуют `datasource.DataSource`
-- Модели используют `types.String`, `types.Int64`, `types.Bool` с тегами `tfsdk:"..."`
+- Provider: `ThreeXUIProvider` implements `provider.Provider` (Metadata, Schema, Configure, Resources, DataSources)
+- Factory: `New() provider.Provider`
+- Resources implement `resource.Resource` + `resource.ResourceWithImportState`
+- Data sources implement `datasource.DataSource`
+- Models use `types.String`, `types.Int64`, `types.Bool` with `tfsdk:"..."` tags
 - Plan modifiers: `stringplanmodifier.RequiresReplace()`, `int64planmodifier.RequiresReplace()`
 - Defaults: `booldefault.StaticBool()`, `stringdefault.StaticString()`
 - Import: `resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)`
 
 ### Inbound / Client
-- `settings`, `stream_settings`, `sniffing` — JSON-строки в API, typed блоки в TF schema
-- Трёхслойная конвертация: Typed Model ↔ Untyped Map (expand/flatten*FromModel/*ToModel) ↔ JSON String (build*/flatten*)
-- Per-protocol settings блоки: `vless_settings`, `trojan_settings`, `shadowsocks_settings`, `http_settings`, `socks_settings`, `wireguard_settings`, `dokodemo_settings`
-- stream_settings поддерживает транспорты: tcp, ws, grpc, httpupgrade, xhttp, kcp + reality, sockopt, external_proxy
-- `alignBlocksWithPlan` — предотвращает ошибки "was absent, but now present" для Optional блоков (Create/Read/Update); пропускается при Import (detect: `state.Protocol.IsNull()`)
-- `preserveInboundSettings` — при update сохраняет clients и testseed из existing inbound
-- `ensureRealityKeys` — автогенерация private/public key и short_ids
-- `ensureInboundClientIDs` — автогенерация UUID для клиентов без id
-- `applyDefaultInboundSettings` — дефолтные settings по протоколу (vless: decryption=none, testseed)
-- `inboundClientMu` — мьютекс для конкурентных операций с клиентами
-- `email` в `threexui_inbound_client` — **Required** (без email 3x-ui падает с SQL error при добавлении следующего клиента)
-- `isSubset` — standalone утилита для проверки подмножества JSON
+- `settings`, `stream_settings`, `sniffing` — JSON strings in the API, typed blocks in TF schema
+- Three-layer conversion: Typed Model ↔ Untyped Map (expand/flatten*FromModel/*ToModel) ↔ JSON String (build*/flatten*)
+- Per-protocol settings blocks: `vless_settings`, `trojan_settings`, `shadowsocks_settings`, `http_settings`, `socks_settings`, `wireguard_settings`, `dokodemo_settings`
+- stream_settings supports transports: tcp, ws, grpc, httpupgrade, xhttp, kcp + reality, sockopt, external_proxy
+- `alignBlocksWithPlan` — prevents "was absent, but now present" errors for Optional blocks (Create/Read/Update); skipped during Import (detect: `state.Protocol.IsNull()`)
+- `preserveInboundSettings` — on update, preserves clients and testseed from existing inbound
+- `ensureRealityKeys` — auto-generates private/public key and short_ids
+- `ensureInboundClientIDs` — auto-generates UUID for clients without id
+- `applyDefaultInboundSettings` — default settings per protocol (vless: decryption=none, testseed)
+- `inboundClientMu` — mutex for concurrent client operations
+- `email` in `threexui_inbound_client` — **Required** (without email, 3x-ui crashes with SQL error when adding the next client)
+- `isSubset` — standalone utility for JSON subset checking
 
 ### Panel Settings
-- Settings-ресурсы — синглтоны (ID = `"settings"`), один экземпляр на тип
-- Typed атрибуты (Optional + Computed + UseStateForUnknown) — каждое поле отдельный атрибут в schema
-- Per-resource модели: `PanelGeneralModel`, `PanelSecurityModel`, `PanelTelegramModel`, `PanelSubscriptionModel`
-- `settingsApplyTyped` / `settingsReadTyped` — shared CRUD логика (expand model → API → flatten → model)
-- Delete только очищает TF state, **не** сбрасывает настройки в API
-- Subscription resource делает двойной apply (обходит баг 3x-ui: sub_json_enable не сохраняется при первом apply совместно с sub_enable)
-- Включение 2FA блокирует провайдер (login не поддерживает 2FA-код) — добавлен Warning
-- Изменение `web_base_path` требует обновления `base_path` в provider config — добавлен Warning
-- `panelSettingsNeedRestart` — ключи: webListen, webDomain, webPort, webBasePath, webCertFile, webKeyFile, sessionMaxAge
+- Settings resources are singletons (ID = `"settings"`), one instance per type
+- Typed attributes (Optional + Computed + UseStateForUnknown) — each field is a separate attribute in the schema
+- Per-resource models: `PanelGeneralModel`, `PanelSecurityModel`, `PanelTelegramModel`, `PanelSubscriptionModel`
+- `settingsApplyTyped` / `settingsReadTyped` — shared CRUD logic (expand model → API → flatten → model)
+- Delete only clears TF state, does **not** reset settings in the API
+- Subscription resource performs double apply (workaround for 3x-ui bug: sub_json_enable not saved on first apply together with sub_enable)
+- Enabling 2FA blocks the provider (login does not support 2FA code) — Warning added
+- Changing `web_base_path` requires updating `base_path` in provider config — Warning added
+- `panelSettingsNeedRestart` — keys: webListen, webDomain, webPort, webBasePath, webCertFile, webKeyFile, sessionMaxAge
 
 ### Panel User
-- `threexui_panel_user` — синглтон (ID = `"user"`), управляет admin credentials
-- Write-only: нет API для чтения username/password, Read — no-op (state preserved)
-- Create использует `r.client.username/password` как old credentials
-- Update использует предыдущий state как old credentials
-- После успешного UpdateUser клиент обновляет свои хранимые credentials для последующих запросов
-- Delete только очищает TF state, credentials на панели не откатываются
-- Warning напоминает обновить provider config после смены credentials
+- `threexui_panel_user` — singleton (ID = `"user"`), manages admin credentials
+- Write-only: no API for reading username/password, Read is a no-op (state preserved)
+- Create uses `r.client.username/password` as old credentials
+- Update uses previous state as old credentials
+- After successful UpdateUser, client updates its stored credentials for subsequent requests
+- Delete only clears TF state, credentials on the panel are not reverted
+- Warning reminds to update provider config after changing credentials
 
 ### Xray Settings
-- Typed блоки (ListNestedBlock) — каждый ресурс имеет свою модель и schema в `*_schema.go`
-- Per-resource модели: `XrayBasicsModel`, `XrayDNSModel`, `XrayRoutingModel`, `XrayBalancersModel`, `XrayReverseModel`, `XrayOutboundsModel`
-- Двухслойная конвертация: typed model ↔ untyped map (expand/flatten) ↔ Xray JSON (build/flattenToMap)
-- Xray-ресурсы работают в 2 режимах: merge root (`xray_basics`), set path (остальные)
-- `xrayTemplateMu` — мьютекс для сериализации read-modify-write на xray template (предотвращает race condition)
-- `xrayApplyTyped` / `xrayReadSection` — shared CRUD логика
+- Typed blocks (ListNestedBlock) — each resource has its own model and schema in `*_schema.go`
+- Per-resource models: `XrayBasicsModel`, `XrayDNSModel`, `XrayRoutingModel`, `XrayBalancersModel`, `XrayReverseModel`, `XrayOutboundsModel`
+- Two-layer conversion: typed model ↔ untyped map (expand/flatten) ↔ Xray JSON (build/flattenToMap)
+- Xray resources work in 2 modes: merge root (`xray_basics`), set path (others)
+- `xrayTemplateMu` — mutex for serializing read-modify-write on xray template (prevents race condition)
+- `xrayApplyTyped` / `xrayReadSection` — shared CRUD logic
 - CRUD: plan.Get → expand → build → xrayApplyTyped → xrayReadSection → flattenToMap → flatten → state.Set
-- DNS servers: address-only → сериализуется как строка в JSON, с доп. полями → как объект
-- Outbound settings: per-protocol блоки (`freedom_settings`, `blackhole_settings`, ...) определяются значением `protocol`
-- Policy levels: в Xray JSON map `{"0": {...}}`, в TF list `[{id=0, ...}]`
-- Delete для xray-ресурсов — только очищает TF state, не сбрасывает xray-конфиг
+- DNS servers: address-only → serialized as string in JSON, with extra fields → as object
+- Outbound settings: per-protocol blocks (`freedom_settings`, `blackhole_settings`, ...) determined by `protocol` value
+- Policy levels: in Xray JSON map `{"0": {...}}`, in TF list `[{id=0, ...}]`
+- Delete for xray resources only clears TF state, does not reset the xray config
 
-## Команды
+## Commands
 
 ```bash
-task build       # Собрать бинарь
-task test        # Запустить acceptance-тесты (нужен docker)
+task build       # Build binary
+task test        # Run acceptance tests (requires docker)
 task fmt         # gofmt
 task vet         # go vet
-task lint        # golangci-lint (не запускается автоматически в pre-commit)
-task pre-commit  # Запустить все pre-commit проверки вручную
+task lint        # golangci-lint (not run automatically in pre-commit)
+task pre-commit  # Run all pre-commit checks manually
 ```
 
-## Pre-commit hooks
+## Pre-commit Hooks
 
-В проекте настроены автоматические проверки перед коммитом:
-- **go-fmt** — форматирование кода
-- **go-vet** — статический анализ
-- **go-build** — проверка компиляции
-- Проверки YAML/JSON, trailing whitespace, EOF
+Automatic pre-commit checks are configured:
+- **go-fmt** — code formatting
+- **go-vet** — static analysis
+- **go-build** — compilation check
+- YAML/JSON checks, trailing whitespace, EOF
 
-**golangci-lint** включён в pre-commit и CI.
+**golangci-lint** is enabled in both pre-commit and CI.
 
-Конфигурации: `.pre-commit-config.yaml`, `.golangci.yml`
+Configuration files: `.pre-commit-config.yaml`, `.golangci.yml`
 
-## Тестовое окружение
+## Test Environment
 
 ```bash
-task test              # Полный цикл: docker up, acc-тесты (Terraform), docker down
-docker compose up -d   # Запуск 3x-ui v2.8.9 на localhost:2053
-# Логин: admin / admin
-# Docker image v2.8.9 по умолчанию webBasePath = / (НЕ /panel/)
-# Не задавать THREEXUI_BASE_PATH
+task test              # Full cycle: docker up, acc tests (Terraform), docker down
+docker compose up -d   # Start 3x-ui v2.8.9 on localhost:2053
+# Login: admin / admin
+# Docker image v2.8.9 defaults to webBasePath = / (NOT /panel/)
+# Do not set THREEXUI_BASE_PATH
 ```
 
-Acc-тесты используют `terraform-plugin-testing`:
-- `testAccProtoV6ProviderFactories()` — возвращает `map[string]func() (tfprotov6.ProviderServer, error)`
-- `ProtoV6ProviderFactories` в TestCase (не `ProviderFactories`)
-- HCL-конфиги используют typed блоки и атрибуты (не `jsonencode()`)
+Acceptance tests use `terraform-plugin-testing`:
+- `testAccProtoV6ProviderFactories()` — returns `map[string]func() (tfprotov6.ProviderServer, error)`
+- `ProtoV6ProviderFactories` in TestCase (not `ProviderFactories`)
+- HCL configs use typed blocks and attributes (not `jsonencode()`)
 
-Acc-тесты требуют Terraform и переменные окружения для корректного provider namespace:
-- `TF_ACC_TERRAFORM_PATH` — абсолютный путь к `terraform`
+Acceptance tests require Terraform and environment variables for correct provider namespace:
+- `TF_ACC_TERRAFORM_PATH` — absolute path to `terraform`
 - `TF_ACC_PROVIDER_NAMESPACE=batonogov`
 - `TF_ACC_PROVIDER_HOST=registry.terraform.io`
 
-Всё это уже настроено в `Taskfile.yml` → `task test`.
+All of this is already configured in `Taskfile.yml` → `task test`.
 
-## Основные принципы
+## Releases
 
-- Действуй прагматично: сначала понять задачу, затем изменить минимально необходимое.
-- Не ломать обратную совместимость без явного запроса.
-- Сохранять стиль кода и структуру проекта.
-- Изменения делай точечно, избегай массовых переформатирований.
-- После изменения кода запускай `task build`.
-- Пиши кратко и по делу. Указывай, какие файлы изменены.
+Flow: Conventional Commits → Release Please → GoReleaser → Terraform Registry.
+
+1. Commits to `main` with prefixes `feat:`, `fix:`, `feat!:`, etc.
+2. Release Please automatically creates/updates a Release PR (version + changelog)
+3. Merging the Release PR → tag `v*` is created → triggers `release.yml`
+4. GoReleaser builds binaries, signs with GPG, publishes GitHub Release
+5. Terraform Registry picks up the release
+
+Commits accumulate in the Release PR until merged — release only happens on PR merge.
+
+## Core Principles
+
+- Be pragmatic: understand the task first, then make the minimum necessary changes.
+- Do not break backward compatibility without an explicit request.
+- Preserve code style and project structure.
+- Make targeted changes, avoid mass reformatting.
+- Run `task build` after code changes.
+- Be concise and to the point. Indicate which files were changed.
