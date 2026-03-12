@@ -153,11 +153,13 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 
 ```bash
 task build       # Build binary
-task test        # Run acceptance tests (requires docker)
+task test:unit   # Run unit tests (no Docker / Terraform needed)
+task test:acc    # Run acceptance tests (requires Docker)
+task test        # Run unit + acceptance tests
 task fmt         # gofmt
 task vet         # go vet
-task lint        # golangci-lint (not run automatically in pre-commit)
-task pre-commit  # Run all pre-commit checks manually
+task lint        # golangci-lint
+task pre-commit  # Run all pre-commit checks manually (fmt, vet, lint, build)
 ```
 
 ## Pre-commit Hooks
@@ -165,10 +167,11 @@ task pre-commit  # Run all pre-commit checks manually
 Automatic pre-commit checks are configured:
 - **go-fmt** — code formatting
 - **go-vet** — static analysis
+- **golangci-lint** — linter
 - **go-build** — compilation check
 - YAML/JSON checks, trailing whitespace, EOF
 
-**golangci-lint** is enabled in both pre-commit and CI.
+Acceptance tests are **not** run in pre-commit — use `task test:acc` explicitly.
 
 Configuration files: `.pre-commit-config.yaml`, `.golangci.yml`
 

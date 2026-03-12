@@ -106,7 +106,9 @@ task fmt          # Format code (gofmt)
 task vet          # Run go vet
 task lint         # Run golangci-lint
 task pre-commit   # Run all checks manually (fmt, vet, lint, build)
-task test         # Run acceptance tests (starts docker compose)
+task test:unit    # Run unit tests (no Docker / Terraform needed)
+task test:acc     # Run acceptance tests (starts docker compose)
+task test         # Run unit + acceptance tests
 ```
 
 ### Local environment

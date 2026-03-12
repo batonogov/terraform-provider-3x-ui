@@ -7,7 +7,18 @@ tasks:
       - go build -o terraform-provider-threexui
 
   test:
-    desc: Запустить все тесты + acceptance (нужен локальный 3x-ui)
+    desc: Запустить unit + acceptance тесты (нужен локальный 3x-ui)
+    cmds:
+      - task: test:unit
+      - task: test:acc
+
+  test:unit:
+    desc: Запустить unit-тесты (без Docker / Terraform)
+    cmds:
+      - go test ./provider -run '^Test[^A]' -count=1 -v
+
+  test:acc:
+    desc: Запустить acceptance-тесты (нужен локальный 3x-ui)
     vars:
       TERRAFORM_PATH:
         sh: which terraform
