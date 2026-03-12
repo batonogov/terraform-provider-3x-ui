@@ -15,7 +15,7 @@ tasks:
   test:unit:
     desc: Запустить unit-тесты (без Docker / Terraform)
     cmds:
-      - go test ./provider -run '^Test[^A]' -count=1 -v
+      - go test ./provider -skip '^TestAcc' -count=1 -v
 
   test:acc:
     desc: Запустить acceptance-тесты (нужен локальный 3x-ui)

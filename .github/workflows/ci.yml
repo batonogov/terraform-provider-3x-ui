@@ -59,8 +59,13 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+
       - name: Run unit tests
-        run: go test ./provider -run '^Test[^A]' -count=1 -v
+        run: task test:unit
 
   acceptance-tests:
     name: Acceptance Tests
@@ -84,4 +89,4 @@ jobs:
           version: 3.x
 
       - name: Run acceptance tests
-        run: task test
+        run: task test:acc
