@@ -125,6 +125,10 @@ docker compose up -d
 docker compose down
 ```
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, testing, and submission guidelines.
+
 ## License
 
 [MIT](LICENSE)
