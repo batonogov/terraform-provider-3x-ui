@@ -124,6 +124,26 @@ func TestAccDataSourceOnlineClients(t *testing.T) {
 	})
 }
 
+func TestAccDataSourceClientTraffics(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + testAccDataSourceClientTrafficsConfig(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("data.threexui_client_traffics.test", "id"),
+					resource.TestCheckResourceAttr("data.threexui_client_traffics.test", "email", "acc-ds-traffic-client"),
+					resource.TestCheckResourceAttrSet("data.threexui_client_traffics.test", "up"),
+					resource.TestCheckResourceAttrSet("data.threexui_client_traffics.test", "down"),
+					resource.TestCheckResourceAttrSet("data.threexui_client_traffics.test", "inbound_id"),
+				),
+			},
+		},
+	})
+}
+
 // --- Check helpers ---
 
 func testAccCheckJSONValid(resourceName, attrName string) resource.TestCheckFunc {
@@ -199,6 +219,30 @@ resource "threexui_inbound" "ds_test" {
 
 data "threexui_inbounds" "all" {
   depends_on = [threexui_inbound.ds_test]
+}
+`
+}
+
+func testAccDataSourceClientTrafficsConfig() string {
+	return `
+resource "threexui_inbound" "ds_traffic_test" {
+  port     = 24010
+  protocol = "vless"
+  remark   = "acc-ds-traffic"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+}
+
+resource "threexui_inbound_client" "ds_traffic_client" {
+  inbound_id = threexui_inbound.ds_traffic_test.id
+  email      = "acc-ds-traffic-client"
+  enable     = true
+}
+
+data "threexui_client_traffics" "test" {
+  email      = threexui_inbound_client.ds_traffic_client.email
 }
 `
 }
