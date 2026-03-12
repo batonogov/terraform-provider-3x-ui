@@ -76,6 +76,7 @@ Full documentation is available on the [Terraform Registry](https://registry.ter
 | `threexui_xray_balancers` | Load balancers |
 | `threexui_xray_reverse` | Reverse proxy (bridges, portals) |
 | `threexui_xray_outbounds` | Outbound connections |
+| `threexui_xray_version` | Installed Xray core version |
 
 ### Data Sources
 

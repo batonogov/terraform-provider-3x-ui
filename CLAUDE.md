@@ -32,6 +32,7 @@ provider/              — all provider code
   sniffing.go          — buildSniffingJSON(map[string]any), flattenSniffing(string)
   settings_helpers.go  — mergeSettings
   default_settings.go  — default settings per protocol, applyDefaultInboundSettings
+  resource_xray_version.go     — threexui_xray_version resource (install/manage Xray core version)
   data_source_*.go     — data sources (inbounds, server_status, settings, xray_config, xray_versions, online_clients)
 examples/              — example TF configs for manual testing
 3x-ui-<version>/      — 3x-ui source snapshots (in .gitignore, for reference/diffing)
@@ -59,6 +60,7 @@ Taskfile.yml           — task build / test / fmt
 | `threexui_xray_balancers` | resource_xray_settings.go + xray_balancers_schema.go | Balancers (set path). Typed blocks |
 | `threexui_xray_reverse` | resource_xray_settings.go + xray_reverse_schema.go | Reverse proxy (set path). Typed blocks |
 | `threexui_xray_outbounds` | resource_xray_settings.go + xray_outbounds_schema.go | Outbounds (set path). Typed blocks |
+| `threexui_xray_version` | resource_xray_version.go | Manage installed Xray core version. Singleton (ID = "xray_version") |
 
 ## Data Sources
 

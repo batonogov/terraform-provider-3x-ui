@@ -255,3 +255,22 @@ func TestStringValueOrNull(t *testing.T) {
 		t.Fatalf("expected '127.0.0.1', got null=%v val=%q", result.IsNull(), result.ValueString())
 	}
 }
+
+func TestNormalizeXrayVersion(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"26.2.6", "v26.2.6"},
+		{"v26.2.6", "v26.2.6"},
+		{"1.0.0", "v1.0.0"},
+		{"v1.0.0", "v1.0.0"},
+		{"", ""},
+	}
+	for _, tc := range tests {
+		got := normalizeXrayVersion(tc.in)
+		if got != tc.want {
+			t.Errorf("normalizeXrayVersion(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
