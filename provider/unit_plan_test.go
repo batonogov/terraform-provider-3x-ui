@@ -279,6 +279,7 @@ func TestNormalizeXrayVersion(t *testing.T) {
 		{"1.0.0", "v1.0.0"},
 		{"v1.0.0", "v1.0.0"},
 		{"", ""},
+		{"Unknown", "vUnknown"},
 	}
 	for _, tc := range tests {
 		got := normalizeXrayVersion(tc.in)
