@@ -232,3 +232,26 @@ func TestFlattenSniffingEmpty(t *testing.T) {
 		t.Fatalf("expected empty sniffing, got %#v", out)
 	}
 }
+
+func TestStringValueOrNull(t *testing.T) {
+	// Empty string → null
+	result := stringValueOrNull("")
+	if !result.IsNull() {
+		t.Fatalf("expected null for empty string, got %q", result.ValueString())
+	}
+
+	// Non-empty string → value
+	result = stringValueOrNull("0.0.0.0")
+	if result.IsNull() {
+		t.Fatal("expected non-null for '0.0.0.0'")
+	}
+	if result.ValueString() != "0.0.0.0" {
+		t.Fatalf("expected '0.0.0.0', got %q", result.ValueString())
+	}
+
+	// Another non-empty string
+	result = stringValueOrNull("127.0.0.1")
+	if result.IsNull() || result.ValueString() != "127.0.0.1" {
+		t.Fatalf("expected '127.0.0.1', got null=%v val=%q", result.IsNull(), result.ValueString())
+	}
+}

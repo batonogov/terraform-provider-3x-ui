@@ -69,6 +69,7 @@ terraform.rc
 # other
 3x-ui-*
 terraform-provider-threexui
+example2/
 .claude/
 .DS_Store
 .cache
