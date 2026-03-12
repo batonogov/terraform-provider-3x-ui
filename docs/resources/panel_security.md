@@ -11,7 +11,7 @@ Manages the security settings of the 3x-ui panel, specifically two-factor authen
 
 This is a singleton resource -- only one instance should exist per provider. Deleting this resource only removes it from Terraform state; it does not reset the settings.
 
-~> **Warning:** Enabling `two_factor_enable` will block the provider from authenticating to the panel, as the provider does not support 2FA codes during login.
+~> **Warning:** If you enable 2FA, you **must** also set `two_factor_code` in the provider configuration. The code is sent with the initial login request, but TOTP codes expire every 30 seconds. Automatic re-login (triggered when the session expires) will fail once the original code is no longer valid. Short-lived operations like a single `terraform apply` may succeed, but long-running or repeated runs require a fresh code each time.
 
 ## Example Usage
 

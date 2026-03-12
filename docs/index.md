@@ -48,7 +48,7 @@ resource "threexui_inbound" "vless" {
 
 The provider authenticates to the 3x-ui panel using username and password. These can be provided directly in the provider configuration or via environment variables.
 
--> **Note:** The provider does not currently support two-factor authentication codes during login. Enabling 2FA on the panel will prevent the provider from authenticating.
+-> **Note:** The provider has **partial** 2FA support. You can supply a TOTP code via the `two_factor_code` attribute, and it will be sent with the initial login request. However, TOTP codes expire every 30 seconds. Because the provider performs automatic re-login when the session expires (on HTTP 401/404), subsequent logins will fail once the original code is no longer valid. For short-lived operations (a single `terraform apply`) this may work, but long-running or repeated runs will require a fresh code each time.
 
 ## Argument Reference
 
@@ -56,6 +56,6 @@ The provider authenticates to the 3x-ui panel using username and password. These
 - `base_path` (Optional, String) - Base path configured in 3x-ui (`webBasePath`). Default is `/`.
 - `username` (Optional, String) - 3x-ui username. Default is `admin`.
 - `password` (Optional, String, Sensitive) - 3x-ui password. Default is `admin`.
-- `two_factor_code` (Optional, String, Sensitive) - Optional 2FA code for login.
+- `two_factor_code` (Optional, String, Sensitive) - TOTP code for 2FA login. Used for the initial authentication request. See the note above about re-login limitations.
 - `insecure_skip_verify` (Optional, Boolean) - Skip TLS certificate verification (useful for self-signed certs). Default is `false`.
 - `request_timeout` (Optional, String) - HTTP request timeout (e.g. `30s`, `1m`). Default is `30s`.

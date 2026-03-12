@@ -126,7 +126,7 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 - `settingsApplyTyped` / `settingsReadTyped` — shared CRUD logic (expand model → API → flatten → model)
 - Delete only clears TF state, does **not** reset settings in the API
 - Subscription resource performs double apply (workaround for 3x-ui bug: sub_json_enable not saved on first apply together with sub_enable)
-- Enabling 2FA blocks the provider (login does not support 2FA code) — Warning added
+- Enabling 2FA — Warning added (partial support: TOTP code sent on initial login, but auto re-login fails when code expires)
 - Changing `web_base_path` requires updating `base_path` in provider config — Warning added
 - `panelSettingsNeedRestart` — keys: webListen, webDomain, webPort, webBasePath, webCertFile, webKeyFile, sessionMaxAge
 

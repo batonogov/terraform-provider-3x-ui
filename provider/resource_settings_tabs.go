@@ -1251,8 +1251,8 @@ func (r *PanelSecurityResource) ImportState(ctx context.Context, _ resource.Impo
 func (r *PanelSecurityResource) warnIfTwoFactor(plan *PanelSecurityModel, diags *diag.Diagnostics) {
 	if !plan.TwoFactorEnable.IsNull() && !plan.TwoFactorEnable.IsUnknown() && plan.TwoFactorEnable.ValueBool() {
 		diags.AddWarning(
-			"Enabling 2FA will block provider authentication",
-			"The provider does not support two-factor authentication codes during login. Enabling 2FA will prevent the provider from connecting to the panel. You will need to disable 2FA via the API or UI to restore provider access.",
+			"2FA enabled — automatic re-login will not work",
+			"The provider can send a TOTP code with the initial login (via the two_factor_code provider attribute), but TOTP codes expire every 30 seconds. Automatic re-login on session expiry will fail once the code is no longer valid. Ensure you supply a fresh two_factor_code for each run, or disable 2FA to allow unattended operation.",
 		)
 	}
 }
