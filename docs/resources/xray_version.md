@@ -36,5 +36,5 @@ If the Xray version is changed outside Terraform (e.g. via the panel UI), the ne
 
 ## Known Limitations
 
-- **Stopped Xray**: When the Xray process is not running, the 3x-ui API reports the version as `"Unknown"`. In this case, `Read` will return an error because the actual installed version cannot be determined. Restart Xray via the panel before running Terraform.
+- **Stopped Xray**: When the Xray process is not running, the 3x-ui API reports the version as `"Unknown"`. In this case, `Read` preserves the previously known version in state and emits a warning. Drift detection is not possible while Xray is stopped — restart Xray via the panel for accurate version tracking.
 - **Delete**: Removing this resource only clears Terraform state. The installed Xray version is not reverted.

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -110,6 +111,16 @@ func (r *XrayVersionResource) Read(ctx context.Context, req resource.ReadRequest
 
 	current, err := r.client.GetCurrentXrayVersion(ctx)
 	if err != nil {
+		if errors.Is(err, ErrXrayVersionUnknown) {
+			// Xray is not running — keep existing state and warn.
+			resp.Diagnostics.AddWarning(
+				"Xray version is unknown",
+				"The Xray process may not be running. The previously known version is preserved in state. "+
+					"Restart Xray via the panel to allow Terraform to detect the actual version.",
+			)
+			resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+			return
+		}
 		resp.Diagnostics.AddError("Failed to get current Xray version", err.Error())
 		return
 	}
