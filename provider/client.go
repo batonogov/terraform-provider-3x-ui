@@ -263,6 +263,26 @@ func (c *Client) GetXrayVersions(ctx context.Context) ([]string, error) {
 	return out, nil
 }
 
+func (c *Client) GetCurrentXrayVersion(ctx context.Context) (string, error) {
+	status, err := c.GetServerStatus(ctx)
+	if err != nil {
+		return "", err
+	}
+	xray, ok := status["xray"].(map[string]any)
+	if !ok {
+		return "", errors.New("xray section not found in server status")
+	}
+	version, ok := xray["version"].(string)
+	if !ok {
+		return "", errors.New("xray version not found in server status")
+	}
+	return version, nil
+}
+
+func (c *Client) InstallXray(ctx context.Context, version string) error {
+	return c.doJSON(ctx, http.MethodPost, "panel/api/server/installXray/"+version, nil, nil)
+}
+
 func (c *Client) GetXrayConfig(ctx context.Context) (map[string]any, error) {
 	var out map[string]any
 	if err := c.doJSON(ctx, http.MethodGet, "panel/api/server/getConfigJson", nil, &out); err != nil {
