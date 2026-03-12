@@ -1,0 +1,70 @@
+name: Docs
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "examples/**"
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - ".github/**"
+      - ".pre-commit-config.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "examples/**"
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - ".github/**"
+      - ".pre-commit-config.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  terraform-fmt:
+    name: Terraform Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: Check examples formatting
+        run: terraform fmt -check -recursive examples/
+
+  markdown-lint:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@v19
+        with:
+          globs: |
+            docs/**/*.md
+            README.md
+            CONTRIBUTING.md
+
+  yaml-lint:
+    name: YAML Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Lint YAML files
+        run: >-
+          yamllint
+          -d "{extends: relaxed, rules: {line-length: {max: 200}}}"
+          .github/workflows/*.yml
+          .pre-commit-config.yaml
+          docker-compose.yaml
