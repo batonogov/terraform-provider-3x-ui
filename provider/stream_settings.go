@@ -2,6 +2,7 @@ package provider
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 )
 
@@ -89,13 +90,13 @@ func buildStreamSettingsJSON(item map[string]any) string {
 	return string(b)
 }
 
-func flattenStreamSettings(stream string) []any {
+func flattenStreamSettings(stream string) ([]any, error) {
 	if strings.TrimSpace(stream) == "" {
-		return []any{}
+		return []any{}, nil
 	}
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(stream), &payload); err != nil {
-		return []any{}
+		return nil, fmt.Errorf("failed to parse stream_settings JSON: %w", err)
 	}
 	out := map[string]any{}
 	if v, ok := payload["network"].(string); ok {
@@ -148,9 +149,9 @@ func flattenStreamSettings(stream string) []any {
 		}
 	}
 	if len(out) == 0 {
-		return []any{}
+		return []any{}, nil
 	}
-	return []any{out}
+	return []any{out}, nil
 }
 
 func expandExternalProxy(list []any) []any {

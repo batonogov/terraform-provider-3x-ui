@@ -2,6 +2,7 @@ package provider
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 )
 
@@ -110,13 +111,13 @@ func buildSettingsJSON(item map[string]any) string {
 	return string(b)
 }
 
-func flattenSettings(settings string) []any {
+func flattenSettings(settings string) ([]any, error) {
 	if strings.TrimSpace(settings) == "" {
-		return []any{}
+		return []any{}, nil
 	}
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(settings), &payload); err != nil {
-		return []any{}
+		return nil, fmt.Errorf("failed to parse settings JSON: %w", err)
 	}
 	out := map[string]any{}
 	if v, ok := payload["decryption"].(string); ok {
@@ -192,9 +193,9 @@ func flattenSettings(settings string) []any {
 		out["user_level"] = intValue(v)
 	}
 	if len(out) == 0 {
-		return []any{}
+		return []any{}, nil
 	}
-	return []any{out}
+	return []any{out}, nil
 }
 
 func expandFallbacks(list []any) []any {

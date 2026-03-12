@@ -2,6 +2,7 @@ package provider
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 )
 
@@ -36,13 +37,13 @@ func buildSniffingJSON(item map[string]any) string {
 	return string(b)
 }
 
-func flattenSniffing(sniffing string) []any {
+func flattenSniffing(sniffing string) ([]any, error) {
 	if strings.TrimSpace(sniffing) == "" {
-		return []any{}
+		return []any{}, nil
 	}
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(sniffing), &payload); err != nil {
-		return []any{}
+		return nil, fmt.Errorf("failed to parse sniffing JSON: %w", err)
 	}
 	out := map[string]any{}
 	if v, ok := payload["enabled"].(bool); ok {
@@ -58,9 +59,9 @@ func flattenSniffing(sniffing string) []any {
 		out["route_only"] = v
 	}
 	if len(out) == 0 {
-		return []any{}
+		return []any{}, nil
 	}
-	return []any{out}
+	return []any{out}, nil
 }
 
 func expandStringList(list []any) []string {

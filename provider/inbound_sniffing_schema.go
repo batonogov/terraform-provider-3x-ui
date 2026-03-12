@@ -114,14 +114,17 @@ func flattenSniffingToModel(data map[string]any) *InboundSniffingModel {
 // JSON string -> untyped map (wraps existing flattenSniffing)
 // ---------------------------------------------------------------------------
 
-func flattenSniffingToMap(sniffingJSON string) map[string]any {
-	flat := flattenSniffing(sniffingJSON)
+func flattenSniffingToMap(sniffingJSON string) (map[string]any, error) {
+	flat, err := flattenSniffing(sniffingJSON)
+	if err != nil {
+		return nil, err
+	}
 	if len(flat) == 0 {
-		return nil
+		return nil, nil
 	}
 	m, ok := flat[0].(map[string]any)
 	if !ok {
-		return nil
+		return nil, nil
 	}
-	return m
+	return m, nil
 }

@@ -111,7 +111,10 @@ func TestBuildAndFlattenSettings(t *testing.T) {
 		t.Fatalf("unexpected decryption: %#v", payload["decryption"])
 	}
 
-	flattened := flattenSettings(`{"decryption":"none","clients":[{"id":"id1","email":"a@example.com","limitIp":2,"expiryTime":10,"enable":true}]}`)
+	flattened, err := flattenSettings(`{"decryption":"none","clients":[{"id":"id1","email":"a@example.com","limitIp":2,"expiryTime":10,"enable":true}]}`)
+	if err != nil {
+		t.Fatalf("flattenSettings error: %v", err)
+	}
 	if len(flattened) != 1 {
 		t.Fatalf("expected 1 settings item, got %d", len(flattened))
 	}
@@ -153,7 +156,10 @@ func TestBuildAndFlattenStreamSettings(t *testing.T) {
 		t.Fatalf("unexpected stream settings payload: %#v", payload)
 	}
 
-	flattened := flattenStreamSettings(`{"network":"tcp","security":"reality","externalProxy":[{"dest":"example.com","port":443,"remark":"edge"}],"tcpSettings":{"acceptProxyProtocol":true,"header":{"type":"none"}}}`)
+	flattened, err := flattenStreamSettings(`{"network":"tcp","security":"reality","externalProxy":[{"dest":"example.com","port":443,"remark":"edge"}],"tcpSettings":{"acceptProxyProtocol":true,"header":{"type":"none"}}}`)
+	if err != nil {
+		t.Fatalf("flattenStreamSettings error: %v", err)
+	}
 	if len(flattened) != 1 {
 		t.Fatalf("expected 1 stream settings item, got %d", len(flattened))
 	}
@@ -174,7 +180,10 @@ func TestBuildAndFlattenSniffing(t *testing.T) {
 	if sniffingJSON == "{}" {
 		t.Fatalf("expected sniffing JSON, got {}")
 	}
-	flattened := flattenSniffing(`{"enabled":true,"destOverride":["http","tls"],"metadataOnly":false,"routeOnly":true}`)
+	flattened, err := flattenSniffing(`{"enabled":true,"destOverride":["http","tls"],"metadataOnly":false,"routeOnly":true}`)
+	if err != nil {
+		t.Fatalf("flattenSniffing error: %v", err)
+	}
 	if len(flattened) != 1 {
 		t.Fatalf("expected 1 sniffing item, got %d", len(flattened))
 	}
@@ -228,7 +237,11 @@ func TestApplyDefaultInboundSettings_InvalidJSON(t *testing.T) {
 }
 
 func TestFlattenSniffingEmpty(t *testing.T) {
-	if out := flattenSniffing(""); len(out) != 0 {
+	out, err := flattenSniffing("")
+	if err != nil {
+		t.Fatalf("flattenSniffing error: %v", err)
+	}
+	if len(out) != 0 {
 		t.Fatalf("expected empty sniffing, got %#v", out)
 	}
 }
