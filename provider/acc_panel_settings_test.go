@@ -585,6 +585,161 @@ resource "threexui_panel_subscription" "test" {
 	})
 }
 
+// TestAccPanelGeneralConcurrentXray verifies that panel_general
+// (xray_outbound_test_url) and xray_outbounds can be applied in the
+// same graph without lost updates. Both compete for the xray template
+// endpoint; xrayTemplateMu must serialize them.
+func TestAccPanelGeneralConcurrentXray(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_general" "test" {
+  date_picker                    = "gregorian"
+  expire_diff                    = 0
+  external_traffic_inform_enable = false
+  external_traffic_inform_uri    = ""
+  ldap_auto_create               = false
+  ldap_auto_delete               = false
+  ldap_base_dn                   = ""
+  ldap_bind_dn                   = ""
+  ldap_default_expiry_days       = 0
+  ldap_default_limit_ip          = 0
+  ldap_default_total_gb          = 0
+  ldap_enable                    = false
+  ldap_flag_field                = ""
+  ldap_host                      = ""
+  ldap_inbound_tags              = ""
+  ldap_invert_flag               = false
+  ldap_password                  = ""
+  ldap_port                      = 389
+  ldap_sync_cron                 = "@every 1m"
+  ldap_truthy_values             = "true,1,yes,on"
+  ldap_use_tls                   = false
+  ldap_user_attr                 = "mail"
+  ldap_user_filter               = "(objectClass=person)"
+  ldap_vless_field               = "vless_enabled"
+  page_size                      = 50
+  remark_model                   = "-ieo"
+  session_max_age                = 360
+  time_location                  = "Asia/Tehran"
+  traffic_diff                   = 0
+  web_base_path                  = "/"
+  web_cert_file                  = ""
+  web_domain                     = ""
+  web_key_file                   = ""
+  web_listen                     = ""
+  web_port                       = 2053
+  xray_outbound_test_url         = "https://example.com/generate_204"
+}
+
+resource "threexui_xray_outbounds" "test" {
+  outbound {
+    tag      = "direct"
+    protocol = "freedom"
+
+    freedom_settings {
+      domain_strategy = "AsIs"
+    }
+  }
+
+  outbound {
+    tag      = "blocked"
+    protocol = "blackhole"
+
+    blackhole_settings {
+      response_type = "none"
+    }
+  }
+
+  outbound {
+    tag      = "dns-out"
+    protocol = "dns"
+  }
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_general.test", "xray_outbound_test_url", "https://example.com/generate_204"),
+					resource.TestCheckResourceAttr("threexui_xray_outbounds.test", "outbound.0.tag", "direct"),
+					resource.TestCheckResourceAttr("threexui_xray_outbounds.test", "outbound.1.tag", "blocked"),
+				),
+			},
+			// Idempotency
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_general" "test" {
+  date_picker                    = "gregorian"
+  expire_diff                    = 0
+  external_traffic_inform_enable = false
+  external_traffic_inform_uri    = ""
+  ldap_auto_create               = false
+  ldap_auto_delete               = false
+  ldap_base_dn                   = ""
+  ldap_bind_dn                   = ""
+  ldap_default_expiry_days       = 0
+  ldap_default_limit_ip          = 0
+  ldap_default_total_gb          = 0
+  ldap_enable                    = false
+  ldap_flag_field                = ""
+  ldap_host                      = ""
+  ldap_inbound_tags              = ""
+  ldap_invert_flag               = false
+  ldap_password                  = ""
+  ldap_port                      = 389
+  ldap_sync_cron                 = "@every 1m"
+  ldap_truthy_values             = "true,1,yes,on"
+  ldap_use_tls                   = false
+  ldap_user_attr                 = "mail"
+  ldap_user_filter               = "(objectClass=person)"
+  ldap_vless_field               = "vless_enabled"
+  page_size                      = 50
+  remark_model                   = "-ieo"
+  session_max_age                = 360
+  time_location                  = "Asia/Tehran"
+  traffic_diff                   = 0
+  web_base_path                  = "/"
+  web_cert_file                  = ""
+  web_domain                     = ""
+  web_key_file                   = ""
+  web_listen                     = ""
+  web_port                       = 2053
+  xray_outbound_test_url         = "https://example.com/generate_204"
+}
+
+resource "threexui_xray_outbounds" "test" {
+  outbound {
+    tag      = "direct"
+    protocol = "freedom"
+
+    freedom_settings {
+      domain_strategy = "AsIs"
+    }
+  }
+
+  outbound {
+    tag      = "blocked"
+    protocol = "blackhole"
+
+    blackhole_settings {
+      response_type = "none"
+    }
+  }
+
+  outbound {
+    tag      = "dns-out"
+    protocol = "dns"
+  }
+}
+`,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
 func TestAccPanelSubscription(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
