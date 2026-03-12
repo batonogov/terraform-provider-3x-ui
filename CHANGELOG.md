@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0](https://github.com/batonogov/terraform-provider-threexui/compare/v0.4.2...v0.5.0) (2026-03-12)
+
+
+### Features
+
+* add threexui_client_traffics data source ([#56](https://github.com/batonogov/terraform-provider-threexui/issues/56)) ([4bb4d78](https://github.com/batonogov/terraform-provider-threexui/commit/4bb4d785584cbb682dc8926715cc7c0958c16f85))
+* add threexui_xray_version resource ([#57](https://github.com/batonogov/terraform-provider-threexui/issues/57)) ([1dd9be6](https://github.com/batonogov/terraform-provider-threexui/commit/1dd9be6c8f217d01039094069859ec6cbb55c355))
+
+
+### Bug Fixes
+
+* normalize inbound listen and total defaults ([#53](https://github.com/batonogov/terraform-provider-threexui/issues/53)) ([f6e700e](https://github.com/batonogov/terraform-provider-threexui/commit/f6e700ec4d42d7c11e57eb31554a614310e9b2de))
+* serialize panel_general updates with settingsMu and xrayTemplateMu ([#59](https://github.com/batonogov/terraform-provider-threexui/issues/59)) ([951b4cc](https://github.com/batonogov/terraform-provider-threexui/commit/951b4cc9c6e626dd12e7f96c6bb6c3c33b46b5d8))
+
 ## [0.4.2](https://github.com/batonogov/terraform-provider-threexui/compare/v0.4.1...v0.4.2) (2026-03-06)
 
 
