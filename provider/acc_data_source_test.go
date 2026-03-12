@@ -135,9 +135,15 @@ func TestAccDataSourceClientTraffics(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("data.threexui_client_traffics.test", "id"),
 					resource.TestCheckResourceAttr("data.threexui_client_traffics.test", "email", "acc-ds-traffic-client"),
-					resource.TestCheckResourceAttrSet("data.threexui_client_traffics.test", "up"),
-					resource.TestCheckResourceAttrSet("data.threexui_client_traffics.test", "down"),
-					resource.TestCheckResourceAttrSet("data.threexui_client_traffics.test", "inbound_id"),
+					resource.TestCheckResourceAttr("data.threexui_client_traffics.test", "up", "0"),
+					resource.TestCheckResourceAttr("data.threexui_client_traffics.test", "down", "0"),
+					resource.TestCheckResourceAttr("data.threexui_client_traffics.test", "total", "0"),
+					resource.TestCheckResourceAttr("data.threexui_client_traffics.test", "expiry_time", "0"),
+					resource.TestCheckResourceAttr("data.threexui_client_traffics.test", "enable", "true"),
+					resource.TestCheckResourceAttrPair(
+						"data.threexui_client_traffics.test", "inbound_id",
+						"threexui_inbound.ds_traffic_test", "id",
+					),
 				),
 			},
 		},

@@ -36,7 +36,9 @@ func (d *ClientTrafficsDataSource) Metadata(_ context.Context, req datasource.Me
 
 func (d *ClientTrafficsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Retrieves traffic statistics for a client by email.",
+		Description: "Retrieves traffic statistics for a client by email. " +
+			"The 3x-ui panel enforces email uniqueness per client in the client_traffics table, " +
+			"so email is the canonical lookup key for this API endpoint.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
@@ -44,7 +46,7 @@ func (d *ClientTrafficsDataSource) Schema(_ context.Context, _ datasource.Schema
 			},
 			"email": schema.StringAttribute{
 				Required:    true,
-				Description: "Client email to look up.",
+				Description: "Client email to look up. Must match an existing client email in the panel.",
 			},
 			"inbound_id": schema.Int64Attribute{
 				Computed:    true,

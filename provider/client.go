@@ -286,10 +286,13 @@ func (c *Client) GetClientTraffics(ctx context.Context, email string) (*ClientTr
 	if email == "" {
 		return nil, errors.New("email is required for get client traffics")
 	}
-	relPath := fmt.Sprintf("panel/api/inbounds/getClientTraffics/%s", email)
+	relPath := fmt.Sprintf("panel/api/inbounds/getClientTraffics/%s", url.PathEscape(email))
 	var out ClientTraffic
 	if err := c.doJSON(ctx, http.MethodGet, relPath, nil, &out); err != nil {
 		return nil, err
+	}
+	if out.Email == "" {
+		return nil, fmt.Errorf("client with email %q not found", email)
 	}
 	return &out, nil
 }
