@@ -29,3 +29,12 @@ resource "threexui_xray_version" "this" {
 
 - `id` (String) - Always `"xray_version"`.
 - `current_version` (String) - The currently installed Xray version (with `v` prefix).
+
+## Drift Detection
+
+If the Xray version is changed outside Terraform (e.g. via the panel UI), the next `terraform plan` will detect the drift and propose an update to restore the desired version.
+
+## Known Limitations
+
+- **Stopped Xray**: When the Xray process is not running, the 3x-ui API reports the version as `"Unknown"`. In this case, `Read` preserves the previously known version in state and emits a warning. Drift detection is not possible while Xray is stopped — restart Xray via the panel for accurate version tracking.
+- **Delete**: Removing this resource only clears Terraform state. The installed Xray version is not reverted.

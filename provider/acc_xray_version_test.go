@@ -2,10 +2,12 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 )
 
 func TestAccXrayVersion(t *testing.T) {
@@ -88,6 +90,94 @@ resource "threexui_xray_version" "test" {
 				Config:             config,
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+// TestAccXrayVersionDrift verifies that the provider detects external drift.
+// It installs version A via Terraform, changes the version to B outside
+// Terraform via the API, then asserts that the next plan is non-empty
+// (drift detected) and that applying brings the version back to A.
+func TestAccXrayVersionDrift(t *testing.T) {
+	testAccPreCheck(t)
+	client, err := testAccClientFromEnv()
+	if err != nil {
+		t.Fatalf("client init: %s", err)
+	}
+	ctx := context.Background()
+
+	// Get available versions; we need at least two distinct ones.
+	versions, err := client.GetXrayVersions(ctx)
+	if err != nil {
+		t.Fatalf("GetXrayVersions: %s", err)
+	}
+
+	currentVersion, err := client.GetCurrentXrayVersion(ctx)
+	if err != nil {
+		t.Fatalf("GetCurrentXrayVersion: %s", err)
+	}
+
+	// Find an alternative version different from the current one.
+	var altVersion string
+	for _, v := range versions {
+		if v != currentVersion {
+			altVersion = v
+			break
+		}
+	}
+	if altVersion == "" {
+		t.Skip("only one Xray version available, cannot test drift")
+	}
+
+	// Pre-flight: verify InstallXray works.
+	if err := client.InstallXray(ctx, currentVersion); err != nil {
+		t.Skipf("InstallXray not available in this environment: %s", err)
+	}
+
+	config := testAccProviderConfig() + fmt.Sprintf(`
+resource "threexui_xray_version" "test" {
+  version = %q
+}
+`, currentVersion)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			// Step 1: create the resource at currentVersion.
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_xray_version.test", "version", currentVersion),
+					resource.TestCheckResourceAttr("threexui_xray_version.test", "current_version", currentVersion),
+				),
+			},
+			// Step 2: simulate external drift by installing altVersion via API,
+			// then run a plan-only step expecting drift to be detected.
+			{
+				PreConfig: func() {
+					if err := client.InstallXray(ctx, altVersion); err != nil {
+						t.Fatalf("failed to simulate drift by installing %s: %s", altVersion, err)
+					}
+				},
+				Config:   config,
+				PlanOnly: true,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectNonEmptyPlan(),
+						plancheck.ExpectResourceAction("threexui_xray_version.test", plancheck.ResourceActionUpdate),
+					},
+				},
+				ExpectNonEmptyPlan: true,
+			},
+			// Step 3: apply should restore the desired version.
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_xray_version.test", "version", currentVersion),
+					resource.TestCheckResourceAttr("threexui_xray_version.test", "current_version", currentVersion),
+				),
 			},
 		},
 	})
