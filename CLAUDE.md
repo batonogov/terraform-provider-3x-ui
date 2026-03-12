@@ -225,6 +225,17 @@ When a new 3x-ui version is released:
 5. **Run tests** — `task test` (full cycle: docker up, acceptance tests, docker down)
 6. **Adapt provider** — if API changes require it, update provider code, run `task build`, then `task test` again
 
+## Development Workflow
+
+Standard flow for working on issues:
+
+1. **Issue** — pick an issue from `gh issue list`
+2. **Code** — implement the fix/feature, run `task build`
+3. **PR** — create a branch, commit, push, open a PR via `gh pr create`
+4. **Codex review** — run `codex review --base main` and address all findings
+5. **Iterate** — repeat steps 2–4 until codex review has zero remarks
+6. **Done** — PR is ready for merge
+
 ## Core Principles
 
 - Be pragmatic: understand the task first, then make the minimum necessary changes.

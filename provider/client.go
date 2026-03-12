@@ -414,12 +414,22 @@ func (c *Client) UpdateXrayTemplate(ctx context.Context, settings map[string]any
 	if settings == nil {
 		return errors.New("xraySetting payload is required")
 	}
+	// Preserve outboundTestUrl so it is not reset by 3x-ui when only
+	// the xray template is being updated.
+	testURL, err := c.GetXrayOutboundTestURL(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to read outboundTestUrl: %w", err)
+	}
+
 	payload, err := json.Marshal(settings)
 	if err != nil {
 		return err
 	}
 	form := url.Values{}
 	form.Set("xraySetting", string(payload))
+	if testURL != "" {
+		form.Set("outboundTestUrl", testURL)
+	}
 	return c.doForm(ctx, http.MethodPost, "panel/xray/update", form, nil)
 }
 
