@@ -87,6 +87,7 @@ Full documentation is available on the [Terraform Registry](https://registry.ter
 | `threexui_xray_config` | Current Xray template (JSON) |
 | `threexui_xray_versions` | Available Xray versions (list of strings) |
 | `threexui_online_clients` | Currently online client emails |
+| `threexui_client_traffics` | Client traffic statistics by email |
 
 ## Development
 

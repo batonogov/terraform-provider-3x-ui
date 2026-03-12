@@ -70,6 +70,7 @@ Taskfile.yml           — task build / test / fmt
 | `threexui_xray_config` | Current Xray config (JSON) |
 | `threexui_settings` | All panel settings (JSON) |
 | `threexui_online_clients` | List of currently online client emails |
+| `threexui_client_traffics` | Client traffic statistics by email |
 
 ## 3x-ui API (Key Endpoints)
 
