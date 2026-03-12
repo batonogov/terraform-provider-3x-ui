@@ -1105,8 +1105,10 @@ func (r *PanelGeneralResource) applyPanelGeneral(ctx context.Context, plan *Pane
 	}
 
 	if len(desired) > 0 {
+		settingsMu.Lock()
 		existing, err := r.client.GetSettings(ctx)
 		if err != nil {
+			settingsMu.Unlock()
 			diags.AddError("Failed to get settings", err.Error())
 			return
 		}
@@ -1114,9 +1116,11 @@ func (r *PanelGeneralResource) applyPanelGeneral(ctx context.Context, plan *Pane
 		needRestart := panelSettingsNeedRestart(existing, desired)
 		merged := mergeSettings(existing, desired)
 		if err := r.client.UpdateSettings(ctx, merged); err != nil {
+			settingsMu.Unlock()
 			diags.AddError("Failed to update settings", err.Error())
 			return
 		}
+		settingsMu.Unlock()
 
 		if needRestart {
 			if err := r.client.RestartPanel(ctx); err != nil {
@@ -1128,10 +1132,13 @@ func (r *PanelGeneralResource) applyPanelGeneral(ctx context.Context, plan *Pane
 
 	// xrayOutboundTestUrl is managed via xray endpoint, not settings API.
 	if !plan.XrayOutboundTestURL.IsNull() && !plan.XrayOutboundTestURL.IsUnknown() {
+		xrayTemplateMu.Lock()
 		if err := r.client.SetXrayOutboundTestURL(ctx, plan.XrayOutboundTestURL.ValueString()); err != nil {
+			xrayTemplateMu.Unlock()
 			diags.AddError("Failed to set xray outbound test URL", err.Error())
 			return
 		}
+		xrayTemplateMu.Unlock()
 	}
 }
 
