@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/batonogov/terraform-provider-threexui/compare/v0.5.0...v0.5.1) (2026-03-12)
+
+
+### Bug Fixes
+
+* fail fast when inbound settings JSON cannot be parsed ([#61](https://github.com/batonogov/terraform-provider-threexui/issues/61)) ([b764019](https://github.com/batonogov/terraform-provider-threexui/commit/b764019f9a85f75aa783e6308980d3a40ec6cefe))
+
 ## [0.5.0](https://github.com/batonogov/terraform-provider-threexui/compare/v0.4.2...v0.5.0) (2026-03-12)
 
 
