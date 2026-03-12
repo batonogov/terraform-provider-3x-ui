@@ -516,6 +516,13 @@ func stringValue(v any) string {
 	return s
 }
 
+func stringValueOrNull(s string) types.String {
+	if s == "" {
+		return types.StringNull()
+	}
+	return types.StringValue(s)
+}
+
 func intValue(v any) int {
 	switch val := v.(type) {
 	case int:

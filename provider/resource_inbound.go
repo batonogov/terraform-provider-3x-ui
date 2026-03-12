@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -99,10 +100,8 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"total": schema.Int64Attribute{
 				Optional:    true,
 				Computed:    true,
+				Default:     int64default.StaticInt64(0),
 				Description: "Total traffic limit (bytes). 0 means unlimited.",
-				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.UseStateForUnknown(),
-				},
 			},
 			"all_time": schema.Int64Attribute{
 				Computed:    true,
@@ -146,11 +145,7 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"listen": schema.StringAttribute{
 				Optional:    true,
-				Computed:    true,
 				Description: "Listen address.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"port": schema.Int64Attribute{
 				Required:    true,
@@ -415,7 +410,7 @@ func inboundToModel(inbound *Inbound) *InboundResourceModel {
 		ExpiryTime:           types.Int64Value(inbound.ExpiryTime),
 		TrafficReset:         types.StringValue(inbound.TrafficReset),
 		LastTrafficResetTime: types.Int64Value(inbound.LastTrafficResetTime),
-		Listen:               types.StringValue(inbound.Listen),
+		Listen:               stringValueOrNull(inbound.Listen),
 		Port:                 types.Int64Value(int64(inbound.Port)),
 		Protocol:             types.StringValue(inbound.Protocol),
 		Tag:                  types.StringValue(inbound.Tag),

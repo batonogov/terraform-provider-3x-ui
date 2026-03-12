@@ -656,13 +656,18 @@ resource "threexui_inbound" "mixed" {
 // --- Listen field ---
 
 func TestAccInboundListen(t *testing.T) {
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccPreCheck(t) },
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
-		CheckDestroy:             testAccCheckInboundDestroyed,
-		Steps: []resource.TestStep{
-			{
-				Config: testAccProviderConfig() + `
+	configNoListen := testAccProviderConfig() + `
+resource "threexui_inbound" "listen" {
+  port     = 25025
+  protocol = "vless"
+  remark   = "acc-listen"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+}
+`
+	configWithListen := testAccProviderConfig() + `
 resource "threexui_inbound" "listen" {
   port     = 25025
   protocol = "vless"
@@ -673,11 +678,183 @@ resource "threexui_inbound" "listen" {
     decryption = "none"
   }
 }
-`,
+`
+	configWithListenChanged := testAccProviderConfig() + `
+resource "threexui_inbound" "listen" {
+  port     = 25025
+  protocol = "vless"
+  remark   = "acc-listen"
+  listen   = "127.0.0.1"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			// Step 1: create without listen — should be null in state
+			{
+				Config: configNoListen,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.listen", "id"),
+					resource.TestCheckNoResourceAttr("threexui_inbound.listen", "listen"),
+				),
+			},
+			// Step 2: idempotency — no diff on re-apply
+			{
+				Config:             configNoListen,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+			// Step 3: set listen to 0.0.0.0
+			{
+				Config: configWithListen,
+				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_inbound.listen", "listen", "0.0.0.0"),
 				),
+			},
+			// Step 4: idempotency with listen set
+			{
+				Config:             configWithListen,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+			// Step 5: change listen to 127.0.0.1
+			{
+				Config: configWithListenChanged,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.listen", "listen", "127.0.0.1"),
+				),
+			},
+			// Step 6: remove listen — back to null
+			{
+				Config: configNoListen,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckNoResourceAttr("threexui_inbound.listen", "listen"),
+				),
+			},
+			// Step 7: idempotency after removing listen
+			{
+				Config:             configNoListen,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+// --- Total field (default 0 = unlimited) ---
+
+func TestAccInboundTotalDefault(t *testing.T) {
+	configNoTotal := testAccProviderConfig() + `
+resource "threexui_inbound" "total" {
+  port     = 25027
+  protocol = "vless"
+  remark   = "acc-total"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+}
+`
+	configWithTotal := testAccProviderConfig() + `
+resource "threexui_inbound" "total" {
+  port     = 25027
+  protocol = "vless"
+  remark   = "acc-total"
+  total    = 1073741824
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+}
+`
+	configWithTotalChanged := testAccProviderConfig() + `
+resource "threexui_inbound" "total" {
+  port     = 25027
+  protocol = "vless"
+  remark   = "acc-total"
+  total    = 2147483648
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+}
+`
+	configTotalZero := testAccProviderConfig() + `
+resource "threexui_inbound" "total" {
+  port     = 25027
+  protocol = "vless"
+  remark   = "acc-total"
+  total    = 0
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			// Step 1: create without total — defaults to 0 (unlimited)
+			{
+				Config: configNoTotal,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound.total", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound.total", "total", "0"),
+				),
+			},
+			// Step 2: idempotency
+			{
+				Config:             configNoTotal,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+			// Step 3: set total to 1 GB
+			{
+				Config: configWithTotal,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.total", "total", "1073741824"),
+				),
+			},
+			// Step 4: idempotency with total set
+			{
+				Config:             configWithTotal,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+			// Step 5: change total to 2 GB
+			{
+				Config: configWithTotalChanged,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.total", "total", "2147483648"),
+				),
+			},
+			// Step 6: explicitly set total to 0 (unlimited)
+			{
+				Config: configTotalZero,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.total", "total", "0"),
+				),
+			},
+			// Step 7: remove total from config — back to default 0
+			{
+				Config: configNoTotal,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.total", "total", "0"),
+				),
+			},
+			// Step 8: idempotency after removing total
+			{
+				Config:             configNoTotal,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
 			},
 		},
 	})
