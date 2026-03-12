@@ -1,0 +1,19 @@
+config:
+  # Allow long lines in tables and code blocks
+  line-length: false
+  # Allow HTML in markdown (terraform registry docs may use it)
+  no-inline-html: false
+  # Allow duplicate headings in different files
+  no-duplicate-heading:
+    siblings_only: true
+  # Allow bare URLs
+  no-bare-urls: false
+
+globs:
+  - "docs/**/*.md"
+  - "README.md"
+  - "CONTRIBUTING.md"
+
+ignores:
+  - "node_modules"
+  - "3x-ui-*"

@@ -40,6 +40,7 @@ docker-compose.yaml    — 3x-ui on port 2053 (update image tag when bumping ver
 Taskfile.yml           — task build / test / fmt
 .github/workflows/
   ci.yml               — lint, unit tests, acceptance tests (PR + push main)
+  docs.yml             — docs/examples validation: terraform fmt, markdownlint, yamllint (PR + push main)
   release-please.yml   — Release Please + GoReleaser (conventional commits → semver tag → build + sign + publish)
 ```
 
