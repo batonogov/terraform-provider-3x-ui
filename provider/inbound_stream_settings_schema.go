@@ -1040,16 +1040,19 @@ func flattenSockoptToModel(data map[string]any) *InboundSockoptModel {
 // JSON string -> untyped map (wraps existing flattenStreamSettings)
 // ---------------------------------------------------------------------------
 
-func flattenStreamSettingsToMap(streamJSON string) map[string]any {
-	flat := flattenStreamSettings(streamJSON)
+func flattenStreamSettingsToMap(streamJSON string) (map[string]any, error) {
+	flat, err := flattenStreamSettings(streamJSON)
+	if err != nil {
+		return nil, err
+	}
 	if len(flat) == 0 {
-		return nil
+		return nil, nil
 	}
 	m, ok := flat[0].(map[string]any)
 	if !ok {
-		return nil
+		return nil, nil
 	}
-	return m
+	return m, nil
 }
 
 // ---------------------------------------------------------------------------

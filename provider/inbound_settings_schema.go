@@ -798,14 +798,17 @@ func flattenInboundWireguardPeersToModel(list []any) []InboundWireguardPeerModel
 // JSON string -> untyped map (wraps existing flattenSettings)
 // ---------------------------------------------------------------------------
 
-func flattenSettingsToMap(settingsJSON string) map[string]any {
-	flat := flattenSettings(settingsJSON)
+func flattenSettingsToMap(settingsJSON string) (map[string]any, error) {
+	flat, err := flattenSettings(settingsJSON)
+	if err != nil {
+		return nil, err
+	}
 	if len(flat) == 0 {
-		return nil
+		return nil, nil
 	}
 	m, ok := flat[0].(map[string]any)
 	if !ok {
-		return nil
+		return nil, nil
 	}
-	return m
+	return m, nil
 }
