@@ -61,7 +61,7 @@ func (p *ThreeXUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 			"two_factor_code": schema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
-				Description: "Optional 2FA code for login.",
+				Description: "TOTP code for 2FA login. Sent with the initial authentication request; automatic re-login will fail once the code expires.",
 			},
 			"insecure_skip_verify": schema.BoolAttribute{
 				Optional:    true,
