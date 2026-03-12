@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -15,7 +16,7 @@ func TestAccXrayVersion(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	// Verify GetCurrentXrayVersion returns a non-empty string.
+	// Verify GetCurrentXrayVersion returns a v-prefixed string.
 	currentVersion, err := client.GetCurrentXrayVersion(ctx)
 	if err != nil {
 		t.Fatalf("GetCurrentXrayVersion: %s", err)
@@ -23,15 +24,21 @@ func TestAccXrayVersion(t *testing.T) {
 	if currentVersion == "" {
 		t.Fatal("GetCurrentXrayVersion returned empty string")
 	}
+	if !strings.HasPrefix(currentVersion, "v") {
+		t.Fatalf("GetCurrentXrayVersion should return v-prefixed version, got %q", currentVersion)
+	}
 	t.Logf("current xray version: %s", currentVersion)
 
-	// Verify GetXrayVersions returns a non-empty list.
+	// Verify GetXrayVersions returns a non-empty list with v-prefixed versions.
 	versions, err := client.GetXrayVersions(ctx)
 	if err != nil {
 		t.Fatalf("GetXrayVersions: %s", err)
 	}
 	if len(versions) == 0 {
 		t.Fatal("GetXrayVersions returned empty list")
+	}
+	if !strings.HasPrefix(versions[0], "v") {
+		t.Fatalf("GetXrayVersions should return v-prefixed versions, got %q", versions[0])
 	}
 	t.Logf("available versions: %d (first: %s)", len(versions), versions[0])
 }
@@ -73,7 +80,7 @@ resource "threexui_xray_version" "test" {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_xray_version.test", "id", "xray_version"),
 					resource.TestCheckResourceAttr("threexui_xray_version.test", "version", currentVersion),
-					resource.TestCheckResourceAttrSet("threexui_xray_version.test", "current_version"),
+					resource.TestCheckResourceAttr("threexui_xray_version.test", "current_version", currentVersion),
 				),
 			},
 			// Idempotency.

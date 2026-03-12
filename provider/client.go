@@ -263,6 +263,9 @@ func (c *Client) GetXrayVersions(ctx context.Context) ([]string, error) {
 	return out, nil
 }
 
+// GetCurrentXrayVersion returns the installed Xray version with "v" prefix.
+// The server status API returns version without "v" (e.g. "26.2.6"),
+// but installXray and getXrayVersion use "v"-prefixed tags (e.g. "v26.2.6").
 func (c *Client) GetCurrentXrayVersion(ctx context.Context) (string, error) {
 	status, err := c.GetServerStatus(ctx)
 	if err != nil {
@@ -276,7 +279,15 @@ func (c *Client) GetCurrentXrayVersion(ctx context.Context) (string, error) {
 	if !ok {
 		return "", errors.New("xray version not found in server status")
 	}
-	return version, nil
+	return normalizeXrayVersion(version), nil
+}
+
+// normalizeXrayVersion ensures the version string has a "v" prefix.
+func normalizeXrayVersion(v string) string {
+	if v != "" && v[0] != 'v' {
+		return "v" + v
+	}
+	return v
 }
 
 func (c *Client) InstallXray(ctx context.Context, version string) error {

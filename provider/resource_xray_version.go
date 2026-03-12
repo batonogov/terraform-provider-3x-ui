@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -45,11 +46,11 @@ func (r *XrayVersionResource) Schema(_ context.Context, _ resource.SchemaRequest
 			},
 			"version": schema.StringAttribute{
 				Required:    true,
-				Description: "The desired Xray version to install (e.g. \"v25.1.1\").",
+				Description: "The desired Xray version to install (e.g. \"v25.1.1\"). Must include the \"v\" prefix.",
 			},
 			"current_version": schema.StringAttribute{
 				Computed:    true,
-				Description: "The currently installed Xray version.",
+				Description: "The currently installed Xray version (with \"v\" prefix).",
 			},
 		},
 	}
@@ -87,6 +88,14 @@ func (r *XrayVersionResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
+	if current != version {
+		resp.Diagnostics.AddError(
+			"Xray version mismatch after install",
+			fmt.Sprintf("Requested %s but the panel reports %s.", version, current),
+		)
+		return
+	}
+
 	plan.ID = types.StringValue("xray_version")
 	plan.CurrentVersion = types.StringValue(current)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -105,6 +114,9 @@ func (r *XrayVersionResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
+	// Update both version and current_version from the observed state
+	// so that Terraform detects drift if the version was changed outside TF.
+	state.Version = types.StringValue(current)
 	state.CurrentVersion = types.StringValue(current)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -126,6 +138,14 @@ func (r *XrayVersionResource) Update(ctx context.Context, req resource.UpdateReq
 	current, err := r.client.GetCurrentXrayVersion(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to get current Xray version", err.Error())
+		return
+	}
+
+	if current != version {
+		resp.Diagnostics.AddError(
+			"Xray version mismatch after install",
+			fmt.Sprintf("Requested %s but the panel reports %s.", version, current),
+		)
 		return
 	}
 
