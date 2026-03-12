@@ -18,14 +18,18 @@ import (
 // serializes concurrent settings updates from applyPanelGeneral and
 // settingsApplyTyped, preventing lost updates.
 //
-// The test creates a fake 3x-ui server with an artificial delay between
-// Get and Update. Two goroutines simultaneously apply different settings
-// keys. Without serialization, the second writer would overwrite the
-// first writer's changes (lost update). With settingsMu, both keys
-// survive.
+// The fake server replaces the entire settings map on each update (as
+// the real 3x-ui API does). Without settingsMu, the second writer reads
+// a stale snapshot and overwrites the first writer's changes.
 func TestSettingsMu_NoConcurrentReadModifyWrite(t *testing.T) {
 	var mu sync.Mutex
-	state := map[string]any{} // simulated server-side settings
+	// Pre-seed with baseline keys so both writers include them in their
+	// read-modify-write cycle. A writer that reads a stale snapshot will
+	// post back stale values for the key the other writer changed.
+	state := map[string]any{
+		"pageSize":    float64(25),
+		"remarkModel": "-io",
+	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -43,12 +47,11 @@ func TestSettingsMu_NoConcurrentReadModifyWrite(t *testing.T) {
 			time.Sleep(50 * time.Millisecond)
 			w.Write(okResponse(snapshot))
 		case "/panel/setting/update":
+			// Real API replaces settings entirely — do the same here.
 			var body map[string]any
 			json.NewDecoder(r.Body).Decode(&body)
 			mu.Lock()
-			for k, v := range body {
-				state[k] = v
-			}
+			state = body
 			mu.Unlock()
 			w.Write(okResponse(nil))
 		default:
@@ -62,7 +65,7 @@ func TestSettingsMu_NoConcurrentReadModifyWrite(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	// Writer 1: applyPanelGeneral sets pageSize.
+	// Writer 1: applyPanelGeneral sets pageSize to 50.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -77,7 +80,7 @@ func TestSettingsMu_NoConcurrentReadModifyWrite(t *testing.T) {
 		}
 	}()
 
-	// Writer 2: settingsApplyTyped sets remarkModel.
+	// Writer 2: settingsApplyTyped sets remarkModel to "-ieo".
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -94,12 +97,12 @@ func TestSettingsMu_NoConcurrentReadModifyWrite(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	// Both keys must be present — no lost update.
+	// Both keys must reflect the latest writes — no lost update.
 	if state["pageSize"] != float64(50) {
-		t.Errorf("pageSize lost: got %v", state["pageSize"])
+		t.Errorf("pageSize lost: got %v, want 50", state["pageSize"])
 	}
 	if state["remarkModel"] != "-ieo" {
-		t.Errorf("remarkModel lost: got %v", state["remarkModel"])
+		t.Errorf("remarkModel lost: got %v, want -ieo", state["remarkModel"])
 	}
 }
 
@@ -107,6 +110,10 @@ func TestSettingsMu_NoConcurrentReadModifyWrite(t *testing.T) {
 // xrayTemplateMu serializes concurrent xray template updates from
 // SetXrayOutboundTestURL (called by applyPanelGeneral) and
 // xrayApplyTyped, preventing lost updates.
+//
+// The fake server replaces xrayState entirely on update (as the real
+// API does). Without xrayTemplateMu, a stale write from one goroutine
+// would drop the other's changes.
 func TestXrayTemplateMu_NoConcurrentReadModifyWrite(t *testing.T) {
 	var mu sync.Mutex
 	xrayState := map[string]any{
@@ -141,12 +148,11 @@ func TestXrayTemplateMu_NoConcurrentReadModifyWrite(t *testing.T) {
 			r.ParseForm()
 			xraySetting := r.FormValue("xraySetting")
 			testURL := r.FormValue("outboundTestUrl")
+			// Real API replaces the entire xray template — do the same.
 			var parsed map[string]any
 			json.Unmarshal([]byte(xraySetting), &parsed)
 			mu.Lock()
-			for k, v := range parsed {
-				xrayState[k] = v
-			}
+			xrayState = parsed
 			mu.Unlock()
 			if testURL != "" {
 				outboundTestURL.Store(testURL)
@@ -202,6 +208,11 @@ func TestXrayTemplateMu_NoConcurrentReadModifyWrite(t *testing.T) {
 	// The log section must survive — no lost update from either writer.
 	if _, ok := xrayState["log"]; !ok {
 		t.Errorf("log section lost from xray state")
+	}
+
+	// The dns section must survive — no lost update from SetXrayOutboundTestURL.
+	if _, ok := xrayState["dns"]; !ok {
+		t.Errorf("dns section lost from xray state")
 	}
 
 	// outboundTestUrl must be set.
