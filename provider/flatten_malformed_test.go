@@ -86,32 +86,32 @@ func TestFlattenSniffing_EmptyString(t *testing.T) {
 	}
 }
 
-func TestInboundToModel_MalformedSettings(t *testing.T) {
+func TestInboundToModel_MalformedSettings_FailHard(t *testing.T) {
 	inbound := &Inbound{
 		ID:       1,
 		Settings: `{broken`,
 		Protocol: "vless",
 	}
-	_, diags := inboundToModel(inbound)
+	_, diags := inboundToModel(inbound, true)
 	if !diags.HasError() {
 		t.Fatal("expected diagnostics error for malformed settings")
 	}
 }
 
-func TestInboundToModel_MalformedStreamSettings(t *testing.T) {
+func TestInboundToModel_MalformedStreamSettings_FailHard(t *testing.T) {
 	inbound := &Inbound{
 		ID:             1,
 		Settings:       `{"decryption":"none"}`,
 		StreamSettings: `{broken`,
 		Protocol:       "vless",
 	}
-	_, diags := inboundToModel(inbound)
+	_, diags := inboundToModel(inbound, true)
 	if !diags.HasError() {
 		t.Fatal("expected diagnostics error for malformed stream_settings")
 	}
 }
 
-func TestInboundToModel_MalformedSniffing(t *testing.T) {
+func TestInboundToModel_MalformedSniffing_FailHard(t *testing.T) {
 	inbound := &Inbound{
 		ID:             1,
 		Settings:       `{"decryption":"none"}`,
@@ -119,8 +119,29 @@ func TestInboundToModel_MalformedSniffing(t *testing.T) {
 		Sniffing:       `{broken`,
 		Protocol:       "vless",
 	}
-	_, diags := inboundToModel(inbound)
+	_, diags := inboundToModel(inbound, true)
 	if !diags.HasError() {
 		t.Fatal("expected diagnostics error for malformed sniffing")
+	}
+}
+
+func TestInboundToModel_MalformedSettings_Soft(t *testing.T) {
+	inbound := &Inbound{
+		ID:       1,
+		Settings: `{broken`,
+		Protocol: "vless",
+	}
+	m, diags := inboundToModel(inbound, false)
+	if diags.HasError() {
+		t.Fatal("expected warnings, not errors, for soft mode")
+	}
+	if len(diags) == 0 {
+		t.Fatal("expected at least one warning diagnostic")
+	}
+	if m == nil {
+		t.Fatal("expected model to be returned in soft mode")
+	}
+	if m.ID.ValueString() != "1" {
+		t.Fatalf("expected ID=1, got %s", m.ID.ValueString())
 	}
 }
