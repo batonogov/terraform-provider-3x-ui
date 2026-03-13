@@ -397,7 +397,34 @@ func (c *Client) UpdateSettings(ctx context.Context, settings map[string]any) er
 }
 
 func (c *Client) RestartPanel(ctx context.Context) error {
-	return c.doForm(ctx, http.MethodPost, "panel/setting/restartPanel", url.Values{}, nil)
+	if err := c.doForm(ctx, http.MethodPost, "panel/setting/restartPanel", url.Values{}, nil); err != nil {
+		return err
+	}
+	return c.waitForReady(ctx)
+}
+
+// waitForReady polls the panel until it responds successfully or the context
+// is cancelled. The panel needs a few seconds to come back after a restart.
+func (c *Client) waitForReady(ctx context.Context) error {
+	const (
+		interval = 2 * time.Second
+		timeout  = 30 * time.Second
+	)
+	deadline := time.Now().Add(timeout)
+	for {
+		if time.Now().After(deadline) {
+			return errors.New("panel did not become ready after restart")
+		}
+		// Try to login — this also verifies the panel is reachable.
+		if err := c.Login(ctx); err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(interval):
+		}
+	}
 }
 
 func (c *Client) GetXrayTemplate(ctx context.Context) (map[string]any, error) {
