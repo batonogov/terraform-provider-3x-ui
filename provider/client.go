@@ -396,16 +396,27 @@ func (c *Client) UpdateSettings(ctx context.Context, settings map[string]any) er
 	return c.doJSON(ctx, http.MethodPost, "panel/setting/update", settings, nil)
 }
 
-func (c *Client) RestartPanel(ctx context.Context) error {
-	if err := c.doForm(ctx, http.MethodPost, "panel/setting/restartPanel", url.Values{}, nil); err != nil {
-		return err
+// SendRestart sends the restart request but does not wait for readiness.
+func (c *Client) SendRestart(ctx context.Context) error {
+	// The panel may close the connection mid-response, so ignore EOF.
+	err := c.doForm(ctx, http.MethodPost, "panel/setting/restartPanel", url.Values{}, nil)
+	if err != nil && err.Error() == "EOF" {
+		return nil
 	}
-	return c.waitForReady(ctx)
+	return err
 }
 
-// waitForReady polls the panel until it responds successfully or the context
+// RestartPanel sends a restart and waits for the panel to become ready.
+func (c *Client) RestartPanel(ctx context.Context) error {
+	if err := c.SendRestart(ctx); err != nil {
+		return err
+	}
+	return c.WaitForReady(ctx)
+}
+
+// WaitForReady polls the panel until it responds successfully or the context
 // is cancelled. The panel needs a few seconds to come back after a restart.
-func (c *Client) waitForReady(ctx context.Context) error {
+func (c *Client) WaitForReady(ctx context.Context) error {
 	const (
 		interval = 2 * time.Second
 		timeout  = 30 * time.Second

@@ -1122,18 +1122,26 @@ func (r *PanelGeneralResource) applyPanelGeneral(ctx context.Context, plan *Pane
 		}
 		settingsMu.Unlock()
 
-		// Update the client's base path before restart so that
-		// waitForReady (called inside RestartPanel) and subsequent
-		// requests (e.g. SetXrayOutboundTestURL) hit the new path.
-		if newPath, ok := desired["webBasePath"]; ok {
-			r.client.SetBasePath(stringValue(newPath))
-		}
-
 		if needRestart {
-			if err := r.client.RestartPanel(ctx); err != nil {
+			// Send the restart request while basePath still points to the
+			// old path (where the panel is currently listening).
+			if err := r.client.SendRestart(ctx); err != nil {
 				diags.AddError("Failed to restart panel", err.Error())
 				return
 			}
+
+			// Now update basePath so waitForReady polls the new path.
+			if newPath, ok := desired["webBasePath"]; ok {
+				r.client.SetBasePath(stringValue(newPath))
+			}
+
+			if err := r.client.WaitForReady(ctx); err != nil {
+				diags.AddError("Panel did not become ready after restart", err.Error())
+				return
+			}
+		} else if newPath, ok := desired["webBasePath"]; ok {
+			// No restart needed, but basePath still needs updating.
+			r.client.SetBasePath(stringValue(newPath))
 		}
 	}
 
