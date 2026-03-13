@@ -35,6 +35,11 @@ type Client struct {
 	httpClient *http.Client
 }
 
+// SetBasePath updates the client's base path to match a new webBasePath.
+func (c *Client) SetBasePath(p string) {
+	c.basePath = normalizeBasePath(p)
+}
+
 type apiResponse struct {
 	Success bool            `json:"success"`
 	Msg     string          `json:"msg"`

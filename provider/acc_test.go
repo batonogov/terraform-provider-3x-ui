@@ -82,6 +82,48 @@ provider "threexui" {
 	return config + "\n"
 }
 
+func testAccProviderConfigWithBasePath(basePath string) string {
+	endpoint := os.Getenv(envEndpoint)
+	username := os.Getenv(envUsername)
+	password := os.Getenv(envPassword)
+	insecure := os.Getenv(envInsecureSkipVerify)
+	if username == "" {
+		username = "admin"
+	}
+	if password == "" {
+		password = "admin"
+	}
+
+	namespace := os.Getenv("TF_ACC_PROVIDER_NAMESPACE")
+	host := os.Getenv("TF_ACC_PROVIDER_HOST")
+	if namespace == "" {
+		namespace = "hashicorp"
+	}
+	if host == "" {
+		host = "registry.terraform.io"
+	}
+
+	config := fmt.Sprintf(`terraform {
+  required_providers {
+    threexui = {
+      source = "%s/%s/threexui"
+    }
+  }
+}
+
+provider "threexui" {
+  endpoint            = %q
+  username            = %q
+  password            = %q
+  base_path           = %q
+`, host, namespace, endpoint, username, password, basePath)
+	if insecure != "" {
+		config += fmt.Sprintf("  insecure_skip_verify = %s\n", insecure)
+	}
+	config += "}\n"
+	return config + "\n"
+}
+
 func testAccClientFromEnv() (*Client, error) {
 	endpoint := os.Getenv(envEndpoint)
 	basePath := os.Getenv(envBasePath)

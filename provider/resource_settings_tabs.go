@@ -1128,6 +1128,12 @@ func (r *PanelGeneralResource) applyPanelGeneral(ctx context.Context, plan *Pane
 				return
 			}
 		}
+
+		// After restart, update the client's base path so subsequent
+		// requests (e.g. SetXrayOutboundTestURL) hit the new path.
+		if newPath, ok := desired["webBasePath"]; ok {
+			r.client.SetBasePath(stringValue(newPath))
+		}
 	}
 
 	// xrayOutboundTestUrl is managed via xray endpoint, not settings API.

@@ -896,3 +896,111 @@ resource "threexui_panel_subscription" "test" {
 		},
 	})
 }
+
+// TestAccPanelGeneralBasePathChange verifies that changing web_base_path and
+// xray_outbound_test_url in the same apply succeeds. Before the fix, the Xray
+// update after restart would fail because client.basePath was stale.
+func TestAccPanelGeneralBasePathChange(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			// Step 1: change web_base_path to /testbp/ and xray_outbound_test_url
+			// in the same apply. Provider starts with base_path="/".
+			{
+				Config: testAccProviderConfigWithBasePath("/") + `
+resource "threexui_panel_general" "bp" {
+  date_picker                    = "gregorian"
+  expire_diff                    = 0
+  external_traffic_inform_enable = false
+  external_traffic_inform_uri    = ""
+  ldap_auto_create               = false
+  ldap_auto_delete               = false
+  ldap_base_dn                   = ""
+  ldap_bind_dn                   = ""
+  ldap_default_expiry_days       = 0
+  ldap_default_limit_ip          = 0
+  ldap_default_total_gb          = 0
+  ldap_enable                    = false
+  ldap_flag_field                = ""
+  ldap_host                      = ""
+  ldap_inbound_tags              = ""
+  ldap_invert_flag               = false
+  ldap_password                  = ""
+  ldap_port                      = 389
+  ldap_sync_cron                 = "@every 1m"
+  ldap_truthy_values             = "true,1,yes,on"
+  ldap_use_tls                   = false
+  ldap_user_attr                 = "mail"
+  ldap_user_filter               = "(objectClass=person)"
+  ldap_vless_field               = "vless_enabled"
+  page_size                      = 50
+  remark_model                   = "-ieo"
+  session_max_age                = 360
+  time_location                  = "Local"
+  traffic_diff                   = 0
+  web_base_path                  = "/testbp/"
+  web_cert_file                  = ""
+  web_domain                     = ""
+  web_key_file                   = ""
+  web_listen                     = ""
+  web_port                       = 2053
+  xray_outbound_test_url         = "https://example.com/generate_204"
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_general.bp", "web_base_path", "/testbp/"),
+					resource.TestCheckResourceAttr("threexui_panel_general.bp", "xray_outbound_test_url", "https://example.com/generate_204"),
+				),
+			},
+			// Step 2: restore web_base_path back to "/" (provider now uses
+			// base_path="/testbp/" to match the current panel path).
+			{
+				Config: testAccProviderConfigWithBasePath("/testbp/") + `
+resource "threexui_panel_general" "bp" {
+  date_picker                    = "gregorian"
+  expire_diff                    = 0
+  external_traffic_inform_enable = false
+  external_traffic_inform_uri    = ""
+  ldap_auto_create               = false
+  ldap_auto_delete               = false
+  ldap_base_dn                   = ""
+  ldap_bind_dn                   = ""
+  ldap_default_expiry_days       = 0
+  ldap_default_limit_ip          = 0
+  ldap_default_total_gb          = 0
+  ldap_enable                    = false
+  ldap_flag_field                = ""
+  ldap_host                      = ""
+  ldap_inbound_tags              = ""
+  ldap_invert_flag               = false
+  ldap_password                  = ""
+  ldap_port                      = 389
+  ldap_sync_cron                 = "@every 1m"
+  ldap_truthy_values             = "true,1,yes,on"
+  ldap_use_tls                   = false
+  ldap_user_attr                 = "mail"
+  ldap_user_filter               = "(objectClass=person)"
+  ldap_vless_field               = "vless_enabled"
+  page_size                      = 50
+  remark_model                   = "-ieo"
+  session_max_age                = 360
+  time_location                  = "Local"
+  traffic_diff                   = 0
+  web_base_path                  = "/"
+  web_cert_file                  = ""
+  web_domain                     = ""
+  web_key_file                   = ""
+  web_listen                     = ""
+  web_port                       = 2053
+  xray_outbound_test_url         = "https://www.google.com/generate_204"
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_general.bp", "web_base_path", "/"),
+					resource.TestCheckResourceAttr("threexui_panel_general.bp", "xray_outbound_test_url", "https://www.google.com/generate_204"),
+				),
+			},
+		},
+	})
+}
