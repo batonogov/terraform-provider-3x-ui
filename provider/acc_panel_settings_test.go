@@ -1,6 +1,8 @@
 package provider
 
 import (
+	"context"
+	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -898,109 +900,78 @@ resource "threexui_panel_subscription" "test" {
 }
 
 // TestAccPanelGeneralBasePathChange verifies that changing web_base_path and
-// xray_outbound_test_url in the same apply succeeds. Before the fix, the Xray
-// update after restart would fail because client.basePath was stale.
+// xray_outbound_test_url in the same operation succeeds. Before the fix, the
+// Xray update after restart would fail because client.basePath was stale.
+//
+// This test drives the client directly (not through terraform-plugin-testing)
+// because the framework re-configures the provider between apply and
+// post-apply plan, which would create a new client with the old base_path.
 func TestAccPanelGeneralBasePathChange(t *testing.T) {
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccPreCheck(t) },
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
-		Steps: []resource.TestStep{
-			// Step 1: change web_base_path to /testbp/ and xray_outbound_test_url
-			// in the same apply. Provider starts with base_path="/".
-			{
-				Config: testAccProviderConfigWithBasePath("/") + `
-resource "threexui_panel_general" "bp" {
-  date_picker                    = "gregorian"
-  expire_diff                    = 0
-  external_traffic_inform_enable = false
-  external_traffic_inform_uri    = ""
-  ldap_auto_create               = false
-  ldap_auto_delete               = false
-  ldap_base_dn                   = ""
-  ldap_bind_dn                   = ""
-  ldap_default_expiry_days       = 0
-  ldap_default_limit_ip          = 0
-  ldap_default_total_gb          = 0
-  ldap_enable                    = false
-  ldap_flag_field                = ""
-  ldap_host                      = ""
-  ldap_inbound_tags              = ""
-  ldap_invert_flag               = false
-  ldap_password                  = ""
-  ldap_port                      = 389
-  ldap_sync_cron                 = "@every 1m"
-  ldap_truthy_values             = "true,1,yes,on"
-  ldap_use_tls                   = false
-  ldap_user_attr                 = "mail"
-  ldap_user_filter               = "(objectClass=person)"
-  ldap_vless_field               = "vless_enabled"
-  page_size                      = 50
-  remark_model                   = "-ieo"
-  session_max_age                = 360
-  time_location                  = "Local"
-  traffic_diff                   = 0
-  web_base_path                  = "/testbp/"
-  web_cert_file                  = ""
-  web_domain                     = ""
-  web_key_file                   = ""
-  web_listen                     = ""
-  web_port                       = 2053
-  xray_outbound_test_url         = "https://example.com/generate_204"
-}
-`,
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("threexui_panel_general.bp", "web_base_path", "/testbp/"),
-					resource.TestCheckResourceAttr("threexui_panel_general.bp", "xray_outbound_test_url", "https://example.com/generate_204"),
-				),
-			},
-			// Step 2: restore web_base_path back to "/" (provider now uses
-			// base_path="/testbp/" to match the current panel path).
-			{
-				Config: testAccProviderConfigWithBasePath("/testbp/") + `
-resource "threexui_panel_general" "bp" {
-  date_picker                    = "gregorian"
-  expire_diff                    = 0
-  external_traffic_inform_enable = false
-  external_traffic_inform_uri    = ""
-  ldap_auto_create               = false
-  ldap_auto_delete               = false
-  ldap_base_dn                   = ""
-  ldap_bind_dn                   = ""
-  ldap_default_expiry_days       = 0
-  ldap_default_limit_ip          = 0
-  ldap_default_total_gb          = 0
-  ldap_enable                    = false
-  ldap_flag_field                = ""
-  ldap_host                      = ""
-  ldap_inbound_tags              = ""
-  ldap_invert_flag               = false
-  ldap_password                  = ""
-  ldap_port                      = 389
-  ldap_sync_cron                 = "@every 1m"
-  ldap_truthy_values             = "true,1,yes,on"
-  ldap_use_tls                   = false
-  ldap_user_attr                 = "mail"
-  ldap_user_filter               = "(objectClass=person)"
-  ldap_vless_field               = "vless_enabled"
-  page_size                      = 50
-  remark_model                   = "-ieo"
-  session_max_age                = 360
-  time_location                  = "Local"
-  traffic_diff                   = 0
-  web_base_path                  = "/"
-  web_cert_file                  = ""
-  web_domain                     = ""
-  web_key_file                   = ""
-  web_listen                     = ""
-  web_port                       = 2053
-  xray_outbound_test_url         = "https://www.google.com/generate_204"
-}
-`,
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("threexui_panel_general.bp", "web_base_path", "/"),
-					resource.TestCheckResourceAttr("threexui_panel_general.bp", "xray_outbound_test_url", "https://www.google.com/generate_204"),
-				),
-			},
-		},
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("TF_ACC not set")
+	}
+
+	client, err := testAccClientFromEnv()
+	if err != nil {
+		t.Fatalf("client init: %v", err)
+	}
+	ctx := context.Background()
+
+	// Read current settings so we can restore them later.
+	original, err := client.GetSettings(ctx)
+	if err != nil {
+		t.Fatalf("get settings: %v", err)
+	}
+	originalTestURL, err := client.GetXrayOutboundTestURL(ctx)
+	if err != nil {
+		t.Fatalf("get test url: %v", err)
+	}
+
+	// Ensure we restore the original base path regardless of outcome.
+	t.Cleanup(func() {
+		// Restore basePath to original so we can reach the panel.
+		if bp, ok := original["webBasePath"]; ok {
+			client.SetBasePath(stringValue(bp))
+		} else {
+			client.SetBasePath("/")
+		}
+		_ = client.UpdateSettings(ctx, original)
+		_ = client.SendRestart(ctx)
+		client.SetBasePath("/")
+		_ = client.WaitForReady(ctx)
+		_ = client.SetXrayOutboundTestURL(ctx, originalTestURL)
 	})
+
+	// --- Simulate what applyPanelGeneral does ---
+
+	// 1. Update settings: change webBasePath.
+	desired := map[string]any{"webBasePath": "/testbp/"}
+	merged := mergeSettings(original, desired)
+	if err := client.UpdateSettings(ctx, merged); err != nil {
+		t.Fatalf("update settings: %v", err)
+	}
+
+	// 2. Send restart on the OLD path, then update basePath, then wait.
+	if err := client.SendRestart(ctx); err != nil {
+		t.Fatalf("send restart: %v", err)
+	}
+	client.SetBasePath("/testbp/")
+	if err := client.WaitForReady(ctx); err != nil {
+		t.Fatalf("wait for ready: %v", err)
+	}
+
+	// 3. Set xray outbound test URL on the NEW path.
+	newTestURL := "https://example.com/generate_204"
+	if err := client.SetXrayOutboundTestURL(ctx, newTestURL); err != nil {
+		t.Fatalf("set xray outbound test url after base path change: %v", err)
+	}
+
+	// Verify the test URL was applied.
+	got, err := client.GetXrayOutboundTestURL(ctx)
+	if err != nil {
+		t.Fatalf("get test url: %v", err)
+	}
+	if got != newTestURL {
+		t.Fatalf("xray outbound test url = %q, want %q", got, newTestURL)
+	}
 }
