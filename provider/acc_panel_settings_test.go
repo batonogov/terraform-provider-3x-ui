@@ -929,15 +929,11 @@ func TestAccPanelGeneralBasePathChange(t *testing.T) {
 
 	// Ensure we restore the original base path regardless of outcome.
 	t.Cleanup(func() {
-		// Restore basePath to original so we can reach the panel.
-		if bp, ok := original["webBasePath"]; ok {
-			client.SetBasePath(stringValue(bp))
-		} else {
-			client.SetBasePath("/")
-		}
-		_ = client.UpdateSettings(ctx, original)
-		_ = client.SendRestart(ctx)
-		client.SetBasePath("/")
+		// Panel is on /testbp/ — keep basePath as-is to reach it.
+		client.SetBasePath("/testbp/")
+		_ = client.UpdateSettings(ctx, original) // restores webBasePath to "/"
+		_ = client.SendRestart(ctx)              // restart on /testbp/ (current)
+		client.SetBasePath("/")                  // panel will restart on /
 		_ = client.WaitForReady(ctx)
 		_ = client.SetXrayOutboundTestURL(ctx, originalTestURL)
 	})
