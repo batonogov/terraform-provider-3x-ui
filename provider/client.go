@@ -35,6 +35,11 @@ type Client struct {
 	httpClient *http.Client
 }
 
+// SetBasePath updates the client's base path to match a new webBasePath.
+func (c *Client) SetBasePath(p string) {
+	c.basePath = normalizeBasePath(p)
+}
+
 type apiResponse struct {
 	Success bool            `json:"success"`
 	Msg     string          `json:"msg"`
@@ -391,8 +396,46 @@ func (c *Client) UpdateSettings(ctx context.Context, settings map[string]any) er
 	return c.doJSON(ctx, http.MethodPost, "panel/setting/update", settings, nil)
 }
 
+// SendRestart sends the restart request but does not wait for readiness.
+func (c *Client) SendRestart(ctx context.Context) error {
+	// The panel may close the connection mid-response, so ignore EOF.
+	err := c.doForm(ctx, http.MethodPost, "panel/setting/restartPanel", url.Values{}, nil)
+	if err != nil && err.Error() == "EOF" {
+		return nil
+	}
+	return err
+}
+
+// RestartPanel sends a restart and waits for the panel to become ready.
 func (c *Client) RestartPanel(ctx context.Context) error {
-	return c.doForm(ctx, http.MethodPost, "panel/setting/restartPanel", url.Values{}, nil)
+	if err := c.SendRestart(ctx); err != nil {
+		return err
+	}
+	return c.WaitForReady(ctx)
+}
+
+// WaitForReady polls the panel until it responds successfully or the context
+// is cancelled. The panel needs a few seconds to come back after a restart.
+func (c *Client) WaitForReady(ctx context.Context) error {
+	const (
+		interval = 2 * time.Second
+		timeout  = 30 * time.Second
+	)
+	deadline := time.Now().Add(timeout)
+	for {
+		if time.Now().After(deadline) {
+			return errors.New("panel did not become ready after restart")
+		}
+		// Try to login — this also verifies the panel is reachable.
+		if err := c.Login(ctx); err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(interval):
+		}
+	}
 }
 
 func (c *Client) GetXrayTemplate(ctx context.Context) (map[string]any, error) {

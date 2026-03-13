@@ -233,9 +233,10 @@ Standard flow for working on issues:
 1. **Issue** — pick an issue from `gh issue list`
 2. **Code** — implement the fix/feature, run `task build`
 3. **PR** — create a branch, commit, push, open a PR via `gh pr create`
-4. **Codex review** — run `codex review --base main` and address all findings
-5. **Iterate** — repeat steps 2–4 until codex review has zero remarks
-6. **Done** — PR is ready for merge
+4. **CI** — wait for the CI pipeline to pass (`gh pr checks <number> --watch`). If it fails, investigate logs (`gh run view <run_id> --log-failed`), fix, and push again
+5. **Codex review** — run `codex review --base main` and address all findings
+6. **Iterate** — repeat steps 2–5 until CI is green and codex review has zero remarks
+7. **Done** — PR is ready for merge
 
 ## Core Principles
 

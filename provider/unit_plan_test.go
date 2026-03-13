@@ -48,6 +48,21 @@ func TestResolvePathEmptyRel(t *testing.T) {
 	}
 }
 
+func TestSetBasePath(t *testing.T) {
+	client := newTestClient(t, "http://example.com")
+	if client.basePath != "/" {
+		t.Fatalf("initial basePath = %q, want /", client.basePath)
+	}
+	client.SetBasePath("/newpath/")
+	if client.basePath != "/newpath/" {
+		t.Fatalf("after SetBasePath(/newpath/) = %q, want /newpath/", client.basePath)
+	}
+	client.SetBasePath("raw")
+	if client.basePath != "/raw/" {
+		t.Fatalf("after SetBasePath(raw) = %q, want /raw/", client.basePath)
+	}
+}
+
 func TestParseID(t *testing.T) {
 	if got, err := parseID("123"); err != nil || got != 123 {
 		t.Fatalf("parseID valid failed: got %d err %v", got, err)

@@ -1,6 +1,8 @@
 package provider
 
 import (
+	"context"
+	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -895,4 +897,77 @@ resource "threexui_panel_subscription" "test" {
 			},
 		},
 	})
+}
+
+// TestAccPanelGeneralBasePathChange verifies that changing web_base_path and
+// xray_outbound_test_url in the same operation succeeds. Before the fix, the
+// Xray update after restart would fail because client.basePath was stale.
+//
+// This test drives the client directly (not through terraform-plugin-testing)
+// because the framework re-configures the provider between apply and
+// post-apply plan, which would create a new client with the old base_path.
+func TestAccPanelGeneralBasePathChange(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("TF_ACC not set")
+	}
+
+	client, err := testAccClientFromEnv()
+	if err != nil {
+		t.Fatalf("client init: %v", err)
+	}
+	ctx := context.Background()
+
+	// Read current settings so we can restore them later.
+	original, err := client.GetSettings(ctx)
+	if err != nil {
+		t.Fatalf("get settings: %v", err)
+	}
+	originalTestURL, err := client.GetXrayOutboundTestURL(ctx)
+	if err != nil {
+		t.Fatalf("get test url: %v", err)
+	}
+
+	// Ensure we restore the original base path regardless of outcome.
+	t.Cleanup(func() {
+		// Panel is on /testbp/ — keep basePath as-is to reach it.
+		client.SetBasePath("/testbp/")
+		_ = client.UpdateSettings(ctx, original) // restores webBasePath to "/"
+		_ = client.SendRestart(ctx)              // restart on /testbp/ (current)
+		client.SetBasePath("/")                  // panel will restart on /
+		_ = client.WaitForReady(ctx)
+		_ = client.SetXrayOutboundTestURL(ctx, originalTestURL)
+	})
+
+	// --- Simulate what applyPanelGeneral does ---
+
+	// 1. Update settings: change webBasePath.
+	desired := map[string]any{"webBasePath": "/testbp/"}
+	merged := mergeSettings(original, desired)
+	if err := client.UpdateSettings(ctx, merged); err != nil {
+		t.Fatalf("update settings: %v", err)
+	}
+
+	// 2. Send restart on the OLD path, then update basePath, then wait.
+	if err := client.SendRestart(ctx); err != nil {
+		t.Fatalf("send restart: %v", err)
+	}
+	client.SetBasePath("/testbp/")
+	if err := client.WaitForReady(ctx); err != nil {
+		t.Fatalf("wait for ready: %v", err)
+	}
+
+	// 3. Set xray outbound test URL on the NEW path.
+	newTestURL := "https://example.com/generate_204"
+	if err := client.SetXrayOutboundTestURL(ctx, newTestURL); err != nil {
+		t.Fatalf("set xray outbound test url after base path change: %v", err)
+	}
+
+	// Verify the test URL was applied.
+	got, err := client.GetXrayOutboundTestURL(ctx)
+	if err != nil {
+		t.Fatalf("get test url: %v", err)
+	}
+	if got != newTestURL {
+		t.Fatalf("xray outbound test url = %q, want %q", got, newTestURL)
+	}
 }
