@@ -15,8 +15,8 @@ Thank you for your interest in contributing to the Terraform Provider for 3x-ui!
 
 ```bash
 # Clone the repository
-git clone https://github.com/batonogov/terraform-provider-3x-ui.git
-cd terraform-provider-3x-ui
+git clone https://github.com/batonogov/terraform-provider-threexui.git
+cd terraform-provider-threexui
 
 # Install pre-commit hooks
 pre-commit install

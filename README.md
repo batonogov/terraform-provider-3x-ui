@@ -1,6 +1,6 @@
 # Terraform Provider for 3x-ui
 
-[![CI](https://github.com/batonogov/terraform-provider-3x-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/batonogov/terraform-provider-3x-ui/actions/workflows/ci.yml)
+[![CI](https://github.com/batonogov/terraform-provider-threexui/actions/workflows/ci.yml/badge.svg)](https://github.com/batonogov/terraform-provider-threexui/actions/workflows/ci.yml)
 [![Terraform Registry](https://img.shields.io/badge/terraform-registry-blueviolet)](https://registry.terraform.io/providers/batonogov/threexui/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
