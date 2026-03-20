@@ -28,7 +28,7 @@ task build
 ## Common Commands
 
 | Command | Description |
-|---|---|
+| --- | --- |
 | `task build` | Build the provider binary |
 | `task fmt` | Format Go code (gofmt) |
 | `task vet` | Run `go vet` |
