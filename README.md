@@ -62,7 +62,7 @@ Full documentation is available on the [Terraform Registry](https://registry.ter
 ### Resources
 
 | Resource | Description |
-|---|---|
+| --- | --- |
 | `threexui_inbound` | Inbound proxy (vless, vmess, trojan, shadowsocks, http, socks, mixed, wireguard, dokodemo-door) |
 | `threexui_inbound_client` | Client within an inbound |
 | `threexui_panel_general` | General panel settings |
@@ -81,7 +81,7 @@ Full documentation is available on the [Terraform Registry](https://registry.ter
 ### Data Sources
 
 | Data Source | Description |
-|---|---|
+| --- | --- |
 | `threexui_inbounds` | List of all inbounds (JSON) |
 | `threexui_server_status` | Server status: CPU, memory, disk, uptime (JSON) |
 | `threexui_settings` | All panel settings (JSON) |

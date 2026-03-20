@@ -34,6 +34,12 @@ repos:
         pass_filenames: false
         types: [go]
 
+      - id: markdownlint
+        name: markdownlint
+        entry: markdownlint-cli2
+        language: system
+        types: [markdown]
+
   # Common hooks for any files
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
