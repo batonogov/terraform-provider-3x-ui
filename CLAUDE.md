@@ -8,7 +8,7 @@ Terraform provider for the [3x-ui](https://github.com/MHSanaei/3x-ui) panel (Go,
 
 ## Project Structure
 
-```
+```text
 provider/              — all provider code
   provider.go          — ThreeXUIProvider (framework): Metadata, Schema, Configure, Resources, DataSources
   client.go            — HTTP client for 3x-ui API (cookie auth, auto re-login)
@@ -47,7 +47,7 @@ Taskfile.yml           — task build / test / fmt
 ## Provider Resources
 
 | Terraform Resource | File | Description |
-|---|---|---|
+| --- | --- | --- |
 | `threexui_inbound` | resource_inbound.go + inbound_*_schema.go | Inbound (vless/vmess/trojan/ss/http/mixed/wg/tunnel). Typed blocks for settings/stream_settings/sniffing |
 | `threexui_inbound_client` | resource_inbound_client.go | Client within an inbound. Typed attributes |
 | `threexui_panel_general` | resource_settings_tabs.go | Panel settings (web, LDAP). Typed attributes |
@@ -66,7 +66,7 @@ Taskfile.yml           — task build / test / fmt
 ## Data Sources
 
 | Terraform Data Source | Description |
-|---|---|
+| --- | --- |
 | `threexui_inbounds` | List of all inbounds (JSON string) |
 | `threexui_server_status` | Server status (JSON) |
 | `threexui_xray_versions` | Available Xray versions (list of strings) |
@@ -97,6 +97,7 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 ## Key Code Details
 
 ### Framework (terraform-plugin-framework)
+
 - Provider: `ThreeXUIProvider` implements `provider.Provider` (Metadata, Schema, Configure, Resources, DataSources)
 - Factory: `New() provider.Provider`
 - Resources implement `resource.Resource` + `resource.ResourceWithImportState`
@@ -107,6 +108,7 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 - Import: `resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)`
 
 ### Inbound / Client
+
 - `settings`, `stream_settings`, `sniffing` — JSON strings in the API, typed blocks in TF schema
 - Three-layer conversion: Typed Model ↔ Untyped Map (expand/flatten*FromModel/*ToModel) ↔ JSON String (build*/flatten*)
 - Per-protocol settings blocks: `vless_settings`, `trojan_settings`, `shadowsocks_settings`, `http_settings`, `socks_settings`, `wireguard_settings`, `dokodemo_settings`
@@ -121,6 +123,7 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 - `isSubset` — standalone utility for JSON subset checking
 
 ### Panel Settings
+
 - Settings resources are singletons (ID = `"settings"`), one instance per type
 - Typed attributes (Optional + Computed + UseStateForUnknown) — each field is a separate attribute in the schema
 - Per-resource models: `PanelGeneralModel`, `PanelSecurityModel`, `PanelTelegramModel`, `PanelSubscriptionModel`
@@ -132,6 +135,7 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 - `panelSettingsNeedRestart` — keys: webListen, webDomain, webPort, webBasePath, webCertFile, webKeyFile, sessionMaxAge
 
 ### Panel User
+
 - `threexui_panel_user` — singleton (ID = `"user"`), manages admin credentials
 - Write-only: no API for reading username/password, Read is a no-op (state preserved)
 - Create uses `r.client.username/password` as old credentials
@@ -141,6 +145,7 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 - Warning reminds to update provider config after changing credentials
 
 ### Xray Settings
+
 - Typed blocks (ListNestedBlock) — each resource has its own model and schema in `*_schema.go`
 - Per-resource models: `XrayBasicsModel`, `XrayDNSModel`, `XrayRoutingModel`, `XrayBalancersModel`, `XrayReverseModel`, `XrayOutboundsModel`
 - Two-layer conversion: typed model ↔ untyped map (expand/flatten) ↔ Xray JSON (build/flattenToMap)
@@ -169,10 +174,12 @@ task pre-commit  # Run all pre-commit checks manually (fmt, vet, lint, build)
 ## Pre-commit Hooks
 
 Automatic pre-commit checks are configured:
+
 - **go-fmt** — code formatting
 - **go-vet** — static analysis
 - **golangci-lint** — linter
 - **go-build** — compilation check
+- **markdownlint** — markdown linting (requires `markdownlint-cli2`)
 - YAML/JSON checks, trailing whitespace, EOF
 
 Acceptance tests are **not** run in pre-commit — use `task test:acc` explicitly.
@@ -190,11 +197,13 @@ docker compose up -d   # Start 3x-ui on localhost:2053
 ```
 
 Acceptance tests use `terraform-plugin-testing`:
+
 - `testAccProtoV6ProviderFactories()` — returns `map[string]func() (tfprotov6.ProviderServer, error)`
 - `ProtoV6ProviderFactories` in TestCase (not `ProviderFactories`)
 - HCL configs use typed blocks and attributes (not `jsonencode()`)
 
 Acceptance tests require Terraform and environment variables for correct provider namespace:
+
 - `TF_ACC_TERRAFORM_PATH` — absolute path to `terraform`
 - `TF_ACC_PROVIDER_NAMESPACE=batonogov`
 - `TF_ACC_PROVIDER_HOST=registry.terraform.io`
