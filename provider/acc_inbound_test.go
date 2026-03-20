@@ -209,13 +209,7 @@ resource "threexui_inbound" "dokodemo" {
 // --- Tunnel (dokodemo-door alias in 3x-ui 2.8.11+) ---
 
 func TestAccInboundTunnel(t *testing.T) {
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccPreCheck(t) },
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
-		CheckDestroy:             testAccCheckInboundDestroyed,
-		Steps: []resource.TestStep{
-			{
-				Config: testAccProviderConfig() + `
+	tunnelConfig := testAccProviderConfig() + `
 resource "threexui_inbound" "tunnel" {
   port     = 25030
   protocol = "tunnel"
@@ -226,12 +220,25 @@ resource "threexui_inbound" "tunnel" {
     port            = 80
     network         = "tcp"
     follow_redirect = false
+    port_map = {
+      "80"  = "127.0.0.1:8080"
+      "443" = "127.0.0.1:8443"
+    }
   }
 }
-`,
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: tunnelConfig,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.tunnel", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "protocol", "tunnel"),
+					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "dokodemo_settings.0.port_map.80", "127.0.0.1:8080"),
+					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "dokodemo_settings.0.port_map.443", "127.0.0.1:8443"),
 				),
 			},
 			// Update remark
@@ -247,6 +254,10 @@ resource "threexui_inbound" "tunnel" {
     port            = 80
     network         = "tcp"
     follow_redirect = false
+    port_map = {
+      "80"  = "127.0.0.1:8080"
+      "443" = "127.0.0.1:8443"
+    }
   }
 }
 `,
@@ -254,6 +265,12 @@ resource "threexui_inbound" "tunnel" {
 					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "remark", "acc-tunnel-updated"),
 					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "protocol", "tunnel"),
 				),
+			},
+			// Import
+			{
+				ResourceName:      "threexui_inbound.tunnel",
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 		},
 	})

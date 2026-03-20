@@ -245,7 +245,7 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 					Optional:    true,
 					Computed:    true,
 					ElementType: types.StringType,
-					Description: "Port mapping (e.g. {\"80\": \"http\", \"443\": \"https\"}).",
+					Description: "Port mapping (e.g. {\"80\": \"127.0.0.1:8080\"}).",
 				},
 				"network": schema.StringAttribute{
 					Optional: true, Computed: true,
@@ -442,7 +442,9 @@ func expandDokodemoInboundSettings(m *InboundDokodemoSettingsModel) map[string]a
 				pm[k] = sv.ValueString()
 			}
 		}
-		out["port_map"] = pm
+		if len(pm) > 0 {
+			out["port_map"] = pm
+		}
 	}
 	if !m.Network.IsNull() && !m.Network.IsUnknown() {
 		out["network"] = m.Network.ValueString()
