@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.3](https://github.com/batonogov/terraform-provider-threexui/compare/v0.5.2...v0.5.3) (2026-03-20)
+
+
+### Bug Fixes
+
+* add markdownlint to pre-commit and fix MD060 violations ([#89](https://github.com/batonogov/terraform-provider-threexui/issues/89)) ([5fd6f6d](https://github.com/batonogov/terraform-provider-threexui/commit/5fd6f6d897dc6bbdc148578f25162b71dafb21a8))
+* align tunnel inbound support with 3x-ui 2.8.11 ([#87](https://github.com/batonogov/terraform-provider-threexui/issues/87)) ([29adfce](https://github.com/batonogov/terraform-provider-threexui/commit/29adfced9a0138de42627b2f4132c213701fd584))
+
 ## [0.5.2](https://github.com/batonogov/terraform-provider-threexui/compare/v0.5.1...v0.5.2) (2026-03-14)
 
 
