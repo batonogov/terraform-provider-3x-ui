@@ -228,3 +228,65 @@ func TestFlattenIntList_Float64Values(t *testing.T) {
 		t.Fatalf("expected %v, got %v", expected, result)
 	}
 }
+
+func TestBuildFlattenSettings_DokodemoPortMap(t *testing.T) {
+	input := map[string]any{
+		"address":         "127.0.0.1",
+		"port":            80,
+		"port_map":        map[string]any{"80": "http", "443": "https"},
+		"network":         "tcp,udp",
+		"follow_redirect": true,
+	}
+	jsonStr := buildSettingsJSON(input)
+	result, err := flattenSettings(jsonStr)
+	if err != nil {
+		t.Fatalf("flattenSettings error: %v", err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(result))
+	}
+	m, ok := result[0].(map[string]any)
+	if !ok {
+		t.Fatal("expected map[string]any")
+	}
+	if m["address"] != "127.0.0.1" {
+		t.Fatalf("unexpected address: %v", m["address"])
+	}
+	if m["follow_redirect"] != true {
+		t.Fatalf("unexpected follow_redirect: %v", m["follow_redirect"])
+	}
+	pm, ok := m["port_map"].(map[string]string)
+	if !ok {
+		t.Fatalf("port_map not map[string]string: %T", m["port_map"])
+	}
+	if pm["80"] != "http" || pm["443"] != "https" {
+		t.Fatalf("unexpected port_map: %v", pm)
+	}
+}
+
+func TestExpandSettingsFromModel_TunnelProtocol(t *testing.T) {
+	model := &InboundResourceModel{
+		DokodemoSettings: &InboundDokodemoSettingsModel{},
+	}
+	// tunnel should dispatch to the same expand as dokodemo-door
+	result := expandSettingsFromModel("tunnel", model)
+	if result == nil {
+		t.Fatal("expected non-nil result for tunnel protocol")
+	}
+}
+
+func TestFlattenSettingsToModel_TunnelProtocol(t *testing.T) {
+	data := map[string]any{
+		"address": "10.0.0.1",
+		"port":    8080,
+		"network": "tcp",
+	}
+	model := &InboundResourceModel{}
+	flattenSettingsToModel("tunnel", data, model)
+	if model.DokodemoSettings == nil {
+		t.Fatal("expected DokodemoSettings to be set for tunnel protocol")
+	}
+	if model.DokodemoSettings.Address.ValueString() != "10.0.0.1" {
+		t.Fatalf("unexpected address: %s", model.DokodemoSettings.Address.ValueString())
+	}
+}

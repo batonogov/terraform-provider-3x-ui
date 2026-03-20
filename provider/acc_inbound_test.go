@@ -206,6 +206,76 @@ resource "threexui_inbound" "dokodemo" {
 	})
 }
 
+// --- Tunnel (dokodemo-door alias in 3x-ui 2.8.11+) ---
+
+func TestAccInboundTunnel(t *testing.T) {
+	tunnelConfig := testAccProviderConfig() + `
+resource "threexui_inbound" "tunnel" {
+  port     = 25030
+  protocol = "tunnel"
+  remark   = "acc-tunnel"
+  enable   = true
+  dokodemo_settings {
+    address         = "127.0.0.1"
+    port            = 80
+    network         = "tcp"
+    follow_redirect = false
+    port_map = {
+      "80"  = "127.0.0.1:8080"
+      "443" = "127.0.0.1:8443"
+    }
+  }
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: tunnelConfig,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound.tunnel", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "protocol", "tunnel"),
+					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "dokodemo_settings.0.port_map.80", "127.0.0.1:8080"),
+					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "dokodemo_settings.0.port_map.443", "127.0.0.1:8443"),
+				),
+			},
+			// Update remark
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "tunnel" {
+  port     = 25030
+  protocol = "tunnel"
+  remark   = "acc-tunnel-updated"
+  enable   = true
+  dokodemo_settings {
+    address         = "127.0.0.1"
+    port            = 80
+    network         = "tcp"
+    follow_redirect = false
+    port_map = {
+      "80"  = "127.0.0.1:8080"
+      "443" = "127.0.0.1:8443"
+    }
+  }
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "remark", "acc-tunnel-updated"),
+					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "protocol", "tunnel"),
+				),
+			},
+			// Import
+			{
+				ResourceName:      "threexui_inbound.tunnel",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
 // --- VLESS + Reality (auto keys) ---
 
 func TestAccInboundReality(t *testing.T) {

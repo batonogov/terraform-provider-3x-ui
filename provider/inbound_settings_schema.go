@@ -50,6 +50,7 @@ type InboundWireguardSettingsModel struct {
 type InboundDokodemoSettingsModel struct {
 	Address        types.String `tfsdk:"address"`
 	Port           types.Int64  `tfsdk:"port"`
+	PortMap        types.Map    `tfsdk:"port_map"` // map of string
 	Network        types.String `tfsdk:"network"`
 	FollowRedirect types.Bool   `tfsdk:"follow_redirect"`
 }
@@ -230,7 +231,7 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 			},
 		},
 		"dokodemo_settings": schema.SingleNestedBlock{
-			Description: "Settings for Dokodemo-door (tunnel) protocol.",
+			Description: "Settings for Dokodemo-door / tunnel protocol.",
 			Attributes: map[string]schema.Attribute{
 				"address": schema.StringAttribute{
 					Optional: true, Computed: true,
@@ -239,6 +240,12 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 				"port": schema.Int64Attribute{
 					Optional: true, Computed: true,
 					Description: "Destination port.",
+				},
+				"port_map": schema.MapAttribute{
+					Optional:    true,
+					Computed:    true,
+					ElementType: types.StringType,
+					Description: "Port mapping (e.g. {\"80\": \"127.0.0.1:8080\"}).",
 				},
 				"network": schema.StringAttribute{
 					Optional: true, Computed: true,
@@ -302,7 +309,7 @@ func expandSettingsFromModel(protocol string, m *InboundResourceModel) map[strin
 		return expandSocksInboundSettings(m.SocksSettings)
 	case "wireguard":
 		return expandWireguardInboundSettings(m.WireguardSettings)
-	case "dokodemo-door":
+	case "dokodemo-door", "tunnel":
 		return expandDokodemoInboundSettings(m.DokodemoSettings)
 	default:
 		return nil
@@ -428,6 +435,17 @@ func expandDokodemoInboundSettings(m *InboundDokodemoSettingsModel) map[string]a
 	if !m.Port.IsNull() && !m.Port.IsUnknown() {
 		out["port"] = int(m.Port.ValueInt64())
 	}
+	if !m.PortMap.IsNull() && !m.PortMap.IsUnknown() {
+		pm := map[string]any{}
+		for k, v := range m.PortMap.Elements() {
+			if sv, ok := v.(types.String); ok {
+				pm[k] = sv.ValueString()
+			}
+		}
+		if len(pm) > 0 {
+			out["port_map"] = pm
+		}
+	}
 	if !m.Network.IsNull() && !m.Network.IsUnknown() {
 		out["network"] = m.Network.ValueString()
 	}
@@ -524,7 +542,7 @@ func flattenSettingsToModel(protocol string, data map[string]any, m *InboundReso
 		m.SocksSettings = flattenSocksInboundSettings(data)
 	case "wireguard":
 		m.WireguardSettings = flattenWireguardInboundSettings(data)
-	case "dokodemo-door":
+	case "dokodemo-door", "tunnel":
 		m.DokodemoSettings = flattenDokodemoInboundSettings(data)
 	}
 }
@@ -681,6 +699,22 @@ func flattenDokodemoInboundSettings(data map[string]any) *InboundDokodemoSetting
 		m.Port = types.Int64Value(int64(intValue(v)))
 	} else {
 		m.Port = types.Int64Null()
+	}
+	if v, ok := data["port_map"]; ok {
+		switch pm := v.(type) {
+		case map[string]any:
+			m.PortMap = anyMapToTypesMap(pm)
+		case map[string]string:
+			elems := make(map[string]any, len(pm))
+			for k, s := range pm {
+				elems[k] = s
+			}
+			m.PortMap = anyMapToTypesMap(elems)
+		default:
+			m.PortMap = types.MapNull(types.StringType)
+		}
+	} else {
+		m.PortMap = types.MapNull(types.StringType)
 	}
 	if v, ok := data["network"].(string); ok && v != "" {
 		m.Network = types.StringValue(v)
