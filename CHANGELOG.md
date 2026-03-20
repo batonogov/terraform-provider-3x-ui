@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/batonogov/terraform-provider-threexui/compare/v0.5.1...v0.5.2) (2026-03-14)
+
+
+### Bug Fixes
+
+* update client base_path after web_base_path change ([#81](https://github.com/batonogov/terraform-provider-threexui/issues/81)) ([2e890b0](https://github.com/batonogov/terraform-provider-threexui/commit/2e890b0ee3940765eade887ebd98a85a5f22182e))
+
 ## [0.5.1](https://github.com/batonogov/terraform-provider-threexui/compare/v0.5.0...v0.5.1) (2026-03-12)
 
 
