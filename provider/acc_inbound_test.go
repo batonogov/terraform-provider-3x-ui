@@ -206,6 +206,59 @@ resource "threexui_inbound" "dokodemo" {
 	})
 }
 
+// --- Tunnel (dokodemo-door alias in 3x-ui 2.8.11+) ---
+
+func TestAccInboundTunnel(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "tunnel" {
+  port     = 25030
+  protocol = "tunnel"
+  remark   = "acc-tunnel"
+  enable   = true
+  dokodemo_settings {
+    address         = "127.0.0.1"
+    port            = 80
+    network         = "tcp"
+    follow_redirect = false
+  }
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound.tunnel", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "protocol", "tunnel"),
+				),
+			},
+			// Update remark
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "tunnel" {
+  port     = 25030
+  protocol = "tunnel"
+  remark   = "acc-tunnel-updated"
+  enable   = true
+  dokodemo_settings {
+    address         = "127.0.0.1"
+    port            = 80
+    network         = "tcp"
+    follow_redirect = false
+  }
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "remark", "acc-tunnel-updated"),
+					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "protocol", "tunnel"),
+				),
+			},
+		},
+	})
+}
+
 // --- VLESS + Reality (auto keys) ---
 
 func TestAccInboundReality(t *testing.T) {

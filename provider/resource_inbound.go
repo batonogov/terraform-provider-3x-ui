@@ -154,7 +154,7 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"protocol": schema.StringAttribute{
 				Required:    true,
-				Description: "Protocol (vless, vmess, trojan, shadowsocks, http, socks, wireguard, etc.).",
+				Description: "Protocol (vless, vmess, trojan, shadowsocks, http, socks, wireguard, tunnel, dokodemo-door, etc.).",
 			},
 			"tag": schema.StringAttribute{
 				Computed:    true,
