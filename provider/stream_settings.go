@@ -708,17 +708,14 @@ func expandKCPSettings(list []any) map[string]any {
 			out["downlinkCapacity"] = n
 		}
 	}
-	if v, ok := item["congestion"]; ok {
-		out["congestion"] = boolValue(v)
-	}
-	if v, ok := item["read_buffer_size"]; ok {
+	if v, ok := item["cwnd_multiplier"]; ok {
 		if n := intValue(v); n != 0 {
-			out["readBufferSize"] = n
+			out["cwndMultiplier"] = n
 		}
 	}
-	if v, ok := item["write_buffer_size"]; ok {
+	if v, ok := item["max_sending_window"]; ok {
 		if n := intValue(v); n != 0 {
-			out["writeBufferSize"] = n
+			out["maxSendingWindow"] = n
 		}
 	}
 	if v, ok := item["header_type"].(string); ok && v != "" {
@@ -747,14 +744,11 @@ func flattenKCPSettings(in map[string]any) map[string]any {
 	if v, ok := in["downlinkCapacity"]; ok {
 		out["downlink_capacity"] = intValue(v)
 	}
-	if v, ok := in["congestion"].(bool); ok {
-		out["congestion"] = v
+	if v, ok := in["cwndMultiplier"]; ok {
+		out["cwnd_multiplier"] = intValue(v)
 	}
-	if v, ok := in["readBufferSize"]; ok {
-		out["read_buffer_size"] = intValue(v)
-	}
-	if v, ok := in["writeBufferSize"]; ok {
-		out["write_buffer_size"] = intValue(v)
+	if v, ok := in["maxSendingWindow"]; ok {
+		out["max_sending_window"] = intValue(v)
 	}
 	if v, ok := in["header"].(map[string]any); ok {
 		if t, ok := v["type"].(string); ok {

@@ -87,9 +87,8 @@ type InboundKCPSettingsModel struct {
 	TTI              types.Int64  `tfsdk:"tti"`
 	UplinkCapacity   types.Int64  `tfsdk:"uplink_capacity"`
 	DownlinkCapacity types.Int64  `tfsdk:"downlink_capacity"`
-	Congestion       types.Bool   `tfsdk:"congestion"`
-	ReadBufferSize   types.Int64  `tfsdk:"read_buffer_size"`
-	WriteBufferSize  types.Int64  `tfsdk:"write_buffer_size"`
+	CwndMultiplier   types.Int64  `tfsdk:"cwnd_multiplier"`
+	MaxSendingWindow types.Int64  `tfsdk:"max_sending_window"`
 	HeaderType       types.String `tfsdk:"header_type"`
 }
 
@@ -291,14 +290,15 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 					"downlink_capacity": schema.Int64Attribute{
 						Optional: true, Computed: true,
 					},
-					"congestion": schema.BoolAttribute{
-						Optional: true, Computed: true,
+					"cwnd_multiplier": schema.Int64Attribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "CWND multiplier.",
 					},
-					"read_buffer_size": schema.Int64Attribute{
-						Optional: true, Computed: true,
-					},
-					"write_buffer_size": schema.Int64Attribute{
-						Optional: true, Computed: true,
+					"max_sending_window": schema.Int64Attribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "Maximum sending window size.",
 					},
 					"header_type": schema.StringAttribute{
 						Optional: true, Computed: true,
@@ -589,14 +589,11 @@ func expandKCPSettingsFromModel(m *InboundKCPSettingsModel) map[string]any {
 	if !m.DownlinkCapacity.IsNull() && !m.DownlinkCapacity.IsUnknown() {
 		out["downlink_capacity"] = int(m.DownlinkCapacity.ValueInt64())
 	}
-	if !m.Congestion.IsNull() && !m.Congestion.IsUnknown() {
-		out["congestion"] = m.Congestion.ValueBool()
+	if !m.CwndMultiplier.IsNull() && !m.CwndMultiplier.IsUnknown() {
+		out["cwnd_multiplier"] = int(m.CwndMultiplier.ValueInt64())
 	}
-	if !m.ReadBufferSize.IsNull() && !m.ReadBufferSize.IsUnknown() {
-		out["read_buffer_size"] = int(m.ReadBufferSize.ValueInt64())
-	}
-	if !m.WriteBufferSize.IsNull() && !m.WriteBufferSize.IsUnknown() {
-		out["write_buffer_size"] = int(m.WriteBufferSize.ValueInt64())
+	if !m.MaxSendingWindow.IsNull() && !m.MaxSendingWindow.IsUnknown() {
+		out["max_sending_window"] = int(m.MaxSendingWindow.ValueInt64())
 	}
 	if !m.HeaderType.IsNull() && !m.HeaderType.IsUnknown() {
 		out["header_type"] = m.HeaderType.ValueString()
@@ -975,20 +972,15 @@ func flattenKCPSettingsToModel(data map[string]any) *InboundKCPSettingsModel {
 	} else {
 		m.DownlinkCapacity = types.Int64Null()
 	}
-	if v, ok := data["congestion"].(bool); ok {
-		m.Congestion = types.BoolValue(v)
+	if v, ok := data["cwnd_multiplier"]; ok {
+		m.CwndMultiplier = types.Int64Value(int64(intValue(v)))
 	} else {
-		m.Congestion = types.BoolNull()
+		m.CwndMultiplier = types.Int64Null()
 	}
-	if v, ok := data["read_buffer_size"]; ok {
-		m.ReadBufferSize = types.Int64Value(int64(intValue(v)))
+	if v, ok := data["max_sending_window"]; ok {
+		m.MaxSendingWindow = types.Int64Value(int64(intValue(v)))
 	} else {
-		m.ReadBufferSize = types.Int64Null()
-	}
-	if v, ok := data["write_buffer_size"]; ok {
-		m.WriteBufferSize = types.Int64Value(int64(intValue(v)))
-	} else {
-		m.WriteBufferSize = types.Int64Null()
+		m.MaxSendingWindow = types.Int64Null()
 	}
 	if v, ok := data["header_type"].(string); ok && v != "" {
 		m.HeaderType = types.StringValue(v)
