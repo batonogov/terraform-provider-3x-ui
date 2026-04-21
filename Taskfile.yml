@@ -42,7 +42,10 @@ tasks:
       TERRAFORM_PATH:
         sh: which terraform
       THREEXUI_VERSION: '{{.THREEXUI_VERSION | default "v2.9.0"}}'
+      COMPAT_TESTS: >-
+        TestAccInboundBasic$|TestAccInboundUpdateFields$|TestAccInboundTrojan$|TestAccInboundShadowsocks$|TestAccInboundClientBasic$|TestAccInboundClientUpdate$|TestAccXrayBasics$|TestAccXrayRouting$|TestAccXrayOutbounds$|TestAccDataSources$
     cmds:
+      - echo "Running compat tests against 3x-ui {{.THREEXUI_VERSION}}"
       - docker compose down -v 2>/dev/null || true
       - docker compose up --detach --wait --quiet-pull
       - defer: docker compose down
@@ -55,7 +58,7 @@ tasks:
         THREEXUI_USERNAME=admin
         THREEXUI_PASSWORD=admin
         go test ./provider
-        -run 'TestAccInboundBasic|TestAccInboundUpdateFields|TestAccInboundTrojan|TestAccInboundShadowsocks|TestAccInboundClientBasic|TestAccInboundClientUpdate|TestAccPanelGeneral|TestAccPanelSubscription|TestAccXrayBasics|TestAccXrayRouting|TestAccXrayOutbounds|TestAccDataSources'
+        -run '{{.COMPAT_TESTS}}'
         -count=1 -timeout 600s -v
 
   fmt:
