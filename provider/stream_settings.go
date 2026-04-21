@@ -72,6 +72,13 @@ func buildStreamSettingsJSON(item map[string]any) string {
 			}
 		}
 	}
+	if v, ok := item["hysteria_settings"]; ok {
+		if list, ok := v.([]any); ok {
+			if h := expandHysteriaStreamSettings(list); h != nil {
+				payload["hysteriaSettings"] = h
+			}
+		}
+	}
 	if v, ok := item["sockopt"]; ok {
 		if list, ok := v.([]any); ok {
 			if so := expandSockopt(list); so != nil {
@@ -141,6 +148,11 @@ func flattenStreamSettings(stream string) ([]any, error) {
 	if v, ok := payload["kcpSettings"].(map[string]any); ok {
 		if kcp := flattenKCPSettings(v); kcp != nil {
 			out["kcp_settings"] = []any{kcp}
+		}
+	}
+	if v, ok := payload["hysteriaSettings"].(map[string]any); ok {
+		if h := flattenHysteriaStreamSettings(v); h != nil {
+			out["hysteria_settings"] = []any{h}
 		}
 	}
 	if v, ok := payload["sockopt"].(map[string]any); ok {
@@ -754,6 +766,64 @@ func flattenKCPSettings(in map[string]any) map[string]any {
 		if t, ok := v["type"].(string); ok {
 			out["header_type"] = t
 		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// ---------------------------------------------------------------------------
+// Hysteria
+// ---------------------------------------------------------------------------
+
+func expandHysteriaStreamSettings(list []any) map[string]any {
+	if len(list) == 0 {
+		return nil
+	}
+	item, ok := list[0].(map[string]any)
+	if !ok {
+		return nil
+	}
+	out := map[string]any{}
+	if v, ok := item["protocol"].(string); ok && v != "" {
+		out["protocol"] = v
+	}
+	if v, ok := item["version"]; ok {
+		if n := intValue(v); n != 0 {
+			out["version"] = n
+		}
+	}
+	if v, ok := item["auth"].(string); ok && v != "" {
+		out["auth"] = v
+	}
+	if v, ok := item["udp_idle_timeout"]; ok {
+		if n := intValue(v); n != 0 {
+			out["udpIdleTimeout"] = n
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func flattenHysteriaStreamSettings(in map[string]any) map[string]any {
+	if len(in) == 0 {
+		return nil
+	}
+	out := map[string]any{}
+	if v, ok := in["protocol"].(string); ok {
+		out["protocol"] = v
+	}
+	if v, ok := in["version"]; ok {
+		out["version"] = intValue(v)
+	}
+	if v, ok := in["auth"].(string); ok {
+		out["auth"] = v
+	}
+	if v, ok := in["udpIdleTimeout"]; ok {
+		out["udp_idle_timeout"] = intValue(v)
 	}
 	if len(out) == 0 {
 		return nil

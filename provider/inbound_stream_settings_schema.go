@@ -12,17 +12,18 @@ import (
 // ---------------------------------------------------------------------------
 
 type InboundStreamSettingsModel struct {
-	Network             types.String                     `tfsdk:"network"`
-	Security            types.String                     `tfsdk:"security"`
-	ExternalProxy       []InboundExternalProxyModel      `tfsdk:"external_proxy"`
-	RealitySettings     *InboundRealitySettingsModel     `tfsdk:"reality_settings"`
-	TCPSettings         *InboundTCPSettingsModel         `tfsdk:"tcp_settings"`
-	WSSettings          *InboundWSSettingsModel          `tfsdk:"ws_settings"`
-	GRPCSettings        *InboundGRPCSettingsModel        `tfsdk:"grpc_settings"`
-	HTTPUpgradeSettings *InboundHTTPUpgradeSettingsModel `tfsdk:"httpupgrade_settings"`
-	XHTTPSettings       *InboundXHTTPSettingsModel       `tfsdk:"xhttp_settings"`
-	KCPSettings         *InboundKCPSettingsModel         `tfsdk:"kcp_settings"`
-	Sockopt             *InboundSockoptModel             `tfsdk:"sockopt"`
+	Network             types.String                        `tfsdk:"network"`
+	Security            types.String                        `tfsdk:"security"`
+	ExternalProxy       []InboundExternalProxyModel         `tfsdk:"external_proxy"`
+	RealitySettings     *InboundRealitySettingsModel        `tfsdk:"reality_settings"`
+	TCPSettings         *InboundTCPSettingsModel            `tfsdk:"tcp_settings"`
+	WSSettings          *InboundWSSettingsModel             `tfsdk:"ws_settings"`
+	GRPCSettings        *InboundGRPCSettingsModel           `tfsdk:"grpc_settings"`
+	HTTPUpgradeSettings *InboundHTTPUpgradeSettingsModel    `tfsdk:"httpupgrade_settings"`
+	XHTTPSettings       *InboundXHTTPSettingsModel          `tfsdk:"xhttp_settings"`
+	KCPSettings         *InboundKCPSettingsModel            `tfsdk:"kcp_settings"`
+	HysteriaSettings    *InboundHysteriaStreamSettingsModel `tfsdk:"hysteria_settings"`
+	Sockopt             *InboundSockoptModel                `tfsdk:"sockopt"`
 }
 
 type InboundExternalProxyModel struct {
@@ -90,6 +91,13 @@ type InboundKCPSettingsModel struct {
 	CwndMultiplier   types.Int64  `tfsdk:"cwnd_multiplier"`
 	MaxSendingWindow types.Int64  `tfsdk:"max_sending_window"`
 	HeaderType       types.String `tfsdk:"header_type"`
+}
+
+type InboundHysteriaStreamSettingsModel struct {
+	Protocol       types.String `tfsdk:"protocol"`
+	Version        types.Int64  `tfsdk:"version"`
+	Auth           types.String `tfsdk:"auth"`
+	UDPIdleTimeout types.Int64  `tfsdk:"udp_idle_timeout"`
 }
 
 type InboundSockoptModel struct {
@@ -306,6 +314,31 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 					},
 				},
 			},
+			"hysteria_settings": schema.SingleNestedBlock{
+				Description: "Hysteria transport settings.",
+				Attributes: map[string]schema.Attribute{
+					"protocol": schema.StringAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "Hysteria transport protocol.",
+					},
+					"version": schema.Int64Attribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "Hysteria version (default 2).",
+					},
+					"auth": schema.StringAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "Hysteria auth string.",
+					},
+					"udp_idle_timeout": schema.Int64Attribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "UDP idle timeout in seconds (default 60).",
+					},
+				},
+			},
 			"sockopt": schema.SingleNestedBlock{
 				Description: "Socket options.",
 				Attributes: map[string]schema.Attribute{
@@ -385,6 +418,11 @@ func expandStreamSettingsFromModel(m *InboundStreamSettingsModel) map[string]any
 	if m.KCPSettings != nil {
 		if kcp := expandKCPSettingsFromModel(m.KCPSettings); len(kcp) > 0 {
 			out["kcp_settings"] = []any{kcp}
+		}
+	}
+	if m.HysteriaSettings != nil {
+		if h := expandHysteriaStreamSettingsFromModel(m.HysteriaSettings); len(h) > 0 {
+			out["hysteria_settings"] = []any{h}
 		}
 	}
 	if m.Sockopt != nil {
@@ -601,6 +639,26 @@ func expandKCPSettingsFromModel(m *InboundKCPSettingsModel) map[string]any {
 	return out
 }
 
+func expandHysteriaStreamSettingsFromModel(m *InboundHysteriaStreamSettingsModel) map[string]any {
+	if m == nil {
+		return nil
+	}
+	out := map[string]any{}
+	if !m.Protocol.IsNull() && !m.Protocol.IsUnknown() {
+		out["protocol"] = m.Protocol.ValueString()
+	}
+	if !m.Version.IsNull() && !m.Version.IsUnknown() {
+		out["version"] = int(m.Version.ValueInt64())
+	}
+	if !m.Auth.IsNull() && !m.Auth.IsUnknown() {
+		out["auth"] = m.Auth.ValueString()
+	}
+	if !m.UDPIdleTimeout.IsNull() && !m.UDPIdleTimeout.IsUnknown() {
+		out["udp_idle_timeout"] = int(m.UDPIdleTimeout.ValueInt64())
+	}
+	return out
+}
+
 func expandSockoptFromModel(m *InboundSockoptModel) map[string]any {
 	if m == nil {
 		return nil
@@ -692,6 +750,12 @@ func flattenStreamSettingsToModel(data map[string]any) *InboundStreamSettingsMod
 	if v, ok := data["kcp_settings"].([]any); ok && len(v) > 0 {
 		if raw, ok := v[0].(map[string]any); ok {
 			m.KCPSettings = flattenKCPSettingsToModel(raw)
+		}
+	}
+
+	if v, ok := data["hysteria_settings"].([]any); ok && len(v) > 0 {
+		if raw, ok := v[0].(map[string]any); ok {
+			m.HysteriaSettings = flattenHysteriaStreamSettingsToModel(raw)
 		}
 	}
 
@@ -986,6 +1050,34 @@ func flattenKCPSettingsToModel(data map[string]any) *InboundKCPSettingsModel {
 		m.HeaderType = types.StringValue(v)
 	} else {
 		m.HeaderType = types.StringNull()
+	}
+	return m
+}
+
+func flattenHysteriaStreamSettingsToModel(data map[string]any) *InboundHysteriaStreamSettingsModel {
+	if len(data) == 0 {
+		return nil
+	}
+	m := &InboundHysteriaStreamSettingsModel{}
+	if v, ok := data["protocol"].(string); ok {
+		m.Protocol = types.StringValue(v)
+	} else {
+		m.Protocol = types.StringNull()
+	}
+	if v, ok := data["version"]; ok {
+		m.Version = types.Int64Value(int64(intValue(v)))
+	} else {
+		m.Version = types.Int64Null()
+	}
+	if v, ok := data["auth"].(string); ok {
+		m.Auth = types.StringValue(v)
+	} else {
+		m.Auth = types.StringNull()
+	}
+	if v, ok := data["udp_idle_timeout"]; ok {
+		m.UDPIdleTimeout = types.Int64Value(int64(intValue(v)))
+	} else {
+		m.UDPIdleTimeout = types.Int64Null()
 	}
 	return m
 }

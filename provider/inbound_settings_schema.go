@@ -58,6 +58,10 @@ type InboundDokodemoSettingsModel struct {
 	FollowRedirect types.Bool   `tfsdk:"follow_redirect"`
 }
 
+type InboundHysteriaSettingsModel struct {
+	Version types.Int64 `tfsdk:"version"`
+}
+
 // Sub-models
 
 type InboundAccountModel struct {
@@ -274,6 +278,16 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 				},
 			},
 		},
+		"hysteria_settings": schema.SingleNestedBlock{
+			Description: "Settings for Hysteria protocol.",
+			Attributes: map[string]schema.Attribute{
+				"version": schema.Int64Attribute{
+					Optional:    true,
+					Computed:    true,
+					Description: "Hysteria version (1 or 2, default 2).",
+				},
+			},
+		},
 	}
 }
 
@@ -328,6 +342,8 @@ func expandSettingsFromModel(protocol string, m *InboundResourceModel) map[strin
 		return expandWireguardInboundSettings(m.WireguardSettings)
 	case "dokodemo-door", "tunnel":
 		return expandDokodemoInboundSettings(m.DokodemoSettings)
+	case "hysteria":
+		return expandHysteriaInboundSettings(m.HysteriaSettings)
 	default:
 		return nil
 	}
@@ -478,6 +494,17 @@ func expandDokodemoInboundSettings(m *InboundDokodemoSettingsModel) map[string]a
 	return out
 }
 
+func expandHysteriaInboundSettings(m *InboundHysteriaSettingsModel) map[string]any {
+	if m == nil {
+		return nil
+	}
+	out := map[string]any{}
+	if !m.Version.IsNull() && !m.Version.IsUnknown() {
+		out["version"] = int(m.Version.ValueInt64())
+	}
+	return out
+}
+
 func expandFallbacksFromModel(list []InboundFallbackModel) []any {
 	out := make([]any, 0, len(list))
 	for _, fb := range list {
@@ -567,6 +594,8 @@ func flattenSettingsToModel(protocol string, data map[string]any, m *InboundReso
 		m.WireguardSettings = flattenWireguardInboundSettings(data)
 	case "dokodemo-door", "tunnel":
 		m.DokodemoSettings = flattenDokodemoInboundSettings(data)
+	case "hysteria":
+		m.HysteriaSettings = flattenHysteriaInboundSettings(data)
 	}
 }
 
@@ -768,6 +797,19 @@ func flattenDokodemoInboundSettings(data map[string]any) *InboundDokodemoSetting
 		m.FollowRedirect = types.BoolValue(v)
 	} else {
 		m.FollowRedirect = types.BoolNull()
+	}
+	return m
+}
+
+func flattenHysteriaInboundSettings(data map[string]any) *InboundHysteriaSettingsModel {
+	if len(data) == 0 {
+		return nil
+	}
+	m := &InboundHysteriaSettingsModel{}
+	if v, ok := data["version"]; ok {
+		m.Version = types.Int64Value(int64(intValue(v)))
+	} else {
+		m.Version = types.Int64Null()
 	}
 	return m
 }

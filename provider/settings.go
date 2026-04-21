@@ -109,6 +109,11 @@ func buildSettingsJSON(item map[string]any) string {
 			payload["peers"] = expandPeers(list)
 		}
 	}
+	if v, ok := item["version"]; ok {
+		if n := intValue(v); n != 0 {
+			payload["version"] = n
+		}
+	}
 	if v, ok := item["name"].(string); ok && v != "" {
 		payload["name"] = v
 	}
@@ -214,6 +219,9 @@ func flattenSettings(settings string) ([]any, error) {
 	}
 	if v, ok := payload["peers"].([]any); ok {
 		out["peers"] = flattenPeers(v)
+	}
+	if v, ok := payload["version"]; ok {
+		out["version"] = intValue(v)
 	}
 	if v, ok := payload["name"].(string); ok {
 		out["name"] = v
