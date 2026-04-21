@@ -24,8 +24,8 @@ provider/              — all provider code
   xray_balancers_schema.go   — model, schema, expand/flatten for xray_balancers
   xray_reverse_schema.go     — model, schema, expand/flatten for xray_reverse (bridges, portals)
   xray_outbounds_schema.go   — model, schema, expand/flatten for xray_outbounds (per-protocol settings)
-  inbound_settings_schema.go      — model, schema, expand/flatten for per-protocol settings (vless, trojan, ss, http, socks, wg, dokodemo)
-  inbound_stream_settings_schema.go — model, schema, expand/flatten for stream_settings (tcp, ws, grpc, httpupgrade, xhttp, kcp, reality, sockopt)
+  inbound_settings_schema.go      — model, schema, expand/flatten for per-protocol settings (vless, trojan, ss, http, socks, wg, dokodemo, hysteria)
+  inbound_stream_settings_schema.go — model, schema, expand/flatten for stream_settings (tcp, ws, grpc, httpupgrade, xhttp, kcp, hysteria, reality, sockopt)
   inbound_sniffing_schema.go      — model, schema, expand/flatten for sniffing
   settings.go          — buildSettingsJSON(map[string]any), flattenSettings(string), expand/flatten clients/fallbacks/peers
   stream_settings.go   — buildStreamSettingsJSON(map[string]any), flattenStreamSettings(string), expand/flatten per-transport
@@ -36,7 +36,7 @@ provider/              — all provider code
   data_source_*.go     — data sources (inbounds, server_status, settings, xray_config, xray_versions, online_clients)
 examples/              — example TF configs for manual testing
 3x-ui-<version>/      — 3x-ui source snapshots (in .gitignore, for reference/diffing)
-docker-compose.yaml    — 3x-ui on port 2053 (update image tag when bumping version)
+docker-compose.yaml    — 3x-ui v2.9.0 on port 2053 (update image tag when bumping version)
 Taskfile.yml           — task build / test / fmt
 .github/workflows/
   ci.yml               — lint, unit tests, acceptance tests (PR + push main)
@@ -48,7 +48,7 @@ Taskfile.yml           — task build / test / fmt
 
 | Terraform Resource | File | Description |
 | --- | --- | --- |
-| `threexui_inbound` | resource_inbound.go + inbound_*_schema.go | Inbound (vless/vmess/trojan/ss/http/mixed/wg/tunnel). Typed blocks for settings/stream_settings/sniffing |
+| `threexui_inbound` | resource_inbound.go + inbound_*_schema.go | Inbound (vless/vmess/trojan/ss/http/mixed/wg/tunnel/hysteria). Typed blocks for settings/stream_settings/sniffing |
 | `threexui_inbound_client` | resource_inbound_client.go | Client within an inbound. Typed attributes |
 | `threexui_panel_general` | resource_settings_tabs.go | Panel settings (web, LDAP). Typed attributes |
 | `threexui_panel_security` | resource_settings_tabs.go | 2FA. Typed attributes |
@@ -111,8 +111,12 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 
 - `settings`, `stream_settings`, `sniffing` — JSON strings in the API, typed blocks in TF schema
 - Three-layer conversion: Typed Model ↔ Untyped Map (expand/flatten*FromModel/*ToModel) ↔ JSON String (build*/flatten*)
-- Per-protocol settings blocks: `vless_settings`, `trojan_settings`, `shadowsocks_settings`, `http_settings`, `socks_settings`, `wireguard_settings`, `dokodemo_settings`
-- stream_settings supports transports: tcp, ws, grpc, httpupgrade, xhttp, kcp + reality, sockopt, external_proxy
+- Per-protocol settings blocks: `vless_settings`, `trojan_settings`, `shadowsocks_settings`, `http_settings`, `socks_settings`, `wireguard_settings`, `dokodemo_settings`, `hysteria_settings`
+- stream_settings supports transports: tcp, ws, grpc, httpupgrade, xhttp, kcp, hysteria + reality, sockopt, external_proxy
+- Sniffing supports `ips_excluded` and `domains_excluded` fields (added in 3x-ui 2.9.0)
+- KCP: `congestion`, `read_buffer_size`, `write_buffer_size` replaced by `cwnd_multiplier`, `max_sending_window` (breaking, 2.9.0)
+- WireGuard: `mtu` changed from int to list [v4, v6]; added `gateway` and `dns` list fields (breaking, 2.9.0)
+- Hysteria: `auth` field on `threexui_inbound_client` used as client identifier (instead of UUID-based `id`)
 - `alignBlocksWithPlan` — prevents "was absent, but now present" errors for Optional blocks (Create/Read/Update); skipped during Import (detect: `state.Protocol.IsNull()`)
 - `preserveInboundSettings` — on update, preserves clients and testseed from existing inbound
 - `ensureRealityKeys` — auto-generates private/public key and short_ids
@@ -129,7 +133,7 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 - Per-resource models: `PanelGeneralModel`, `PanelSecurityModel`, `PanelTelegramModel`, `PanelSubscriptionModel`
 - `settingsApplyTyped` / `settingsReadTyped` — shared CRUD logic (expand model → API → flatten → model)
 - Delete only clears TF state, does **not** reset settings in the API
-- Subscription resource performs double apply (workaround for 3x-ui bug: sub_json_enable not saved on first apply together with sub_enable)
+- Subscription resource performs double apply (workaround for 3x-ui bug: sub_json_enable not saved on first apply together with sub_enable); includes Clash/Mihomo fields: `sub_clash_enable`, `sub_clash_path`, `sub_clash_uri` (added in 2.9.0)
 - Enabling 2FA — Warning added (partial support: TOTP code sent on initial login, but auto re-login fails when code expires)
 - Changing `web_base_path` requires updating `base_path` in provider config — Warning added
 - `panelSettingsNeedRestart` — keys: webListen, webDomain, webPort, webBasePath, webCertFile, webKeyFile, sessionMaxAge
@@ -154,7 +158,7 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 - `xrayApplyTyped` / `xrayReadSection` — shared CRUD logic
 - CRUD: plan.Get → expand → build → xrayApplyTyped → xrayReadSection → flattenToMap → flatten → state.Set
 - DNS servers: address-only → serialized as string in JSON, with extra fields → as object
-- Outbound settings: per-protocol blocks (`freedom_settings`, `blackhole_settings`, ...) determined by `protocol` value
+- Outbound settings: per-protocol blocks (`freedom_settings`, `blackhole_settings`, ...) determined by `protocol` value; `freedom_settings` includes `ips_blocked` (list of string, added in 2.9.0)
 - Policy levels: in Xray JSON map `{"0": {...}}`, in TF list `[{id=0, ...}]`
 - Delete for xray resources only clears TF state, does not reset the xray config
 
