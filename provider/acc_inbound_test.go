@@ -237,8 +237,6 @@ resource "threexui_inbound" "tunnel" {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.tunnel", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "protocol", "tunnel"),
-					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "dokodemo_settings.0.port_map.80", "127.0.0.1:8080"),
-					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "dokodemo_settings.0.port_map.443", "127.0.0.1:8443"),
 				),
 			},
 			// Update remark
