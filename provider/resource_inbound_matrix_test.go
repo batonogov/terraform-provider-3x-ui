@@ -69,7 +69,6 @@ func protocolMatrix() []protocolMatrixEntry {
 func TestAccInboundProtocolMatrix(t *testing.T) {
 	for _, entry := range protocolMatrix() {
 		t.Run(entry.protocol, func(t *testing.T) {
-			t.Parallel()
 
 			inboundAddr := fmt.Sprintf("threexui_inbound.%s", entry.tfName)
 			createConfig := testAccProviderConfig() + entry.createHCL(entry.port)
