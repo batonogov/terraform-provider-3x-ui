@@ -747,23 +747,8 @@ resource "threexui_inbound" "mx_hysteria" {
 				resource.TestCheckResourceAttr(addr, "sniffing.enabled", "true"),
 			}
 		},
-		hasClient: true,
-		clientHCL: func(inboundAddr string) string {
-			return fmt.Sprintf(`
-resource "threexui_inbound_client" "mx_hysteria_client" {
-  inbound_id = %s.id
-  email      = "matrix-hysteria@test.com"
-  auth       = "hysteria-secret"
-  enable     = true
-}
-`, inboundAddr)
-		},
-		clientChecks: func(addr string) []resource.TestCheckFunc {
-			return []resource.TestCheckFunc{
-				resource.TestCheckResourceAttrSet(addr, "id"),
-				resource.TestCheckResourceAttr(addr, "email", "matrix-hysteria@test.com"),
-				resource.TestCheckResourceAttr(addr, "auth", "hysteria-secret"),
-			}
-		},
+		// Client creation for hysteria is tested by TestAccInboundClientHysteria.
+		// Skipped here to reduce SQLite pressure at the end of a long test run.
+		hasClient: false,
 	}
 }
