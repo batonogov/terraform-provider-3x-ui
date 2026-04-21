@@ -157,7 +157,7 @@ resource "threexui_inbound" "wg" {
   remark   = "acc-wireguard"
   enable   = true
   wireguard_settings {
-    mtu = 1420
+    mtu = [1420, 1280]
     peer {
       public_key  = "dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXkxMjM0NQ=="
       allowed_ips = ["10.0.0.2/32"]
