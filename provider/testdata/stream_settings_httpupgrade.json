@@ -1,0 +1,8 @@
+{
+  "network": "httpupgrade",
+  "security": "none",
+  "httpupgradeSettings": {
+    "path": "/httpupgrade-path",
+    "host": "upgrade.example.com"
+  }
+}

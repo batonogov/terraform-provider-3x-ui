@@ -1,0 +1,10 @@
+{
+  "network": "tcp",
+  "security": "none",
+  "tcpSettings": {
+    "acceptProxyProtocol": false,
+    "header": {
+      "type": "none"
+    }
+  }
+}

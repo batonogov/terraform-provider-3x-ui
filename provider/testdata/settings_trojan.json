@@ -1,0 +1,16 @@
+{
+  "clients": [
+    {
+      "password": "trojan-secret-password",
+      "email": "trojan-user@example.com",
+      "limitIp": 0,
+      "totalGB": 0,
+      "expiryTime": 0,
+      "enable": true,
+      "tgId": "",
+      "subId": "sub-trojan-1234",
+      "reset": 0
+    }
+  ],
+  "fallbacks": []
+}

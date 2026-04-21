@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "destOverride": ["http", "tls", "quic", "fakedns"],
+  "metadataOnly": false,
+  "routeOnly": false,
+  "ipsExcluded": ["geoip:private", "geoip:cn"],
+  "domainsExcluded": ["domain:example.com", "geosite:cn"]
+}

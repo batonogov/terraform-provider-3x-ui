@@ -1,0 +1,25 @@
+{
+  "network": "ws",
+  "security": "reality",
+  "realitySettings": {
+    "show": false,
+    "xver": 0,
+    "target": "www.microsoft.com:443",
+    "serverNames": ["www.microsoft.com", "microsoft.com"],
+    "privateKey": "reality-private-key-base64",
+    "maxTimediff": 0,
+    "shortIds": ["abcdef0123456789", "0123456789abcdef"],
+    "settings": {
+      "publicKey": "reality-public-key-base64",
+      "fingerprint": "chrome",
+      "serverName": "www.microsoft.com",
+      "spiderX": "/"
+    }
+  },
+  "wsSettings": {
+    "path": "/ws-path",
+    "headers": {
+      "Host": "cdn.example.com"
+    }
+  }
+}

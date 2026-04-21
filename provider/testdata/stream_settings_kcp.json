@@ -1,0 +1,15 @@
+{
+  "network": "kcp",
+  "security": "none",
+  "kcpSettings": {
+    "mtu": 1350,
+    "tti": 50,
+    "uplinkCapacity": 5,
+    "downlinkCapacity": 20,
+    "cwndMultiplier": 4,
+    "maxSendingWindow": 128,
+    "header": {
+      "type": "srtp"
+    }
+  }
+}

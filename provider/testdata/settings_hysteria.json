@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "clients": [
+    {
+      "auth": "hysteria-auth-string",
+      "email": "hysteria-user@example.com",
+      "limitIp": 3,
+      "totalGB": 53687091200,
+      "expiryTime": 0,
+      "enable": true,
+      "tgId": "",
+      "subId": "",
+      "reset": 0
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "accounts": [
+    {
+      "user": "admin",
+      "pass": "secret123"
+    },
+    {
+      "user": "guest",
+      "pass": "guest456"
+    }
+  ],
+  "allowTransparent": false
+}

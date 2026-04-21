@@ -1,0 +1,23 @@
+{
+  "network": "grpc",
+  "security": "reality",
+  "realitySettings": {
+    "show": false,
+    "xver": 0,
+    "target": "www.apple.com:443",
+    "serverNames": ["www.apple.com", "apple.com"],
+    "privateKey": "grpc-reality-privkey",
+    "shortIds": ["aabbccdd"],
+    "settings": {
+      "publicKey": "grpc-reality-pubkey",
+      "fingerprint": "firefox"
+    }
+  },
+  "grpcSettings": {
+    "serviceName": "my-grpc-service",
+    "multiMode": true,
+    "idle_timeout": 60,
+    "health_check_timeout": 20,
+    "permitWithoutStream": false
+  }
+}

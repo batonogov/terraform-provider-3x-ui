@@ -1,0 +1,26 @@
+{
+  "clients": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "flow": "xtls-rprx-vision",
+      "email": "user1@example.com",
+      "limitIp": 2,
+      "totalGB": 107374182400,
+      "expiryTime": 1735689600000,
+      "enable": true,
+      "tgId": "",
+      "subId": "sub-uuid-1234",
+      "reset": 0
+    }
+  ],
+  "decryption": "none",
+  "encryption": "none",
+  "fallbacks": [
+    {
+      "alpn": "h2",
+      "path": "/fallback",
+      "dest": "127.0.0.1:8080",
+      "xver": 1
+    }
+  ]
+}
