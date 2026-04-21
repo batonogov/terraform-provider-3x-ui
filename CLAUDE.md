@@ -37,10 +37,10 @@ provider/              — all provider code
   data_source_*.go     — data sources (inbounds, server_status, settings, xray_config, xray_versions, online_clients)
 examples/              — example TF configs for manual testing
 3x-ui-<version>/      — 3x-ui source snapshots (in .gitignore, for reference/diffing)
-docker-compose.yaml    — 3x-ui v2.9.0 on port 2053 (update image tag when bumping version)
+docker-compose.yaml    — 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v2.9.0)
 Taskfile.yml           — task build / test / fmt
 .github/workflows/
-  ci.yml               — lint, unit tests, acceptance tests (PR + push main)
+  ci.yml               — lint, unit tests, acceptance tests, compatibility matrix (PR + push main)
   docs.yml             — docs/examples validation: terraform fmt, markdownlint, yamllint (PR + push main)
   release-please.yml   — Release Please + GoReleaser (conventional commits → semver tag → build + sign + publish)
 ```
@@ -166,14 +166,15 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 ## Commands
 
 ```bash
-task build       # Build binary
-task test:unit   # Run unit tests (no Docker / Terraform needed)
-task test:acc    # Run acceptance tests (requires Docker)
-task test        # Run unit + acceptance tests
-task fmt         # gofmt
-task vet         # go vet
-task lint        # golangci-lint
-task pre-commit  # Run all pre-commit checks manually (fmt, vet, lint, build)
+task build            # Build binary
+task test:unit        # Run unit tests (no Docker / Terraform needed)
+task test:acc         # Run acceptance tests (requires Docker)
+task test:acc:compat  # Run compatibility subset against THREEXUI_VERSION (default v2.9.0)
+task test             # Run unit + acceptance tests
+task fmt              # gofmt
+task vet              # go vet
+task lint             # golangci-lint
+task pre-commit       # Run all pre-commit checks manually (fmt, vet, lint, build)
 ```
 
 ## Pre-commit Hooks
@@ -199,6 +200,14 @@ docker compose up -d   # Start 3x-ui on localhost:2053
 # Login: admin / admin
 # Docker image defaults to webBasePath = / (NOT /panel/)
 # Do not set THREEXUI_BASE_PATH
+
+# Run compatibility subset against a specific 3x-ui version:
+THREEXUI_VERSION=v2.8.9 task test:acc:compat
+
+# Run all versions locally:
+for v in v2.8.9 v2.8.10 v2.8.11 v2.9.0; do
+  echo "=== Testing $v ===" && THREEXUI_VERSION=$v task test:acc:compat
+done
 ```
 
 Acceptance tests use `terraform-plugin-testing`:

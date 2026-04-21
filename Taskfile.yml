@@ -36,6 +36,31 @@ tasks:
         THREEXUI_PASSWORD=admin
         go test ./provider -run TestAcc -count=1 -timeout 600s -v
 
+  test:acc:compat:
+    desc: Запустить acceptance-тесты совместимости (репрезентативное подмножество)
+    vars:
+      TERRAFORM_PATH:
+        sh: which terraform
+      THREEXUI_VERSION: '{{.THREEXUI_VERSION | default "v2.9.0"}}'
+      COMPAT_TESTS: >-
+        TestAccInboundBasic$|TestAccInboundUpdateFields$|TestAccInboundTrojan$|TestAccInboundShadowsocks$|TestAccInboundClientBasic$|TestAccInboundClientUpdate$|TestAccXrayBasics$|TestAccXrayRouting$|TestAccXrayOutbounds$|TestAccDataSources$
+    cmds:
+      - echo "Running compat tests against 3x-ui {{.THREEXUI_VERSION}}"
+      - docker compose down -v 2>/dev/null || true
+      - docker compose up --detach --wait --quiet-pull
+      - defer: docker compose down
+      - >-
+        TF_ACC=1
+        TF_ACC_TERRAFORM_PATH={{.TERRAFORM_PATH}}
+        TF_ACC_PROVIDER_NAMESPACE=batonogov
+        TF_ACC_PROVIDER_HOST=registry.terraform.io
+        THREEXUI_ENDPOINT=http://localhost:2053
+        THREEXUI_USERNAME=admin
+        THREEXUI_PASSWORD=admin
+        go test ./provider
+        -run '{{.COMPAT_TESTS}}'
+        -count=1 -timeout 600s -v
+
   fmt:
     desc: Форматировать Go-файлы
     cmds:
