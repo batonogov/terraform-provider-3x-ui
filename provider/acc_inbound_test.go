@@ -234,12 +234,11 @@ resource "threexui_inbound" "tunnel" {
 		Steps: []resource.TestStep{
 			{
 				Config: tunnelConfig,
-				// TODO: port_map assertions removed — 3x-ui 2.9.0 returns port_map
-				// in a different format. Investigate and restore once the API
-				// response shape is clarified. See PR #91.
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.tunnel", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "protocol", "tunnel"),
+					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "dokodemo_settings.port_map.80", "127.0.0.1:8080"),
+					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "dokodemo_settings.port_map.443", "127.0.0.1:8443"),
 				),
 			},
 			// Update remark
