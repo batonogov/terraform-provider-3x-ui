@@ -157,7 +157,7 @@ resource "threexui_inbound" "wg" {
   remark   = "acc-wireguard"
   enable   = true
   wireguard_settings {
-    mtu = 1420
+    mtu = [1420, 1280]
     peer {
       public_key  = "dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXkxMjM0NQ=="
       allowed_ips = ["10.0.0.2/32"]
@@ -237,8 +237,8 @@ resource "threexui_inbound" "tunnel" {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.tunnel", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "protocol", "tunnel"),
-					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "dokodemo_settings.0.port_map.80", "127.0.0.1:8080"),
-					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "dokodemo_settings.0.port_map.443", "127.0.0.1:8443"),
+					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "dokodemo_settings.port_map.80", "127.0.0.1:8080"),
+					resource.TestCheckResourceAttr("threexui_inbound.tunnel", "dokodemo_settings.port_map.443", "127.0.0.1:8443"),
 				),
 			},
 			// Update remark
@@ -992,6 +992,43 @@ resource "threexui_inbound" "noremark" {
 				Config:             configNoRemark,
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+// --- Hysteria ---
+
+func TestAccInboundHysteria(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "hysteria" {
+  port     = 25501
+  protocol = "hysteria"
+  remark   = "acc-hysteria-1"
+  enable   = true
+
+  hysteria_settings {
+    version = 2
+  }
+
+  stream_settings {
+    network  = "hysteria"
+    security = "tls"
+  }
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound.hysteria", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound.hysteria", "protocol", "hysteria"),
+					resource.TestCheckResourceAttr("threexui_inbound.hysteria", "remark", "acc-hysteria-1"),
+					resource.TestCheckResourceAttr("threexui_inbound.hysteria", "port", "25501"),
+				),
 			},
 		},
 	})

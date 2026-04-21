@@ -55,6 +55,7 @@ type InboundResourceModel struct {
 	SocksSettings       *InboundSocksSettingsModel       `tfsdk:"socks_settings"`
 	WireguardSettings   *InboundWireguardSettingsModel   `tfsdk:"wireguard_settings"`
 	DokodemoSettings    *InboundDokodemoSettingsModel    `tfsdk:"dokodemo_settings"`
+	HysteriaSettings    *InboundHysteriaSettingsModel    `tfsdk:"hysteria_settings"`
 
 	// Stream settings (typed block)
 	StreamSettings *InboundStreamSettingsModel `tfsdk:"stream_settings"`
@@ -488,6 +489,9 @@ func alignBlocksWithPlan(state *InboundResourceModel, plan *InboundResourceModel
 	if plan.DokodemoSettings == nil {
 		state.DokodemoSettings = nil
 	}
+	if plan.HysteriaSettings == nil {
+		state.HysteriaSettings = nil
+	}
 	if plan.StreamSettings == nil {
 		state.StreamSettings = nil
 	} else if state.StreamSettings != nil {
@@ -516,6 +520,9 @@ func alignBlocksWithPlan(state *InboundResourceModel, plan *InboundResourceModel
 		}
 		if plan.StreamSettings.KCPSettings == nil {
 			state.StreamSettings.KCPSettings = nil
+		}
+		if plan.StreamSettings.HysteriaSettings == nil {
+			state.StreamSettings.HysteriaSettings = nil
 		}
 		if plan.StreamSettings.Sockopt == nil {
 			state.StreamSettings.Sockopt = nil

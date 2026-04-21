@@ -42,6 +42,7 @@ type InboundClientResourceModel struct {
 	Security   types.String `tfsdk:"security"`
 	Password   types.String `tfsdk:"password"`
 	Flow       types.String `tfsdk:"flow"`
+	Auth       types.String `tfsdk:"auth"`
 	LimitIP    types.Int64  `tfsdk:"limit_ip"`
 	TotalGB    types.Int64  `tfsdk:"total_gb"`
 	ExpiryTime types.Int64  `tfsdk:"expiry_time"`
@@ -102,6 +103,11 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 			"flow": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
+			},
+			"auth": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Auth password for Hysteria clients.",
 			},
 			"limit_ip": schema.Int64Attribute{
 				Optional: true,
@@ -356,6 +362,9 @@ func expandInboundClientFromModel(m *InboundClientResourceModel) map[string]any 
 	if !m.Flow.IsNull() && !m.Flow.IsUnknown() {
 		client["flow"] = m.Flow.ValueString()
 	}
+	if !m.Auth.IsNull() && !m.Auth.IsUnknown() {
+		client["auth"] = m.Auth.ValueString()
+	}
 	if !m.LimitIP.IsNull() && !m.LimitIP.IsUnknown() {
 		client["limitIp"] = int(m.LimitIP.ValueInt64())
 	}
@@ -396,6 +405,7 @@ func inboundClientToModel(inboundID int, clientID string, client map[string]any)
 		Security:   types.StringValue(stringValue(client["security"])),
 		Password:   types.StringValue(stringValue(client["password"])),
 		Flow:       types.StringValue(stringValue(client["flow"])),
+		Auth:       types.StringValue(stringValue(client["auth"])),
 		LimitIP:    types.Int64Value(int64(intValue(client["limitIp"]))),
 		TotalGB:    types.Int64Value(int64(intValue(client["totalGB"]))),
 		ExpiryTime: types.Int64Value(int64(intValue(client["expiryTime"]))),
@@ -415,6 +425,9 @@ func getClientIDFromModel(m *InboundClientResourceModel, client map[string]any) 
 		return v
 	}
 	if v := stringValue(client["password"]); v != "" {
+		return v
+	}
+	if v := stringValue(client["auth"]); v != "" {
 		return v
 	}
 	return ""
@@ -469,7 +482,7 @@ func ensureInboundClientsKey(ctx context.Context, client *Client, inboundID int)
 
 func findClientByID(clients []map[string]any, clientID string) map[string]any {
 	for _, client := range clients {
-		if stringValue(client["id"]) == clientID || stringValue(client["password"]) == clientID || stringValue(client["email"]) == clientID {
+		if stringValue(client["id"]) == clientID || stringValue(client["password"]) == clientID || stringValue(client["auth"]) == clientID || stringValue(client["email"]) == clientID {
 			return client
 		}
 	}

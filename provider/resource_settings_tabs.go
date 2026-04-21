@@ -242,6 +242,9 @@ type PanelSubscriptionModel struct {
 	SubJsonNoises    types.String `tfsdk:"sub_json_noises"`
 	SubJsonMux       types.String `tfsdk:"sub_json_mux"`
 	SubJsonRules     types.String `tfsdk:"sub_json_rules"`
+	SubClashEnable   types.Bool   `tfsdk:"sub_clash_enable"`
+	SubClashPath     types.String `tfsdk:"sub_clash_path"`
+	SubClashURI      types.String `tfsdk:"sub_clash_uri"`
 }
 
 func panelSubscriptionSchema() schema.Schema {
@@ -349,6 +352,24 @@ func panelSubscriptionSchema() schema.Schema {
 				Optional: true, Computed: true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
+			"sub_clash_enable": schema.BoolAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "Enable Clash/Mihomo subscription endpoint.",
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"sub_clash_path": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "Path for Clash/Mihomo subscription endpoint.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_clash_uri": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "Clash/Mihomo subscription server URI.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
 		},
 	}
 }
@@ -426,6 +447,15 @@ func expandPanelSubscription(m *PanelSubscriptionModel) map[string]any {
 	}
 	if !m.SubJsonRules.IsNull() && !m.SubJsonRules.IsUnknown() {
 		payload["subJsonRules"] = m.SubJsonRules.ValueString()
+	}
+	if !m.SubClashEnable.IsNull() && !m.SubClashEnable.IsUnknown() {
+		payload["subClashEnable"] = m.SubClashEnable.ValueBool()
+	}
+	if !m.SubClashPath.IsNull() && !m.SubClashPath.IsUnknown() {
+		payload["subClashPath"] = m.SubClashPath.ValueString()
+	}
+	if !m.SubClashURI.IsNull() && !m.SubClashURI.IsUnknown() {
+		payload["subClashURI"] = m.SubClashURI.ValueString()
 	}
 	return payload
 }
@@ -505,6 +535,19 @@ func flattenPanelSubscription(in map[string]any) *PanelSubscriptionModel {
 	}
 	if v, ok := in["subJsonRules"]; ok {
 		m.SubJsonRules = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subClashEnable"]; ok {
+		m.SubClashEnable = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["subClashPath"]; ok {
+		m.SubClashPath = types.StringValue(stringValue(v))
+	} else {
+		m.SubClashPath = types.StringNull()
+	}
+	if v, ok := in["subClashURI"]; ok {
+		m.SubClashURI = types.StringValue(stringValue(v))
+	} else {
+		m.SubClashURI = types.StringNull()
 	}
 	return m
 }

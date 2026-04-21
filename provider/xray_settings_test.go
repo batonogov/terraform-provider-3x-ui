@@ -1523,3 +1523,193 @@ func TestExpandXrayOutbounds_EmptySettingsBlock(t *testing.T) {
 		t.Fatalf("blackhole_settings with all-null fields should not be in result")
 	}
 }
+
+func TestExpandOutbounds_FreedomIPsBlocked(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"tag":      "direct",
+			"protocol": "freedom",
+			"freedom_settings": []any{
+				map[string]any{
+					"domain_strategy": "AsIs",
+					"ips_blocked":     []any{"geoip:cn", "10.0.0.0/8"},
+				},
+			},
+		},
+	}
+	result := expandOutbounds(list)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 outbound, got %d", len(result))
+	}
+	m := result[0].(map[string]any)
+	settings, ok := m["settings"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected settings map, got %T", m["settings"])
+	}
+	ipsBlocked, ok := settings["ipsBlocked"].([]any)
+	if !ok || len(ipsBlocked) != 2 {
+		t.Fatalf("expected 2 ipsBlocked entries, got %v", settings["ipsBlocked"])
+	}
+	if ipsBlocked[0] != "geoip:cn" || ipsBlocked[1] != "10.0.0.0/8" {
+		t.Fatalf("unexpected ipsBlocked values: %v", ipsBlocked)
+	}
+}
+
+func TestFlattenOutbounds_FreedomIPsBlocked(t *testing.T) {
+	data := []any{
+		map[string]any{
+			"tag":      "direct",
+			"protocol": "freedom",
+			"settings": map[string]any{
+				"domainStrategy": "AsIs",
+				"ipsBlocked":     []any{"geoip:cn", "10.0.0.0/8"},
+			},
+		},
+	}
+	result := flattenXrayOutboundsToMap(data)
+	outbounds := result["outbound"].([]any)
+	if len(outbounds) != 1 {
+		t.Fatalf("expected 1 outbound, got %d", len(outbounds))
+	}
+	freedom := outbounds[0].(map[string]any)["freedom_settings"].([]any)[0].(map[string]any)
+	ipsBlocked, ok := freedom["ips_blocked"].([]any)
+	if !ok || len(ipsBlocked) != 2 {
+		t.Fatalf("expected 2 ips_blocked entries, got %v", freedom["ips_blocked"])
+	}
+	if ipsBlocked[0] != "geoip:cn" || ipsBlocked[1] != "10.0.0.0/8" {
+		t.Fatalf("unexpected ips_blocked values: %v", ipsBlocked)
+	}
+}
+
+func TestFreedomIPsBlocked_Roundtrip(t *testing.T) {
+	input := map[string]any{
+		"outbound": []any{
+			map[string]any{
+				"tag": "direct", "protocol": "freedom",
+				"freedom_settings": []any{map[string]any{
+					"domain_strategy": "AsIs",
+					"ips_blocked":     []any{"geoip:cn", "192.168.0.0/16"},
+				}},
+			},
+		},
+	}
+	flattened := flattenXrayOutboundsToMap(buildXrayOutboundsJSON(input))
+	outbounds := flattened["outbound"].([]any)
+	if len(outbounds) != 1 {
+		t.Fatalf("expected 1 outbound, got %d", len(outbounds))
+	}
+	freedom := outbounds[0].(map[string]any)["freedom_settings"].([]any)[0].(map[string]any)
+	ipsBlocked, ok := freedom["ips_blocked"].([]any)
+	if !ok || len(ipsBlocked) != 2 {
+		t.Fatalf("expected 2 ips_blocked entries after roundtrip, got %v", freedom["ips_blocked"])
+	}
+	if ipsBlocked[0] != "geoip:cn" || ipsBlocked[1] != "192.168.0.0/16" {
+		t.Fatalf("unexpected ips_blocked values: %v", ipsBlocked)
+	}
+}
+
+func TestFreedomIPsBlocked_TypedModelRoundtrip(t *testing.T) {
+	ipsBlockedList := types.ListValueMust(types.StringType, []attr.Value{
+		types.StringValue("geoip:cn"),
+		types.StringValue("10.0.0.0/8"),
+	})
+
+	model := &XrayOutboundsModel{
+		Outbound: []XrayOutboundEntry{
+			{
+				Tag:      types.StringValue("direct"),
+				Protocol: types.StringValue("freedom"),
+				FreedomSettings: []XrayFreedomSettings{
+					{
+						DomainStrategy: types.StringValue("AsIs"),
+						Redirect:       types.StringNull(),
+						IPsBlocked:     ipsBlockedList,
+					},
+				},
+			},
+		},
+	}
+
+	// Typed model -> untyped map
+	expanded := expandXrayOutbounds(model)
+	outbounds := expanded["outbound"].([]any)
+	entry := outbounds[0].(map[string]any)
+	fsList := entry["freedom_settings"].([]any)
+	fs := fsList[0].(map[string]any)
+	ips, ok := fs["ips_blocked"].([]any)
+	if !ok || len(ips) != 2 {
+		t.Fatalf("expected 2 ips_blocked in expanded map, got %v", fs["ips_blocked"])
+	}
+	if ips[0] != "geoip:cn" || ips[1] != "10.0.0.0/8" {
+		t.Fatalf("unexpected expanded ips_blocked: %v", ips)
+	}
+
+	// Untyped map -> typed model (flatten back)
+	flatModel := flattenXrayOutbounds(expanded)
+	if len(flatModel.Outbound) != 1 {
+		t.Fatalf("expected 1 outbound in flattened model, got %d", len(flatModel.Outbound))
+	}
+	flatFS := flatModel.Outbound[0].FreedomSettings
+	if len(flatFS) != 1 {
+		t.Fatalf("expected 1 freedom_settings, got %d", len(flatFS))
+	}
+	if flatFS[0].IPsBlocked.IsNull() || flatFS[0].IPsBlocked.IsUnknown() {
+		t.Fatalf("expected non-null ips_blocked in flattened model")
+	}
+	elems := flatFS[0].IPsBlocked.Elements()
+	if len(elems) != 2 {
+		t.Fatalf("expected 2 elements in ips_blocked, got %d", len(elems))
+	}
+	if elems[0].(types.String).ValueString() != "geoip:cn" {
+		t.Fatalf("expected geoip:cn, got %v", elems[0])
+	}
+	if elems[1].(types.String).ValueString() != "10.0.0.0/8" {
+		t.Fatalf("expected 10.0.0.0/8, got %v", elems[1])
+	}
+}
+
+func TestFreedomIPsBlocked_NullHandling(t *testing.T) {
+	model := &XrayOutboundsModel{
+		Outbound: []XrayOutboundEntry{
+			{
+				Tag:      types.StringValue("direct"),
+				Protocol: types.StringValue("freedom"),
+				FreedomSettings: []XrayFreedomSettings{
+					{
+						DomainStrategy: types.StringValue("AsIs"),
+						Redirect:       types.StringNull(),
+						IPsBlocked:     types.ListNull(types.StringType),
+					},
+				},
+			},
+		},
+	}
+
+	expanded := expandXrayOutbounds(model)
+	outbounds := expanded["outbound"].([]any)
+	entry := outbounds[0].(map[string]any)
+	fsList := entry["freedom_settings"].([]any)
+	fs := fsList[0].(map[string]any)
+	if _, ok := fs["ips_blocked"]; ok {
+		t.Fatalf("null ips_blocked should not appear in expanded map")
+	}
+
+	// Flatten with missing ips_blocked -> should get null list
+	untypedMap := map[string]any{
+		"outbound": []any{
+			map[string]any{
+				"protocol": "freedom",
+				"freedom_settings": []any{
+					map[string]any{
+						"domain_strategy": "AsIs",
+					},
+				},
+			},
+		},
+	}
+	flatModel := flattenXrayOutbounds(untypedMap)
+	flatFS := flatModel.Outbound[0].FreedomSettings[0]
+	if !flatFS.IPsBlocked.IsNull() {
+		t.Fatalf("expected null ips_blocked when key is missing, got %v", flatFS.IPsBlocked)
+	}
+}

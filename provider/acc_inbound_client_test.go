@@ -364,6 +364,49 @@ resource "threexui_inbound_client" "explicitid" {
 	})
 }
 
+// --- Hysteria client with auth ---
+
+func TestAccInboundClientHysteria(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "hysteria_host" {
+  port     = 25502
+  protocol = "hysteria"
+  remark   = "acc-hysteria-client-host"
+  enable   = true
+
+  hysteria_settings {
+    version = 2
+  }
+
+  stream_settings {
+    network  = "hysteria"
+    security = "tls"
+  }
+}
+
+resource "threexui_inbound_client" "hysteria_client" {
+  inbound_id = threexui_inbound.hysteria_host.id
+  email      = "hysteria-client@test.com"
+  auth       = "my-secret-auth"
+  enable     = true
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound_client.hysteria_client", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound_client.hysteria_client", "email", "hysteria-client@test.com"),
+					resource.TestCheckResourceAttr("threexui_inbound_client.hysteria_client", "auth", "my-secret-auth"),
+				),
+			},
+		},
+	})
+}
+
 // --- Config helpers ---
 
 func testAccInboundClientUpdateConfig(email string, enable bool, limitIP int, comment string) string {

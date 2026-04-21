@@ -85,6 +85,7 @@ Each outbound should have exactly one `*_settings` block matching its `protocol`
 
 - `domain_strategy` (String, Optional) - Domain strategy (e.g. `AsIs`, `UseIP`).
 - `redirect` (String, Optional) - Redirect address.
+- `ips_blocked` (List of String, Optional) - List of IPs/CIDRs to block (e.g. `geoip:cn`).
 
 ##### fragment (Block, Optional, Max: 1)
 
