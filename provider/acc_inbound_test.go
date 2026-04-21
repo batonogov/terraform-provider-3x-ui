@@ -997,6 +997,43 @@ resource "threexui_inbound" "noremark" {
 	})
 }
 
+// --- Hysteria ---
+
+func TestAccInboundHysteria(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "hysteria" {
+  port     = 25501
+  protocol = "hysteria"
+  remark   = "acc-hysteria-1"
+  enable   = true
+
+  hysteria_settings {
+    version = 2
+  }
+
+  stream_settings {
+    network  = "hysteria"
+    security = "tls"
+  }
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound.hysteria", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound.hysteria", "protocol", "hysteria"),
+					resource.TestCheckResourceAttr("threexui_inbound.hysteria", "remark", "acc-hysteria-1"),
+					resource.TestCheckResourceAttr("threexui_inbound.hysteria", "port", "25501"),
+				),
+			},
+		},
+	})
+}
+
 // --- Config helpers ---
 
 func testAccInboundUpdateConfig(remark string, port int, enable bool) string {
