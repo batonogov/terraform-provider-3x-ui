@@ -7,7 +7,7 @@ description: |-
 
 # threexui_inbound (Resource)
 
-Manages an inbound proxy in the 3x-ui panel. Supports protocols: vless, vmess, trojan, shadowsocks, http, socks, mixed, wireguard, tunnel, and dokodemo-door.
+Manages an inbound proxy in the 3x-ui panel. Supports protocols: vless, vmess, trojan, shadowsocks, http, socks, mixed, wireguard, tunnel, dokodemo-door, and hysteria.
 
 ## Example Usage
 
@@ -130,11 +130,31 @@ resource "threexui_inbound" "wg" {
   remark   = "WireGuard"
 
   wireguard_settings {
-    mtu = 1420
+    mtu = [1420, 1280]
     peer {
       public_key  = "BASE64_PUBLIC_KEY"
       allowed_ips = ["10.0.0.2/32"]
     }
+  }
+}
+```
+
+### Hysteria
+
+```hcl
+resource "threexui_inbound" "hysteria" {
+  port     = 8443
+  protocol = "hysteria"
+  enable   = true
+  remark   = "Hysteria"
+
+  hysteria_settings {
+    version = 2
+  }
+
+  stream_settings {
+    network  = "hysteria"
+    security = "tls"
   }
 }
 ```
@@ -144,7 +164,7 @@ resource "threexui_inbound" "wg" {
 ### Top-level
 
 - `port` (Required, Number) - Port number for the inbound.
-- `protocol` (Required, String) - Protocol type (`vless`, `vmess`, `trojan`, `shadowsocks`, `http`, `socks`, `mixed`, `wireguard`, `tunnel`, `dokodemo-door`).
+- `protocol` (Required, String) - Protocol type (`vless`, `vmess`, `trojan`, `shadowsocks`, `http`, `socks`, `mixed`, `wireguard`, `tunnel`, `dokodemo-door`, `hysteria`).
 - `enable` (Optional, Boolean) - Whether the inbound is enabled. Default is `true`.
 - `remark` (Optional, String) - A label/name for the inbound.
 - `listen` (Optional, String) - Listen address.
@@ -198,9 +218,11 @@ Use the block matching your `protocol`. Only one should be specified.
 
 #### `wireguard_settings`
 
-- `mtu` (Optional, Number) - MTU value.
+- `mtu` (Optional, List of Number) - MTU values `[IPv4, IPv6]`.
 - `secret_key` (Optional, String) - Secret key.
 - `no_kernel_tun` (Optional, Boolean) - Disable kernel TUN.
+- `gateway` (Optional, List of String) - Gateway addresses.
+- `dns` (Optional, List of String) - DNS server addresses.
 - `peer` (Optional, Block List) - WireGuard peers.
   - `private_key` (Optional, String)
   - `public_key` (Optional, String)
@@ -218,9 +240,13 @@ Used for both `tunnel` and `dokodemo-door` protocols.
 - `network` (Optional, String) - Network type.
 - `follow_redirect` (Optional, Boolean) - Follow redirect.
 
+#### `hysteria_settings`
+
+- `version` (Optional, Number) - Hysteria version (1 or 2, default 2).
+
 ### `stream_settings` Block
 
-- `network` (Optional, String) - Transport network (`tcp`, `ws`, `grpc`, `httpupgrade`, `xhttp`, `kcp`).
+- `network` (Optional, String) - Transport network (`tcp`, `ws`, `grpc`, `httpupgrade`, `xhttp`, `kcp`, `hysteria`).
 - `security` (Optional, String) - Security type (`none`, `tls`, `reality`).
 - `tcp_settings` (Optional, Block) - TCP transport settings.
   - `accept_proxy_protocol` (Optional, Boolean)
@@ -248,10 +274,14 @@ Used for both `tunnel` and `dokodemo-door` protocols.
   - `tti` (Optional, Number)
   - `uplink_capacity` (Optional, Number)
   - `downlink_capacity` (Optional, Number)
-  - `congestion` (Optional, Boolean)
-  - `read_buffer_size` (Optional, Number)
-  - `write_buffer_size` (Optional, Number)
+  - `cwnd_multiplier` (Optional, Number) - CWND multiplier.
+  - `max_sending_window` (Optional, Number) - Maximum sending window size.
   - `header_type` (Optional, String)
+- `hysteria_settings` (Optional, Block) - Hysteria transport settings.
+  - `protocol` (Optional, String) - Hysteria transport protocol.
+  - `version` (Optional, Number) - Hysteria version (default 2).
+  - `auth` (Optional, String) - Hysteria auth string.
+  - `udp_idle_timeout` (Optional, Number) - UDP idle timeout in seconds (default 60).
 - `reality_settings` (Optional, Block) - Reality settings.
   - `show` (Optional, Boolean)
   - `xver` (Optional, Number)
@@ -285,6 +315,8 @@ Used for both `tunnel` and `dokodemo-door` protocols.
 - `dest_override` (Optional, List of String) - Destination override protocols (e.g. `http`, `tls`, `quic`, `fakedns`).
 - `metadata_only` (Optional, Boolean) - Only sniff metadata.
 - `route_only` (Optional, Boolean) - Only use sniffing for routing.
+- `ips_excluded` (Optional, List of String) - IPs/CIDRs excluded from sniffing (e.g. `geoip:private`).
+- `domains_excluded` (Optional, List of String) - Domains excluded from sniffing (e.g. `domain:example.com`).
 
 ## Attribute Reference
 

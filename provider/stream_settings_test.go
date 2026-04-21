@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -232,5 +233,121 @@ func TestFlattenRealityInnerSettings_Full(t *testing.T) {
 	}
 	if out["mldsa65_verify"] != "verify" {
 		t.Fatalf("unexpected mldsa65_verify")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// KCP: cwnd_multiplier / max_sending_window (3x-ui 2.9.0)
+// ---------------------------------------------------------------------------
+
+func TestExpandKCPSettings_NewFields(t *testing.T) {
+	input := []any{
+		map[string]any{
+			"mtu":                1350,
+			"tti":                50,
+			"uplink_capacity":    5,
+			"downlink_capacity":  20,
+			"cwnd_multiplier":    4,
+			"max_sending_window": 128,
+			"header_type":        "none",
+		},
+	}
+	result := expandKCPSettings(input)
+	if result == nil {
+		t.Fatalf("expected non-nil")
+	}
+	if result["cwndMultiplier"] != 4 {
+		t.Fatalf("expected cwndMultiplier=4, got %v", result["cwndMultiplier"])
+	}
+	if result["maxSendingWindow"] != 128 {
+		t.Fatalf("expected maxSendingWindow=128, got %v", result["maxSendingWindow"])
+	}
+	// Old fields must be absent
+	if _, ok := result["congestion"]; ok {
+		t.Fatalf("congestion should not be present")
+	}
+	if _, ok := result["readBufferSize"]; ok {
+		t.Fatalf("readBufferSize should not be present")
+	}
+	if _, ok := result["writeBufferSize"]; ok {
+		t.Fatalf("writeBufferSize should not be present")
+	}
+}
+
+func TestFlattenKCPSettings_NewFields(t *testing.T) {
+	input := map[string]any{
+		"mtu":              float64(1350),
+		"tti":              float64(50),
+		"uplinkCapacity":   float64(5),
+		"downlinkCapacity": float64(20),
+		"cwndMultiplier":   float64(4),
+		"maxSendingWindow": float64(128),
+		"header":           map[string]any{"type": "none"},
+	}
+	result := flattenKCPSettings(input)
+	if result == nil {
+		t.Fatalf("expected non-nil")
+	}
+	if result["cwnd_multiplier"] != 4 {
+		t.Fatalf("expected cwnd_multiplier=4, got %v", result["cwnd_multiplier"])
+	}
+	if result["max_sending_window"] != 128 {
+		t.Fatalf("expected max_sending_window=128, got %v", result["max_sending_window"])
+	}
+	// Old fields must be absent
+	if _, ok := result["congestion"]; ok {
+		t.Fatalf("congestion should not be present")
+	}
+	if _, ok := result["read_buffer_size"]; ok {
+		t.Fatalf("read_buffer_size should not be present")
+	}
+}
+
+func TestKCPSettings_Roundtrip(t *testing.T) {
+	input := map[string]any{
+		"kcp_settings": []any{
+			map[string]any{
+				"mtu":                1350,
+				"tti":                50,
+				"uplink_capacity":    5,
+				"downlink_capacity":  20,
+				"cwnd_multiplier":    4,
+				"max_sending_window": 128,
+				"header_type":        "srtp",
+			},
+		},
+		"network":  "kcp",
+		"security": "none",
+	}
+	streamJSON := buildStreamSettingsJSON(input)
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(streamJSON), &payload); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	kcpPayload, ok := payload["kcpSettings"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected kcpSettings map")
+	}
+	if kcpPayload["cwndMultiplier"] != float64(4) {
+		t.Fatalf("expected cwndMultiplier=4 in JSON, got %v", kcpPayload["cwndMultiplier"])
+	}
+	if kcpPayload["maxSendingWindow"] != float64(128) {
+		t.Fatalf("expected maxSendingWindow=128 in JSON, got %v", kcpPayload["maxSendingWindow"])
+	}
+
+	flattened, err := flattenStreamSettings(streamJSON)
+	if err != nil {
+		t.Fatalf("flattenStreamSettings error: %v", err)
+	}
+	if len(flattened) == 0 {
+		t.Fatal("expected non-empty result")
+	}
+	out := flattened[0].(map[string]any)
+	kcp := out["kcp_settings"].([]any)[0].(map[string]any)
+	if kcp["cwnd_multiplier"] != 4 {
+		t.Fatalf("expected cwnd_multiplier=4 after roundtrip, got %v", kcp["cwnd_multiplier"])
+	}
+	if kcp["max_sending_window"] != 128 {
+		t.Fatalf("expected max_sending_window=128 after roundtrip, got %v", kcp["max_sending_window"])
 	}
 }
