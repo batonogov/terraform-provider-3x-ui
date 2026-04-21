@@ -31,6 +31,7 @@ provider/              — all provider code
   stream_settings.go   — buildStreamSettingsJSON(map[string]any), flattenStreamSettings(string), expand/flatten per-transport
   sniffing.go          — buildSniffingJSON(map[string]any), flattenSniffing(string)
   settings_helpers.go  — mergeSettings
+  list_helpers.go      — typesListToAnySlice, typesListInt64ToAnySlice, anySliceToTypesList
   default_settings.go  — default settings per protocol, applyDefaultInboundSettings
   resource_xray_version.go     — threexui_xray_version resource (install/manage Xray core version)
   data_source_*.go     — data sources (inbounds, server_status, settings, xray_config, xray_versions, online_clients)
