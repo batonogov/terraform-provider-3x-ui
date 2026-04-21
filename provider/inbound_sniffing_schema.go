@@ -10,10 +10,12 @@ import (
 // ---------------------------------------------------------------------------
 
 type InboundSniffingModel struct {
-	Enabled      types.Bool `tfsdk:"enabled"`
-	DestOverride types.List `tfsdk:"dest_override"` // list of string
-	MetadataOnly types.Bool `tfsdk:"metadata_only"`
-	RouteOnly    types.Bool `tfsdk:"route_only"`
+	Enabled         types.Bool `tfsdk:"enabled"`
+	DestOverride    types.List `tfsdk:"dest_override"` // list of string
+	MetadataOnly    types.Bool `tfsdk:"metadata_only"`
+	RouteOnly       types.Bool `tfsdk:"route_only"`
+	IpsExcluded     types.List `tfsdk:"ips_excluded"`     // list of string
+	DomainsExcluded types.List `tfsdk:"domains_excluded"` // list of string
 }
 
 // ---------------------------------------------------------------------------
@@ -45,6 +47,18 @@ func inboundSniffingBlockSchema() schema.SingleNestedBlock {
 				Computed:    true,
 				Description: "Only use sniffing for routing.",
 			},
+			"ips_excluded": schema.ListAttribute{
+				Optional:    true,
+				Computed:    true,
+				ElementType: types.StringType,
+				Description: "IPs/CIDRs excluded from sniffing (e.g. geoip:private).",
+			},
+			"domains_excluded": schema.ListAttribute{
+				Optional:    true,
+				Computed:    true,
+				ElementType: types.StringType,
+				Description: "Domains excluded from sniffing (e.g. domain:example.com).",
+			},
 		},
 	}
 }
@@ -69,6 +83,12 @@ func expandSniffingFromModel(m *InboundSniffingModel) map[string]any {
 	}
 	if !m.RouteOnly.IsNull() && !m.RouteOnly.IsUnknown() {
 		out["route_only"] = m.RouteOnly.ValueBool()
+	}
+	if !m.IpsExcluded.IsNull() && !m.IpsExcluded.IsUnknown() {
+		out["ips_excluded"] = typesListToAnySlice(m.IpsExcluded)
+	}
+	if !m.DomainsExcluded.IsNull() && !m.DomainsExcluded.IsUnknown() {
+		out["domains_excluded"] = typesListToAnySlice(m.DomainsExcluded)
 	}
 	return out
 }
@@ -105,6 +125,17 @@ func flattenSniffingToModel(data map[string]any) *InboundSniffingModel {
 		m.RouteOnly = types.BoolValue(v)
 	} else {
 		m.RouteOnly = types.BoolNull()
+	}
+
+	if v, ok := data["ips_excluded"]; ok {
+		m.IpsExcluded = anySliceToTypesList(v)
+	} else {
+		m.IpsExcluded = types.ListNull(types.StringType)
+	}
+	if v, ok := data["domains_excluded"]; ok {
+		m.DomainsExcluded = anySliceToTypesList(v)
+	} else {
+		m.DomainsExcluded = types.ListNull(types.StringType)
 	}
 
 	return m

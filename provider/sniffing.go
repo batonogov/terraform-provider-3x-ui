@@ -26,6 +26,16 @@ func buildSniffingJSON(item map[string]any) string {
 	if v, ok := item["route_only"]; ok {
 		payload["routeOnly"] = boolValue(v)
 	}
+	if v, ok := item["ips_excluded"]; ok {
+		if list, ok := v.([]any); ok && len(list) > 0 {
+			payload["ipsExcluded"] = list
+		}
+	}
+	if v, ok := item["domains_excluded"]; ok {
+		if list, ok := v.([]any); ok && len(list) > 0 {
+			payload["domainsExcluded"] = list
+		}
+	}
 
 	if len(payload) == 0 {
 		return "{}"
@@ -57,6 +67,12 @@ func flattenSniffing(sniffing string) ([]any, error) {
 	}
 	if v, ok := payload["routeOnly"].(bool); ok {
 		out["route_only"] = v
+	}
+	if v, ok := payload["ipsExcluded"].([]any); ok && len(v) > 0 {
+		out["ips_excluded"] = v
+	}
+	if v, ok := payload["domainsExcluded"].([]any); ok && len(v) > 0 {
+		out["domains_excluded"] = v
 	}
 	if len(out) == 0 {
 		return []any{}, nil

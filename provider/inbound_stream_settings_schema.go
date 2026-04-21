@@ -12,17 +12,18 @@ import (
 // ---------------------------------------------------------------------------
 
 type InboundStreamSettingsModel struct {
-	Network             types.String                     `tfsdk:"network"`
-	Security            types.String                     `tfsdk:"security"`
-	ExternalProxy       []InboundExternalProxyModel      `tfsdk:"external_proxy"`
-	RealitySettings     *InboundRealitySettingsModel     `tfsdk:"reality_settings"`
-	TCPSettings         *InboundTCPSettingsModel         `tfsdk:"tcp_settings"`
-	WSSettings          *InboundWSSettingsModel          `tfsdk:"ws_settings"`
-	GRPCSettings        *InboundGRPCSettingsModel        `tfsdk:"grpc_settings"`
-	HTTPUpgradeSettings *InboundHTTPUpgradeSettingsModel `tfsdk:"httpupgrade_settings"`
-	XHTTPSettings       *InboundXHTTPSettingsModel       `tfsdk:"xhttp_settings"`
-	KCPSettings         *InboundKCPSettingsModel         `tfsdk:"kcp_settings"`
-	Sockopt             *InboundSockoptModel             `tfsdk:"sockopt"`
+	Network             types.String                        `tfsdk:"network"`
+	Security            types.String                        `tfsdk:"security"`
+	ExternalProxy       []InboundExternalProxyModel         `tfsdk:"external_proxy"`
+	RealitySettings     *InboundRealitySettingsModel        `tfsdk:"reality_settings"`
+	TCPSettings         *InboundTCPSettingsModel            `tfsdk:"tcp_settings"`
+	WSSettings          *InboundWSSettingsModel             `tfsdk:"ws_settings"`
+	GRPCSettings        *InboundGRPCSettingsModel           `tfsdk:"grpc_settings"`
+	HTTPUpgradeSettings *InboundHTTPUpgradeSettingsModel    `tfsdk:"httpupgrade_settings"`
+	XHTTPSettings       *InboundXHTTPSettingsModel          `tfsdk:"xhttp_settings"`
+	KCPSettings         *InboundKCPSettingsModel            `tfsdk:"kcp_settings"`
+	HysteriaSettings    *InboundHysteriaStreamSettingsModel `tfsdk:"hysteria_settings"`
+	Sockopt             *InboundSockoptModel                `tfsdk:"sockopt"`
 }
 
 type InboundExternalProxyModel struct {
@@ -87,10 +88,16 @@ type InboundKCPSettingsModel struct {
 	TTI              types.Int64  `tfsdk:"tti"`
 	UplinkCapacity   types.Int64  `tfsdk:"uplink_capacity"`
 	DownlinkCapacity types.Int64  `tfsdk:"downlink_capacity"`
-	Congestion       types.Bool   `tfsdk:"congestion"`
-	ReadBufferSize   types.Int64  `tfsdk:"read_buffer_size"`
-	WriteBufferSize  types.Int64  `tfsdk:"write_buffer_size"`
+	CwndMultiplier   types.Int64  `tfsdk:"cwnd_multiplier"`
+	MaxSendingWindow types.Int64  `tfsdk:"max_sending_window"`
 	HeaderType       types.String `tfsdk:"header_type"`
+}
+
+type InboundHysteriaStreamSettingsModel struct {
+	Protocol       types.String `tfsdk:"protocol"`
+	Version        types.Int64  `tfsdk:"version"`
+	Auth           types.String `tfsdk:"auth"`
+	UDPIdleTimeout types.Int64  `tfsdk:"udp_idle_timeout"`
 }
 
 type InboundSockoptModel struct {
@@ -291,18 +298,44 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 					"downlink_capacity": schema.Int64Attribute{
 						Optional: true, Computed: true,
 					},
-					"congestion": schema.BoolAttribute{
-						Optional: true, Computed: true,
+					"cwnd_multiplier": schema.Int64Attribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "CWND multiplier.",
 					},
-					"read_buffer_size": schema.Int64Attribute{
-						Optional: true, Computed: true,
-					},
-					"write_buffer_size": schema.Int64Attribute{
-						Optional: true, Computed: true,
+					"max_sending_window": schema.Int64Attribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "Maximum sending window size.",
 					},
 					"header_type": schema.StringAttribute{
 						Optional: true, Computed: true,
 						Description: "Header type (e.g. 'none', 'srtp', 'utp', 'wechat-video', 'dtls', 'wireguard').",
+					},
+				},
+			},
+			"hysteria_settings": schema.SingleNestedBlock{
+				Description: "Hysteria transport settings.",
+				Attributes: map[string]schema.Attribute{
+					"protocol": schema.StringAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "Hysteria transport protocol.",
+					},
+					"version": schema.Int64Attribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "Hysteria version (default 2).",
+					},
+					"auth": schema.StringAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "Hysteria auth string.",
+					},
+					"udp_idle_timeout": schema.Int64Attribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "UDP idle timeout in seconds (default 60).",
 					},
 				},
 			},
@@ -385,6 +418,11 @@ func expandStreamSettingsFromModel(m *InboundStreamSettingsModel) map[string]any
 	if m.KCPSettings != nil {
 		if kcp := expandKCPSettingsFromModel(m.KCPSettings); len(kcp) > 0 {
 			out["kcp_settings"] = []any{kcp}
+		}
+	}
+	if m.HysteriaSettings != nil {
+		if h := expandHysteriaStreamSettingsFromModel(m.HysteriaSettings); len(h) > 0 {
+			out["hysteria_settings"] = []any{h}
 		}
 	}
 	if m.Sockopt != nil {
@@ -589,17 +627,34 @@ func expandKCPSettingsFromModel(m *InboundKCPSettingsModel) map[string]any {
 	if !m.DownlinkCapacity.IsNull() && !m.DownlinkCapacity.IsUnknown() {
 		out["downlink_capacity"] = int(m.DownlinkCapacity.ValueInt64())
 	}
-	if !m.Congestion.IsNull() && !m.Congestion.IsUnknown() {
-		out["congestion"] = m.Congestion.ValueBool()
+	if !m.CwndMultiplier.IsNull() && !m.CwndMultiplier.IsUnknown() {
+		out["cwnd_multiplier"] = int(m.CwndMultiplier.ValueInt64())
 	}
-	if !m.ReadBufferSize.IsNull() && !m.ReadBufferSize.IsUnknown() {
-		out["read_buffer_size"] = int(m.ReadBufferSize.ValueInt64())
-	}
-	if !m.WriteBufferSize.IsNull() && !m.WriteBufferSize.IsUnknown() {
-		out["write_buffer_size"] = int(m.WriteBufferSize.ValueInt64())
+	if !m.MaxSendingWindow.IsNull() && !m.MaxSendingWindow.IsUnknown() {
+		out["max_sending_window"] = int(m.MaxSendingWindow.ValueInt64())
 	}
 	if !m.HeaderType.IsNull() && !m.HeaderType.IsUnknown() {
 		out["header_type"] = m.HeaderType.ValueString()
+	}
+	return out
+}
+
+func expandHysteriaStreamSettingsFromModel(m *InboundHysteriaStreamSettingsModel) map[string]any {
+	if m == nil {
+		return nil
+	}
+	out := map[string]any{}
+	if !m.Protocol.IsNull() && !m.Protocol.IsUnknown() {
+		out["protocol"] = m.Protocol.ValueString()
+	}
+	if !m.Version.IsNull() && !m.Version.IsUnknown() {
+		out["version"] = int(m.Version.ValueInt64())
+	}
+	if !m.Auth.IsNull() && !m.Auth.IsUnknown() {
+		out["auth"] = m.Auth.ValueString()
+	}
+	if !m.UDPIdleTimeout.IsNull() && !m.UDPIdleTimeout.IsUnknown() {
+		out["udp_idle_timeout"] = int(m.UDPIdleTimeout.ValueInt64())
 	}
 	return out
 }
@@ -695,6 +750,12 @@ func flattenStreamSettingsToModel(data map[string]any) *InboundStreamSettingsMod
 	if v, ok := data["kcp_settings"].([]any); ok && len(v) > 0 {
 		if raw, ok := v[0].(map[string]any); ok {
 			m.KCPSettings = flattenKCPSettingsToModel(raw)
+		}
+	}
+
+	if v, ok := data["hysteria_settings"].([]any); ok && len(v) > 0 {
+		if raw, ok := v[0].(map[string]any); ok {
+			m.HysteriaSettings = flattenHysteriaStreamSettingsToModel(raw)
 		}
 	}
 
@@ -975,25 +1036,48 @@ func flattenKCPSettingsToModel(data map[string]any) *InboundKCPSettingsModel {
 	} else {
 		m.DownlinkCapacity = types.Int64Null()
 	}
-	if v, ok := data["congestion"].(bool); ok {
-		m.Congestion = types.BoolValue(v)
+	if v, ok := data["cwnd_multiplier"]; ok {
+		m.CwndMultiplier = types.Int64Value(int64(intValue(v)))
 	} else {
-		m.Congestion = types.BoolNull()
+		m.CwndMultiplier = types.Int64Null()
 	}
-	if v, ok := data["read_buffer_size"]; ok {
-		m.ReadBufferSize = types.Int64Value(int64(intValue(v)))
+	if v, ok := data["max_sending_window"]; ok {
+		m.MaxSendingWindow = types.Int64Value(int64(intValue(v)))
 	} else {
-		m.ReadBufferSize = types.Int64Null()
-	}
-	if v, ok := data["write_buffer_size"]; ok {
-		m.WriteBufferSize = types.Int64Value(int64(intValue(v)))
-	} else {
-		m.WriteBufferSize = types.Int64Null()
+		m.MaxSendingWindow = types.Int64Null()
 	}
 	if v, ok := data["header_type"].(string); ok && v != "" {
 		m.HeaderType = types.StringValue(v)
 	} else {
 		m.HeaderType = types.StringNull()
+	}
+	return m
+}
+
+func flattenHysteriaStreamSettingsToModel(data map[string]any) *InboundHysteriaStreamSettingsModel {
+	if len(data) == 0 {
+		return nil
+	}
+	m := &InboundHysteriaStreamSettingsModel{}
+	if v, ok := data["protocol"].(string); ok {
+		m.Protocol = types.StringValue(v)
+	} else {
+		m.Protocol = types.StringNull()
+	}
+	if v, ok := data["version"]; ok {
+		m.Version = types.Int64Value(int64(intValue(v)))
+	} else {
+		m.Version = types.Int64Null()
+	}
+	if v, ok := data["auth"].(string); ok {
+		m.Auth = types.StringValue(v)
+	} else {
+		m.Auth = types.StringNull()
+	}
+	if v, ok := data["udp_idle_timeout"]; ok {
+		m.UDPIdleTimeout = types.Int64Value(int64(intValue(v)))
+	} else {
+		m.UDPIdleTimeout = types.Int64Null()
 	}
 	return m
 }

@@ -10,6 +10,7 @@ func TestFindClientByID(t *testing.T) {
 	clients := []map[string]any{
 		{"id": "uuid-1", "email": "a@example.com"},
 		{"password": "pw", "email": "b@example.com"},
+		{"auth": "hysteria-secret", "email": "d@example.com"},
 		{"email": "c@example.com"},
 	}
 
@@ -18,6 +19,9 @@ func TestFindClientByID(t *testing.T) {
 	}
 	if found := findClientByID(clients, "pw"); found == nil {
 		t.Fatalf("expected to find client by password")
+	}
+	if found := findClientByID(clients, "hysteria-secret"); found == nil {
+		t.Fatalf("expected to find client by auth")
 	}
 	if found := findClientByID(clients, "c@example.com"); found == nil {
 		t.Fatalf("expected to find client by email")
@@ -60,6 +64,17 @@ func TestGetClientIDFromModel(t *testing.T) {
 		got := getClientIDFromModel(m, map[string]any{"password": "trojan-pass", "email": "user@test.com"})
 		if got != "trojan-pass" {
 			t.Fatalf("expected trojan-pass, got %q", got)
+		}
+	})
+
+	t.Run("auth fallback", func(t *testing.T) {
+		m := &InboundClientResourceModel{
+			ClientID: types.StringUnknown(),
+			Email:    types.StringValue("user@test.com"),
+		}
+		got := getClientIDFromModel(m, map[string]any{"auth": "hysteria-secret", "email": "user@test.com"})
+		if got != "hysteria-secret" {
+			t.Fatalf("expected hysteria-secret, got %q", got)
 		}
 	})
 

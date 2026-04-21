@@ -265,6 +265,26 @@ func TestExpandPanelTelegram(t *testing.T) {
 	}
 }
 
+func TestFlattenPanelSubscription_ClashFields(t *testing.T) {
+	in := map[string]any{
+		"subEnable":      true,
+		"subJsonEnable":  false,
+		"subClashEnable": true,
+		"subClashPath":   "/clash/",
+		"subClashURI":    "https://example.com/clash/",
+	}
+	m := flattenPanelSubscription(in)
+	if !m.SubClashEnable.ValueBool() {
+		t.Fatalf("expected sub_clash_enable true")
+	}
+	if m.SubClashPath.ValueString() != "/clash/" {
+		t.Fatalf("unexpected sub_clash_path: %s", m.SubClashPath.ValueString())
+	}
+	if m.SubClashURI.ValueString() != "https://example.com/clash/" {
+		t.Fatalf("unexpected sub_clash_uri: %s", m.SubClashURI.ValueString())
+	}
+}
+
 // Helper functions for creating typed values in tests
 func typeBoolValue(v bool) types.Bool       { return types.BoolValue(v) }
 func typeStringValue(v string) types.String { return types.StringValue(v) }

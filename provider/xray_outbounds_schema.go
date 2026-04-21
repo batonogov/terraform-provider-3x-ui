@@ -49,6 +49,7 @@ type XrayFreedomSettings struct {
 	Redirect       types.String          `tfsdk:"redirect"`
 	Fragment       []XrayFreedomFragment `tfsdk:"fragment"`
 	Noises         []XrayFreedomNoise    `tfsdk:"noises"`
+	IPsBlocked     types.List            `tfsdk:"ips_blocked"` // list of string
 }
 
 type XrayFreedomFragment struct {
@@ -236,6 +237,12 @@ func xrayOutboundsSchema() schema.Schema {
 									},
 									"redirect": schema.StringAttribute{
 										Optional: true, Computed: true,
+									},
+									"ips_blocked": schema.ListAttribute{
+										Optional:    true,
+										Computed:    true,
+										ElementType: types.StringType,
+										Description: "List of IPs/CIDRs to block (e.g. geoip:cn).",
 									},
 								},
 								Blocks: map[string]schema.Block{
@@ -677,6 +684,9 @@ func expandFreedomSettingsFromModel(list []XrayFreedomSettings) []any {
 				}
 			}
 			entry["noises"] = noises
+		}
+		if !fs.IPsBlocked.IsNull() && !fs.IPsBlocked.IsUnknown() {
+			entry["ips_blocked"] = typesListToAnySlice(fs.IPsBlocked)
 		}
 		out = append(out, entry)
 	}
@@ -1135,6 +1145,12 @@ func flattenFreedomSettingsToModel(list []any) []XrayFreedomSettings {
 				noises = append(noises, n)
 			}
 			fs.Noises = noises
+		}
+
+		if v, ok := raw["ips_blocked"]; ok {
+			fs.IPsBlocked = anySliceToTypesList(v)
+		} else {
+			fs.IPsBlocked = types.ListNull(types.StringType)
 		}
 
 		out = append(out, fs)
@@ -1718,6 +1734,11 @@ func expandFreedomSettings(m map[string]any) map[string]any {
 			out["noises"] = n
 		}
 	}
+	if v, ok := item["ips_blocked"]; ok {
+		if list, ok := v.([]any); ok && len(list) > 0 {
+			out["ipsBlocked"] = list
+		}
+	}
 	if len(out) == 0 {
 		return nil
 	}
@@ -2255,6 +2276,9 @@ func flattenFreedomSettings(in map[string]any) map[string]any {
 			noises = append(noises, entry)
 		}
 		out["noises"] = noises
+	}
+	if v, ok := in["ipsBlocked"].([]any); ok && len(v) > 0 {
+		out["ips_blocked"] = v
 	}
 	return out
 }

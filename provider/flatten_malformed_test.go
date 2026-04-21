@@ -138,10 +138,11 @@ func TestInboundToModel_MalformedSettings_Soft(t *testing.T) {
 	if len(diags) == 0 {
 		t.Fatal("expected at least one warning diagnostic")
 	}
-	if m == nil {
+	if m != nil {
+		if m.ID.ValueString() != "1" {
+			t.Fatalf("expected ID=1, got %s", m.ID.ValueString())
+		}
+	} else {
 		t.Fatal("expected model to be returned in soft mode")
-	}
-	if m.ID.ValueString() != "1" {
-		t.Fatalf("expected ID=1, got %s", m.ID.ValueString())
 	}
 }

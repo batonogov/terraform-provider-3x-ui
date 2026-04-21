@@ -41,6 +41,33 @@ resource "threexui_inbound_client" "user1" {
 }
 ```
 
+### Hysteria Client
+
+```hcl
+resource "threexui_inbound" "hysteria" {
+  port     = 8443
+  protocol = "hysteria"
+  enable   = true
+  remark   = "Hysteria"
+
+  hysteria_settings {
+    version = 2
+  }
+
+  stream_settings {
+    network  = "hysteria"
+    security = "tls"
+  }
+}
+
+resource "threexui_inbound_client" "hysteria_user" {
+  inbound_id = threexui_inbound.hysteria.id
+  email      = "hysteria-user@example.com"
+  auth       = "my-secret-auth"
+  enable     = true
+}
+```
+
 ## Argument Reference
 
 - `inbound_id` (Required, Number, ForceNew) - The ID of the inbound this client belongs to. Changing this forces a new resource.
@@ -49,6 +76,7 @@ resource "threexui_inbound_client" "user1" {
 - `security` (Optional, String) - Security type.
 - `password` (Optional, String, Sensitive) - Client password (used by trojan/shadowsocks).
 - `flow` (Optional, String) - Flow control (e.g. `xtls-rprx-vision`).
+- `auth` (Optional, String) - Auth password for Hysteria clients. Used as client identifier instead of UUID.
 - `limit_ip` (Optional, Number) - Maximum concurrent connections.
 - `total_gb` (Optional, Number) - Traffic limit in GB.
 - `expiry_time` (Optional, Number) - Expiry time as Unix timestamp in milliseconds.

@@ -61,6 +61,12 @@ resource "threexui_panel_subscription" "settings" {
 - `sub_json_mux` (Optional, String) - JSON mux settings.
 - `sub_json_rules` (Optional, String) - JSON rules.
 
+### Clash / Mihomo
+
+- `sub_clash_enable` (Optional, Boolean) - Enable Clash/Mihomo subscription endpoint.
+- `sub_clash_path` (Optional, String) - Path for Clash/Mihomo subscription endpoint.
+- `sub_clash_uri` (Optional, String) - Clash/Mihomo subscription server URI.
+
 ## Attribute Reference
 
 All arguments are also exported as attributes.
