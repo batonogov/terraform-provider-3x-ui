@@ -77,8 +77,25 @@ func buildSettingsJSON(item map[string]any) string {
 		payload["followRedirect"] = boolValue(v)
 	}
 	if v, ok := item["mtu"]; ok {
-		if m := intValue(v); m != 0 {
-			payload["mtu"] = m
+		switch val := v.(type) {
+		case []any:
+			if len(val) > 0 {
+				payload["mtu"] = val
+			}
+		default:
+			if m := intValue(v); m != 0 {
+				payload["mtu"] = m
+			}
+		}
+	}
+	if v, ok := item["gateway"]; ok {
+		if list, ok := v.([]any); ok && len(list) > 0 {
+			payload["gateway"] = list
+		}
+	}
+	if v, ok := item["dns"]; ok {
+		if list, ok := v.([]any); ok && len(list) > 0 {
+			payload["dns"] = list
 		}
 	}
 	if v, ok := item["secret_key"].(string); ok && v != "" {
@@ -175,7 +192,19 @@ func flattenSettings(settings string) ([]any, error) {
 		out["follow_redirect"] = v
 	}
 	if v, ok := payload["mtu"]; ok {
-		out["mtu"] = intValue(v)
+		switch val := v.(type) {
+		case []any:
+			out["mtu"] = val
+		default:
+			n := intValue(v)
+			out["mtu"] = []any{n, n}
+		}
+	}
+	if v, ok := payload["gateway"].([]any); ok {
+		out["gateway"] = v
+	}
+	if v, ok := payload["dns"].([]any); ok {
+		out["dns"] = v
 	}
 	if v, ok := payload["secretKey"].(string); ok {
 		out["secret_key"] = v

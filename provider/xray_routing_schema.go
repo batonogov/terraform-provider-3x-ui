@@ -282,6 +282,19 @@ func flattenXrayRouting(data map[string]any) *XrayRoutingModel {
 // List conversion helpers
 // ---------------------------------------------------------------------------
 
+// typesListInt64ToAnySlice converts a types.List of Int64Type to []any for the
+// untyped map format (e.g. WireGuard MTU).
+func typesListInt64ToAnySlice(l types.List) []any {
+	elems := l.Elements()
+	out := make([]any, 0, len(elems))
+	for _, e := range elems {
+		if iv, ok := e.(types.Int64); ok && !iv.IsNull() && !iv.IsUnknown() {
+			out = append(out, int(iv.ValueInt64()))
+		}
+	}
+	return out
+}
+
 // typesListToAnySlice converts a types.List of StringType to []any for the
 // untyped map format used by buildXrayRoutingJSON / expandRoutingRules.
 func typesListToAnySlice(l types.List) []any {

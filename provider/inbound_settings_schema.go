@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -41,9 +42,11 @@ type InboundSocksSettingsModel struct {
 }
 
 type InboundWireguardSettingsModel struct {
-	MTU         types.Int64                 `tfsdk:"mtu"`
+	MTU         types.List                  `tfsdk:"mtu"` // list of int64
 	SecretKey   types.String                `tfsdk:"secret_key"`
 	NoKernelTun types.Bool                  `tfsdk:"no_kernel_tun"`
+	Gateway     types.List                  `tfsdk:"gateway"` // list of string
+	DNS         types.List                  `tfsdk:"dns"`     // list of string
 	Peer        []InboundWireguardPeerModel `tfsdk:"peer"`
 }
 
@@ -190,9 +193,11 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 		"wireguard_settings": schema.SingleNestedBlock{
 			Description: "Settings for WireGuard protocol.",
 			Attributes: map[string]schema.Attribute{
-				"mtu": schema.Int64Attribute{
-					Optional: true, Computed: true,
-					Description: "MTU size.",
+				"mtu": schema.ListAttribute{
+					Optional:    true,
+					Computed:    true,
+					ElementType: types.Int64Type,
+					Description: "MTU values [IPv4, IPv6].",
 				},
 				"secret_key": schema.StringAttribute{
 					Optional: true, Computed: true, Sensitive: true,
@@ -201,6 +206,18 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 				"no_kernel_tun": schema.BoolAttribute{
 					Optional: true, Computed: true,
 					Description: "Disable kernel TUN.",
+				},
+				"gateway": schema.ListAttribute{
+					Optional:    true,
+					Computed:    true,
+					ElementType: types.StringType,
+					Description: "Gateway addresses.",
+				},
+				"dns": schema.ListAttribute{
+					Optional:    true,
+					Computed:    true,
+					ElementType: types.StringType,
+					Description: "DNS server addresses.",
 				},
 			},
 			Blocks: map[string]schema.Block{
@@ -410,13 +427,19 @@ func expandWireguardInboundSettings(m *InboundWireguardSettingsModel) map[string
 	}
 	out := map[string]any{}
 	if !m.MTU.IsNull() && !m.MTU.IsUnknown() {
-		out["mtu"] = int(m.MTU.ValueInt64())
+		out["mtu"] = typesListInt64ToAnySlice(m.MTU)
 	}
 	if !m.SecretKey.IsNull() && !m.SecretKey.IsUnknown() {
 		out["secret_key"] = m.SecretKey.ValueString()
 	}
 	if !m.NoKernelTun.IsNull() && !m.NoKernelTun.IsUnknown() {
 		out["no_kernel_tun"] = m.NoKernelTun.ValueBool()
+	}
+	if !m.Gateway.IsNull() && !m.Gateway.IsUnknown() {
+		out["gateway"] = typesListToAnySlice(m.Gateway)
+	}
+	if !m.DNS.IsNull() && !m.DNS.IsUnknown() {
+		out["dns"] = typesListToAnySlice(m.DNS)
 	}
 	if len(m.Peer) > 0 {
 		out["peers"] = expandWireguardPeersFromModel(m.Peer)
@@ -665,9 +688,19 @@ func flattenWireguardInboundSettings(data map[string]any) *InboundWireguardSetti
 	}
 	m := &InboundWireguardSettingsModel{}
 	if v, ok := data["mtu"]; ok {
-		m.MTU = types.Int64Value(int64(intValue(v)))
+		switch val := v.(type) {
+		case []any:
+			elems := make([]attr.Value, len(val))
+			for i, item := range val {
+				elems[i] = types.Int64Value(int64(intValue(item)))
+			}
+			m.MTU, _ = types.ListValue(types.Int64Type, elems)
+		default:
+			n := int64(intValue(v))
+			m.MTU, _ = types.ListValue(types.Int64Type, []attr.Value{types.Int64Value(n), types.Int64Value(n)})
+		}
 	} else {
-		m.MTU = types.Int64Null()
+		m.MTU = types.ListNull(types.Int64Type)
 	}
 	if v, ok := data["secret_key"].(string); ok && v != "" {
 		m.SecretKey = types.StringValue(v)
@@ -678,6 +711,16 @@ func flattenWireguardInboundSettings(data map[string]any) *InboundWireguardSetti
 		m.NoKernelTun = types.BoolValue(v)
 	} else {
 		m.NoKernelTun = types.BoolNull()
+	}
+	if v, ok := data["gateway"]; ok {
+		m.Gateway = anySliceToTypesList(v)
+	} else {
+		m.Gateway = types.ListNull(types.StringType)
+	}
+	if v, ok := data["dns"]; ok {
+		m.DNS = anySliceToTypesList(v)
+	} else {
+		m.DNS = types.ListNull(types.StringType)
 	}
 	if v, ok := data["peers"].([]any); ok && len(v) > 0 {
 		m.Peer = flattenInboundWireguardPeersToModel(v)
