@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
 // ---------------------------------------------------------------------------
@@ -67,7 +68,6 @@ func protocolMatrix() []protocolMatrixEntry {
 
 func TestAccInboundProtocolMatrix(t *testing.T) {
 	for _, entry := range protocolMatrix() {
-		entry := entry // capture range variable
 		t.Run(entry.protocol, func(t *testing.T) {
 			t.Parallel()
 
@@ -110,10 +110,20 @@ func TestAccInboundProtocolMatrix(t *testing.T) {
 				},
 			}
 
+			checkDestroy := testAccCheckInboundDestroyed
+			if entry.hasClient {
+				checkDestroy = func(state *terraform.State) error {
+					if err := testAccCheckInboundDestroyed(state); err != nil {
+						return err
+					}
+					return testAccCheckInboundClientDestroyed(state)
+				}
+			}
+
 			resource.Test(t, resource.TestCase{
 				PreCheck:                 func() { testAccPreCheck(t) },
 				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
-				CheckDestroy:             testAccCheckInboundDestroyed,
+				CheckDestroy:             checkDestroy,
 				Steps:                    steps,
 			})
 		})
@@ -269,6 +279,13 @@ resource "threexui_inbound" "mx_vmess" {
   protocol = "vmess"
   remark   = "matrix-vmess-updated"
   enable   = false
+  stream_settings {
+    network  = "ws"
+    security = "none"
+    ws_settings {
+      path = "/vmess-ws"
+    }
+  }
 }
 `, port)
 		},
@@ -282,6 +299,7 @@ resource "threexui_inbound" "mx_vmess" {
 			return []resource.TestCheckFunc{
 				resource.TestCheckResourceAttr(addr, "remark", "matrix-vmess-updated"),
 				resource.TestCheckResourceAttr(addr, "enable", "false"),
+				resource.TestCheckResourceAttr(addr, "stream_settings.network", "ws"),
 			}
 		},
 		hasClient: true,
@@ -327,6 +345,12 @@ resource "threexui_inbound" "mx_trojan" {
   protocol = "trojan"
   remark   = "matrix-trojan-updated"
   enable   = true
+  trojan_settings {
+    fallback {
+      dest = "127.0.0.1:8080"
+      xver = 0
+    }
+  }
   sniffing {
     enabled       = true
     dest_override = ["http", "tls"]
@@ -345,6 +369,7 @@ resource "threexui_inbound" "mx_trojan" {
 			return []resource.TestCheckFunc{
 				resource.TestCheckResourceAttr(addr, "remark", "matrix-trojan-updated"),
 				resource.TestCheckResourceAttr(addr, "sniffing.enabled", "true"),
+				resource.TestCheckResourceAttr(addr, "trojan_settings.fallback.0.dest", "127.0.0.1:8080"),
 			}
 		},
 		hasClient: true,
@@ -488,6 +513,8 @@ resource "threexui_inbound" "mx_http" {
 			return []resource.TestCheckFunc{
 				resource.TestCheckResourceAttr(addr, "remark", "matrix-http-updated"),
 				resource.TestCheckResourceAttr(addr, "http_settings.allow_transparent", "true"),
+				resource.TestCheckResourceAttr(addr, "http_settings.account.0.user", "httpuser"),
+				resource.TestCheckResourceAttr(addr, "http_settings.account.0.pass", "httppass"),
 			}
 		},
 	}
@@ -546,6 +573,8 @@ resource "threexui_inbound" "mx_socks" {
 			return []resource.TestCheckFunc{
 				resource.TestCheckResourceAttr(addr, "remark", "matrix-socks-updated"),
 				resource.TestCheckResourceAttr(addr, "socks_settings.udp", "false"),
+				resource.TestCheckResourceAttr(addr, "socks_settings.account.0.user", "socksuser"),
+				resource.TestCheckResourceAttr(addr, "socks_settings.account.0.pass", "sockspass"),
 			}
 		},
 	}
@@ -697,6 +726,12 @@ resource "threexui_inbound" "mx_hysteria" {
     network  = "hysteria"
     security = "tls"
   }
+  sniffing {
+    enabled       = true
+    dest_override = ["http", "tls"]
+    metadata_only = false
+    route_only    = false
+  }
 }
 `, port)
 		},
@@ -709,6 +744,8 @@ resource "threexui_inbound" "mx_hysteria" {
 		updateChecks: func(addr string) []resource.TestCheckFunc {
 			return []resource.TestCheckFunc{
 				resource.TestCheckResourceAttr(addr, "remark", "matrix-hysteria-updated"),
+				resource.TestCheckResourceAttr(addr, "hysteria_settings.version", "2"),
+				resource.TestCheckResourceAttr(addr, "sniffing.enabled", "true"),
 			}
 		},
 		hasClient: true,
