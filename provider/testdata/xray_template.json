@@ -104,6 +104,19 @@
       }
     ]
   },
+  "balancers": [
+    {
+      "tag": "balancer-1",
+      "selector": ["proxy-a", "proxy-b"],
+      "strategy": {
+        "type": "random"
+      }
+    },
+    {
+      "tag": "balancer-2",
+      "selector": ["direct"]
+    }
+  ],
   "burstObservatory": {
     "subjectSelector": ["proxy"],
     "pingConfig": {

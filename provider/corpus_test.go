@@ -10,6 +10,23 @@ import (
 	"testing"
 )
 
+// normalizeViaJSON normalizes a value by marshalling to JSON and back.
+// This resolves type mismatches like []int vs []any{float64} and
+// map[string]string vs map[string]any that arise from Go type differences
+// in the flatten/build layers.
+func normalizeViaJSON(t *testing.T, v any) any {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("normalizeViaJSON marshal: %v", err)
+	}
+	var out any
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatalf("normalizeViaJSON unmarshal: %v", err)
+	}
+	return out
+}
+
 // testdataDir returns the absolute path to provider/testdata/.
 func testdataDir(t *testing.T) string {
 	t.Helper()
@@ -80,8 +97,41 @@ func TestCorpusSettings_RoundTrip(t *testing.T) {
 			}
 			secondFlat := reflattened[0].(map[string]any)
 
-			if !reflect.DeepEqual(firstFlat, secondFlat) {
-				t.Fatalf("round-trip mismatch:\n  first:  %v\n  second: %v", firstFlat, secondFlat)
+			// Normalize via JSON to resolve Go type differences (e.g.
+			// []int vs []any{float64}, map[string]string vs map[string]any).
+			norm1 := normalizeViaJSON(t, firstFlat)
+			norm2 := normalizeViaJSON(t, secondFlat)
+			if !reflect.DeepEqual(norm1, norm2) {
+				t.Fatalf("round-trip mismatch:\n  first:  %v\n  second: %v", norm1, norm2)
+			}
+		})
+	}
+}
+
+// TestCorpusSettings_ClientsStripped verifies that flattenSettings drops the
+// "clients" key (clients are managed via threexui_inbound_client, not inbound settings).
+func TestCorpusSettings_ClientsStripped(t *testing.T) {
+	cases := []struct {
+		fixture string
+		desc    string
+	}{
+		{"settings_vless.json", "VLESS clients stripped"},
+		{"settings_wireguard.json", "WireGuard empty clients stripped"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			raw := string(loadFixture(t, tc.fixture))
+
+			flattened, err := flattenSettings(raw)
+			if err != nil {
+				t.Fatalf("flattenSettings failed: %v", err)
+			}
+			if len(flattened) == 0 {
+				t.Fatal("flattenSettings returned empty result")
+			}
+			firstFlat := flattened[0].(map[string]any)
+			if _, ok := firstFlat["clients"]; ok {
+				t.Fatal("clients should be stripped by flattenSettings")
 			}
 		})
 	}
@@ -103,6 +153,7 @@ func TestCorpusStreamSettings_RoundTrip(t *testing.T) {
 		{"stream_settings_httpupgrade.json", "HTTP Upgrade transport"},
 		{"stream_settings_xhttp.json", "XHTTP transport with keepAliveInterval"},
 		{"stream_settings_sockopt.json", "TCP with full sockopt"},
+		{"stream_settings_hysteria.json", "Hysteria transport with auth and version"},
 	}
 
 	for _, tc := range cases {
@@ -336,6 +387,35 @@ func TestCorpusXrayTemplate_Reverse(t *testing.T) {
 	}
 }
 
+func TestCorpusXrayTemplate_Balancers(t *testing.T) {
+	raw := loadFixture(t, "xray_template.json")
+	var full map[string]any
+	if err := json.Unmarshal(raw, &full); err != nil {
+		t.Fatalf("unmarshal xray_template: %v", err)
+	}
+
+	balancersSection, ok := full["balancers"].([]any)
+	if !ok {
+		t.Fatal("missing balancers section in xray_template")
+	}
+
+	flattened := flattenXrayBalancersToMap(balancersSection)
+	rebuilt := buildXrayBalancersJSON(flattened)
+	builtJSON, err := json.Marshal(rebuilt)
+	if err != nil {
+		t.Fatalf("marshal rebuilt balancers: %v", err)
+	}
+	var builtList []any
+	if err := json.Unmarshal(builtJSON, &builtList); err != nil {
+		t.Fatalf("unmarshal rebuilt balancers: %v", err)
+	}
+	reflattened := flattenXrayBalancersToMap(builtList)
+
+	if !reflect.DeepEqual(flattened, reflattened) {
+		t.Fatalf("xray balancers round-trip mismatch:\n  first:  %v\n  second: %v", flattened, reflattened)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Malformed input handling
 // ---------------------------------------------------------------------------
@@ -473,6 +553,54 @@ func TestCorpusMalformed_ExtraFields(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Panel settings round-trip
+//
+// Panel settings use a different pipeline from inbound settings: typed
+// attributes are directly expanded/flattened via expand*/flatten* functions
+// that work with map[string]any (the API JSON body), not via the
+// buildSettingsJSON/flattenSettings pair.  We test the expand/flatten cycle
+// here to confirm no data is lost.
+// ---------------------------------------------------------------------------
+
+func TestCorpusPanelSettings_SecurityRoundTrip(t *testing.T) {
+	input := map[string]any{
+		"twoFactorEnable": true,
+		"twoFactorToken":  "JBSWY3DPEHPK3PXP",
+	}
+	model := flattenPanelSecurity(input)
+	rebuilt := expandPanelSecurity(model)
+
+	if rebuilt["twoFactorEnable"] != true {
+		t.Fatalf("expected twoFactorEnable=true, got %v", rebuilt["twoFactorEnable"])
+	}
+	if rebuilt["twoFactorToken"] != "JBSWY3DPEHPK3PXP" {
+		t.Fatalf("expected twoFactorToken, got %v", rebuilt["twoFactorToken"])
+	}
+}
+
+func TestCorpusPanelSettings_TelegramRoundTrip(t *testing.T) {
+	input := map[string]any{
+		"tgBotEnable":      true,
+		"tgBotToken":       "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+		"tgBotProxy":       "socks5://127.0.0.1:1080",
+		"tgBotChatId":      "12345678",
+		"tgRunTime":        "@daily",
+		"tgBotBackup":      true,
+		"tgBotLoginNotify": true,
+		"tgCpu":            float64(80),
+	}
+	model := flattenPanelTelegram(input)
+	rebuilt := expandPanelTelegram(model)
+
+	if rebuilt["tgBotEnable"] != true {
+		t.Fatalf("expected tgBotEnable=true, got %v", rebuilt["tgBotEnable"])
+	}
+	if rebuilt["tgBotToken"] != "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11" {
+		t.Fatalf("expected tgBotToken, got %v", rebuilt["tgBotToken"])
+	}
+}
+
+// ---------------------------------------------------------------------------
 // InboundToModel: full inbound payloads through diagnostics path
 // ---------------------------------------------------------------------------
 
@@ -514,6 +642,16 @@ func TestCorpusInboundToModel_VLESSFull(t *testing.T) {
 	if model.Remark.ValueString() != "vless-reality-ws" {
 		t.Fatalf("expected remark vless-reality-ws, got %s", model.Remark.ValueString())
 	}
+	// IMPORTANT-7: verify typed blocks are populated, not nil
+	if model.VlessSettings == nil {
+		t.Fatal("expected VlessSettings to be populated")
+	}
+	if model.StreamSettings == nil {
+		t.Fatal("expected StreamSettings to be populated")
+	}
+	if model.Sniffing == nil {
+		t.Fatal("expected Sniffing to be populated")
+	}
 }
 
 func TestCorpusInboundToModel_DokodemoFull(t *testing.T) {
@@ -542,6 +680,15 @@ func TestCorpusInboundToModel_DokodemoFull(t *testing.T) {
 	if model.Protocol.ValueString() != "dokodemo-door" {
 		t.Fatalf("expected protocol dokodemo-door, got %s", model.Protocol.ValueString())
 	}
+	if model.DokodemoSettings == nil {
+		t.Fatal("expected DokodemoSettings to be populated")
+	}
+	if model.StreamSettings == nil {
+		t.Fatal("expected StreamSettings to be populated")
+	}
+	if model.Sniffing == nil {
+		t.Fatal("expected Sniffing to be populated")
+	}
 }
 
 func TestCorpusInboundToModel_ShadowsocksFull(t *testing.T) {
@@ -564,5 +711,11 @@ func TestCorpusInboundToModel_ShadowsocksFull(t *testing.T) {
 	}
 	if model == nil {
 		t.Fatal("expected non-nil model")
+	}
+	if model.ShadowsocksSettings == nil {
+		t.Fatal("expected ShadowsocksSettings to be populated")
+	}
+	if model.StreamSettings == nil {
+		t.Fatal("expected StreamSettings to be populated")
 	}
 }

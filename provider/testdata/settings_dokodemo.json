@@ -2,5 +2,9 @@
   "address": "127.0.0.1",
   "port": 8080,
   "network": "tcp,udp",
+  "portMap": {
+    "80": "http",
+    "443": "https"
+  },
   "followRedirect": true
 }

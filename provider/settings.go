@@ -27,8 +27,11 @@ func buildSettingsJSON(item map[string]any) string {
 		payload["selectedAuth"] = v
 	}
 	if v, ok := item["testseed"]; ok {
-		if list, ok := v.([]any); ok {
-			payload["testseed"] = expandIntList(list)
+		switch ts := v.(type) {
+		case []any:
+			payload["testseed"] = expandIntList(ts)
+		case []int:
+			payload["testseed"] = ts
 		}
 	}
 	if v, ok := item["method"].(string); ok && v != "" {
@@ -69,8 +72,11 @@ func buildSettingsJSON(item map[string]any) string {
 		}
 	}
 	if v, ok := item["port_map"]; ok {
-		if m, ok := v.(map[string]any); ok {
-			payload["portMap"] = expandStringMap(m)
+		switch pm := v.(type) {
+		case map[string]any:
+			payload["portMap"] = expandStringMap(pm)
+		case map[string]string:
+			payload["portMap"] = pm
 		}
 	}
 	if v, ok := item["follow_redirect"]; ok {

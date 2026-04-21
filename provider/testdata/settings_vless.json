@@ -15,6 +15,7 @@
   ],
   "decryption": "none",
   "encryption": "none",
+  "testseed": [5, 42, 99],
   "fallbacks": [
     {
       "alpn": "h2",
