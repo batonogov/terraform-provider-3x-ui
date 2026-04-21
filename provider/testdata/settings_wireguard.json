@@ -1,0 +1,17 @@
+{
+  "mtu": [1420, 1420],
+  "secretKey": "wg-server-private-key-base64",
+  "peers": [
+    {
+      "privateKey": "wg-peer-private-key",
+      "publicKey": "wg-peer-public-key",
+      "preSharedKey": "wg-preshared-key",
+      "allowedIPs": ["10.0.0.0/24", "fd00::/64"],
+      "keepAlive": 25
+    }
+  ],
+  "gateway": ["10.0.0.1", "fd00::1"],
+  "dns": ["1.1.1.1", "8.8.8.8"],
+  "noKernelTun": false,
+  "clients": []
+}

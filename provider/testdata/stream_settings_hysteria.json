@@ -1,0 +1,10 @@
+{
+  "network": "hysteria",
+  "security": "none",
+  "hysteriaSettings": {
+    "protocol": "udp",
+    "version": 2,
+    "auth": "secret-password",
+    "udpIdleTimeout": 60
+  }
+}

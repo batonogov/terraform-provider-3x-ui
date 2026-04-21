@@ -1,0 +1,18 @@
+{
+  "network": "tcp",
+  "security": "none",
+  "tcpSettings": {
+    "acceptProxyProtocol": false,
+    "header": {
+      "type": "none"
+    }
+  },
+  "sockopt": {
+    "mark": 255,
+    "tcpKeepAliveInterval": 30,
+    "tcpNoDelay": true,
+    "tcpFastOpen": true,
+    "tproxy": "redirect",
+    "domainStrategy": "UseIP"
+  }
+}

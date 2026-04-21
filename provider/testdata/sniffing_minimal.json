@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "destOverride": ["http", "tls"],
+  "metadataOnly": false,
+  "routeOnly": false
+}

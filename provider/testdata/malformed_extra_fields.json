@@ -1,0 +1,7 @@
+{
+  "decryption": "none",
+  "unknownField1": "value1",
+  "unknownField2": [1, 2, 3],
+  "nested_unknown": {"deep": true},
+  "encryption": "none"
+}

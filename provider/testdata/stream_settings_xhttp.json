@@ -1,0 +1,10 @@
+{
+  "network": "xhttp",
+  "security": "none",
+  "xhttpSettings": {
+    "path": "/xhttp-path",
+    "mode": "auto",
+    "noSSEHeader": false,
+    "keepAliveInterval": 30
+  }
+}

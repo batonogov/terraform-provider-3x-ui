@@ -1,0 +1,11 @@
+{
+  "auth": "password",
+  "accounts": [
+    {
+      "user": "socks-user",
+      "pass": "socks-pass"
+    }
+  ],
+  "udp": true,
+  "ip": "127.0.0.1"
+}

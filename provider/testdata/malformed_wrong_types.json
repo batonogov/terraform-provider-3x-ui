@@ -1,0 +1,6 @@
+{
+  "decryption": 12345,
+  "fallbacks": "not-an-array",
+  "testseed": "should-be-array",
+  "network": true
+}
