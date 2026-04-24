@@ -271,6 +271,7 @@ Standard flow for working on issues:
 
 ## Core Principles
 
+- **Always check 3x-ui sources** before making assumptions about API behavior. Source snapshots are in `3x-ui-<version>/` directories. Download new versions with `curl -sL https://github.com/MHSanaei/3x-ui/archive/refs/tags/v<VERSION>.tar.gz | tar xz`. Key files: `web/service/` (business logic), `web/controller/` (API endpoints), `web/entity/model/` (data models), `xray/` (xray config).
 - Be pragmatic: understand the task first, then make the minimum necessary changes.
 - Do not break backward compatibility without an explicit request.
 - Preserve code style and project structure.
