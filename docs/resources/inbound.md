@@ -332,3 +332,37 @@ Inbounds can be imported using their numeric ID:
 ```shell
 terraform import threexui_inbound.example 1
 ```
+
+After import, you only need to specify the fields you want to manage in your configuration.
+Server-populated fields (`show`, `xver`, `short_ids`, `fingerprint`, `public_key`, `private_key`,
+`spider_x`, `metadata_only`, `route_only`, `encryption`, `selected_auth`, etc.) are automatically
+preserved from the imported state — no need to copy them into your `.tf` file.
+
+For example, a minimal configuration for an imported VLESS + Reality inbound:
+
+```hcl
+resource "threexui_inbound" "example" {
+  port     = 443
+  protocol = "vless"
+  enable   = true
+  remark   = "My VLESS"
+
+  vless_settings {
+    decryption = "none"
+  }
+
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "www.apple.com:443"
+      server_names = ["www.apple.com"]
+    }
+  }
+
+  sniffing {
+    enabled       = true
+    dest_override = ["http", "tls", "quic", "fakedns"]
+  }
+}
+```

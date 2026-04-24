@@ -3,6 +3,12 @@ package provider
 import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -97,14 +103,23 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 				"decryption": schema.StringAttribute{
 					Optional: true, Computed: true,
 					Description: "Decryption method (usually 'none').",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"encryption": schema.StringAttribute{
 					Optional: true, Computed: true,
 					Description: "Encryption method.",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"selected_auth": schema.StringAttribute{
 					Optional: true, Computed: true,
 					Description: "Selected authentication type.",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
 				},
 			},
 			Blocks: map[string]schema.Block{
@@ -133,18 +148,30 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 				"method": schema.StringAttribute{
 					Optional: true, Computed: true,
 					Description: "Encryption method (e.g. aes-256-gcm, chacha20-ietf-poly1305).",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"password": schema.StringAttribute{
 					Optional: true, Computed: true, Sensitive: true,
 					Description: "Password for encryption.",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"network": schema.StringAttribute{
 					Optional: true, Computed: true,
 					Description: "Network type (e.g. 'tcp,udp').",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"iv_check": schema.BoolAttribute{
 					Optional: true, Computed: true,
 					Description: "Enable IV check.",
+					PlanModifiers: []planmodifier.Bool{
+						boolplanmodifier.UseStateForUnknown(),
+					},
 				},
 			},
 		},
@@ -154,10 +181,16 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 				"auth": schema.StringAttribute{
 					Optional: true, Computed: true,
 					Description: "Authentication type (e.g. 'password', 'noauth').",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"allow_transparent": schema.BoolAttribute{
 					Optional: true, Computed: true,
 					Description: "Allow transparent proxy.",
+					PlanModifiers: []planmodifier.Bool{
+						boolplanmodifier.UseStateForUnknown(),
+					},
 				},
 			},
 			Blocks: map[string]schema.Block{
@@ -175,14 +208,23 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 				"auth": schema.StringAttribute{
 					Optional: true, Computed: true,
 					Description: "Authentication type (e.g. 'password', 'noauth').",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"udp": schema.BoolAttribute{
 					Optional: true, Computed: true,
 					Description: "Enable UDP support.",
+					PlanModifiers: []planmodifier.Bool{
+						boolplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"ip": schema.StringAttribute{
 					Optional: true, Computed: true,
 					Description: "IP address for UDP.",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
 				},
 			},
 			Blocks: map[string]schema.Block{
@@ -202,26 +244,41 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 					Computed:    true,
 					ElementType: types.Int64Type,
 					Description: "MTU values [IPv4, IPv6].",
+					PlanModifiers: []planmodifier.List{
+						listplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"secret_key": schema.StringAttribute{
 					Optional: true, Computed: true, Sensitive: true,
 					Description: "WireGuard secret key.",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"no_kernel_tun": schema.BoolAttribute{
 					Optional: true, Computed: true,
 					Description: "Disable kernel TUN.",
+					PlanModifiers: []planmodifier.Bool{
+						boolplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"gateway": schema.ListAttribute{
 					Optional:    true,
 					Computed:    true,
 					ElementType: types.StringType,
 					Description: "Gateway addresses.",
+					PlanModifiers: []planmodifier.List{
+						listplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"dns": schema.ListAttribute{
 					Optional:    true,
 					Computed:    true,
 					ElementType: types.StringType,
 					Description: "DNS server addresses.",
+					PlanModifiers: []planmodifier.List{
+						listplanmodifier.UseStateForUnknown(),
+					},
 				},
 			},
 			Blocks: map[string]schema.Block{
@@ -231,20 +288,35 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 						Attributes: map[string]schema.Attribute{
 							"private_key": schema.StringAttribute{
 								Optional: true, Computed: true, Sensitive: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"public_key": schema.StringAttribute{
 								Optional: true, Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"pre_shared_key": schema.StringAttribute{
 								Optional: true, Computed: true, Sensitive: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"allowed_ips": schema.ListAttribute{
 								Optional:    true,
 								Computed:    true,
 								ElementType: types.StringType,
+								PlanModifiers: []planmodifier.List{
+									listplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"keep_alive": schema.Int64Attribute{
 								Optional: true, Computed: true,
+								PlanModifiers: []planmodifier.Int64{
+									int64planmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -257,24 +329,39 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 				"address": schema.StringAttribute{
 					Optional: true, Computed: true,
 					Description: "Destination address.",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"port": schema.Int64Attribute{
 					Optional: true, Computed: true,
 					Description: "Destination port.",
+					PlanModifiers: []planmodifier.Int64{
+						int64planmodifier.UseStateForUnknown(),
+					},
 				},
 				"port_map": schema.MapAttribute{
 					Optional:    true,
 					Computed:    true,
 					ElementType: types.StringType,
 					Description: "Port mapping (e.g. {\"80\": \"127.0.0.1:8080\"}).",
+					PlanModifiers: []planmodifier.Map{
+						mapplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"network": schema.StringAttribute{
 					Optional: true, Computed: true,
 					Description: "Network type (e.g. 'tcp', 'udp', 'tcp,udp').",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
 				},
 				"follow_redirect": schema.BoolAttribute{
 					Optional: true, Computed: true,
 					Description: "Follow redirect.",
+					PlanModifiers: []planmodifier.Bool{
+						boolplanmodifier.UseStateForUnknown(),
+					},
 				},
 			},
 		},
@@ -285,6 +372,9 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 					Optional:    true,
 					Computed:    true,
 					Description: "Hysteria version (1 or 2, default 2).",
+					PlanModifiers: []planmodifier.Int64{
+						int64planmodifier.UseStateForUnknown(),
+					},
 				},
 			},
 		},
@@ -295,18 +385,33 @@ func inboundFallbackAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		"name": schema.StringAttribute{
 			Optional: true, Computed: true,
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"alpn": schema.StringAttribute{
 			Optional: true, Computed: true,
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"path": schema.StringAttribute{
 			Optional: true, Computed: true,
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"dest": schema.StringAttribute{
 			Optional: true, Computed: true,
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"xver": schema.Int64Attribute{
 			Optional: true, Computed: true,
+			PlanModifiers: []planmodifier.Int64{
+				int64planmodifier.UseStateForUnknown(),
+			},
 		},
 	}
 }
@@ -315,9 +420,15 @@ func inboundAccountAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		"user": schema.StringAttribute{
 			Optional: true, Computed: true,
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 		"pass": schema.StringAttribute{
 			Optional: true, Computed: true, Sensitive: true,
+			PlanModifiers: []planmodifier.String{
+				stringplanmodifier.UseStateForUnknown(),
+			},
 		},
 	}
 }
