@@ -1082,10 +1082,17 @@ resource "threexui_inbound" "import_reality" {
 				),
 			},
 			// Step 2: Import — fresh state from the API.
+			// reality_settings.settings is populated by Read during import
+			// but nil'd by alignBlocksWithPlan during Create (user didn't
+			// specify it).  ModifyPlan keeps them in sync at plan time, so
+			// Step 3 verifies no drift; here we just skip the sub-block.
 			{
 				ResourceName:      "threexui_inbound.import_reality",
 				ImportState:       true,
 				ImportStateVerify: true,
+				ImportStateVerifyIgnore: []string{
+					"stream_settings.reality_settings.settings",
+				},
 			},
 			// Step 3: Plan with the same config — must be empty.
 			// Without UseStateForUnknown modifiers this step fails because
