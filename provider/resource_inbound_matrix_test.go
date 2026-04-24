@@ -56,6 +56,7 @@ func protocolMatrix() []protocolMatrixEntry {
 		matrixShadowsocks(),
 		matrixHTTP(),
 		matrixSocks(),
+		matrixMixed(),
 		matrixWireguard(),
 		matrixDokodemo(),
 		matrixHysteria(),
@@ -574,6 +575,66 @@ resource "threexui_inbound" "mx_socks" {
 				resource.TestCheckResourceAttr(addr, "socks_settings.udp", "false"),
 				resource.TestCheckResourceAttr(addr, "socks_settings.account.0.user", "socksuser"),
 				resource.TestCheckResourceAttr(addr, "socks_settings.account.0.pass", "sockspass"),
+			}
+		},
+	}
+}
+
+func matrixMixed() protocolMatrixEntry {
+	return protocolMatrixEntry{
+		protocol: "mixed",
+		tfName:   "mx_mixed",
+		port:     26010,
+		createHCL: func(port int) string {
+			return fmt.Sprintf(`
+resource "threexui_inbound" "mx_mixed" {
+  port     = %d
+  protocol = "mixed"
+  remark   = "matrix-mixed-create"
+  enable   = true
+  mixed_settings {
+    auth = "password"
+    udp  = true
+    ip   = "127.0.0.1"
+    account {
+      user = "mixeduser"
+      pass = "mixedpass"
+    }
+  }
+}
+`, port)
+		},
+		updateHCL: func(port int) string {
+			return fmt.Sprintf(`
+resource "threexui_inbound" "mx_mixed" {
+  port     = %d
+  protocol = "mixed"
+  remark   = "matrix-mixed-updated"
+  enable   = true
+  mixed_settings {
+    auth = "password"
+    udp  = false
+    ip   = "127.0.0.1"
+    account {
+      user = "mixeduser"
+      pass = "mixedpass"
+    }
+  }
+}
+`, port)
+		},
+		createChecks: func(addr string) []resource.TestCheckFunc {
+			return []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr(addr, "remark", "matrix-mixed-create"),
+				resource.TestCheckResourceAttr(addr, "mixed_settings.udp", "true"),
+			}
+		},
+		updateChecks: func(addr string) []resource.TestCheckFunc {
+			return []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr(addr, "remark", "matrix-mixed-updated"),
+				resource.TestCheckResourceAttr(addr, "mixed_settings.udp", "false"),
+				resource.TestCheckResourceAttr(addr, "mixed_settings.account.0.user", "mixeduser"),
+				resource.TestCheckResourceAttr(addr, "mixed_settings.account.0.pass", "mixedpass"),
 			}
 		},
 	}

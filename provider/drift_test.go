@@ -483,6 +483,7 @@ func TestDriftProtocolForms(t *testing.T) {
 	providerExtras := map[string]bool{
 		"vmess": true, // vmess has no settings block but is handled
 		"tun":   true, // alias for tunnel/dokodemo-door
+		"mixed": true, // mixed reuses the socks form in 3x-ui
 	}
 	for k := range providerExtras {
 		providerBlocks[k] = true

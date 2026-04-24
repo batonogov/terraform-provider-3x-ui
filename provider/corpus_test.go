@@ -65,6 +65,7 @@ func TestCorpusSettings_RoundTrip(t *testing.T) {
 		{"settings_shadowsocks.json", "Shadowsocks with method/password/network"},
 		{"settings_http.json", "HTTP with multiple accounts"},
 		{"settings_socks.json", "SOCKS with auth and UDP"},
+		{"settings_mixed.json", "Mixed with auth, accounts, UDP and IP"},
 		{"settings_wireguard.json", "WireGuard with peers, gateway, dns, mtu list"},
 		{"settings_dokodemo.json", "Dokodemo-door with portMap and followRedirect"},
 		{"settings_hysteria.json", "Hysteria v2 with version field"},

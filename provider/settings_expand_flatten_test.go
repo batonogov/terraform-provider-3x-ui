@@ -3,6 +3,8 @@ package provider
 import (
 	"reflect"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 func TestExpandFallbacks_Empty(t *testing.T) {
@@ -261,6 +263,117 @@ func TestBuildFlattenSettings_DokodemoPortMap(t *testing.T) {
 	}
 	if pm["80"] != "http" || pm["443"] != "https" {
 		t.Fatalf("unexpected port_map: %v", pm)
+	}
+}
+
+func TestBuildFlattenSettings_Mixed(t *testing.T) {
+	input := map[string]any{
+		"auth":     "password",
+		"accounts": []any{map[string]any{"user": "mixeduser", "pass": "mixedpass"}},
+		"udp":      true,
+		"ip":       "127.0.0.1",
+	}
+	jsonStr := buildSettingsJSON(input)
+	result, err := flattenSettings(jsonStr)
+	if err != nil {
+		t.Fatalf("flattenSettings error: %v", err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(result))
+	}
+	m, ok := result[0].(map[string]any)
+	if !ok {
+		t.Fatal("expected map[string]any")
+	}
+	if m["auth"] != "password" {
+		t.Fatalf("unexpected auth: %v", m["auth"])
+	}
+	if m["udp"] != true {
+		t.Fatalf("unexpected udp: %v", m["udp"])
+	}
+	if m["ip"] != "127.0.0.1" {
+		t.Fatalf("unexpected ip: %v", m["ip"])
+	}
+	accounts, ok := m["accounts"].([]any)
+	if !ok || len(accounts) != 1 {
+		t.Fatalf("unexpected accounts: %v", m["accounts"])
+	}
+	acc, _ := accounts[0].(map[string]any)
+	if acc["user"] != "mixeduser" || acc["pass"] != "mixedpass" {
+		t.Fatalf("unexpected account: %v", acc)
+	}
+}
+
+func TestExpandFlattenMixedSettingsModel_RoundTrip(t *testing.T) {
+	model := &InboundResourceModel{
+		MixedSettings: &InboundMixedSettingsModel{
+			Auth: types.StringValue("password"),
+			UDP:  types.BoolValue(true),
+			IP:   types.StringValue("127.0.0.1"),
+			Account: []InboundAccountModel{
+				{User: types.StringValue("u1"), Pass: types.StringValue("p1")},
+			},
+		},
+	}
+
+	expanded := expandSettingsFromModel("mixed", model)
+	if expanded == nil {
+		t.Fatal("expected non-nil result for mixed protocol")
+	}
+	if expanded["auth"] != "password" {
+		t.Fatalf("unexpected auth: %v", expanded["auth"])
+	}
+	if expanded["udp"] != true {
+		t.Fatalf("unexpected udp: %v", expanded["udp"])
+	}
+	if expanded["ip"] != "127.0.0.1" {
+		t.Fatalf("unexpected ip: %v", expanded["ip"])
+	}
+
+	// Build JSON and flatten back
+	jsonStr := buildSettingsJSON(expanded)
+	flatMap, err := flattenSettingsToMap(jsonStr)
+	if err != nil {
+		t.Fatalf("flattenSettingsToMap error: %v", err)
+	}
+
+	result := &InboundResourceModel{}
+	flattenSettingsToModel("mixed", flatMap, result)
+	if result.MixedSettings == nil {
+		t.Fatal("expected MixedSettings to be set")
+	}
+	if result.MixedSettings.Auth.ValueString() != "password" {
+		t.Fatalf("unexpected auth: %s", result.MixedSettings.Auth.ValueString())
+	}
+	if result.MixedSettings.UDP.ValueBool() != true {
+		t.Fatalf("unexpected udp: %v", result.MixedSettings.UDP.ValueBool())
+	}
+	if result.MixedSettings.IP.ValueString() != "127.0.0.1" {
+		t.Fatalf("unexpected ip: %s", result.MixedSettings.IP.ValueString())
+	}
+	if len(result.MixedSettings.Account) != 1 {
+		t.Fatalf("expected 1 account, got %d", len(result.MixedSettings.Account))
+	}
+	if result.MixedSettings.Account[0].User.ValueString() != "u1" {
+		t.Fatalf("unexpected user: %s", result.MixedSettings.Account[0].User.ValueString())
+	}
+}
+
+func TestExpandSettingsFromModel_MixedNil(t *testing.T) {
+	model := &InboundResourceModel{
+		MixedSettings: nil,
+	}
+	result := expandSettingsFromModel("mixed", model)
+	if result != nil {
+		t.Fatalf("expected nil for nil MixedSettings, got %v", result)
+	}
+}
+
+func TestFlattenSettingsToModel_MixedEmptyData(t *testing.T) {
+	model := &InboundResourceModel{}
+	flattenSettingsToModel("mixed", map[string]any{}, model)
+	if model.MixedSettings != nil {
+		t.Fatal("expected nil MixedSettings for empty data")
 	}
 }
 

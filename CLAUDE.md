@@ -24,7 +24,7 @@ provider/              — all provider code
   xray_balancers_schema.go   — model, schema, expand/flatten for xray_balancers
   xray_reverse_schema.go     — model, schema, expand/flatten for xray_reverse (bridges, portals)
   xray_outbounds_schema.go   — model, schema, expand/flatten for xray_outbounds (per-protocol settings)
-  inbound_settings_schema.go      — model, schema, expand/flatten for per-protocol settings (vless, trojan, ss, http, socks, wg, dokodemo, hysteria)
+  inbound_settings_schema.go      — model, schema, expand/flatten for per-protocol settings (vless, trojan, ss, http, socks, mixed, wg, dokodemo, hysteria)
   inbound_stream_settings_schema.go — model, schema, expand/flatten for stream_settings (tcp, ws, grpc, httpupgrade, xhttp, kcp, hysteria, reality, sockopt)
   inbound_sniffing_schema.go      — model, schema, expand/flatten for sniffing
   settings.go          — buildSettingsJSON(map[string]any), flattenSettings(string), expand/flatten clients/fallbacks/peers
@@ -112,7 +112,7 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 
 - `settings`, `stream_settings`, `sniffing` — JSON strings in the API, typed blocks in TF schema
 - Three-layer conversion: Typed Model ↔ Untyped Map (expand/flatten*FromModel/*ToModel) ↔ JSON String (build*/flatten*)
-- Per-protocol settings blocks: `vless_settings`, `trojan_settings`, `shadowsocks_settings`, `http_settings`, `socks_settings`, `wireguard_settings`, `dokodemo_settings`, `hysteria_settings`
+- Per-protocol settings blocks: `vless_settings`, `trojan_settings`, `shadowsocks_settings`, `http_settings`, `socks_settings`, `mixed_settings`, `wireguard_settings`, `dokodemo_settings`, `hysteria_settings`
 - stream_settings supports transports: tcp, ws, grpc, httpupgrade, xhttp, kcp, hysteria + reality, sockopt, external_proxy
 - Sniffing supports `ips_excluded` and `domains_excluded` fields (added in 3x-ui 2.9.0)
 - KCP: `congestion`, `read_buffer_size`, `write_buffer_size` replaced by `cwnd_multiplier`, `max_sending_window` (breaking, 2.9.0)
