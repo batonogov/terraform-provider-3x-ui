@@ -60,7 +60,7 @@ resource "threexui_inbound_client" "client_a" {
 | Example | Description |
 | --- | --- |
 | [Provider with env config](examples/provider-env-config/) | Configure the provider using Terraform variables and `TF_VAR_*` environment variables |
-| [VLESS Reality](examples/) | Basic VLESS Reality inbound with a client (Quick Start) |
+| [VLESS Reality](examples/inbound-with-client/) | Basic VLESS Reality inbound with a client (Quick Start) |
 | [Trojan inbound](examples/trojan-inbound/) | Trojan protocol with WebSocket transport |
 | [Shadowsocks inbound](examples/shadowsocks-inbound/) | Shadowsocks with AEAD cipher |
 | [Inbound with clients](examples/inbound-with-client/) | Complete workflow: inbound + multiple clients |

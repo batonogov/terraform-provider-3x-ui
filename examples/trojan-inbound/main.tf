@@ -3,7 +3,8 @@
 terraform {
   required_providers {
     threexui = {
-      source = "batonogov/threexui"
+      source  = "batonogov/threexui"
+      version = "~> 2.0"
     }
   }
 }
@@ -22,6 +23,8 @@ resource "threexui_inbound" "trojan" {
 
   stream_settings {
     network  = "ws"
+    # security = "none" is for local/testing only.
+    # In production, use "tls" or put the inbound behind a reverse proxy with TLS.
     security = "none"
     ws_settings {
       path = "/trojan-ws"
