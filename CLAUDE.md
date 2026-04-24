@@ -171,7 +171,7 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 task build            # Build binary
 task test:unit        # Run unit tests (no Docker / Terraform needed)
 task test:acc         # Run acceptance tests (requires Docker)
-task test:acc:compat  # Run compatibility subset against THREEXUI_VERSION (default v2.9.0)
+task test:acc:compat  # Run all tests with version-aware skipping (THREEXUI_VERSION, default v2.9.2)
 task test             # Run unit + acceptance tests
 task fmt              # gofmt
 task vet              # go vet
@@ -203,7 +203,7 @@ docker compose up -d   # Start 3x-ui on localhost:2053
 # Docker image defaults to webBasePath = / (NOT /panel/)
 # Do not set THREEXUI_BASE_PATH
 
-# Run compatibility subset against a specific 3x-ui version:
+# Run all tests with version-aware skipping:
 THREEXUI_VERSION=v2.8.9 task test:acc:compat
 
 # Run all versions locally:
@@ -211,6 +211,20 @@ for v in v2.8.9 v2.8.10 v2.8.11 v2.9.0; do
   echo "=== Testing $v ===" && THREEXUI_VERSION=$v task test:acc:compat
 done
 ```
+
+### Version-Aware Test Skipping
+
+Tests that use features introduced in specific 3x-ui versions call `requireMinVersion(t, "vX.Y.Z")`
+at the start. When `THREEXUI_VERSION` env var is set (by `task test:acc:compat` or CI matrix),
+tests requiring a newer version are automatically skipped via `t.Skip()`.
+
+Version mapping:
+
+- **v2.9.0+**: mixed protocol, WireGuard mtu as list/gateway/dns, sniffing ips\_excluded/domains\_excluded
+- **v2.8.11+**: tunnel protocol, DNS enable\_parallel\_query/use\_system\_hosts
+
+Tests without `requireMinVersion` run on all supported versions (v2.8.9+).
+Helper: `provider/test_helpers.go` (`requireMinVersion` uses `golang.org/x/mod/semver`).
 
 Acceptance tests use `terraform-plugin-testing`:
 
