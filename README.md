@@ -55,6 +55,17 @@ resource "threexui_inbound_client" "client_a" {
 }
 ```
 
+## Examples
+
+| Example | Description |
+| --- | --- |
+| [Provider with env config](examples/provider-env-config/) | Configure the provider using Terraform variables and `TF_VAR_*` environment variables |
+| [VLESS Reality](examples/) | Basic VLESS Reality inbound with a client (Quick Start) |
+| [Trojan inbound](examples/trojan-inbound/) | Trojan protocol with WebSocket transport |
+| [Shadowsocks inbound](examples/shadowsocks-inbound/) | Shadowsocks with AEAD cipher |
+| [Inbound with clients](examples/inbound-with-client/) | Complete workflow: inbound + multiple clients |
+| [Import existing resources](examples/import-existing/) | Import existing 3x-ui resources into Terraform state |
+
 ## Documentation
 
 Full documentation is available on the [Terraform Registry](https://registry.terraform.io/providers/batonogov/threexui/latest/docs).
