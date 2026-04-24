@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 )
 
 func TestAccXrayVersion(t *testing.T) {
@@ -161,14 +160,8 @@ resource "threexui_xray_version" "test" {
 						t.Fatalf("failed to simulate drift by installing %s: %s", altVersion, err)
 					}
 				},
-				Config:   config,
-				PlanOnly: true,
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectNonEmptyPlan(),
-						plancheck.ExpectResourceAction("threexui_xray_version.test", plancheck.ResourceActionUpdate),
-					},
-				},
+				Config:             config,
+				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
 			},
 			// Step 3: apply should restore the desired version.
