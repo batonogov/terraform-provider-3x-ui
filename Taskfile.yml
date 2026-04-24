@@ -41,7 +41,7 @@ tasks:
     vars:
       TERRAFORM_PATH:
         sh: which terraform
-      THREEXUI_VERSION: '{{.THREEXUI_VERSION | default "v2.9.0"}}'
+      THREEXUI_VERSION: '{{.THREEXUI_VERSION | default "v2.9.2"}}'
       COMPAT_TESTS: >-
         TestAccInboundBasic$|TestAccInboundUpdateFields$|TestAccInboundTrojan$|TestAccInboundShadowsocks$|TestAccInboundClientBasic$|TestAccInboundClientUpdate$|TestAccXrayBasics$|TestAccXrayRouting$|TestAccXrayOutbounds$|TestAccDataSources$
     cmds:
