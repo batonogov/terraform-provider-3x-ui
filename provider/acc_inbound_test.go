@@ -1195,6 +1195,7 @@ resource "threexui_inbound" "import_sniffing" {
 // --- XHTTP with xPadding fields ---
 
 func TestAccInboundXHTTPPadding(t *testing.T) {
+	requireMinVersion(t, "v2.9.2") // xPaddingObfsMode, xPaddingKey added in v2.9.2
 	config := testAccProviderConfig() + `
 resource "threexui_inbound" "xhttp_pad" {
   port     = 25033
