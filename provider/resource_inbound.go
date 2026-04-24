@@ -25,6 +25,7 @@ import (
 var (
 	_ resource.Resource                = &InboundResource{}
 	_ resource.ResourceWithImportState = &InboundResource{}
+	_ resource.ResourceWithModifyPlan  = &InboundResource{}
 )
 
 type InboundResource struct {
@@ -355,6 +356,46 @@ func (r *InboundResource) Delete(ctx context.Context, req resource.DeleteRequest
 
 func (r *InboundResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+// ModifyPlan preserves nested Optional blocks from state when the user did not
+// specify them in config.  Without this, Terraform plans to remove these blocks
+// after import, producing false drift.
+func (r *InboundResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// Skip on create (no prior state) or destroy (no plan).
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan InboundResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var state InboundResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	changed := false
+
+	// Preserve reality_settings.settings block from state when the user
+	// specified reality_settings but omitted the inner settings block.
+	if plan.StreamSettings != nil &&
+		plan.StreamSettings.RealitySettings != nil &&
+		plan.StreamSettings.RealitySettings.Settings == nil &&
+		state.StreamSettings != nil &&
+		state.StreamSettings.RealitySettings != nil &&
+		state.StreamSettings.RealitySettings.Settings != nil {
+		plan.StreamSettings.RealitySettings.Settings = state.StreamSettings.RealitySettings.Settings
+		changed = true
+	}
+
+	if changed {
+		resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	}
 }
 
 // ---------------------------------------------------------------------------

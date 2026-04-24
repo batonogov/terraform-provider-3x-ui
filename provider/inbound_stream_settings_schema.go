@@ -2,6 +2,10 @@ package provider
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -120,10 +124,16 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 			"network": schema.StringAttribute{
 				Optional: true, Computed: true,
 				Description: "Transport network (tcp, ws, grpc, httpupgrade, xhttp, kcp).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"security": schema.StringAttribute{
 				Optional: true, Computed: true,
 				Description: "Security type (none, reality, tls).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 		Blocks: map[string]schema.Block{
@@ -133,15 +143,27 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 					Attributes: map[string]schema.Attribute{
 						"dest": schema.StringAttribute{
 							Optional: true, Computed: true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"port": schema.Int64Attribute{
 							Optional: true, Computed: true,
+							PlanModifiers: []planmodifier.Int64{
+								int64planmodifier.UseStateForUnknown(),
+							},
 						},
 						"remark": schema.StringAttribute{
 							Optional: true, Computed: true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"force_tls": schema.StringAttribute{
 							Optional: true, Computed: true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 					},
 				},
@@ -151,17 +173,29 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 				Attributes: map[string]schema.Attribute{
 					"show": schema.BoolAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"xver": schema.Int64Attribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
 					},
 					"target": schema.StringAttribute{
 						Optional: true, Computed: true,
 						Description: "Target server (e.g. 'google.com:443').",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"server_names": schema.ListAttribute{
 						Optional: true, Computed: true,
 						ElementType: types.StringType,
+						PlanModifiers: []planmodifier.List{
+							listplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"private_key": schema.StringAttribute{
 						Optional: true, Computed: true, Sensitive: true,
@@ -174,9 +208,15 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 						Optional: true, Computed: true,
 						ElementType: types.StringType,
 						Description: "Short IDs (auto-generated if empty).",
+						PlanModifiers: []planmodifier.List{
+							listplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"mldsa65_seed": schema.StringAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 				},
 				Blocks: map[string]schema.Block{
@@ -192,15 +232,27 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 							},
 							"fingerprint": schema.StringAttribute{
 								Optional: true, Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"server_name": schema.StringAttribute{
 								Optional: true, Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"spider_x": schema.StringAttribute{
 								Optional: true, Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"mldsa65_verify": schema.StringAttribute{
 								Optional: true, Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -211,10 +263,16 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 				Attributes: map[string]schema.Attribute{
 					"accept_proxy_protocol": schema.BoolAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"header_type": schema.StringAttribute{
 						Optional: true, Computed: true,
 						Description: "Header type (e.g. 'none', 'http').",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 				},
 			},
@@ -223,12 +281,18 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 				Attributes: map[string]schema.Attribute{
 					"path": schema.StringAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"headers": schema.MapAttribute{
 						Optional:    true,
 						Computed:    true,
 						ElementType: types.StringType,
 						Description: "Custom headers as key-value pairs.",
+						PlanModifiers: []planmodifier.Map{
+							mapplanmodifier.UseStateForUnknown(),
+						},
 					},
 				},
 			},
@@ -237,21 +301,39 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 				Attributes: map[string]schema.Attribute{
 					"service_name": schema.StringAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"multi_mode": schema.BoolAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"idle_timeout": schema.Int64Attribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
 					},
 					"health_check_timeout": schema.Int64Attribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
 					},
 					"permit_without_stream": schema.BoolAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"initial_windows_size": schema.Int64Attribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
 					},
 				},
 			},
@@ -260,9 +342,15 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 				Attributes: map[string]schema.Attribute{
 					"path": schema.StringAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"host": schema.StringAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 				},
 			},
@@ -271,15 +359,27 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 				Attributes: map[string]schema.Attribute{
 					"path": schema.StringAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"mode": schema.StringAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"no_sse_header": schema.BoolAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"keep_alive_interval": schema.Int64Attribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
 					},
 				},
 			},
@@ -288,29 +388,50 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 				Attributes: map[string]schema.Attribute{
 					"mtu": schema.Int64Attribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
 					},
 					"tti": schema.Int64Attribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
 					},
 					"uplink_capacity": schema.Int64Attribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
 					},
 					"downlink_capacity": schema.Int64Attribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
 					},
 					"cwnd_multiplier": schema.Int64Attribute{
 						Optional:    true,
 						Computed:    true,
 						Description: "CWND multiplier.",
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
 					},
 					"max_sending_window": schema.Int64Attribute{
 						Optional:    true,
 						Computed:    true,
 						Description: "Maximum sending window size.",
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
 					},
 					"header_type": schema.StringAttribute{
 						Optional: true, Computed: true,
 						Description: "Header type (e.g. 'none', 'srtp', 'utp', 'wechat-video', 'dtls', 'wireguard').",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 				},
 			},
@@ -321,21 +442,33 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 						Optional:    true,
 						Computed:    true,
 						Description: "Hysteria transport protocol.",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"version": schema.Int64Attribute{
 						Optional:    true,
 						Computed:    true,
 						Description: "Hysteria version (default 2).",
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
 					},
 					"auth": schema.StringAttribute{
 						Optional:    true,
 						Computed:    true,
 						Description: "Hysteria auth string.",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"udp_idle_timeout": schema.Int64Attribute{
 						Optional:    true,
 						Computed:    true,
 						Description: "UDP idle timeout in seconds (default 60).",
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
 					},
 				},
 			},
@@ -344,21 +477,39 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 				Attributes: map[string]schema.Attribute{
 					"mark": schema.Int64Attribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
 					},
 					"tcp_keep_alive_interval": schema.Int64Attribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
 					},
 					"tcp_no_delay": schema.BoolAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"tfo_enable": schema.BoolAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"tproxy": schema.StringAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"domain_strategy": schema.StringAttribute{
 						Optional: true, Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 				},
 			},
