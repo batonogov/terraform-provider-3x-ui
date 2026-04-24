@@ -1,11 +1,13 @@
 package provider
 
 import (
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -38,22 +40,24 @@ type InboundExternalProxyModel struct {
 }
 
 type InboundRealitySettingsModel struct {
-	Show        types.Bool                        `tfsdk:"show"`
-	Xver        types.Int64                       `tfsdk:"xver"`
-	Target      types.String                      `tfsdk:"target"`
-	ServerNames types.List                        `tfsdk:"server_names"` // list of string
-	PrivateKey  types.String                      `tfsdk:"private_key"`
-	ShortIDs    types.List                        `tfsdk:"short_ids"` // list of string
-	Mldsa65Seed types.String                      `tfsdk:"mldsa65_seed"`
-	Settings    *InboundRealityInnerSettingsModel `tfsdk:"settings"`
+	Show        types.Bool   `tfsdk:"show"`
+	Xver        types.Int64  `tfsdk:"xver"`
+	Target      types.String `tfsdk:"target"`
+	ServerNames types.List   `tfsdk:"server_names"` // list of string
+	PrivateKey  types.String `tfsdk:"private_key"`
+	ShortIDs    types.List   `tfsdk:"short_ids"` // list of string
+	Mldsa65Seed types.String `tfsdk:"mldsa65_seed"`
+	Settings    types.Object `tfsdk:"settings"` // realityInnerSettingsAttrTypes
 }
 
-type InboundRealityInnerSettingsModel struct {
-	PublicKey     types.String `tfsdk:"public_key"`
-	Fingerprint   types.String `tfsdk:"fingerprint"`
-	ServerName    types.String `tfsdk:"server_name"`
-	SpiderX       types.String `tfsdk:"spider_x"`
-	Mldsa65Verify types.String `tfsdk:"mldsa65_verify"`
+// realityInnerSettingsAttrTypes defines the attribute types for the
+// reality_settings.settings nested attribute (SingleNestedAttribute).
+var realityInnerSettingsAttrTypes = map[string]attr.Type{
+	"public_key":     types.StringType,
+	"fingerprint":    types.StringType,
+	"server_name":    types.StringType,
+	"spider_x":       types.StringType,
+	"mldsa65_verify": types.StringType,
 }
 
 type InboundTCPSettingsModel struct {
@@ -218,10 +222,12 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
-				},
-				Blocks: map[string]schema.Block{
-					"settings": schema.SingleNestedBlock{
+					"settings": schema.SingleNestedAttribute{
+						Optional: true, Computed: true,
 						Description: "Reality inner settings (client-side).",
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 							"public_key": schema.StringAttribute{
 								Optional: true, Computed: true,
@@ -634,33 +640,24 @@ func expandRealitySettingsFromModel(m *InboundRealitySettingsModel) map[string]a
 	if !m.Mldsa65Seed.IsNull() && !m.Mldsa65Seed.IsUnknown() {
 		out["mldsa65_seed"] = m.Mldsa65Seed.ValueString()
 	}
-	if m.Settings != nil {
-		if s := expandRealityInnerSettingsFromModel(m.Settings); len(s) > 0 {
-			out["settings"] = []any{s}
+	if !m.Settings.IsNull() && !m.Settings.IsUnknown() {
+		if s := expandRealityInnerSettingsFromObject(m.Settings); len(s) > 0 {
+			out["settings"] = s
 		}
 	}
 	return out
 }
 
-func expandRealityInnerSettingsFromModel(m *InboundRealityInnerSettingsModel) map[string]any {
-	if m == nil {
+func expandRealityInnerSettingsFromObject(obj types.Object) map[string]any {
+	if obj.IsNull() || obj.IsUnknown() {
 		return nil
 	}
 	out := map[string]any{}
-	if !m.PublicKey.IsNull() && !m.PublicKey.IsUnknown() {
-		out["public_key"] = m.PublicKey.ValueString()
-	}
-	if !m.Fingerprint.IsNull() && !m.Fingerprint.IsUnknown() {
-		out["fingerprint"] = m.Fingerprint.ValueString()
-	}
-	if !m.ServerName.IsNull() && !m.ServerName.IsUnknown() {
-		out["server_name"] = m.ServerName.ValueString()
-	}
-	if !m.SpiderX.IsNull() && !m.SpiderX.IsUnknown() {
-		out["spider_x"] = m.SpiderX.ValueString()
-	}
-	if !m.Mldsa65Verify.IsNull() && !m.Mldsa65Verify.IsUnknown() {
-		out["mldsa65_verify"] = m.Mldsa65Verify.ValueString()
+	attrs := obj.Attributes()
+	for _, key := range []string{"public_key", "fingerprint", "server_name", "spider_x", "mldsa65_verify"} {
+		if v, ok := attrs[key].(types.String); ok && !v.IsNull() && !v.IsUnknown() {
+			out[key] = v.ValueString()
+		}
 	}
 	return out
 }
@@ -992,45 +989,32 @@ func flattenRealitySettingsToModel(data map[string]any) *InboundRealitySettingsM
 	} else {
 		m.Mldsa65Seed = types.StringNull()
 	}
-	if v, ok := data["settings"].([]any); ok && len(v) > 0 {
-		if raw, ok := v[0].(map[string]any); ok {
-			m.Settings = flattenRealityInnerSettingsToModel(raw)
-		}
+	if v, ok := data["settings"].(map[string]any); ok && len(v) > 0 {
+		m.Settings = flattenRealityInnerSettingsToObject(v)
+	} else {
+		m.Settings = types.ObjectNull(realityInnerSettingsAttrTypes)
 	}
 	return m
 }
 
-func flattenRealityInnerSettingsToModel(data map[string]any) *InboundRealityInnerSettingsModel {
+func flattenRealityInnerSettingsToObject(data map[string]any) types.Object {
 	if len(data) == 0 {
-		return nil
+		return types.ObjectNull(realityInnerSettingsAttrTypes)
 	}
-	m := &InboundRealityInnerSettingsModel{}
-	if v, ok := data["public_key"].(string); ok && v != "" {
-		m.PublicKey = types.StringValue(v)
-	} else {
-		m.PublicKey = types.StringNull()
+	attrs := map[string]attr.Value{
+		"public_key":     types.StringNull(),
+		"fingerprint":    types.StringNull(),
+		"server_name":    types.StringNull(),
+		"spider_x":       types.StringNull(),
+		"mldsa65_verify": types.StringNull(),
 	}
-	if v, ok := data["fingerprint"].(string); ok && v != "" {
-		m.Fingerprint = types.StringValue(v)
-	} else {
-		m.Fingerprint = types.StringNull()
+	for _, key := range []string{"public_key", "fingerprint", "server_name", "spider_x", "mldsa65_verify"} {
+		if v, ok := data[key].(string); ok && v != "" {
+			attrs[key] = types.StringValue(v)
+		}
 	}
-	if v, ok := data["server_name"].(string); ok && v != "" {
-		m.ServerName = types.StringValue(v)
-	} else {
-		m.ServerName = types.StringNull()
-	}
-	if v, ok := data["spider_x"].(string); ok && v != "" {
-		m.SpiderX = types.StringValue(v)
-	} else {
-		m.SpiderX = types.StringNull()
-	}
-	if v, ok := data["mldsa65_verify"].(string); ok && v != "" {
-		m.Mldsa65Verify = types.StringValue(v)
-	} else {
-		m.Mldsa65Verify = types.StringNull()
-	}
-	return m
+	obj, _ := types.ObjectValue(realityInnerSettingsAttrTypes, attrs)
+	return obj
 }
 
 func flattenTCPSettingsToModel(data map[string]any) *InboundTCPSettingsModel {

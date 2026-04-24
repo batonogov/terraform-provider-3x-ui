@@ -1038,9 +1038,9 @@ resource "threexui_inbound" "hysteria" {
 //
 // After importing an existing inbound, planning with a config that omits
 // Optional+Computed fields (show, xver, short_ids, metadata_only, route_only,
-// encryption, selected_auth, reality settings block, etc.) must produce an
+// encryption, selected_auth, reality settings attribute, etc.) must produce an
 // empty plan.  This is the primary regression test for the UseStateForUnknown
-// plan modifiers and the ModifyPlan that preserves reality_settings.settings.
+// plan modifiers (including the object-level modifier on reality_settings.settings).
 
 func TestAccInboundImportNoDrift_Reality(t *testing.T) {
 	config := testAccProviderConfig() + `
@@ -1082,17 +1082,13 @@ resource "threexui_inbound" "import_reality" {
 				),
 			},
 			// Step 2: Import — fresh state from the API.
-			// reality_settings.settings is populated by Read during import
-			// but nil'd by alignBlocksWithPlan during Create (user didn't
-			// specify it).  ModifyPlan keeps them in sync at plan time, so
-			// Step 3 verifies no drift; here we just skip the sub-block.
+			// reality_settings.settings is an Optional+Computed attribute
+			// with UseStateForUnknown — both Create and Import populate it
+			// from the API, so ImportStateVerify passes without ignores.
 			{
 				ResourceName:      "threexui_inbound.import_reality",
 				ImportState:       true,
 				ImportStateVerify: true,
-				ImportStateVerifyIgnore: []string{
-					"stream_settings.reality_settings.settings",
-				},
 			},
 			// Step 3: Plan with the same config — must be empty.
 			// Without UseStateForUnknown modifiers this step fails because
