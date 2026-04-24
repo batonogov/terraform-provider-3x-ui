@@ -1,0 +1,18 @@
+servers = {
+  finland = {
+    endpoint = "https://fi.example.com:2053"
+    username = "admin"
+    password = "secret-fi"
+  }
+  netherlands = {
+    endpoint  = "https://nl.example.com:2053"
+    base_path = "/panel/"
+    username  = "admin"
+    password  = "secret-nl"
+  }
+  germany = {
+    endpoint = "https://de.example.com:2053"
+    username = "admin"
+    password = "secret-de"
+  }
+}
