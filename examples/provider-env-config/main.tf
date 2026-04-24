@@ -37,7 +37,8 @@ variable "threexui_base_path" {
 terraform {
   required_providers {
     threexui = {
-      source = "batonogov/threexui"
+      source  = "batonogov/threexui"
+      version = "~> 2.0"
     }
   }
 }
