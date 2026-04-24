@@ -1186,6 +1186,62 @@ resource "threexui_inbound" "import_sniffing" {
 	})
 }
 
+// --- XHTTP with xPadding fields ---
+
+func TestAccInboundXHTTPPadding(t *testing.T) {
+	config := testAccProviderConfig() + `
+resource "threexui_inbound" "xhttp_pad" {
+  port     = 25033
+  protocol = "vless"
+  remark   = "acc-xhttp-xpadding"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+  stream_settings {
+    network  = "xhttp"
+    security = "none"
+    xhttp_settings {
+      path                = "/xhttp-padded"
+      mode                = "auto"
+      x_padding_bytes     = "100-1000"
+      x_padding_obfs_mode = true
+      x_padding_key       = "my-secret-key"
+      x_padding_header    = "X-Padding"
+      x_padding_placement = "header"
+      x_padding_method    = "aes"
+    }
+  }
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound.xhttp_pad", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound.xhttp_pad", "protocol", "vless"),
+					resource.TestCheckResourceAttr("threexui_inbound.xhttp_pad", "stream_settings.xhttp_settings.path", "/xhttp-padded"),
+					resource.TestCheckResourceAttr("threexui_inbound.xhttp_pad", "stream_settings.xhttp_settings.x_padding_bytes", "100-1000"),
+					resource.TestCheckResourceAttr("threexui_inbound.xhttp_pad", "stream_settings.xhttp_settings.x_padding_obfs_mode", "true"),
+					resource.TestCheckResourceAttr("threexui_inbound.xhttp_pad", "stream_settings.xhttp_settings.x_padding_key", "my-secret-key"),
+					resource.TestCheckResourceAttr("threexui_inbound.xhttp_pad", "stream_settings.xhttp_settings.x_padding_header", "X-Padding"),
+					resource.TestCheckResourceAttr("threexui_inbound.xhttp_pad", "stream_settings.xhttp_settings.x_padding_placement", "header"),
+					resource.TestCheckResourceAttr("threexui_inbound.xhttp_pad", "stream_settings.xhttp_settings.x_padding_method", "aes"),
+				),
+			},
+			{
+				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
 // --- Config helpers ---
 
 func testAccInboundUpdateConfig(remark string, port int, enable bool) string {

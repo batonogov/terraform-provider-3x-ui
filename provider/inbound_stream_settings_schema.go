@@ -89,6 +89,12 @@ type InboundXHTTPSettingsModel struct {
 	Mode              types.String `tfsdk:"mode"`
 	NoSSEHeader       types.Bool   `tfsdk:"no_sse_header"`
 	KeepAliveInterval types.Int64  `tfsdk:"keep_alive_interval"`
+	XPaddingBytes     types.String `tfsdk:"x_padding_bytes"`
+	XPaddingObfsMode  types.Bool   `tfsdk:"x_padding_obfs_mode"`
+	XPaddingKey       types.String `tfsdk:"x_padding_key"`
+	XPaddingHeader    types.String `tfsdk:"x_padding_header"`
+	XPaddingPlacement types.String `tfsdk:"x_padding_placement"`
+	XPaddingMethod    types.String `tfsdk:"x_padding_method"`
 }
 
 type InboundKCPSettingsModel struct {
@@ -385,6 +391,48 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 						Optional: true, Computed: true,
 						PlanModifiers: []planmodifier.Int64{
 							int64planmodifier.UseStateForUnknown(),
+						},
+					},
+					"x_padding_bytes": schema.StringAttribute{
+						Optional: true, Computed: true,
+						Description: "xPadding bytes range (e.g. '100-1000').",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"x_padding_obfs_mode": schema.BoolAttribute{
+						Optional: true, Computed: true,
+						Description: "Enable xPadding obfuscation mode.",
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"x_padding_key": schema.StringAttribute{
+						Optional: true, Computed: true,
+						Description: "xPadding encryption key.",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"x_padding_header": schema.StringAttribute{
+						Optional: true, Computed: true,
+						Description: "xPadding header name.",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"x_padding_placement": schema.StringAttribute{
+						Optional: true, Computed: true,
+						Description: "xPadding placement (e.g. 'header', 'body').",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"x_padding_method": schema.StringAttribute{
+						Optional: true, Computed: true,
+						Description: "xPadding method.",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
 				},
@@ -754,6 +802,24 @@ func expandXHTTPSettingsFromModel(m *InboundXHTTPSettingsModel) map[string]any {
 	}
 	if !m.KeepAliveInterval.IsNull() && !m.KeepAliveInterval.IsUnknown() {
 		out["keep_alive_interval"] = int(m.KeepAliveInterval.ValueInt64())
+	}
+	if !m.XPaddingBytes.IsNull() && !m.XPaddingBytes.IsUnknown() {
+		out["x_padding_bytes"] = m.XPaddingBytes.ValueString()
+	}
+	if !m.XPaddingObfsMode.IsNull() && !m.XPaddingObfsMode.IsUnknown() {
+		out["x_padding_obfs_mode"] = m.XPaddingObfsMode.ValueBool()
+	}
+	if !m.XPaddingKey.IsNull() && !m.XPaddingKey.IsUnknown() {
+		out["x_padding_key"] = m.XPaddingKey.ValueString()
+	}
+	if !m.XPaddingHeader.IsNull() && !m.XPaddingHeader.IsUnknown() {
+		out["x_padding_header"] = m.XPaddingHeader.ValueString()
+	}
+	if !m.XPaddingPlacement.IsNull() && !m.XPaddingPlacement.IsUnknown() {
+		out["x_padding_placement"] = m.XPaddingPlacement.ValueString()
+	}
+	if !m.XPaddingMethod.IsNull() && !m.XPaddingMethod.IsUnknown() {
+		out["x_padding_method"] = m.XPaddingMethod.ValueString()
 	}
 	return out
 }
@@ -1142,6 +1208,36 @@ func flattenXHTTPSettingsToModel(data map[string]any) *InboundXHTTPSettingsModel
 		m.KeepAliveInterval = types.Int64Value(int64(intValue(v)))
 	} else {
 		m.KeepAliveInterval = types.Int64Null()
+	}
+	if v, ok := data["x_padding_bytes"].(string); ok && v != "" {
+		m.XPaddingBytes = types.StringValue(v)
+	} else {
+		m.XPaddingBytes = types.StringNull()
+	}
+	if v, ok := data["x_padding_obfs_mode"].(bool); ok {
+		m.XPaddingObfsMode = types.BoolValue(v)
+	} else {
+		m.XPaddingObfsMode = types.BoolNull()
+	}
+	if v, ok := data["x_padding_key"].(string); ok && v != "" {
+		m.XPaddingKey = types.StringValue(v)
+	} else {
+		m.XPaddingKey = types.StringNull()
+	}
+	if v, ok := data["x_padding_header"].(string); ok && v != "" {
+		m.XPaddingHeader = types.StringValue(v)
+	} else {
+		m.XPaddingHeader = types.StringNull()
+	}
+	if v, ok := data["x_padding_placement"].(string); ok && v != "" {
+		m.XPaddingPlacement = types.StringValue(v)
+	} else {
+		m.XPaddingPlacement = types.StringNull()
+	}
+	if v, ok := data["x_padding_method"].(string); ok && v != "" {
+		m.XPaddingMethod = types.StringValue(v)
+	} else {
+		m.XPaddingMethod = types.StringNull()
 	}
 	return m
 }
