@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
@@ -159,6 +160,16 @@ resource "threexui_xray_version" "test" {
 					if err := client.InstallXray(ctx, altVersion); err != nil {
 						t.Fatalf("failed to simulate drift by installing %s: %s", altVersion, err)
 					}
+					// InstallXray is async — wait for the version to actually change.
+					for i := 0; i < 30; i++ {
+						time.Sleep(time.Second)
+						cur, err := client.GetCurrentXrayVersion(ctx)
+						if err == nil && cur == altVersion {
+							t.Logf("drift simulated: version changed to %s after %ds", altVersion, i+1)
+							return
+						}
+					}
+					t.Fatalf("InstallXray(%s) returned success but version did not change within 30s", altVersion)
 				},
 				Config:             config,
 				PlanOnly:           true,
