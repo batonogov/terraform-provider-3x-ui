@@ -118,7 +118,9 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 - KCP: `congestion`, `read_buffer_size`, `write_buffer_size` replaced by `cwnd_multiplier`, `max_sending_window` (breaking, 2.9.0)
 - WireGuard: `mtu` changed from int to list [v4, v6]; added `gateway` and `dns` list fields (breaking, 2.9.0)
 - Hysteria: `auth` field on `threexui_inbound_client` used as client identifier (instead of UUID-based `id`)
+- All `Optional+Computed` inbound attributes have `UseStateForUnknown` plan modifiers — prevents false drift (`known after apply`) after import
 - `alignBlocksWithPlan` — prevents "was absent, but now present" errors for Optional blocks (Create/Read/Update); skipped during Import (detect: `state.Protocol.IsNull()`)
+- `ModifyPlan` — preserves `reality_settings.settings` nested block from state when absent in config; needed because blocks don't support attribute-level plan modifiers, and `alignBlocksWithPlan` doesn't nil sub-sub-blocks when the parent block is present
 - `preserveInboundSettings` — on update, preserves clients and testseed from existing inbound
 - `ensureRealityKeys` — auto-generates private/public key and short_ids
 - `ensureInboundClientIDs` — auto-generates UUID for clients without id
