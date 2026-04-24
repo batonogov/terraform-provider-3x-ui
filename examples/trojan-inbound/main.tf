@@ -22,7 +22,7 @@ resource "threexui_inbound" "trojan" {
   enable   = true
 
   stream_settings {
-    network  = "ws"
+    network = "ws"
     # security = "none" is for local/testing only.
     # In production, use "tls" or put the inbound behind a reverse proxy with TLS.
     security = "none"
