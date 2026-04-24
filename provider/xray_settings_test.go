@@ -1315,6 +1315,123 @@ func TestBuildXrayDNSJSON_Roundtrip(t *testing.T) {
 	}
 }
 
+func TestBuildXrayDNSJSON_NewFields_Roundtrip(t *testing.T) {
+	input := map[string]any{
+		"server": []any{
+			map[string]any{"address": "8.8.8.8"},
+		},
+		"query_strategy":        "UseIP",
+		"enable_parallel_query": true,
+		"use_system_hosts":      false,
+	}
+	flattened := flattenXrayDNSToMap(buildXrayDNSJSON(input))
+	if flattened["enable_parallel_query"] != true {
+		t.Fatalf("expected enable_parallel_query true, got %v", flattened["enable_parallel_query"])
+	}
+	if flattened["use_system_hosts"] != false {
+		t.Fatalf("expected use_system_hosts false, got %v", flattened["use_system_hosts"])
+	}
+}
+
+func TestFlattenXrayDNSToMap_NewFields(t *testing.T) {
+	data := map[string]any{
+		"servers":             []any{"8.8.8.8"},
+		"queryStrategy":       "UseIP",
+		"enableParallelQuery": true,
+		"useSystemHosts":      true,
+	}
+	result := flattenXrayDNSToMap(data)
+	if result["enable_parallel_query"] != true {
+		t.Fatalf("expected enable_parallel_query true, got %v", result["enable_parallel_query"])
+	}
+	if result["use_system_hosts"] != true {
+		t.Fatalf("expected use_system_hosts true, got %v", result["use_system_hosts"])
+	}
+}
+
+func TestFlattenXrayDNSToMap_NewFields_Missing(t *testing.T) {
+	data := map[string]any{
+		"servers":       []any{"8.8.8.8"},
+		"queryStrategy": "UseIP",
+	}
+	result := flattenXrayDNSToMap(data)
+	if _, ok := result["enable_parallel_query"]; ok {
+		t.Fatalf("enable_parallel_query should be absent when not in payload")
+	}
+	if _, ok := result["use_system_hosts"]; ok {
+		t.Fatalf("use_system_hosts should be absent when not in payload")
+	}
+}
+
+func TestExpandXrayDNS_NewFields(t *testing.T) {
+	m := &XrayDNSModel{
+		ID:                     types.StringValue("xray_dns"),
+		Hosts:                  types.MapNull(types.StringType),
+		QueryStrategy:          types.StringValue("UseIP"),
+		Tag:                    types.StringNull(),
+		DisableCache:           types.BoolNull(),
+		DisableFallback:        types.BoolNull(),
+		DisableFallbackIfMatch: types.BoolNull(),
+		ClientIP:               types.StringNull(),
+		EnableParallelQuery:    types.BoolValue(true),
+		UseSystemHosts:         types.BoolValue(false),
+	}
+	result := expandXrayDNS(m)
+	if result["enable_parallel_query"] != true {
+		t.Fatalf("expected enable_parallel_query true, got %v", result["enable_parallel_query"])
+	}
+	if result["use_system_hosts"] != false {
+		t.Fatalf("expected use_system_hosts false, got %v", result["use_system_hosts"])
+	}
+}
+
+func TestExpandXrayDNS_NewFields_Null(t *testing.T) {
+	m := &XrayDNSModel{
+		ID:                     types.StringValue("xray_dns"),
+		Hosts:                  types.MapNull(types.StringType),
+		QueryStrategy:          types.StringNull(),
+		Tag:                    types.StringNull(),
+		DisableCache:           types.BoolNull(),
+		DisableFallback:        types.BoolNull(),
+		DisableFallbackIfMatch: types.BoolNull(),
+		ClientIP:               types.StringNull(),
+		EnableParallelQuery:    types.BoolNull(),
+		UseSystemHosts:         types.BoolNull(),
+	}
+	result := expandXrayDNS(m)
+	if _, ok := result["enable_parallel_query"]; ok {
+		t.Fatalf("null enable_parallel_query should not be in expanded map")
+	}
+	if _, ok := result["use_system_hosts"]; ok {
+		t.Fatalf("null use_system_hosts should not be in expanded map")
+	}
+}
+
+func TestFlattenXrayDNS_NewFields(t *testing.T) {
+	data := map[string]any{
+		"enable_parallel_query": true,
+		"use_system_hosts":      false,
+	}
+	result := flattenXrayDNS(data)
+	if result.EnableParallelQuery.ValueBool() != true {
+		t.Fatalf("expected EnableParallelQuery true, got %v", result.EnableParallelQuery)
+	}
+	if result.UseSystemHosts.ValueBool() != false {
+		t.Fatalf("expected UseSystemHosts false, got %v", result.UseSystemHosts)
+	}
+}
+
+func TestFlattenXrayDNS_NewFields_Missing(t *testing.T) {
+	data := map[string]any{}
+	result := flattenXrayDNS(data)
+	if !result.EnableParallelQuery.IsNull() {
+		t.Fatalf("expected null EnableParallelQuery when not in data")
+	}
+	if !result.UseSystemHosts.IsNull() {
+		t.Fatalf("expected null UseSystemHosts when not in data")
+	}
+}
+
 func TestBuildXrayRoutingJSON_Roundtrip(t *testing.T) {
 	input := map[string]any{
 		"domain_strategy": "IPIfNonMatch",

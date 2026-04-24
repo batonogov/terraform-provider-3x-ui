@@ -24,6 +24,8 @@ type XrayDNSModel struct {
 	DisableFallback        types.Bool      `tfsdk:"disable_fallback"`
 	DisableFallbackIfMatch types.Bool      `tfsdk:"disable_fallback_if_match"`
 	ClientIP               types.String    `tfsdk:"client_ip"`
+	EnableParallelQuery    types.Bool      `tfsdk:"enable_parallel_query"`
+	UseSystemHosts         types.Bool      `tfsdk:"use_system_hosts"`
 }
 
 type XrayDNSServer struct {
@@ -67,6 +69,12 @@ func xrayDNSSchema() schema.Schema {
 				Optional: true, Computed: true,
 			},
 			"client_ip": schema.StringAttribute{
+				Optional: true, Computed: true,
+			},
+			"enable_parallel_query": schema.BoolAttribute{
+				Optional: true, Computed: true,
+			},
+			"use_system_hosts": schema.BoolAttribute{
 				Optional: true, Computed: true,
 			},
 			"hosts": schema.MapAttribute{
@@ -158,6 +166,12 @@ func expandXrayDNS(m *XrayDNSModel) map[string]any {
 	if !m.ClientIP.IsNull() && !m.ClientIP.IsUnknown() {
 		out["client_ip"] = m.ClientIP.ValueString()
 	}
+	if !m.EnableParallelQuery.IsNull() && !m.EnableParallelQuery.IsUnknown() {
+		out["enable_parallel_query"] = m.EnableParallelQuery.ValueBool()
+	}
+	if !m.UseSystemHosts.IsNull() && !m.UseSystemHosts.IsUnknown() {
+		out["use_system_hosts"] = m.UseSystemHosts.ValueBool()
+	}
 
 	return out
 }
@@ -228,6 +242,8 @@ func flattenXrayDNS(data map[string]any) *XrayDNSModel {
 		DisableFallback:        types.BoolNull(),
 		DisableFallbackIfMatch: types.BoolNull(),
 		ClientIP:               types.StringNull(),
+		EnableParallelQuery:    types.BoolNull(),
+		UseSystemHosts:         types.BoolNull(),
 	}
 
 	if v, ok := data["server"].([]any); ok {
@@ -257,6 +273,12 @@ func flattenXrayDNS(data map[string]any) *XrayDNSModel {
 	}
 	if v, ok := data["client_ip"].(string); ok {
 		m.ClientIP = types.StringValue(v)
+	}
+	if v, ok := data["enable_parallel_query"].(bool); ok {
+		m.EnableParallelQuery = types.BoolValue(v)
+	}
+	if v, ok := data["use_system_hosts"].(bool); ok {
+		m.UseSystemHosts = types.BoolValue(v)
 	}
 
 	return m
@@ -360,6 +382,12 @@ func buildXrayDNSJSON(d map[string]any) any {
 	}
 	if v, ok := d["client_ip"].(string); ok && v != "" {
 		payload["clientIp"] = v
+	}
+	if v, ok := d["enable_parallel_query"]; ok {
+		payload["enableParallelQuery"] = boolValue(v)
+	}
+	if v, ok := d["use_system_hosts"]; ok {
+		payload["useSystemHosts"] = boolValue(v)
 	}
 
 	return payload
@@ -490,6 +518,12 @@ func flattenXrayDNSToMap(data any) map[string]any {
 	}
 	if v, ok := payload["clientIp"].(string); ok {
 		out["client_ip"] = v
+	}
+	if v, ok := payload["enableParallelQuery"].(bool); ok {
+		out["enable_parallel_query"] = v
+	}
+	if v, ok := payload["useSystemHosts"].(bool); ok {
+		out["use_system_hosts"] = v
 	}
 
 	return out
