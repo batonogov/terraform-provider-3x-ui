@@ -11,6 +11,7 @@ import (
 // --- Panel General: page_size, remark_model, time_location, update, idempotency ---
 
 func TestAccPanelGeneral(t *testing.T) {
+	requireMinVersion(t, "v2.8.10")
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
@@ -172,6 +173,7 @@ resource "threexui_panel_general" "test" {
 // --- Panel General: LDAP fields ---
 
 func TestAccPanelGeneralLDAP(t *testing.T) {
+	requireMinVersion(t, "v2.8.10")
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
@@ -429,6 +431,7 @@ resource "threexui_panel_telegram" "test" {
 // Terraform applies independent resources concurrently, so both paths compete
 // for the settings API. The settingsMu mutex must serialize these operations.
 func TestAccPanelGeneralConcurrentSettings(t *testing.T) {
+	requireMinVersion(t, "v2.8.10")
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
@@ -592,6 +595,7 @@ resource "threexui_panel_subscription" "test" {
 // same graph without lost updates. Both compete for the xray template
 // endpoint; xrayTemplateMu must serialize them.
 func TestAccPanelGeneralConcurrentXray(t *testing.T) {
+	requireMinVersion(t, "v2.8.10")
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
@@ -907,6 +911,7 @@ resource "threexui_panel_subscription" "test" {
 // because the framework re-configures the provider between apply and
 // post-apply plan, which would create a new client with the old base_path.
 func TestAccPanelGeneralBasePathChange(t *testing.T) {
+	requireMinVersion(t, "v2.8.10")
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("TF_ACC not set")
 	}
