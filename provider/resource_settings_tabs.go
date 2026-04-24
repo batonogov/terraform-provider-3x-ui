@@ -249,6 +249,12 @@ type PanelSubscriptionModel struct {
 
 func panelSubscriptionSchema() schema.Schema {
 	return schema.Schema{
+		MarkdownDescription: "Manages subscription settings in the 3x-ui panel.\n\n" +
+			"~> **Note:** When `sub_port` (default `2096`) differs from the main panel port and the panel " +
+			"runs behind a reverse proxy, the proxy must be configured to forward subscription path requests " +
+			"to the subscription port. Without this, subscription URLs will return 404. " +
+			"For example, in Caddy: `handle /sub/* { reverse_proxy 3x-ui:2096 }`. " +
+			"In Nginx: `location /sub/ { proxy_pass http://3x-ui:2096; }`.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
