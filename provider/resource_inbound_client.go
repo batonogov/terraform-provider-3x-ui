@@ -13,6 +13,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -94,52 +96,88 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 			"security": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"password": schema.StringAttribute{
 				Optional:  true,
 				Computed:  true,
 				Sensitive: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"flow": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"auth": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
 				Description: "Auth password for Hysteria clients.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"limit_ip": schema.Int64Attribute{
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"total_gb": schema.Int64Attribute{
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"expiry_time": schema.Int64Attribute{
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"enable": schema.BoolAttribute{
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"tg_id": schema.Int64Attribute{
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"sub_id": schema.StringAttribute{
-				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"comment": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"reset": schema.Int64Attribute{
 				Optional: true,
 				Computed: true,
+				Default:  int64default.StaticInt64(0),
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
@@ -189,6 +227,16 @@ func (r *InboundClientResource) Create(ctx context.Context, req resource.CreateR
 		}
 	}
 	clientData["id"] = clientID
+
+	// Generate subId if not present (API does not auto-generate it; the web UI does).
+	if stringValue(clientData["subId"]) == "" {
+		subID, err := newSubID()
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to generate sub_id", err.Error())
+			return
+		}
+		clientData["subId"] = subID
+	}
 
 	if err := r.client.AddInboundClient(ctx, inboundID, clientData); err != nil {
 		resp.Diagnostics.AddError("Failed to add inbound client", err.Error())
@@ -491,6 +539,18 @@ func findClientByID(clients []map[string]any, clientID string) map[string]any {
 
 func makeInboundClientID(inboundID int, clientID string) string {
 	return fmt.Sprintf("%d:%s", inboundID, clientID)
+}
+
+func newSubID() (string, error) {
+	const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	for i := range b {
+		b[i] = chars[b[i]%byte(len(chars))]
+	}
+	return string(b), nil
 }
 
 func newUUID() (string, error) {

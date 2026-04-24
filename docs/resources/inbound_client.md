@@ -38,6 +38,7 @@ resource "threexui_inbound_client" "user1" {
   enable      = true
   total_gb    = 10
   expiry_time = 1735689600000
+  comment     = "Main account"
 }
 ```
 
@@ -81,10 +82,13 @@ resource "threexui_inbound_client" "hysteria_user" {
 - `total_gb` (Optional, Number) - Traffic limit in GB.
 - `expiry_time` (Optional, Number) - Expiry time as Unix timestamp in milliseconds.
 - `enable` (Optional, Boolean) - Whether the client is enabled.
-- `tg_id` (Optional, Number) - Telegram user ID for notifications.
-- `sub_id` (Optional, String) - Subscription ID.
-- `comment` (Optional, String) - Comment.
-- `reset` (Optional, Number) - Traffic reset period.
+- `tg_id` (Optional, Number) - Telegram user ID for bot notifications.
+- `comment` (Optional, String) - Client description for administrative notes.
+- `reset` (Optional, Number) - Traffic reset period in days. `0` means never (default).
+
+## Read-Only Attributes
+
+- `sub_id` (String) - Auto-generated subscription ID used for subscription URLs.
 
 ## Attribute Reference
 
