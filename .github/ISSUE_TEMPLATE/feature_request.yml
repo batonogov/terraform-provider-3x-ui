@@ -1,0 +1,46 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for your suggestion! Please describe the feature you would like to see.
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use Case
+      description: What problem does this feature solve? Why do you need it?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed Solution
+      description: How do you think this should work? Include example Terraform config if applicable.
+      placeholder: |
+        ```hcl
+        resource "threexui_..." "example" {
+          ...
+        }
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative approaches you have considered.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other information (links to 3x-ui docs, related issues).
+    validations:
+      required: false
