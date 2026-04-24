@@ -7,16 +7,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-// --- All fields: email, flow, limit_ip, total_gb, expiry_time, enable, tg_id, sub_id, comment, reset ---
+// --- All fields: email, flow, limit_ip, total_gb, expiry_time, enable, tg_id, comment, reset (sub_id is Computed) ---
 
 func TestAccInboundClientAllFields(t *testing.T) {
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccPreCheck(t) },
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
-		CheckDestroy:             testAccCheckInboundClientDestroyed,
-		Steps: []resource.TestStep{
-			{
-				Config: testAccProviderConfig() + `
+	config := testAccProviderConfig() + `
 resource "threexui_inbound" "client_host" {
   port     = 25101
   protocol = "vless"
@@ -36,11 +30,17 @@ resource "threexui_inbound_client" "allfields" {
   total_gb    = 10737418240
   expiry_time = 0
   tg_id       = 123456
-  sub_id      = "test-sub-id"
   comment     = "test comment"
   reset       = 0
 }
-`,
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound_client.allfields", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound_client.allfields", "email", "allfields@test.com"),
@@ -49,10 +49,16 @@ resource "threexui_inbound_client" "allfields" {
 					resource.TestCheckResourceAttr("threexui_inbound_client.allfields", "limit_ip", "3"),
 					resource.TestCheckResourceAttr("threexui_inbound_client.allfields", "total_gb", "10737418240"),
 					resource.TestCheckResourceAttr("threexui_inbound_client.allfields", "tg_id", "123456"),
-					resource.TestCheckResourceAttr("threexui_inbound_client.allfields", "sub_id", "test-sub-id"),
+					resource.TestCheckResourceAttrSet("threexui_inbound_client.allfields", "sub_id"),
 					resource.TestCheckResourceAttr("threexui_inbound_client.allfields", "comment", "test comment"),
 					resource.TestCheckResourceAttr("threexui_inbound_client.allfields", "reset", "0"),
 				),
+			},
+			// Idempotency: UseStateForUnknown must prevent false drift.
+			{
+				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
 			},
 		},
 	})
