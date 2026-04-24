@@ -90,6 +90,43 @@ resource "threexui_inbound_client" "hysteria_user" {
 
 - `sub_id` (String) - Auto-generated subscription ID used for subscription URLs.
 
+## Usage: Subscription URLs
+
+When the panel subscription service is enabled (`threexui_panel_subscription`),
+each client receives an auto-generated `sub_id`. Use it to build subscription
+URLs that clients can import into v2rayN, Hiddify, Streisand, or any compatible app:
+
+```hcl
+resource "threexui_inbound_client" "user1" {
+  inbound_id = threexui_inbound.vless.id
+  email      = "user1@example.com"
+  enable     = true
+  comment    = "Main account"
+}
+
+output "user1_subscription_url" {
+  value = "https://your-domain.com/sub/${threexui_inbound_client.user1.sub_id}"
+}
+```
+
+For multiple clients:
+
+```hcl
+locals {
+  clients = {
+    user1 = threexui_inbound_client.user1
+    user2 = threexui_inbound_client.user2
+  }
+}
+
+output "subscription_urls" {
+  value = { for name, client in local.clients : name => "https://your-domain.com/sub/${client.sub_id}" }
+}
+```
+
+> **Note:** The subscription path (`/sub/`) and port (`2096`) depend on your
+> `threexui_panel_subscription` configuration. Adjust the URL accordingly.
+
 ## Attribute Reference
 
 All arguments are also exported as attributes.
