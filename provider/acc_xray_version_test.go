@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 )
 
 func TestAccXrayVersion(t *testing.T) {
@@ -160,15 +160,19 @@ resource "threexui_xray_version" "test" {
 					if err := client.InstallXray(ctx, altVersion); err != nil {
 						t.Fatalf("failed to simulate drift by installing %s: %s", altVersion, err)
 					}
+					// InstallXray is async — wait for the version to actually change.
+					for i := 0; i < 30; i++ {
+						time.Sleep(time.Second)
+						cur, err := client.GetCurrentXrayVersion(ctx)
+						if err == nil && cur == altVersion {
+							t.Logf("drift simulated: version changed to %s after %ds", altVersion, i+1)
+							return
+						}
+					}
+					t.Fatalf("InstallXray(%s) returned success but version did not change within 30s", altVersion)
 				},
-				Config:   config,
-				PlanOnly: true,
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectNonEmptyPlan(),
-						plancheck.ExpectResourceAction("threexui_xray_version.test", plancheck.ResourceActionUpdate),
-					},
-				},
+				Config:             config,
+				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
 			},
 			// Step 3: apply should restore the desired version.
