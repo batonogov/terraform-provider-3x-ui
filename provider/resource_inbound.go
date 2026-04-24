@@ -53,6 +53,7 @@ type InboundResourceModel struct {
 	ShadowsocksSettings *InboundShadowsocksSettingsModel `tfsdk:"shadowsocks_settings"`
 	HTTPSettings        *InboundHTTPSettingsModel        `tfsdk:"http_settings"`
 	SocksSettings       *InboundSocksSettingsModel       `tfsdk:"socks_settings"`
+	MixedSettings       *InboundMixedSettingsModel       `tfsdk:"mixed_settings"`
 	WireguardSettings   *InboundWireguardSettingsModel   `tfsdk:"wireguard_settings"`
 	DokodemoSettings    *InboundDokodemoSettingsModel    `tfsdk:"dokodemo_settings"`
 	HysteriaSettings    *InboundHysteriaSettingsModel    `tfsdk:"hysteria_settings"`
@@ -482,6 +483,9 @@ func alignBlocksWithPlan(state *InboundResourceModel, plan *InboundResourceModel
 	}
 	if plan.SocksSettings == nil {
 		state.SocksSettings = nil
+	}
+	if plan.MixedSettings == nil {
+		state.MixedSettings = nil
 	}
 	if plan.WireguardSettings == nil {
 		state.WireguardSettings = nil

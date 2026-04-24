@@ -1,0 +1,11 @@
+{
+  "auth": "password",
+  "accounts": [
+    {
+      "user": "mixed-user",
+      "pass": "mixed-pass"
+    }
+  ],
+  "udp": true,
+  "ip": "127.0.0.1"
+}

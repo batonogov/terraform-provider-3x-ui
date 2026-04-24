@@ -695,7 +695,7 @@ resource "threexui_inbound" "grpc" {
 	})
 }
 
-// --- Mixed protocol + listen ---
+// --- Mixed protocol + listen + settings ---
 
 func TestAccInboundMixed(t *testing.T) {
 	resource.Test(t, resource.TestCase{
@@ -711,12 +711,48 @@ resource "threexui_inbound" "mixed" {
   remark   = "acc-mixed"
   listen   = "127.0.0.1"
   enable   = true
+  mixed_settings {
+    auth = "password"
+    udp  = true
+    ip   = "127.0.0.1"
+    account {
+      user = "mixeduser"
+      pass = "mixedpass"
+    }
+  }
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.mixed", "id"),
 					resource.TestCheckResourceAttr("threexui_inbound.mixed", "protocol", "mixed"),
 					resource.TestCheckResourceAttr("threexui_inbound.mixed", "listen", "127.0.0.1"),
+					resource.TestCheckResourceAttr("threexui_inbound.mixed", "mixed_settings.auth", "password"),
+					resource.TestCheckResourceAttr("threexui_inbound.mixed", "mixed_settings.udp", "true"),
+				),
+			},
+			// Update: change udp to false
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "mixed" {
+  port     = 25024
+  protocol = "mixed"
+  remark   = "acc-mixed-updated"
+  listen   = "127.0.0.1"
+  enable   = true
+  mixed_settings {
+    auth = "password"
+    udp  = false
+    ip   = "127.0.0.1"
+    account {
+      user = "mixeduser"
+      pass = "mixedpass"
+    }
+  }
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.mixed", "remark", "acc-mixed-updated"),
+					resource.TestCheckResourceAttr("threexui_inbound.mixed", "mixed_settings.udp", "false"),
 				),
 			},
 		},

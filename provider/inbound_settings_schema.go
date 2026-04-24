@@ -64,6 +64,13 @@ type InboundDokodemoSettingsModel struct {
 	FollowRedirect types.Bool   `tfsdk:"follow_redirect"`
 }
 
+type InboundMixedSettingsModel struct {
+	Auth    types.String          `tfsdk:"auth"`
+	UDP     types.Bool            `tfsdk:"udp"`
+	IP      types.String          `tfsdk:"ip"`
+	Account []InboundAccountModel `tfsdk:"account"`
+}
+
 type InboundHysteriaSettingsModel struct {
 	Version types.Int64 `tfsdk:"version"`
 }
@@ -204,6 +211,40 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 		},
 		"socks_settings": schema.SingleNestedBlock{
 			Description: "Settings for SOCKS proxy protocol.",
+			Attributes: map[string]schema.Attribute{
+				"auth": schema.StringAttribute{
+					Optional: true, Computed: true,
+					Description: "Authentication type (e.g. 'password', 'noauth').",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"udp": schema.BoolAttribute{
+					Optional: true, Computed: true,
+					Description: "Enable UDP support.",
+					PlanModifiers: []planmodifier.Bool{
+						boolplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"ip": schema.StringAttribute{
+					Optional: true, Computed: true,
+					Description: "IP address for UDP.",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+			},
+			Blocks: map[string]schema.Block{
+				"account": schema.ListNestedBlock{
+					Description: "User accounts for authentication.",
+					NestedObject: schema.NestedBlockObject{
+						Attributes: inboundAccountAttributes(),
+					},
+				},
+			},
+		},
+		"mixed_settings": schema.SingleNestedBlock{
+			Description: "Settings for mixed (HTTP+SOCKS) proxy protocol.",
 			Attributes: map[string]schema.Attribute{
 				"auth": schema.StringAttribute{
 					Optional: true, Computed: true,
@@ -449,6 +490,8 @@ func expandSettingsFromModel(protocol string, m *InboundResourceModel) map[strin
 		return expandHTTPInboundSettings(m.HTTPSettings)
 	case "socks":
 		return expandSocksInboundSettings(m.SocksSettings)
+	case "mixed":
+		return expandMixedInboundSettings(m.MixedSettings)
 	case "wireguard":
 		return expandWireguardInboundSettings(m.WireguardSettings)
 	case "dokodemo-door", "tunnel":
@@ -529,6 +572,26 @@ func expandHTTPInboundSettings(m *InboundHTTPSettingsModel) map[string]any {
 }
 
 func expandSocksInboundSettings(m *InboundSocksSettingsModel) map[string]any {
+	if m == nil {
+		return nil
+	}
+	out := map[string]any{}
+	if !m.Auth.IsNull() && !m.Auth.IsUnknown() {
+		out["auth"] = m.Auth.ValueString()
+	}
+	if !m.UDP.IsNull() && !m.UDP.IsUnknown() {
+		out["udp"] = m.UDP.ValueBool()
+	}
+	if !m.IP.IsNull() && !m.IP.IsUnknown() {
+		out["ip"] = m.IP.ValueString()
+	}
+	if len(m.Account) > 0 {
+		out["accounts"] = expandAccountsFromModel(m.Account)
+	}
+	return out
+}
+
+func expandMixedInboundSettings(m *InboundMixedSettingsModel) map[string]any {
 	if m == nil {
 		return nil
 	}
@@ -701,6 +764,8 @@ func flattenSettingsToModel(protocol string, data map[string]any, m *InboundReso
 		m.HTTPSettings = flattenHTTPInboundSettings(data)
 	case "socks":
 		m.SocksSettings = flattenSocksInboundSettings(data)
+	case "mixed":
+		m.MixedSettings = flattenMixedInboundSettings(data)
 	case "wireguard":
 		m.WireguardSettings = flattenWireguardInboundSettings(data)
 	case "dokodemo-door", "tunnel":
@@ -801,6 +866,32 @@ func flattenSocksInboundSettings(data map[string]any) *InboundSocksSettingsModel
 		return nil
 	}
 	m := &InboundSocksSettingsModel{}
+	if v, ok := data["auth"].(string); ok {
+		m.Auth = types.StringValue(v)
+	} else {
+		m.Auth = types.StringNull()
+	}
+	if v, ok := data["udp"].(bool); ok {
+		m.UDP = types.BoolValue(v)
+	} else {
+		m.UDP = types.BoolNull()
+	}
+	if v, ok := data["ip"].(string); ok && v != "" {
+		m.IP = types.StringValue(v)
+	} else {
+		m.IP = types.StringNull()
+	}
+	if v, ok := data["accounts"].([]any); ok && len(v) > 0 {
+		m.Account = flattenAccountsToModel(v)
+	}
+	return m
+}
+
+func flattenMixedInboundSettings(data map[string]any) *InboundMixedSettingsModel {
+	if len(data) == 0 {
+		return nil
+	}
+	m := &InboundMixedSettingsModel{}
 	if v, ok := data["auth"].(string); ok {
 		m.Auth = types.StringValue(v)
 	} else {
