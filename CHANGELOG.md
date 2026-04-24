@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/batonogov/terraform-provider-threexui/compare/v0.6.1...v1.0.0) (2026-04-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* users who explicitly specify reality_settings.settings must change from block syntax (settings { ... }) to attribute syntax (settings = { ... }). Most users omit this block entirely and are unaffected.
+
+### Bug Fixes
+
+* convert reality_settings.settings from block to attribute ([#102](https://github.com/batonogov/terraform-provider-threexui/issues/102)) ([a89e7ea](https://github.com/batonogov/terraform-provider-threexui/commit/a89e7eaa458edb5706ff7c2a99308c413b1f98d5))
+
 ## [0.6.1](https://github.com/batonogov/terraform-provider-threexui/compare/v0.6.0...v0.6.1) (2026-04-24)
 
 
