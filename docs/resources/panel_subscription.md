@@ -11,7 +11,7 @@ Manages the subscription service settings of the 3x-ui panel.
 
 This is a singleton resource -- only one instance should exist per provider. Deleting this resource only removes it from Terraform state; it does not reset the settings.
 
--> **Note:** When `sub_port` (default `2096`) differs from the main panel port and the panel runs behind a reverse proxy, the proxy must be configured to forward subscription path requests to the subscription port. Without this, subscription URLs will return 404.
+~> **Note:** When `sub_port` (default `2096`) differs from the main panel port and the panel runs behind a reverse proxy, the proxy must be configured to forward subscription path requests to the subscription port. Without this, subscription URLs will return 404.
 
 **Caddy** example:
 
