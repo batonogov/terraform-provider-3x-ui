@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -83,7 +84,7 @@ func (r *XrayVersionResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	current, err := r.client.GetCurrentXrayVersion(ctx)
+	current, err := r.waitForXrayVersion(ctx, version)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to get current Xray version", err.Error())
 		return
@@ -146,7 +147,7 @@ func (r *XrayVersionResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	current, err := r.client.GetCurrentXrayVersion(ctx)
+	current, err := r.waitForXrayVersion(ctx, version)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to get current Xray version", err.Error())
 		return
@@ -163,6 +164,28 @@ func (r *XrayVersionResource) Update(ctx context.Context, req resource.UpdateReq
 	plan.ID = types.StringValue("xray_version")
 	plan.CurrentVersion = types.StringValue(current)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+}
+
+// waitForXrayVersion polls GetCurrentXrayVersion until it matches the desired
+// version or the timeout (30s) is exceeded. Although UpdateXray in 3x-ui is
+// synchronous (download → extract → RestartXray), the restarted xray process
+// may not report the new version immediately via GetXrayVersion.
+func (r *XrayVersionResource) waitForXrayVersion(ctx context.Context, version string) (string, error) {
+	for i := 0; i < 30; i++ {
+		current, err := r.client.GetCurrentXrayVersion(ctx)
+		if err != nil {
+			return "", err
+		}
+		if current == version {
+			return current, nil
+		}
+		time.Sleep(time.Second)
+	}
+	current, err := r.client.GetCurrentXrayVersion(ctx)
+	if err != nil {
+		return "", err
+	}
+	return current, nil
 }
 
 func (r *XrayVersionResource) Delete(_ context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
