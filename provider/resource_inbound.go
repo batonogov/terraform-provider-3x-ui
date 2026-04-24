@@ -383,6 +383,14 @@ func (r *InboundResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 	// Preserve reality_settings.settings block from state when the user
 	// specified reality_settings but omitted the inner settings block.
+	//
+	// Other stream_settings sub-blocks (tcp_settings, ws_settings, etc.) do
+	// not need this — alignBlocksWithPlan nils them when the user omits them,
+	// so state stays consistent.  But reality_settings.settings is a
+	// sub-sub-block: alignBlocksWithPlan only checks whether reality_settings
+	// itself is present (not whether its child "settings" block is), so the
+	// child block survives in state and causes drift unless we preserve it
+	// in the plan here.
 	if plan.StreamSettings != nil &&
 		plan.StreamSettings.RealitySettings != nil &&
 		plan.StreamSettings.RealitySettings.Settings == nil &&

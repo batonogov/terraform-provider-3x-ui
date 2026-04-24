@@ -1034,6 +1034,119 @@ resource "threexui_inbound" "hysteria" {
 	})
 }
 
+// --- Import: no drift with minimal config ---
+//
+// After importing an existing inbound, planning with a config that omits
+// Optional+Computed fields (show, xver, short_ids, metadata_only, route_only,
+// encryption, selected_auth, reality settings block, etc.) must produce an
+// empty plan.  This is the primary regression test for the UseStateForUnknown
+// plan modifiers and the ModifyPlan that preserves reality_settings.settings.
+
+func TestAccInboundImportNoDrift_Reality(t *testing.T) {
+	config := testAccProviderConfig() + `
+resource "threexui_inbound" "import_reality" {
+  port     = 25031
+  protocol = "vless"
+  remark   = "acc-import-reality"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
+  }
+  sniffing {
+    enabled       = true
+    dest_override = ["http", "tls"]
+  }
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			// Step 1: Create — server populates show, xver, short_ids,
+			// reality settings (fingerprint, public_key, spider_x),
+			// sniffing (metadata_only, route_only), vless (encryption).
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound.import_reality", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound.import_reality", "protocol", "vless"),
+				),
+			},
+			// Step 2: Import — fresh state from the API.
+			{
+				ResourceName:      "threexui_inbound.import_reality",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			// Step 3: Plan with the same config — must be empty.
+			// Without UseStateForUnknown modifiers this step fails because
+			// Terraform plans show, xver, short_ids, metadata_only, etc.
+			// as "(known after apply)".
+			{
+				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+func TestAccInboundImportNoDrift_Sniffing(t *testing.T) {
+	config := testAccProviderConfig() + `
+resource "threexui_inbound" "import_sniffing" {
+  port     = 25032
+  protocol = "vless"
+  remark   = "acc-import-sniffing"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "none"
+  }
+  sniffing {
+    enabled       = true
+    dest_override = ["http", "tls"]
+  }
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound.import_sniffing", "id"),
+				),
+			},
+			{
+				ResourceName:      "threexui_inbound.import_sniffing",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			// After import, metadata_only, route_only, ips_excluded,
+			// domains_excluded are in state but not in config — must not drift.
+			{
+				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
 // --- Config helpers ---
 
 func testAccInboundUpdateConfig(remark string, port int, enable bool) string {
