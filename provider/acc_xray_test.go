@@ -55,6 +55,8 @@ func TestAccXrayDNS(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "id", "xray_dns"),
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "query_strategy", "UseIP"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "enable_parallel_query", "true"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "use_system_hosts", "false"),
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.address", "8.8.8.8"),
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.address", "localhost"),
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.port", "53"),
@@ -66,6 +68,8 @@ func TestAccXrayDNS(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "id", "xray_dns"),
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "query_strategy", "UseIPv4"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "enable_parallel_query", "false"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "use_system_hosts", "true"),
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.address", "1.1.1.1"),
 				),
 			},
@@ -318,7 +322,9 @@ resource "threexui_xray_basics" "test" {
 func testAccXrayDNSConfig() string {
 	return `
 resource "threexui_xray_dns" "test" {
-  query_strategy = "UseIP"
+  query_strategy       = "UseIP"
+  enable_parallel_query = true
+  use_system_hosts      = false
 
   server {
     address = "8.8.8.8"
@@ -336,7 +342,9 @@ resource "threexui_xray_dns" "test" {
 func testAccXrayDNSConfigUpdated() string {
 	return `
 resource "threexui_xray_dns" "test" {
-  query_strategy = "UseIPv4"
+  query_strategy       = "UseIPv4"
+  enable_parallel_query = false
+  use_system_hosts      = true
 
   server {
     address = "1.1.1.1"
