@@ -654,6 +654,24 @@ func expandXHTTPSettings(list []any) map[string]any {
 			out["keepAliveInterval"] = n
 		}
 	}
+	if v, ok := item["x_padding_bytes"].(string); ok && v != "" {
+		out["xPaddingBytes"] = v
+	}
+	if v, ok := item["x_padding_obfs_mode"]; ok {
+		out["xPaddingObfsMode"] = boolValue(v)
+	}
+	if v, ok := item["x_padding_key"].(string); ok && v != "" {
+		out["xPaddingKey"] = v
+	}
+	if v, ok := item["x_padding_header"].(string); ok && v != "" {
+		out["xPaddingHeader"] = v
+	}
+	if v, ok := item["x_padding_placement"].(string); ok && v != "" {
+		out["xPaddingPlacement"] = v
+	}
+	if v, ok := item["x_padding_method"].(string); ok && v != "" {
+		out["xPaddingMethod"] = v
+	}
 	if len(out) == 0 {
 		return nil
 	}
@@ -676,6 +694,24 @@ func flattenXHTTPSettings(in map[string]any) map[string]any {
 	}
 	if v, ok := in["keepAliveInterval"]; ok {
 		out["keep_alive_interval"] = intValue(v)
+	}
+	if v, ok := in["xPaddingBytes"].(string); ok {
+		out["x_padding_bytes"] = v
+	}
+	if v, ok := in["xPaddingObfsMode"].(bool); ok {
+		out["x_padding_obfs_mode"] = v
+	}
+	if v, ok := in["xPaddingKey"].(string); ok {
+		out["x_padding_key"] = v
+	}
+	if v, ok := in["xPaddingHeader"].(string); ok {
+		out["x_padding_header"] = v
+	}
+	if v, ok := in["xPaddingPlacement"].(string); ok {
+		out["x_padding_placement"] = v
+	}
+	if v, ok := in["xPaddingMethod"].(string); ok {
+		out["x_padding_method"] = v
 	}
 	if len(out) == 0 {
 		return nil

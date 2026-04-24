@@ -1,0 +1,16 @@
+{
+  "network": "xhttp",
+  "security": "none",
+  "xhttpSettings": {
+    "path": "/xhttp-padded",
+    "mode": "auto",
+    "noSSEHeader": false,
+    "keepAliveInterval": 30,
+    "xPaddingBytes": "100-1000",
+    "xPaddingObfsMode": true,
+    "xPaddingKey": "my-secret-key",
+    "xPaddingHeader": "X-Padding",
+    "xPaddingPlacement": "header",
+    "xPaddingMethod": "aes"
+  }
+}

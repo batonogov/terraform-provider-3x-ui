@@ -153,6 +153,7 @@ func TestCorpusStreamSettings_RoundTrip(t *testing.T) {
 		{"stream_settings_kcp.json", "KCP with cwndMultiplier/maxSendingWindow (2.9.0)"},
 		{"stream_settings_httpupgrade.json", "HTTP Upgrade transport"},
 		{"stream_settings_xhttp.json", "XHTTP transport with keepAliveInterval"},
+		{"stream_settings_xhttp_xpadding.json", "XHTTP transport with xPadding fields"},
 		{"stream_settings_sockopt.json", "TCP with full sockopt"},
 		{"stream_settings_hysteria.json", "Hysteria transport with auth and version"},
 	}
