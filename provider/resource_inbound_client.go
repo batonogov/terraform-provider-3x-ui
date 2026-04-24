@@ -228,6 +228,16 @@ func (r *InboundClientResource) Create(ctx context.Context, req resource.CreateR
 	}
 	clientData["id"] = clientID
 
+	// Generate subId if not present (API does not auto-generate it; the web UI does).
+	if stringValue(clientData["subId"]) == "" {
+		subID, err := newSubID()
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to generate sub_id", err.Error())
+			return
+		}
+		clientData["subId"] = subID
+	}
+
 	if err := r.client.AddInboundClient(ctx, inboundID, clientData); err != nil {
 		resp.Diagnostics.AddError("Failed to add inbound client", err.Error())
 		return
@@ -529,6 +539,18 @@ func findClientByID(clients []map[string]any, clientID string) map[string]any {
 
 func makeInboundClientID(inboundID int, clientID string) string {
 	return fmt.Sprintf("%d:%s", inboundID, clientID)
+}
+
+func newSubID() (string, error) {
+	const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	for i := range b {
+		b[i] = chars[b[i]%byte(len(chars))]
+	}
+	return string(b), nil
 }
 
 func newUUID() (string, error) {
