@@ -244,7 +244,13 @@ Commits accumulate in the Release PR until merged — release only happens on PR
 
 When a new 3x-ui version is released:
 
-1. **Save source snapshots** — download/copy the new version source into `3x-ui-<version>/` directory
+1. **Save source snapshots** — download and extract the source into `3x-ui-<version>/` directory:
+
+   ```bash
+   curl -sL https://github.com/MHSanaei/3x-ui/archive/refs/tags/v<VERSION>.tar.gz | tar xz
+   mv 3x-ui-<VERSION> 3x-ui-<VERSION>/  # rename if needed (archive extracts as 3x-ui-<VERSION>)
+   ```
+
 2. **Diff sources** — compare with previous version: `diff -rq 3x-ui-<old> 3x-ui-<new> --exclude='.git'`, then inspect key files (API endpoints, models, services)
 3. **Assess impact** — determine which changes affect the provider's API surface (new fields, changed formats, renamed endpoints)
 4. **Update docker-compose.yaml** — bump the image tag to the new version
