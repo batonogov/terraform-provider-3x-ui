@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.1.0](https://github.com/batonogov/terraform-provider-threexui/compare/v2.0.0...v2.1.0) (2026-04-24)
+
+
+### Features
+
+* add enable_parallel_query and use_system_hosts to threexui_xray_dns ([5d2d482](https://github.com/batonogov/terraform-provider-threexui/commit/5d2d4824a909cce0f486bfd0509245fef98aac57)), closes [#65](https://github.com/batonogov/terraform-provider-threexui/issues/65)
+* add enable_parallel_query and use_system_hosts to xray_dns ([74886ec](https://github.com/batonogov/terraform-provider-threexui/commit/74886ec8c432f3b98f1f9b1ca851e7c8dfae44c9))
+* add mixed_settings block for mixed inbound protocol ([2058039](https://github.com/batonogov/terraform-provider-threexui/commit/20580390c1330d7ee6bd1be9c4946537b4668bf2))
+* add mixed_settings block for mixed inbound protocol ([8872854](https://github.com/batonogov/terraform-provider-threexui/commit/8872854d6959f0c59ed26ac14257131b7234da36)), closes [#64](https://github.com/batonogov/terraform-provider-threexui/issues/64)
+* add xPadding fields to xhttp_settings block ([5e3ae5c](https://github.com/batonogov/terraform-provider-threexui/commit/5e3ae5c1ae6dc13e546635dcfae1357eb77b0042))
+* add xPadding fields to xhttp_settings block ([846d99d](https://github.com/batonogov/terraform-provider-threexui/commit/846d99d2de0d5b37c634bce1d6d99feef038ec84)), closes [#122](https://github.com/batonogov/terraform-provider-threexui/issues/122)
+* expose VLESS vision testseed as first-class field ([8ee3156](https://github.com/batonogov/terraform-provider-threexui/commit/8ee31567c53f8e54c40338a82cc18efb909df98c))
+* replace curated compat test list with version-aware skipping ([32d80d0](https://github.com/batonogov/terraform-provider-threexui/commit/32d80d035d44aa60e9c8fff01c1157199f673a21))
+* version-aware test skipping for compat matrix ([3198c0e](https://github.com/batonogov/terraform-provider-threexui/commit/3198c0ef2a1a5f513008573946780b6747bd856d))
+
+
+### Bug Fixes
+
+* add supported versions to SECURITY.md and docs link to issue config ([7555da5](https://github.com/batonogov/terraform-provider-threexui/commit/7555da59f491f4fe505e2cc484b15cbb8d374c37))
+* add version constraint and parameterize insecure_skip_verify in multi-server example ([83650db](https://github.com/batonogov/terraform-provider-threexui/commit/83650db6cfc15c96791a3d70ffb7112a9632eae4))
+* apply terraform fmt to trojan example ([11b41d3](https://github.com/batonogov/terraform-provider-threexui/commit/11b41d313ae041fe288973e97e600051c5b27774))
+* correct VLESS Reality link, add version constraints and TLS warning ([b615c3e](https://github.com/batonogov/terraform-provider-threexui/commit/b615c3ef5445874b5666b1b604cf00020a1197de))
+* **docs:** remove duplicate VLESS Reality row from Examples table ([83a50a7](https://github.com/batonogov/terraform-provider-threexui/commit/83a50a7508722e6969a20db1244354b45e3492d1))
+* document sub_json_fragment/sub_json_noises format change for 3x-ui v2.9.2 ([88bb0d8](https://github.com/batonogov/terraform-provider-threexui/commit/88bb0d8b8f9e9d901ffe2096040a7b3282b5673f)), closes [#121](https://github.com/batonogov/terraform-provider-threexui/issues/121)
+* document sub_json_fragment/sub_json_noises format change for v2.9.2 ([cb8cb59](https://github.com/batonogov/terraform-provider-threexui/commit/cb8cb593b8c50e2a17b4abd68e4c38b18f60296d))
+* poll for xray version after async InstallXray in provider ([50032fc](https://github.com/batonogov/terraform-provider-threexui/commit/50032fc6cabdfcb1a1c14f37456ac9d262041817))
+* remove incompatible ConfigPlanChecks.PreApply from PlanOnly step ([3f375f9](https://github.com/batonogov/terraform-provider-threexui/commit/3f375f99c571414c1c4e244939dd844927348b2e))
+* remove incompatible ConfigPlanChecks.PreApply from PlanOnly step ([0aed523](https://github.com/batonogov/terraform-provider-threexui/commit/0aed5233a13af90d2fc5f7f66b960322e10f512a)), closes [#126](https://github.com/batonogov/terraform-provider-threexui/issues/126)
+* restore waitForXrayVersion with corrected comment ([dbfcc36](https://github.com/batonogov/terraform-provider-threexui/commit/dbfcc365229c4ad9f8305675e6df76ea9c21afc1))
+* revert unnecessary polling in xray_version, fix version annotations ([e8a53ad](https://github.com/batonogov/terraform-provider-threexui/commit/e8a53ada31d85f7b5a1ccdc8d7a045d37b9b2bf8))
+* revert unnecessary polling in xray_version, fix version annotations ([921d9b0](https://github.com/batonogov/terraform-provider-threexui/commit/921d9b03164a44fe9ca7dbc99c5b9a5994b13b3f))
+* skip panel_general tests on 3x-ui &lt; v2.8.10 and fix XrayVersionDrift test ([e17d3d2](https://github.com/batonogov/terraform-provider-threexui/commit/e17d3d251574e306e813d6c328eaa98a0ae85079))
+* trigger CI on CHANGELOG.md changes for release PRs ([ac6f448](https://github.com/batonogov/terraform-provider-threexui/commit/ac6f448b182d50f476f03ef7b8f4856cc6779297))
+* trigger CI on CHANGELOG.md changes for release PRs ([131d8ca](https://github.com/batonogov/terraform-provider-threexui/commit/131d8ca0ff7f86bbc409cdbe81fc026c1e2a10be))
+* wait for async InstallXray to complete before asserting drift ([d53bb7d](https://github.com/batonogov/terraform-provider-threexui/commit/d53bb7db26277aa638743260f391a7fa43416858))
+
 ## [2.0.0](https://github.com/batonogov/terraform-provider-threexui/compare/v1.0.0...v2.0.0) (2026-04-24)
 
 
