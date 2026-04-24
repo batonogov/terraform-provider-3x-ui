@@ -269,8 +269,8 @@ func expandRealitySettings(list []any) map[string]any {
 		rs["mldsa65Seed"] = v
 	}
 	if v, ok := item["settings"]; ok {
-		if list, ok := v.([]any); ok {
-			if s := expandRealityInnerSettings(list); s != nil {
+		if m, ok := v.(map[string]any); ok {
+			if s := expandRealityInnerSettings(m); s != nil {
 				rs["settings"] = s
 			}
 		}
@@ -293,12 +293,8 @@ func expandRealitySettings(list []any) map[string]any {
 	return rs
 }
 
-func expandRealityInnerSettings(list []any) map[string]any {
-	if len(list) == 0 {
-		return nil
-	}
-	item, ok := list[0].(map[string]any)
-	if !ok {
+func expandRealityInnerSettings(item map[string]any) map[string]any {
+	if len(item) == 0 {
 		return nil
 	}
 	out := map[string]any{}
@@ -360,7 +356,7 @@ func flattenRealitySettings(in map[string]any) map[string]any {
 	}
 	if v, ok := in["settings"].(map[string]any); ok {
 		if s := flattenRealityInnerSettings(v); s != nil {
-			out["settings"] = []any{s}
+			out["settings"] = s
 		}
 	}
 	if len(out) == 0 {

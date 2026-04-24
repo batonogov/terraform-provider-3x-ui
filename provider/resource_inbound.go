@@ -25,7 +25,6 @@ import (
 var (
 	_ resource.Resource                = &InboundResource{}
 	_ resource.ResourceWithImportState = &InboundResource{}
-	_ resource.ResourceWithModifyPlan  = &InboundResource{}
 )
 
 type InboundResource struct {
@@ -358,54 +357,6 @@ func (r *InboundResource) ImportState(ctx context.Context, req resource.ImportSt
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-// ModifyPlan preserves nested Optional blocks from state when the user did not
-// specify them in config.  Without this, Terraform plans to remove these blocks
-// after import, producing false drift.
-func (r *InboundResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	// Skip on create (no prior state) or destroy (no plan).
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
-		return
-	}
-
-	var plan InboundResourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	var state InboundResourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	changed := false
-
-	// Preserve reality_settings.settings block from state when the user
-	// specified reality_settings but omitted the inner settings block.
-	//
-	// Other stream_settings sub-blocks (tcp_settings, ws_settings, etc.) do
-	// not need this — alignBlocksWithPlan nils them when the user omits them,
-	// so state stays consistent.  But reality_settings.settings is a
-	// sub-sub-block: alignBlocksWithPlan only checks whether reality_settings
-	// itself is present (not whether its child "settings" block is), so the
-	// child block survives in state and causes drift unless we preserve it
-	// in the plan here.
-	if plan.StreamSettings != nil &&
-		plan.StreamSettings.RealitySettings != nil &&
-		plan.StreamSettings.RealitySettings.Settings == nil &&
-		state.StreamSettings != nil &&
-		state.StreamSettings.RealitySettings != nil &&
-		state.StreamSettings.RealitySettings.Settings != nil {
-		plan.StreamSettings.RealitySettings.Settings = state.StreamSettings.RealitySettings.Settings
-		changed = true
-	}
-
-	if changed {
-		resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Model <-> Inbound conversion
 // ---------------------------------------------------------------------------
@@ -547,10 +498,6 @@ func alignBlocksWithPlan(state *InboundResourceModel, plan *InboundResourceModel
 		// Align nested stream_settings sub-blocks
 		if plan.StreamSettings.RealitySettings == nil {
 			state.StreamSettings.RealitySettings = nil
-		} else if state.StreamSettings.RealitySettings != nil {
-			if plan.StreamSettings.RealitySettings.Settings == nil {
-				state.StreamSettings.RealitySettings.Settings = nil
-			}
 		}
 		if plan.StreamSettings.TCPSettings == nil {
 			state.StreamSettings.TCPSettings = nil

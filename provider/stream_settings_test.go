@@ -25,7 +25,7 @@ func TestExpandRealitySettings_Full(t *testing.T) {
 			"max_timediff":   60,
 			"short_ids":      []any{"abc123"},
 			"mldsa65_seed":   "seed",
-			"settings":       []any{map[string]any{"public_key": "pubkey", "fingerprint": "chrome"}},
+			"settings":       map[string]any{"public_key": "pubkey", "fingerprint": "chrome"},
 		},
 	}
 	result := expandRealitySettings(input)
@@ -129,9 +129,12 @@ func TestFlattenRealitySettings_Full(t *testing.T) {
 	if out["xver"] != 2 {
 		t.Fatalf("unexpected xver: %v", out["xver"])
 	}
-	settings, ok := out["settings"].([]any)
-	if !ok || len(settings) != 1 {
-		t.Fatalf("expected settings list with 1 element")
+	settings, ok := out["settings"].(map[string]any)
+	if !ok || len(settings) == 0 {
+		t.Fatalf("expected settings map with entries")
+	}
+	if settings["public_key"] != "pub" {
+		t.Fatalf("unexpected public_key: %v", settings["public_key"])
 	}
 }
 
@@ -150,21 +153,19 @@ func TestFlattenRealitySettings_Partial(t *testing.T) {
 }
 
 func TestExpandRealityInnerSettings_Empty(t *testing.T) {
-	result := expandRealityInnerSettings([]any{})
+	result := expandRealityInnerSettings(map[string]any{})
 	if result != nil {
 		t.Fatalf("expected nil, got %v", result)
 	}
 }
 
 func TestExpandRealityInnerSettings_Full(t *testing.T) {
-	input := []any{
-		map[string]any{
-			"public_key":     "pub",
-			"fingerprint":    "chrome",
-			"server_name":    "example.com",
-			"spider_x":       "/",
-			"mldsa65_verify": "verify",
-		},
+	input := map[string]any{
+		"public_key":     "pub",
+		"fingerprint":    "chrome",
+		"server_name":    "example.com",
+		"spider_x":       "/",
+		"mldsa65_verify": "verify",
 	}
 	result := expandRealityInnerSettings(input)
 	if result == nil {
@@ -185,9 +186,7 @@ func TestExpandRealityInnerSettings_Full(t *testing.T) {
 }
 
 func TestExpandRealityInnerSettings_PublicKeyOnly(t *testing.T) {
-	input := []any{
-		map[string]any{"public_key": "pub"},
-	}
+	input := map[string]any{"public_key": "pub"}
 	result := expandRealityInnerSettings(input)
 	if result == nil {
 		t.Fatalf("expected non-nil")

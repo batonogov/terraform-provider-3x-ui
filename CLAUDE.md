@@ -120,7 +120,7 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 - Hysteria: `auth` field on `threexui_inbound_client` used as client identifier (instead of UUID-based `id`)
 - All `Optional+Computed` inbound attributes have `UseStateForUnknown` plan modifiers — prevents false drift (`known after apply`) after import
 - `alignBlocksWithPlan` — prevents "was absent, but now present" errors for Optional blocks (Create/Read/Update); skipped during Import (detect: `state.Protocol.IsNull()`)
-- `ModifyPlan` — preserves `reality_settings.settings` nested block from state when absent in config; needed because blocks don't support attribute-level plan modifiers, and `alignBlocksWithPlan` doesn't nil sub-sub-blocks when the parent block is present
+- `reality_settings.settings` — `SingleNestedAttribute` (not block) with `objectplanmodifier.UseStateForUnknown()`; preserves auto-generated values (public_key, fingerprint, etc.) from state when user omits the attribute
 - `preserveInboundSettings` — on update, preserves clients and testseed from existing inbound
 - `ensureRealityKeys` — auto-generates private/public key and short_ids
 - `ensureInboundClientIDs` — auto-generates UUID for clients without id

@@ -290,7 +290,7 @@ Used for both `tunnel` and `dokodemo-door` protocols.
   - `private_key` (Optional, String) - Auto-generated if not specified.
   - `short_ids` (Optional, List of String) - Auto-generated if not specified.
   - `mldsa65_seed` (Optional, String)
-  - `settings` (Optional, Block)
+  - `settings` (Optional, Attribute) - Reality inner settings (client-side). Auto-populated if omitted.
     - `public_key` (Optional, String) - Auto-generated if not specified.
     - `fingerprint` (Optional, String)
     - `server_name` (Optional, String)
