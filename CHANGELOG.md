@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/batonogov/terraform-provider-threexui/compare/v0.6.0...v0.6.1) (2026-04-24)
+
+
+### Bug Fixes
+
+* eliminate false drift on import for Optional+Computed inbound fields ([#100](https://github.com/batonogov/terraform-provider-threexui/issues/100)) ([2fcc66f](https://github.com/batonogov/terraform-provider-threexui/commit/2fcc66fa29fa311e16e5a8111158042ba7b54381))
+
 ## [0.6.0](https://github.com/batonogov/terraform-provider-threexui/compare/v0.5.3...v0.6.0) (2026-04-21)
 
 
