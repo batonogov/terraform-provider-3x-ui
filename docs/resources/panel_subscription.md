@@ -74,8 +74,12 @@ resource "threexui_panel_subscription" "settings" {
 - `sub_uri` (Optional, String) - Subscription URI.
 - `sub_json_path` (Optional, String) - JSON subscription path.
 - `sub_json_uri` (Optional, String) - JSON subscription URI.
-- `sub_json_fragment` (Optional, String) - JSON fragment settings.
-- `sub_json_noises` (Optional, String) - JSON noise settings.
+- `sub_json_fragment` (Optional, String) - JSON fragment settings. The expected format depends on the 3x-ui version:
+  - **v2.9.2+:** only the fragment parameters object, e.g. `{"packets":"tlshello","length":"100-200","interval":"10-20","maxSplit":"300-400"}`.
+  - **v2.9.1 and earlier:** full outbound object with `tag`, `protocol`, `settings`, and `streamSettings`.
+- `sub_json_noises` (Optional, String) - JSON noise settings. The expected format depends on the 3x-ui version:
+  - **v2.9.2+:** only the noises array, e.g. `[{"type":"rand","packet":"10-20","delay":"10-16","applyTo":"ip"}]`.
+  - **v2.9.1 and earlier:** full outbound object with `tag`, `protocol`, `settings`, and `streamSettings`.
 - `sub_json_mux` (Optional, String) - JSON mux settings.
 - `sub_json_rules` (Optional, String) - JSON rules.
 

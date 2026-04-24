@@ -344,10 +344,18 @@ func panelSubscriptionSchema() schema.Schema {
 			},
 			"sub_json_fragment": schema.StringAttribute{
 				Optional: true, Computed: true,
+				Description: "JSON fragment settings for subscription. " +
+					"**v2.9.2+:** only the fragment parameters object, e.g. " +
+					"`{\"packets\":\"tlshello\",\"length\":\"100-200\",\"interval\":\"10-20\"}`. " +
+					"**v2.9.1 and earlier:** full outbound object with tag, protocol, settings and streamSettings.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"sub_json_noises": schema.StringAttribute{
 				Optional: true, Computed: true,
+				Description: "JSON noise settings for subscription. " +
+					"**v2.9.2+:** only the noises array, e.g. " +
+					"`[{\"type\":\"rand\",\"packet\":\"10-20\",\"delay\":\"10-16\"}]`. " +
+					"**v2.9.1 and earlier:** full outbound object with tag, protocol, settings and streamSettings.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"sub_json_mux": schema.StringAttribute{
