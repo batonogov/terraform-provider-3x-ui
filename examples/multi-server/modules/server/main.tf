@@ -4,7 +4,8 @@
 terraform {
   required_providers {
     threexui = {
-      source = "batonogov/threexui"
+      source  = "batonogov/threexui"
+      version = "~> 2.0"
     }
   }
 }
@@ -31,12 +32,18 @@ variable "password" {
   sensitive   = true
 }
 
+variable "insecure_skip_verify" {
+  description = "Skip TLS certificate verification."
+  type        = bool
+  default     = false
+}
+
 provider "threexui" {
   endpoint             = var.endpoint
   base_path            = var.base_path
   username             = var.username
   password             = var.password
-  insecure_skip_verify = true
+  insecure_skip_verify = var.insecure_skip_verify
 }
 
 # --- Resources for this server ---
