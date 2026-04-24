@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Rules for agents working in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Purpose
 
@@ -37,7 +37,7 @@ provider/              — all provider code
   data_source_*.go     — data sources (inbounds, server_status, settings, xray_config, xray_versions, online_clients)
 examples/              — example TF configs for manual testing
 3x-ui-<version>/      — 3x-ui source snapshots (in .gitignore, for reference/diffing)
-docker-compose.yaml    — 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v2.9.0)
+docker-compose.yaml    — 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v2.9.2)
 Taskfile.yml           — task build / test / fmt
 .github/workflows/
   ci.yml               — lint, unit tests, acceptance tests, compatibility matrix (PR + push main)
@@ -177,6 +177,10 @@ task fmt              # gofmt
 task vet              # go vet
 task lint             # golangci-lint
 task pre-commit       # Run all pre-commit checks manually (fmt, vet, lint, build)
+
+# Run a single test by name:
+TF_ACC=1 THREEXUI_ENDPOINT=http://localhost:2053 THREEXUI_USERNAME=admin THREEXUI_PASSWORD=admin \
+  go test ./provider -run TestAccInboundVLESS -count=1 -timeout 600s -v
 ```
 
 ## Pre-commit Hooks
