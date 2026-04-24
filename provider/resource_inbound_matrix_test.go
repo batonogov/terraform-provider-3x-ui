@@ -27,6 +27,8 @@ type protocolMatrixEntry struct {
 	tfName string
 	// port is a unique port for this protocol's test.
 	port int
+	// minVersion is the minimum 3x-ui version required (e.g. "v2.9.0"). Empty means all versions.
+	minVersion string
 	// createHCL returns the HCL for the initial create step.
 	createHCL func(port int) string
 	// updateHCL returns the HCL for the update step (must change at least one
@@ -70,6 +72,9 @@ func protocolMatrix() []protocolMatrixEntry {
 func TestAccInboundProtocolMatrix(t *testing.T) {
 	for _, entry := range protocolMatrix() {
 		t.Run(entry.protocol, func(t *testing.T) {
+			if entry.minVersion != "" {
+				requireMinVersion(t, entry.minVersion)
+			}
 
 			inboundAddr := fmt.Sprintf("threexui_inbound.%s", entry.tfName)
 			createConfig := testAccProviderConfig() + entry.createHCL(entry.port)
@@ -582,9 +587,10 @@ resource "threexui_inbound" "mx_socks" {
 
 func matrixMixed() protocolMatrixEntry {
 	return protocolMatrixEntry{
-		protocol: "mixed",
-		tfName:   "mx_mixed",
-		port:     26010,
+		protocol:   "mixed",
+		tfName:     "mx_mixed",
+		port:       26010,
+		minVersion: "v2.9.0", // mixed protocol added in v2.9.0
 		createHCL: func(port int) string {
 			return fmt.Sprintf(`
 resource "threexui_inbound" "mx_mixed" {
@@ -642,9 +648,10 @@ resource "threexui_inbound" "mx_mixed" {
 
 func matrixWireguard() protocolMatrixEntry {
 	return protocolMatrixEntry{
-		protocol: "wireguard",
-		tfName:   "mx_wg",
-		port:     26007,
+		protocol:   "wireguard",
+		tfName:     "mx_wg",
+		port:       26007,
+		minVersion: "v2.9.0", // mtu changed from int to list [v4, v6] in v2.9.0
 		createHCL: func(port int) string {
 			return fmt.Sprintf(`
 resource "threexui_inbound" "mx_wg" {

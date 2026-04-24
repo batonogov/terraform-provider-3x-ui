@@ -144,6 +144,8 @@ resource "threexui_inbound" "http" {
 // --- WireGuard with peers ---
 
 func TestAccInboundWireguard(t *testing.T) {
+	requireMinVersion(t, "v2.9.0") // mtu changed from int to list [v4, v6] in v2.9.0
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
@@ -209,6 +211,8 @@ resource "threexui_inbound" "dokodemo" {
 // --- Tunnel (dokodemo-door alias in 3x-ui 2.8.11+) ---
 
 func TestAccInboundTunnel(t *testing.T) {
+	requireMinVersion(t, "v2.8.11") // tunnel protocol added in v2.8.11
+
 	tunnelConfig := testAccProviderConfig() + `
 resource "threexui_inbound" "tunnel" {
   port     = 25030
@@ -698,6 +702,8 @@ resource "threexui_inbound" "grpc" {
 // --- Mixed protocol + listen + settings ---
 
 func TestAccInboundMixed(t *testing.T) {
+	requireMinVersion(t, "v2.9.0") // mixed protocol added in v2.9.0
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),

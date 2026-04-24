@@ -46,6 +46,8 @@ func TestAccXrayBasics(t *testing.T) {
 }
 
 func TestAccXrayDNS(t *testing.T) {
+	requireMinVersion(t, "v2.8.11") // enable_parallel_query and use_system_hosts added in v2.8.11
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
