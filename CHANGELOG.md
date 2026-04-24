@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/batonogov/terraform-provider-threexui/compare/v1.0.0...v2.0.0) (2026-04-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* sub_id is now read-only; remove any sub_id assignments from inbound_client configs.
+
+### Bug Fixes
+
+* add UseStateForUnknown to inbound_client, make sub_id Computed-only ([#104](https://github.com/batonogov/terraform-provider-threexui/issues/104)) ([078ec72](https://github.com/batonogov/terraform-provider-threexui/commit/078ec72b35259ed70145645ad891fa5bf794f623))
+
 ## [1.0.0](https://github.com/batonogov/terraform-provider-threexui/compare/v0.6.1...v1.0.0) (2026-04-24)
 
 
