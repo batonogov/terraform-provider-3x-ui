@@ -35,6 +35,7 @@ provider/              — all provider code
   default_settings.go  — default settings per protocol, applyDefaultInboundSettings
   resource_xray_version.go     — threexui_xray_version resource (install/manage Xray core version)
   data_source_*.go     — data sources (inbounds, server_status, settings, xray_config, xray_versions, online_clients)
+  testdata/            — round-trip fixtures for corpus_test.go; see provider/testdata/README.md to refresh
 examples/              — example TF configs for manual testing
 3x-ui-<version>/      — 3x-ui source snapshots (in .gitignore, for reference/diffing)
 docker-compose.yaml    — 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v2.9.2)
@@ -75,6 +76,8 @@ Taskfile.yml           — task build / test / fmt
 | `threexui_settings` | All panel settings (JSON) |
 | `threexui_online_clients` | List of currently online client emails |
 | `threexui_client_traffics` | Client traffic statistics by email |
+
+> **Security note:** any data source that returns a raw JSON payload from the panel/Xray API (e.g. `inbounds`, `settings`, `xray_config`) MUST mark the JSON attribute `Sensitive: true`. The payloads contain client UUIDs, passwords, Reality `privateKey`, WireGuard `secretKey`, Telegram bot tokens, LDAP passwords. Comparable resource fields (`resource_inbound_client.go`, `resource_settings_tabs.go`, `xray_outbounds_schema.go`) already use `Sensitive: true` — the data source schema must mirror that.
 
 ## 3x-ui API (Key Endpoints)
 
@@ -266,7 +269,7 @@ When a new 3x-ui version is released:
 
    ```bash
    curl -sL https://github.com/MHSanaei/3x-ui/archive/refs/tags/v<VERSION>.tar.gz | tar xz
-   mv 3x-ui-<VERSION> 3x-ui-<VERSION>/  # rename if needed (archive extracts as 3x-ui-<VERSION>)
+   # Archive extracts as 3x-ui-<VERSION> (without the 'v' prefix) — used as-is
    ```
 
 2. **Diff sources** — compare with previous version: `diff -rq 3x-ui-<old> 3x-ui-<new> --exclude='.git'`, then inspect key files (API endpoints, models, services)
