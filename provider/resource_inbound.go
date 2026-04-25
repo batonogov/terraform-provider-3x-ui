@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -369,6 +370,50 @@ func (r *InboundResource) Delete(ctx context.Context, req resource.DeleteRequest
 		resp.Diagnostics.AddError("Failed to delete inbound", err.Error())
 		return
 	}
+
+	// Verify the inbound is actually gone. 3x-ui's DelInbound is a multi-step
+	// operation against SQLite; under load (CI matrix runs) the DELETE may
+	// occasionally appear to succeed at the API level while the row still
+	// being visible to a follow-up GET. Re-issuing the delete is idempotent,
+	// so we poll and retry to guard against this race (#136).
+	if err := r.waitForInboundDeletion(ctx, id); err != nil {
+		resp.Diagnostics.AddError("Inbound deletion not confirmed", err.Error())
+	}
+}
+
+// waitForInboundDeletion polls GetInbound until it reports the inbound is
+// gone. If the inbound is still visible after a short interval it re-issues
+// the delete (the API is idempotent for a non-existent ID — it simply
+// returns success). The total budget is intentionally small: any longer
+// delay indicates a real server-side problem rather than a flake.
+func (r *InboundResource) waitForInboundDeletion(ctx context.Context, id int) error {
+	const (
+		attempts = 6
+		delay    = 500 * time.Millisecond
+	)
+	for i := 0; i < attempts; i++ {
+		if _, err := r.client.GetInbound(ctx, id); err != nil {
+			// API reported failure (typically "record not found"). The
+			// inbound is gone.
+			return nil
+		}
+		if i+1 == attempts {
+			break
+		}
+		// Re-issue the delete on every other iteration to recover from a
+		// transient SQLite write that did not actually remove the row.
+		if i%2 == 1 {
+			if err := r.client.DeleteInbound(ctx, id); err != nil {
+				return fmt.Errorf("retry delete after stale read: %w", err)
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+	}
+	return fmt.Errorf("inbound %d still visible after delete", id)
 }
 
 func (r *InboundResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

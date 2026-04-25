@@ -143,6 +143,87 @@ func TestClientDeleteInbound(t *testing.T) {
 	}
 }
 
+// TestInboundResourceWaitForDeletion verifies the post-Delete polling loop
+// added in #136. It exercises three scenarios:
+//   - immediate deletion (single GET that fails)
+//   - stale read followed by a successful re-delete (GET → DELETE → GET)
+//   - persistent stale read that exhausts the retry budget
+func TestInboundResourceWaitForDeletion(t *testing.T) {
+	t.Run("immediate", func(t *testing.T) {
+		var gets int
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet && r.URL.Path == "/panel/api/inbounds/get/9" {
+				gets++
+				w.Write(failResponse("record not found"))
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer srv.Close()
+
+		res := &InboundResource{client: newTestClient(t, srv.URL)}
+		if err := res.waitForInboundDeletion(context.Background(), 9); err != nil {
+			t.Fatalf("waitForInboundDeletion: %v", err)
+		}
+		if gets != 1 {
+			t.Fatalf("expected 1 GET, got %d", gets)
+		}
+	})
+
+	t.Run("retry-then-success", func(t *testing.T) {
+		var gets, dels int
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/panel/api/inbounds/get/3":
+				gets++
+				if gets <= 2 {
+					// First two GETs report inbound still present.
+					w.Write(okResponse(&Inbound{ID: 3}))
+					return
+				}
+				w.Write(failResponse("record not found"))
+			case r.Method == http.MethodPost && r.URL.Path == "/panel/api/inbounds/del/3":
+				dels++
+				w.Write(okResponse(map[string]any{"id": 3}))
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+		defer srv.Close()
+
+		res := &InboundResource{client: newTestClient(t, srv.URL)}
+		if err := res.waitForInboundDeletion(context.Background(), 3); err != nil {
+			t.Fatalf("waitForInboundDeletion: %v", err)
+		}
+		if gets < 3 {
+			t.Fatalf("expected >=3 GETs, got %d", gets)
+		}
+		if dels == 0 {
+			t.Fatalf("expected at least one retry DELETE, got %d", dels)
+		}
+	})
+
+	t.Run("never-disappears", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == http.MethodGet && r.URL.Path == "/panel/api/inbounds/get/1":
+				w.Write(okResponse(&Inbound{ID: 1}))
+			case r.Method == http.MethodPost && r.URL.Path == "/panel/api/inbounds/del/1":
+				w.Write(okResponse(map[string]any{"id": 1}))
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+		defer srv.Close()
+
+		res := &InboundResource{client: newTestClient(t, srv.URL)}
+		err := res.waitForInboundDeletion(context.Background(), 1)
+		if err == nil {
+			t.Fatalf("expected error for persistent stale read")
+		}
+	})
+}
+
 func TestInboundToForm(t *testing.T) {
 	in := &Inbound{
 		ID:             1,
