@@ -2,11 +2,14 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestClientAddInbound(t *testing.T) {
@@ -143,21 +146,19 @@ func TestClientDeleteInbound(t *testing.T) {
 	}
 }
 
-// TestInboundResourceWaitForDeletion verifies the post-Delete polling loop
-// added in #136. It exercises three scenarios:
-//   - immediate deletion (single GET that fails)
-//   - stale read followed by a successful re-delete (GET → DELETE → GET)
-//   - persistent stale read that exhausts the retry budget
+// TestInboundResourceWaitForDeletion exercises the post-Delete poll added in
+// #136. The helper checks the inbound list for the absence of id; it does NOT
+// re-issue DELETE (DelInbound is not idempotent in 3x-ui).
 func TestInboundResourceWaitForDeletion(t *testing.T) {
-	t.Run("immediate", func(t *testing.T) {
-		var gets int
+	t.Run("immediate-absent", func(t *testing.T) {
+		var lists int32
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet && r.URL.Path == "/panel/api/inbounds/get/9" {
-				gets++
-				w.Write(failResponse("record not found"))
+			if r.URL.Path != "/panel/api/inbounds/list" {
+				w.WriteHeader(http.StatusNotFound)
 				return
 			}
-			w.WriteHeader(http.StatusNotFound)
+			atomic.AddInt32(&lists, 1)
+			w.Write(okResponse([]Inbound{{ID: 7}}))
 		}))
 		defer srv.Close()
 
@@ -165,29 +166,24 @@ func TestInboundResourceWaitForDeletion(t *testing.T) {
 		if err := res.waitForInboundDeletion(context.Background(), 9); err != nil {
 			t.Fatalf("waitForInboundDeletion: %v", err)
 		}
-		if gets != 1 {
-			t.Fatalf("expected 1 GET, got %d", gets)
+		if got := atomic.LoadInt32(&lists); got != 1 {
+			t.Fatalf("expected exactly 1 list call, got %d", got)
 		}
 	})
 
-	t.Run("retry-then-success", func(t *testing.T) {
-		var gets, dels int
+	t.Run("becomes-absent-after-poll", func(t *testing.T) {
+		var lists int32
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.Method == http.MethodGet && r.URL.Path == "/panel/api/inbounds/get/3":
-				gets++
-				if gets <= 2 {
-					// First two GETs report inbound still present.
-					w.Write(okResponse(&Inbound{ID: 3}))
-					return
-				}
-				w.Write(failResponse("record not found"))
-			case r.Method == http.MethodPost && r.URL.Path == "/panel/api/inbounds/del/3":
-				dels++
-				w.Write(okResponse(map[string]any{"id": 3}))
-			default:
+			if r.URL.Path != "/panel/api/inbounds/list" {
 				w.WriteHeader(http.StatusNotFound)
+				return
 			}
+			n := atomic.AddInt32(&lists, 1)
+			if n <= 2 {
+				w.Write(okResponse([]Inbound{{ID: 3}}))
+				return
+			}
+			w.Write(okResponse([]Inbound{}))
 		}))
 		defer srv.Close()
 
@@ -195,31 +191,71 @@ func TestInboundResourceWaitForDeletion(t *testing.T) {
 		if err := res.waitForInboundDeletion(context.Background(), 3); err != nil {
 			t.Fatalf("waitForInboundDeletion: %v", err)
 		}
-		if gets < 3 {
-			t.Fatalf("expected >=3 GETs, got %d", gets)
-		}
-		if dels == 0 {
-			t.Fatalf("expected at least one retry DELETE, got %d", dels)
+		if got := atomic.LoadInt32(&lists); got != 3 {
+			t.Fatalf("expected exactly 3 list calls, got %d", got)
 		}
 	})
 
-	t.Run("never-disappears", func(t *testing.T) {
+	t.Run("never-absent-returns-error", func(t *testing.T) {
+		var lists int32
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.Method == http.MethodGet && r.URL.Path == "/panel/api/inbounds/get/1":
-				w.Write(okResponse(&Inbound{ID: 1}))
-			case r.Method == http.MethodPost && r.URL.Path == "/panel/api/inbounds/del/1":
-				w.Write(okResponse(map[string]any{"id": 1}))
-			default:
+			if r.URL.Path != "/panel/api/inbounds/list" {
 				w.WriteHeader(http.StatusNotFound)
+				return
 			}
+			atomic.AddInt32(&lists, 1)
+			w.Write(okResponse([]Inbound{{ID: 1}}))
 		}))
 		defer srv.Close()
 
 		res := &InboundResource{client: newTestClient(t, srv.URL)}
-		err := res.waitForInboundDeletion(context.Background(), 1)
+		if err := res.waitForInboundDeletion(context.Background(), 1); err == nil {
+			t.Fatalf("expected error after exhausting attempts")
+		}
+		if got := atomic.LoadInt32(&lists); got != 6 {
+			t.Fatalf("expected 6 list calls, got %d", got)
+		}
+	})
+
+	t.Run("transient-list-error-not-treated-as-success", func(t *testing.T) {
+		// A transient 5xx must not be misread as confirmed deletion.
+		var lists int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/panel/api/inbounds/list" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			atomic.AddInt32(&lists, 1)
+			http.Error(w, "boom", http.StatusInternalServerError)
+		}))
+		defer srv.Close()
+
+		res := &InboundResource{client: newTestClient(t, srv.URL)}
+		err := res.waitForInboundDeletion(context.Background(), 5)
 		if err == nil {
-			t.Fatalf("expected error for persistent stale read")
+			t.Fatalf("expected error when list keeps failing")
+		}
+	})
+
+	t.Run("ctx-canceled-during-backoff", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/panel/api/inbounds/list" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			w.Write(okResponse([]Inbound{{ID: 11}}))
+		}))
+		defer srv.Close()
+
+		res := &InboundResource{client: newTestClient(t, srv.URL)}
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		err := res.waitForInboundDeletion(ctx, 11)
+		if err == nil {
+			t.Fatalf("expected ctx error")
+		}
+		if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected context error, got %v", err)
 		}
 	})
 }

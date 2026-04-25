@@ -371,47 +371,61 @@ func (r *InboundResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 
-	// Verify the inbound is actually gone. 3x-ui's DelInbound is a multi-step
-	// operation against SQLite; under load (CI matrix runs) the DELETE may
-	// occasionally appear to succeed at the API level while the row still
-	// being visible to a follow-up GET. Re-issuing the delete is idempotent,
-	// so we poll and retry to guard against this race (#136).
+	// The DELETE was accepted by the API. 3x-ui's DelInbound is a multi-step
+	// SQLite operation; under load the row may still be visible to a follow-up
+	// list call for a short time. Poll the list to confirm absence so the
+	// post-test sweep does not see a "dangling resource" (#136). Exhaustion is
+	// reported as a Warning, not Error: the API has already accepted the
+	// delete, so leaving the resource in TF state would be the worse failure
+	// mode — the next refresh will reconcile.
 	if err := r.waitForInboundDeletion(ctx, id); err != nil {
-		resp.Diagnostics.AddError("Inbound deletion not confirmed", err.Error())
+		resp.Diagnostics.AddWarning("Inbound deletion not confirmed within budget", err.Error())
 	}
 }
 
-// waitForInboundDeletion polls GetInbound until it reports the inbound is
-// gone. If the inbound is still visible after a short interval it re-issues
-// the delete (the API is idempotent for a non-existent ID — it simply
-// returns success). The total budget is intentionally small: any longer
-// delay indicates a real server-side problem rather than a flake.
+// waitForInboundDeletion polls the inbound list until id is absent. Errors
+// from the list call are treated as retryable, not as success: a transient
+// network blip must not be misread as confirmed deletion. DelInbound is NOT
+// idempotent in 3x-ui (it calls GetInbound first and errors on a missing
+// row), so we never re-issue DELETE — the original DELETE has already been
+// accepted.
 func (r *InboundResource) waitForInboundDeletion(ctx context.Context, id int) error {
 	const (
 		attempts = 6
 		delay    = 500 * time.Millisecond
 	)
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	var lastErr error
 	for i := 0; i < attempts; i++ {
-		if _, err := r.client.GetInbound(ctx, id); err != nil {
-			// API reported failure (typically "record not found"). The
-			// inbound is gone.
-			return nil
+		inbounds, err := r.client.GetInbounds(ctx)
+		if err != nil {
+			lastErr = err
+		} else {
+			lastErr = nil
+			present := false
+			for _, in := range inbounds {
+				if in.ID == id {
+					present = true
+					break
+				}
+			}
+			if !present {
+				return nil
+			}
 		}
 		if i+1 == attempts {
 			break
 		}
-		// Re-issue the delete on every other iteration to recover from a
-		// transient SQLite write that did not actually remove the row.
-		if i%2 == 1 {
-			if err := r.client.DeleteInbound(ctx, id); err != nil {
-				return fmt.Errorf("retry delete after stale read: %w", err)
-			}
-		}
+		timer.Reset(delay)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(delay):
+		case <-timer.C:
 		}
+	}
+	if lastErr != nil {
+		return fmt.Errorf("inbound %d delete confirmation failed: %w", id, lastErr)
 	}
 	return fmt.Errorf("inbound %d still visible after delete", id)
 }
