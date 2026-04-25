@@ -167,7 +167,7 @@ func (c *Client) UpdateInbound(ctx context.Context, inbound *Inbound) (*Inbound,
 	}
 	relPath := fmt.Sprintf("panel/api/inbounds/update/%d", inbound.ID)
 	var out Inbound
-	if err := c.doForm(ctx, http.MethodPost, relPath, inboundToForm(inbound), &out); err != nil {
+	if err := c.doFormRetryable(ctx, http.MethodPost, relPath, inboundToForm(inbound), &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -238,7 +238,7 @@ func (c *Client) UpdateInboundClient(ctx context.Context, inboundID int, clientI
 	form.Set("id", strconv.Itoa(inboundID))
 	form.Set("settings", string(settings))
 	relPath := fmt.Sprintf("panel/api/inbounds/updateClient/%s", clientID)
-	return c.doForm(ctx, http.MethodPost, relPath, form, nil)
+	return c.doFormRetryable(ctx, http.MethodPost, relPath, form, nil)
 }
 
 func (c *Client) DeleteInboundClient(ctx context.Context, inboundID int, clientID string) error {
@@ -393,7 +393,7 @@ func (c *Client) UpdateSettings(ctx context.Context, settings map[string]any) er
 	if settings == nil {
 		return errors.New("settings payload is required")
 	}
-	return c.doJSON(ctx, http.MethodPost, "panel/setting/update", settings, nil)
+	return c.doJSONRetryable(ctx, http.MethodPost, "panel/setting/update", settings, nil)
 }
 
 // SendRestart sends the restart request but does not wait for readiness.
@@ -482,7 +482,7 @@ func (c *Client) UpdateXrayTemplate(ctx context.Context, settings map[string]any
 	if testURL != "" {
 		form.Set("outboundTestUrl", testURL)
 	}
-	return c.doForm(ctx, http.MethodPost, "panel/xray/update", form, nil)
+	return c.doFormRetryable(ctx, http.MethodPost, "panel/xray/update", form, nil)
 }
 
 func (c *Client) GetXrayOutboundTestURL(ctx context.Context) (string, error) {
@@ -515,7 +515,7 @@ func (c *Client) SetXrayOutboundTestURL(ctx context.Context, testURL string) err
 	form := url.Values{}
 	form.Set("xraySetting", string(payload))
 	form.Set("outboundTestUrl", testURL)
-	return c.doForm(ctx, http.MethodPost, "panel/xray/update", form, nil)
+	return c.doFormRetryable(ctx, http.MethodPost, "panel/xray/update", form, nil)
 }
 
 func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType string, body []byte, out any) error {
@@ -537,25 +537,89 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType st
 		defer resp.Body.Close()
 	}
 
-	// 3x-ui's SQLite-backed write handlers occasionally surface lock
-	// contention as 5xx (notably v2.8.9; see #134). Retry writes once
-	// after a short backoff before giving up. GETs are excluded —
-	// a 5xx on read is more likely a real problem worth surfacing.
-	if resp.StatusCode >= 500 && resp.StatusCode < 600 && method != http.MethodGet {
-		resp.Body.Close()
+	return decodeAPIResponse(resp, out)
+}
+
+// HTTPStatusError carries the HTTP status code from an upstream response so
+// callers can distinguish transient 5xx (retryable) from 4xx (do not retry).
+type HTTPStatusError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *HTTPStatusError) Error() string {
+	if e.Body == "" {
+		return fmt.Sprintf("request failed: status %d", e.StatusCode)
+	}
+	return fmt.Sprintf("request failed: status %d, body: %s", e.StatusCode, e.Body)
+}
+
+// doFormRetryable is doForm with a single retry on a transient 5xx response.
+// Use only on idempotent write endpoints. 3x-ui's SQLite-backed write
+// handlers in earlier versions (notably pre-v2.9.0; see #134) occasionally
+// surface lock contention as 5xx; v2.9.0 reworked the inbound update path
+// inside a transaction and is more robust, but the older versions in our
+// compatibility matrix still hit it.
+//
+// Not safe for non-idempotent endpoints: AddInbound (would create a
+// duplicate), AddInboundClient (duplicate), UpdateUser (the second call
+// would run with stale credentials and could leave provider state and
+// panel state out of sync), DeleteInbound (3x-ui's DelInbound calls
+// GetInbound first and errors on a missing row, so a retry after a
+// successful-but-5xx delete turns success into failure).
+func (c *Client) doFormRetryable(ctx context.Context, method, relPath string, form url.Values, out any) error { //nolint:unparam // method kept for API symmetry with doJSONRetryable / doForm
+	endpoint, err := c.resolvePath(relPath)
+	if err != nil {
+		return err
+	}
+	body := []byte(form.Encode())
+	const contentType = "application/x-www-form-urlencoded"
+	if err := c.doRequest(ctx, method, endpoint, contentType, body, out); err != nil {
+		var httpErr *HTTPStatusError
+		if !errors.As(err, &httpErr) || httpErr.StatusCode < 500 || httpErr.StatusCode >= 600 {
+			return err
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(500 * time.Millisecond):
 		}
-		resp, err = c.doRequestOnce(ctx, method, endpoint, contentType, body)
-		if err != nil {
+		return c.doRequest(ctx, method, endpoint, contentType, body, out)
+	}
+	return nil
+}
+
+// doJSONRetryable is doJSON with a single retry on a transient 5xx. See
+// doFormRetryable for caveats.
+func (c *Client) doJSONRetryable(ctx context.Context, method, relPath string, body any, out any) error {
+	endpoint, err := c.resolvePath(relPath)
+	if err != nil {
+		return err
+	}
+	var buf bytes.Buffer
+	if body != nil {
+		if err := json.NewEncoder(&buf).Encode(body); err != nil {
 			return err
 		}
-		defer resp.Body.Close()
 	}
-
-	return decodeAPIResponse(resp, out)
+	contentType := ""
+	if body != nil {
+		contentType = "application/json"
+	}
+	encoded := buf.Bytes()
+	if err := c.doRequest(ctx, method, endpoint, contentType, encoded, out); err != nil {
+		var httpErr *HTTPStatusError
+		if !errors.As(err, &httpErr) || httpErr.StatusCode < 500 || httpErr.StatusCode >= 600 {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+		return c.doRequest(ctx, method, endpoint, contentType, encoded, out)
+	}
+	return nil
 }
 
 func (c *Client) doRequestOnce(ctx context.Context, method, endpoint, contentType string, body []byte) (*http.Response, error) {
@@ -576,7 +640,7 @@ func decodeAPIResponse(resp *http.Response, out any) error {
 	}
 	if len(body) == 0 {
 		if resp.StatusCode >= 400 {
-			return fmt.Errorf("request failed: status %d", resp.StatusCode)
+			return &HTTPStatusError{StatusCode: resp.StatusCode}
 		}
 		return nil
 	}
@@ -585,13 +649,10 @@ func decodeAPIResponse(resp *http.Response, out any) error {
 	if err := json.Unmarshal(body, &apiResp); err != nil {
 		if resp.StatusCode >= 400 {
 			msg := strings.TrimSpace(string(body))
-			if msg == "" {
-				return fmt.Errorf("request failed: status %d", resp.StatusCode)
-			}
 			if len(msg) > 1024 {
 				msg = msg[:1024] + "...(truncated)"
 			}
-			return fmt.Errorf("request failed: status %d, body: %s", resp.StatusCode, msg)
+			return &HTTPStatusError{StatusCode: resp.StatusCode, Body: msg}
 		}
 		return err
 	}
