@@ -537,6 +537,24 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType st
 		defer resp.Body.Close()
 	}
 
+	// 3x-ui's SQLite-backed write handlers occasionally surface lock
+	// contention as 5xx (notably v2.8.9; see #134). Retry writes once
+	// after a short backoff before giving up. GETs are excluded —
+	// a 5xx on read is more likely a real problem worth surfacing.
+	if resp.StatusCode >= 500 && resp.StatusCode < 600 && method != http.MethodGet {
+		resp.Body.Close()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+		resp, err = c.doRequestOnce(ctx, method, endpoint, contentType, body)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+	}
+
 	return decodeAPIResponse(resp, out)
 }
 
