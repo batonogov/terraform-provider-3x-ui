@@ -1,4 +1,11 @@
-# Shadowsocks inbound with AEAD cipher.
+# Shadowsocks inbound.
+#
+# Cipher choice: 3x-ui v2.9.3 removed the legacy AEAD ciphers
+# (aes-128-gcm, aes-256-gcm) from the xray user-registration switch.
+# Configs that still pass them silently route through Shadowsocks-2022
+# using the password as the 2022 key, so AEAD clients stop connecting.
+# chacha20-ietf-poly1305 works on every supported 3x-ui version; for
+# 2022-edition use a 2022-blake3-* method with a base64 32-byte key.
 
 terraform {
   required_providers {
@@ -22,7 +29,7 @@ resource "threexui_inbound" "shadowsocks" {
   enable   = true
 
   shadowsocks_settings {
-    method   = "aes-256-gcm"
+    method   = "chacha20-ietf-poly1305"
     password = "change-me-to-a-strong-password"
     network  = "tcp,udp"
   }

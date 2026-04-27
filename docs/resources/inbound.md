@@ -196,7 +196,7 @@ Use the block matching your `protocol`. Only one should be specified.
 
 #### `shadowsocks_settings`
 
-- `method` (Optional, String) - Encryption method (e.g. `aes-256-gcm`, `chacha20-ietf-poly1305`).
+- `method` (Optional, String) - Encryption method (e.g. `chacha20-ietf-poly1305`, `2022-blake3-aes-256-gcm`). On 3x-ui v2.9.3+ the legacy `aes-128-gcm`/`aes-256-gcm` ciphers were dropped from the xray user switch and silently route through Shadowsocks-2022; pick a chacha20 variant or a `2022-blake3-*` method to stay compatible across the matrix.
 - `password` (Optional, String) - Password.
 - `network` (Optional, String) - Network type (e.g. `tcp,udp`).
 - `iv_check` (Optional, Boolean) - Enable IV check.
