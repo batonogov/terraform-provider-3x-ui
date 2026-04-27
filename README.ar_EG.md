@@ -86,7 +86,7 @@ resource "threexui_inbound_client" "client_a" {
 
 ## التوافق
 
-اختبارات الـ acceptance بتشتغل على كل إصدارات 3x-ui المدعومة في كل push على `main` و في كل pull request.
+**سياسة الدعم:** الـ provider بيدعم رسميًا آخر سطرين فرعيين (minor) من 3x-ui. حاليًا ده يعني **2.8.x** و **2.9.x** — كل patch متنزّل من السطرين بيتشغّل في matrix الـ acceptance في كل push على `main` و في كل pull request. لما ينزل minor جديد (مثلاً 2.10.0)، أقدم سطر مدعوم بيتشال من الـ matrix و من الجدول ده.
 
 | إصدار 3x-ui | الحالة |
 | --- | --- |

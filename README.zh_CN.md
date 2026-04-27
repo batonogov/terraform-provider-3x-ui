@@ -84,7 +84,7 @@ resource "threexui_inbound_client" "client_a" {
 
 ## 兼容性
 
-每次 push 到 `main` 和每个 pull request 都会针对所有支持的 3x-ui 版本跑 acceptance 测试。
+**支持策略:** 本 provider 正式支持最新的两个 3x-ui 次要版本线。目前是 **2.8.x** 和 **2.9.x** —— 两个版本线下的每个已发布补丁版本都会在每次 push 到 `main` 和每个 pull request 时由 acceptance 矩阵覆盖。当新次要版本(例如 2.10.0)发布时,最旧的受支持版本线会从矩阵和本表中移除。
 
 | 3x-ui 版本 | 状态 |
 | --- | --- |

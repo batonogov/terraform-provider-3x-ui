@@ -84,7 +84,7 @@ resource "threexui_inbound_client" "client_a" {
 
 ## Compatibilidad
 
-Las pruebas de aceptación se ejecutan en todas las versiones soportadas de 3x-ui en cada push a `main` y en cada pull request.
+**Política de soporte:** el proveedor soporta oficialmente las dos últimas líneas menores de 3x-ui. Actualmente son **2.8.x** y **2.9.x** — cada parche publicado de ambas líneas se ejecuta en la matriz de aceptación en cada push a `main` y en cada pull request. Cuando se publique una nueva versión menor (p. ej. 2.10.0), la línea soportada más antigua se eliminará de la matriz y de esta tabla.
 
 | Versión de 3x-ui | Estado |
 | --- | --- |
