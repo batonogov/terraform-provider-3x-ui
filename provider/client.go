@@ -14,7 +14,15 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
+
+// defaultRetryBackoff is the fixed delay between retry attempts on transient
+// 5xx responses. It is intentionally short — a longer wait would mask real
+// bugs, since this retry exists only to absorb sub-second contention spikes
+// in 3x-ui's SQLite write path on older versions.
+const defaultRetryBackoff = 500 * time.Millisecond
 
 type ClientConfig struct {
 	Endpoint           string
@@ -24,6 +32,10 @@ type ClientConfig struct {
 	TwoFactorCode      string
 	InsecureSkipVerify bool
 	Timeout            time.Duration
+	// MaxRetries is the maximum number of *additional* attempts on transient
+	// 5xx for idempotent write endpoints. 0 disables retry entirely; 1 (the
+	// default applied by the provider) means up to one retry after a backoff.
+	MaxRetries int
 }
 
 type Client struct {
@@ -33,6 +45,7 @@ type Client struct {
 	password   string
 	twoFactor  string
 	httpClient *http.Client
+	maxRetries int
 }
 
 // SetBasePath updates the client's base path to match a new webBasePath.
@@ -74,6 +87,11 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		Transport: transport,
 	}
 
+	maxRetries := cfg.MaxRetries
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+
 	return &Client{
 		baseURL:    baseURL,
 		basePath:   basePath,
@@ -81,6 +99,7 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		password:   cfg.Password,
 		twoFactor:  cfg.TwoFactorCode,
 		httpClient: client,
+		maxRetries: maxRetries,
 	}, nil
 }
 
@@ -554,12 +573,23 @@ func (e *HTTPStatusError) Error() string {
 	return fmt.Sprintf("request failed: status %d, body: %s", e.StatusCode, e.Body)
 }
 
-// doFormRetryable is doForm with a single retry on a transient 5xx response.
-// Use only on idempotent write endpoints. 3x-ui's SQLite-backed write
-// handlers in earlier versions (notably pre-v2.9.0; see #134) occasionally
-// surface lock contention as 5xx; v2.9.0 reworked the inbound update path
-// inside a transaction and is more robust, but the older versions in our
-// compatibility matrix still hit it.
+// isTransient5xx reports whether err is an *HTTPStatusError with a 5xx code.
+// 5xx on a write endpoint typically originates from gin's recovery
+// middleware after a panic in the handler — the panel's controllers
+// otherwise return 200 with success:false. A panic during a SQLite
+// transaction is the canonical "transient" failure this retry targets.
+func isTransient5xx(err error) bool {
+	var httpErr *HTTPStatusError
+	if !errors.As(err, &httpErr) {
+		return false
+	}
+	return httpErr.StatusCode >= 500 && httpErr.StatusCode < 600
+}
+
+// withRetry runs op up to (1 + c.maxRetries) times, retrying only on a
+// transient 5xx response from an idempotent endpoint. It is the single
+// retry policy in the client; doFormRetryable / doJSONRetryable wrap it
+// so callers do not have to construct logging fields themselves.
 //
 // Not safe for non-idempotent endpoints: AddInbound (would create a
 // duplicate), AddInboundClient (duplicate), UpdateUser (the second call
@@ -567,59 +597,50 @@ func (e *HTTPStatusError) Error() string {
 // panel state out of sync), DeleteInbound (3x-ui's DelInbound calls
 // GetInbound first and errors on a missing row, so a retry after a
 // successful-but-5xx delete turns success into failure).
-func (c *Client) doFormRetryable(ctx context.Context, method, relPath string, form url.Values, out any) error { //nolint:unparam // method kept for API symmetry with doJSONRetryable / doForm
-	endpoint, err := c.resolvePath(relPath)
-	if err != nil {
+//
+// Retries are visible: every retry emits a tflog.Warn so operators can
+// detect upstream flakiness instead of having it silently absorbed.
+func (c *Client) withRetry(ctx context.Context, op string, fn func() error) error {
+	err := fn()
+	if err == nil || c.maxRetries <= 0 || !isTransient5xx(err) {
 		return err
 	}
-	body := []byte(form.Encode())
-	const contentType = "application/x-www-form-urlencoded"
-	if err := c.doRequest(ctx, method, endpoint, contentType, body, out); err != nil {
+	for attempt := 1; attempt <= c.maxRetries; attempt++ {
 		var httpErr *HTTPStatusError
-		if !errors.As(err, &httpErr) || httpErr.StatusCode < 500 || httpErr.StatusCode >= 600 {
-			return err
-		}
+		_ = errors.As(err, &httpErr)
+		tflog.Warn(ctx, "retrying transient 5xx", map[string]any{
+			"operation":    op,
+			"attempt":      attempt,
+			"max_attempts": c.maxRetries,
+			"status_code":  httpErr.StatusCode,
+			"backoff":      defaultRetryBackoff.String(),
+		})
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(500 * time.Millisecond):
+		case <-time.After(defaultRetryBackoff):
 		}
-		return c.doRequest(ctx, method, endpoint, contentType, body, out)
+		err = fn()
+		if err == nil {
+			return nil
+		}
+		if !isTransient5xx(err) {
+			return err
+		}
 	}
-	return nil
+	return err
 }
 
-// doJSONRetryable is doJSON with a single retry on a transient 5xx. See
-// doFormRetryable for caveats.
+func (c *Client) doFormRetryable(ctx context.Context, method, relPath string, form url.Values, out any) error { //nolint:unparam // method kept for API symmetry with doJSONRetryable / doForm
+	return c.withRetry(ctx, method+" "+relPath, func() error {
+		return c.doForm(ctx, method, relPath, form, out)
+	})
+}
+
 func (c *Client) doJSONRetryable(ctx context.Context, method, relPath string, body any, out any) error {
-	endpoint, err := c.resolvePath(relPath)
-	if err != nil {
-		return err
-	}
-	var buf bytes.Buffer
-	if body != nil {
-		if err := json.NewEncoder(&buf).Encode(body); err != nil {
-			return err
-		}
-	}
-	contentType := ""
-	if body != nil {
-		contentType = "application/json"
-	}
-	encoded := buf.Bytes()
-	if err := c.doRequest(ctx, method, endpoint, contentType, encoded, out); err != nil {
-		var httpErr *HTTPStatusError
-		if !errors.As(err, &httpErr) || httpErr.StatusCode < 500 || httpErr.StatusCode >= 600 {
-			return err
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(500 * time.Millisecond):
-		}
-		return c.doRequest(ctx, method, endpoint, contentType, encoded, out)
-	}
-	return nil
+	return c.withRetry(ctx, method+" "+relPath, func() error {
+		return c.doJSON(ctx, method, relPath, body, out)
+	})
 }
 
 func (c *Client) doRequestOnce(ctx context.Context, method, endpoint, contentType string, body []byte) (*http.Response, error) {

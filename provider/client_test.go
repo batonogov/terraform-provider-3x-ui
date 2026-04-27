@@ -28,6 +28,13 @@ func failResponse(msg string) []byte {
 
 func newTestClient(t *testing.T, endpoint string) *Client {
 	t.Helper()
+	// Mirror the provider's default max_retries=1 so existing tests cover
+	// the retry path with the same configuration users get out of the box.
+	return newTestClientWithRetries(t, endpoint, 1)
+}
+
+func newTestClientWithRetries(t *testing.T, endpoint string, maxRetries int) *Client {
+	t.Helper()
 	c, err := NewClient(ClientConfig{
 		Endpoint:           endpoint,
 		BasePath:           "/",
@@ -35,6 +42,7 @@ func newTestClient(t *testing.T, endpoint string) *Client {
 		Password:           "admin",
 		InsecureSkipVerify: true,
 		Timeout:            2 * time.Second,
+		MaxRetries:         maxRetries,
 	})
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
@@ -167,6 +175,55 @@ func TestLoginFailure(t *testing.T) {
 	client := newTestClient(t, srv.URL)
 	if err := client.Login(context.Background()); err == nil {
 		t.Fatalf("expected login error")
+	}
+}
+
+func TestUpdateInboundMaxRetriesZeroDisablesRetry(t *testing.T) {
+	// Operators must be able to opt out of retry entirely (max_retries=0)
+	// so a transient 5xx surfaces immediately without any silent retry.
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/panel/api/inbounds/update/7" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		atomic.AddInt32(&calls, 1)
+		http.Error(w, "transient", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	client := newTestClientWithRetries(t, srv.URL, 0)
+	if _, err := client.UpdateInbound(context.Background(), &Inbound{ID: 7}); err == nil {
+		t.Fatalf("expected 5xx to surface when max_retries=0")
+	}
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("expected exactly 1 call (no retry when max_retries=0), got %d", got)
+	}
+}
+
+func TestUpdateInboundMaxRetriesTwo(t *testing.T) {
+	// Two retries: 500, 500, 200 → succeed on third attempt, exactly 3 calls.
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/panel/api/inbounds/update/7" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		n := atomic.AddInt32(&calls, 1)
+		if n <= 2 {
+			http.Error(w, "transient", http.StatusInternalServerError)
+			return
+		}
+		w.Write(okResponse(&Inbound{ID: 7}))
+	}))
+	defer srv.Close()
+
+	client := newTestClientWithRetries(t, srv.URL, 2)
+	if _, err := client.UpdateInbound(context.Background(), &Inbound{ID: 7}); err != nil {
+		t.Fatalf("UpdateInbound after 500-500-200 failed: %v", err)
+	}
+	if got := atomic.LoadInt32(&calls); got != 3 {
+		t.Fatalf("expected 3 calls (initial + 2 retries), got %d", got)
 	}
 }
 
