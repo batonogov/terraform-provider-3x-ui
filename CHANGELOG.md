@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.0.0...v3.1.0) (2026-04-27)
+
+
+### Features
+
+* support 3x-ui v2.9.3 and hysteria2 protocol alias ([#155](https://github.com/batonogov/terraform-provider-threexui/issues/155)) ([2c099cb](https://github.com/batonogov/terraform-provider-threexui/commit/2c099cbf31e26c10ef0ef99f83977e0fe1272cd8))
+
 ## [3.0.0](https://github.com/batonogov/terraform-provider-threexui/compare/v2.1.0...v3.0.0) (2026-04-27)
 
 
