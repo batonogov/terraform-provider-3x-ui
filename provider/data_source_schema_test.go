@@ -20,6 +20,7 @@ func TestDataSourceSensitiveAttributes(t *testing.T) {
 	}{
 		{"inbounds", NewInboundsDataSource, "inbounds"},
 		{"settings", NewSettingsDataSource, "json"},
+		{"xray_config", NewXrayConfigDataSource, "json"},
 	}
 
 	for _, tc := range cases {
