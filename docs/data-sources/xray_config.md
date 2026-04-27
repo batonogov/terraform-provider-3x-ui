@@ -15,9 +15,12 @@ Retrieves the current Xray template configuration from the 3x-ui panel as a JSON
 data "threexui_xray_config" "current" {}
 
 output "xray_config" {
-  value = data.threexui_xray_config.current.json
+  value     = data.threexui_xray_config.current.json
+  sensitive = true
 }
 ```
+
+> **Upgrade note:** The `json` attribute is marked sensitive because the Xray template includes outbound credentials (Shadowsocks/Trojan/SOCKS/HTTP passwords, VLESS/VMess UUIDs, WireGuard `secretKey`, Reality `privateKey`) and inbound client identifiers. Any `output` referencing it (or values derived from it via `jsondecode(...)`) must declare `sensitive = true`, or be wrapped in `nonsensitive(...)` for fields that are safe to expose. Without it, `terraform plan` fails with `Output refers to sensitive values`.
 
 ## Argument Reference
 
@@ -25,4 +28,4 @@ This data source has no arguments.
 
 ## Attribute Reference
 
-- `json` (String) - The current Xray template configuration as a JSON string.
+- `json` (String, Sensitive) - The current Xray template configuration as a JSON string. Marked sensitive because the payload includes outbound credentials, client UUIDs, WireGuard `secretKey`, and Reality `privateKey`.
