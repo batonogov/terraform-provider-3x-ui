@@ -75,7 +75,7 @@ func setDefaultSettings(inbound *Inbound) error {
 
 func protocolUsesClients(protocol string) bool {
 	switch protocol {
-	case "vmess", "vless", "trojan", "shadowsocks", "hysteria":
+	case "vmess", "vless", "trojan", "shadowsocks", "hysteria", "hysteria2":
 		return true
 	default:
 		return false
@@ -96,7 +96,7 @@ func defaultSettingsForProtocol(protocol string) (map[string]any, error) { //nol
 		return nil, nil
 	case "shadowsocks":
 		return nil, nil
-	case "hysteria":
+	case "hysteria", "hysteria2":
 		return map[string]any{
 			"version": 2,
 		}, nil

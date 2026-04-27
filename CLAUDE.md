@@ -47,7 +47,7 @@ docs/
 README.md              — English README; localized in 5 more languages mirroring 3x-ui upstream:
                          README.ru_RU.md, README.fa_IR.md, README.ar_EG.md, README.zh_CN.md, README.es_ES.md
 3x-ui-<version>/      — 3x-ui source snapshots (in .gitignore, for reference/diffing)
-docker-compose.yaml    — 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v2.9.2)
+docker-compose.yaml    — 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v2.9.3)
 Taskfile.yml           — task build / test / fmt
 .github/workflows/
   ci.yml               — lint, unit tests, acceptance tests, compatibility matrix (PR + push main)
@@ -200,7 +200,7 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 task build            # Build binary
 task test:unit        # Run unit tests (no Docker / Terraform needed)
 task test:acc         # Run acceptance tests (requires Docker)
-task test:acc:compat  # Run all tests with version-aware skipping (THREEXUI_VERSION, default v2.9.2)
+task test:acc:compat  # Run all tests with version-aware skipping (THREEXUI_VERSION, default v2.9.3)
 task test             # Run unit + acceptance tests
 task fmt              # gofmt
 task vet              # go vet

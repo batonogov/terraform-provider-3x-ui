@@ -496,7 +496,7 @@ func expandSettingsFromModel(protocol string, m *InboundResourceModel) map[strin
 		return expandWireguardInboundSettings(m.WireguardSettings)
 	case "dokodemo-door", "tunnel":
 		return expandDokodemoInboundSettings(m.DokodemoSettings)
-	case "hysteria":
+	case "hysteria", "hysteria2":
 		return expandHysteriaInboundSettings(m.HysteriaSettings)
 	default:
 		return nil
@@ -770,7 +770,7 @@ func flattenSettingsToModel(protocol string, data map[string]any, m *InboundReso
 		m.WireguardSettings = flattenWireguardInboundSettings(data)
 	case "dokodemo-door", "tunnel":
 		m.DokodemoSettings = flattenDokodemoInboundSettings(data)
-	case "hysteria":
+	case "hysteria", "hysteria2":
 		m.HysteriaSettings = flattenHysteriaInboundSettings(data)
 	}
 }

@@ -14,7 +14,7 @@ Use `task` for all routine work:
 - `task lint` runs `golangci-lint run`.
 - `task test:unit` runs unit tests only.
 - `task test:acc` starts Docker Compose and runs Terraform acceptance tests.
-- `task test:acc:compat` runs acceptance tests against a selectable 3x-ui version via `THREEXUI_VERSION` (defaults to `v2.9.2`).
+- `task test:acc:compat` runs acceptance tests against a selectable 3x-ui version via `THREEXUI_VERSION` (defaults to `v2.9.3`).
 - `task test` runs both unit and acceptance suites.
 - `task pre-commit` runs the Go pre-commit checks: fmt, vet, lint, and build. The actual `.pre-commit-config.yaml` also includes markdown and common file checks.
 
