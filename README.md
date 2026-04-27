@@ -95,7 +95,7 @@ Full documentation is available on the [Terraform Registry](https://registry.ter
 | `threexui_inbounds` | List of all inbounds (JSON, sensitive) |
 | `threexui_server_status` | Server status: CPU, memory, disk, uptime (JSON) |
 | `threexui_settings` | All panel settings (JSON, sensitive) |
-| `threexui_xray_config` | Current Xray template (JSON) |
+| `threexui_xray_config` | Current Xray template (JSON, sensitive) |
 | `threexui_xray_versions` | Available Xray versions (list of strings) |
 | `threexui_online_clients` | Currently online client emails |
 | `threexui_client_traffics` | Client traffic statistics by email |

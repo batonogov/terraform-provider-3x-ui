@@ -69,11 +69,11 @@ Taskfile.yml           — task build / test / fmt
 
 | Terraform Data Source | Description |
 | --- | --- |
-| `threexui_inbounds` | List of all inbounds (JSON string) |
+| `threexui_inbounds` | List of all inbounds (JSON string, Sensitive) |
 | `threexui_server_status` | Server status (JSON) |
 | `threexui_xray_versions` | Available Xray versions (list of strings) |
-| `threexui_xray_config` | Current Xray config (JSON) |
-| `threexui_settings` | All panel settings (JSON) |
+| `threexui_xray_config` | Current Xray config (JSON, Sensitive) |
+| `threexui_settings` | All panel settings (JSON, Sensitive) |
 | `threexui_online_clients` | List of currently online client emails |
 | `threexui_client_traffics` | Client traffic statistics by email |
 
