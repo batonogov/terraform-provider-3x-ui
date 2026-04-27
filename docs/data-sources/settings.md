@@ -20,6 +20,8 @@ output "panel_settings" {
 }
 ```
 
+> **Upgrade note:** Since the provider release that marked `json` as sensitive, any `output` referencing `data.threexui_settings.<name>.json` must declare `sensitive = true`. Without it, `terraform plan` fails with `Output refers to sensitive values`.
+
 ## Argument Reference
 
 This data source has no arguments.
