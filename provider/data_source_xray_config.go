@@ -36,7 +36,9 @@ func (d *XrayConfigDataSource) Schema(_ context.Context, _ datasource.SchemaRequ
 				Computed: true,
 			},
 			"json": schema.StringAttribute{
-				Computed: true,
+				Computed:    true,
+				Sensitive:   true,
+				Description: "Current Xray template configuration as a JSON string. Marked Sensitive because the payload includes outbound credentials (Shadowsocks/Trojan/SOCKS/HTTP passwords, VLESS/VMess UUIDs, WireGuard secretKey, Reality privateKey) and inbound client identifiers.",
 			},
 		},
 	}
