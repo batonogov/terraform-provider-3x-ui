@@ -1076,6 +1076,46 @@ resource "threexui_inbound" "hysteria" {
 	})
 }
 
+// TestAccInboundHysteria2 covers the literal "hysteria2" protocol added in
+// 3x-ui v2.9.3 (database/model.go: Hysteria2 = "hysteria2"). The provider
+// routes this through the same hysteria settings expand/flatten path, so a
+// roundtrip must succeed end-to-end.
+func TestAccInboundHysteria2(t *testing.T) {
+	requireMinVersion(t, "v2.9.3")
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "hysteria2" {
+  port     = 25502
+  protocol = "hysteria2"
+  remark   = "acc-hysteria2-1"
+  enable   = true
+
+  hysteria_settings {
+    version = 2
+  }
+
+  stream_settings {
+    network  = "hysteria"
+    security = "tls"
+  }
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound.hysteria2", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound.hysteria2", "protocol", "hysteria2"),
+					resource.TestCheckResourceAttr("threexui_inbound.hysteria2", "remark", "acc-hysteria2-1"),
+					resource.TestCheckResourceAttr("threexui_inbound.hysteria2", "port", "25502"),
+				),
+			},
+		},
+	})
+}
+
 // --- Import: no drift with minimal config ---
 //
 // After importing an existing inbound, planning with a config that omits

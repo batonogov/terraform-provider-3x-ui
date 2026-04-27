@@ -88,6 +88,7 @@ Las pruebas de aceptación se ejecutan en todas las versiones soportadas de 3x-u
 
 | Versión de 3x-ui | Estado |
 | --- | --- |
+| v2.9.3 | Probado |
 | v2.9.2 | Probado |
 | v2.9.1 | Probado |
 | v2.9.0 | Probado |

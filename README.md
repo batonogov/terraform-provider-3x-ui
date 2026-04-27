@@ -88,6 +88,7 @@ Acceptance tests run against every supported 3x-ui version on each push to `main
 
 | 3x-ui version | Status |
 | --- | --- |
+| v2.9.3 | Tested |
 | v2.9.2 | Tested |
 | v2.9.1 | Tested |
 | v2.9.0 | Tested |
