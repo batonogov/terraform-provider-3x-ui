@@ -37,6 +37,7 @@ func (d *InboundsDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 			},
 			"inbounds": schema.StringAttribute{
 				Computed:    true,
+				Sensitive:   true,
 				Description: "JSON array of inbound objects.",
 			},
 		},
