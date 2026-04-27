@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -369,6 +371,54 @@ func (r *InboundResource) Delete(ctx context.Context, req resource.DeleteRequest
 		resp.Diagnostics.AddError("Failed to delete inbound", err.Error())
 		return
 	}
+
+	// The DELETE was accepted by the API. 3x-ui's DelInbound is a multi-step
+	// SQLite operation; under load the row may still be visible to a follow-up
+	// list call for a short time. Poll the list to confirm absence so the
+	// post-test sweep does not see a "dangling resource" (#136). Exhaustion is
+	// reported as a Warning, not Error: the API has already accepted the
+	// delete, so leaving the resource in TF state would be the worse failure
+	// mode — the next refresh will reconcile.
+	if err := r.waitForInboundDeletion(ctx, id); err != nil {
+		resp.Diagnostics.AddWarning("Inbound deletion not confirmed within budget", err.Error())
+	}
+}
+
+// waitForInboundDeletion polls the inbound list until id is absent. Errors
+// from the list call are treated as retryable, not as success: a transient
+// network blip must not be misread as confirmed deletion. DelInbound is NOT
+// idempotent in 3x-ui (it calls GetInbound first and errors on a missing
+// row), so we never re-issue DELETE — the original DELETE has already been
+// accepted.
+func (r *InboundResource) waitForInboundDeletion(ctx context.Context, id int) error {
+	const (
+		attempts = 6
+		delay    = 500 * time.Millisecond
+	)
+	var lastErr error
+	for i := 0; i < attempts; i++ {
+		inbounds, err := r.client.GetInbounds(ctx)
+		if err != nil {
+			lastErr = err
+		} else {
+			lastErr = nil
+			if !slices.ContainsFunc(inbounds, func(in Inbound) bool { return in.ID == id }) {
+				return nil
+			}
+		}
+		if i+1 == attempts {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+	}
+	if lastErr != nil {
+		return fmt.Errorf("inbound %d delete confirmation failed: %w", id, lastErr)
+	}
+	return fmt.Errorf("inbound %d still visible after delete", id)
 }
 
 func (r *InboundResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
