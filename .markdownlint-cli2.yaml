@@ -8,6 +8,8 @@ config:
     siblings_only: true
   # Allow bare URLs
   no-bare-urls: false
+  # Allow non-heading first line (READMEs start with a language switcher)
+  first-line-heading: false
 
 globs:
   - "docs/**/*.md"

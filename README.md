@@ -1,10 +1,37 @@
+[English](/README.md) | [فارسی](/README.fa_IR.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md)
+
 # Terraform Provider for 3x-ui
+
+> Manage [3x-ui](https://github.com/MHSanaei/3x-ui) inbounds, clients, panel settings, and Xray configuration as code — backup, migrate, and scale your VPN/proxy fleet without clicking through the panel.
 
 [![CI](https://github.com/batonogov/terraform-provider-threexui/actions/workflows/ci.yml/badge.svg)](https://github.com/batonogov/terraform-provider-threexui/actions/workflows/ci.yml)
 [![Terraform Registry](https://img.shields.io/badge/terraform-registry-blueviolet)](https://registry.terraform.io/providers/batonogov/threexui/latest)
+[![Latest Release](https://img.shields.io/github/v/release/batonogov/terraform-provider-threexui?sort=semver)](https://github.com/batonogov/terraform-provider-threexui/releases/latest)
+[![Go Report Card](https://goreportcard.com/badge/github.com/batonogov/terraform-provider-threexui)](https://goreportcard.com/report/github.com/batonogov/terraform-provider-threexui)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/batonogov/terraform-provider-threexui)](go.mod)
+[![Last Commit](https://img.shields.io/github/last-commit/batonogov/terraform-provider-threexui)](https://github.com/batonogov/terraform-provider-threexui/commits/main)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A Terraform provider for managing [3x-ui](https://github.com/MHSanaei/3x-ui) panel inbounds, clients, settings, and Xray configuration via its HTTP API.
+## Why use it
+
+Running 3x-ui in production means dozens of inbounds, hundreds of clients, and Xray configuration that is easy to break. With this provider you can:
+
+- **Treat configuration as code** — your inbound list lives in git, every change is reviewed and versioned.
+- **Migrate between servers** — re-create the same setup on a new VPS with one `terraform apply`.
+- **Snapshot the panel** — `terraform state pull` is a full export of inbounds, clients, and settings.
+- **Scale onboarding** — add 100 clients in a single PR instead of 100 panel clicks.
+- **Plan before prod** — `terraform plan` shows exactly what will change before anything ships.
+
+## Without vs with the provider
+
+| Task | Panel UI | This provider |
+| --- | --- | --- |
+| Add 50 clients | 50 forms, ~30 seconds each | one `for_each`, one `apply` |
+| Migrate to a new server | manual re-entry | `terraform apply` against the new endpoint |
+| Audit who has access today | scroll the client list | `git log` on a `.tf` file |
+| Roll back a misconfiguration | restore from a JSON backup | `git revert` + `terraform apply` |
+| Sync staging ↔ production | export/import JSON, fix conflicts | shared module + per-environment vars |
+| Rotate Reality keys on 10 hosts | open 10 panels, click each | one variable change, one apply |
 
 ## Quick Start
 
@@ -55,6 +82,21 @@ resource "threexui_inbound_client" "client_a" {
 }
 ```
 
+## Compatibility
+
+Acceptance tests run against every supported 3x-ui version on each push to `main` and on every pull request.
+
+| 3x-ui version | Status |
+| --- | --- |
+| v2.9.2 | Tested |
+| v2.9.1 | Tested |
+| v2.9.0 | Tested |
+| v2.8.11 | Tested |
+| v2.8.10 | Tested |
+| v2.8.9 | Tested |
+
+Newer protocol features are guarded with `requireMinVersion` and skip automatically on older versions, so the provider runs cleanly across the matrix without per-version forks.
+
 ## Examples
 
 | Example | Description |
@@ -63,7 +105,16 @@ resource "threexui_inbound_client" "client_a" {
 | [Trojan inbound](examples/trojan-inbound/) | Trojan protocol with WebSocket transport |
 | [Shadowsocks inbound](examples/shadowsocks-inbound/) | Shadowsocks with AEAD cipher |
 | [Inbound with clients](examples/inbound-with-client/) | Complete workflow: inbound + multiple clients |
+| [Multi-server fleet](examples/multi-server/) | Manage many 3x-ui hosts via a reusable module + `for_each` |
 | [Import existing resources](examples/import-existing/) | Import existing 3x-ui resources into Terraform state |
+
+## Guides
+
+In-repo walkthroughs for common operational scenarios:
+
+- [Backup-as-code](docs/guides/backup-as-code.md) — keep your full panel state in git, restore in seconds.
+- [Migrating 3x-ui between servers](docs/guides/server-migration.md) — move an entire panel to a new VPS without re-typing anything.
+- [Onboarding many clients at once](docs/guides/bulk-clients.md) — `for_each` patterns and CSV-driven onboarding.
 
 ## Documentation
 
@@ -100,15 +151,19 @@ Full documentation is available on the [Terraform Registry](https://registry.ter
 | `threexui_online_clients` | Currently online client emails |
 | `threexui_client_traffics` | Client traffic statistics by email |
 
+## Security
+
+The provider handles secrets the panel issues automatically (Reality `privateKey`, WireGuard `secretKey`, client UUIDs, Telegram bot tokens, LDAP passwords). All such fields are marked `Sensitive` and never logged in plaintext. See [SECURITY.md](SECURITY.md) for the full list and for guidance on protecting your Terraform state.
+
 ## Development
 
 ### Requirements
 
 - Go 1.25+
-- [Task](https://taskfile.dev/) - task runner
-- [golangci-lint](https://golangci-lint.run/welcome/install/) - linter
-- [pre-commit](https://pre-commit.com/) - git hooks framework
-- Docker - for local 3x-ui environment
+- [Task](https://taskfile.dev/) — task runner
+- [golangci-lint](https://golangci-lint.run/welcome/install/) — linter
+- [pre-commit](https://pre-commit.com/) — git hooks framework
+- Docker — for the local 3x-ui environment
 
 ### Commands
 
@@ -137,7 +192,11 @@ docker compose down
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, testing, and submission guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, testing, and submission guidelines. Bug reports, feature requests, and pull requests are all welcome — and so are notes about which 3x-ui versions you run in production.
+
+## Changelog
+
+Releases follow [Conventional Commits](https://www.conventionalcommits.org/) and are published automatically. See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 
 ## License
 
