@@ -38,7 +38,7 @@ func (d *InboundsDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 			"inbounds": schema.StringAttribute{
 				Computed:    true,
 				Sensitive:   true,
-				Description: "JSON array of inbound objects.",
+				Description: "JSON array of inbound objects. Marked Sensitive because the payload includes client UUIDs/passwords, Reality privateKey, WireGuard secretKey, and similar credentials.",
 			},
 		},
 	}
