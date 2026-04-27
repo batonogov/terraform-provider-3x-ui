@@ -1,5 +1,29 @@
 # Changelog
 
+## [3.0.0](https://github.com/batonogov/terraform-provider-threexui/compare/v2.1.0...v3.0.0) (2026-04-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* The `json` attribute of the `threexui_xray_config` data source is now marked Sensitive. Existing `output` blocks that reference `data.threexui_xray_config.<name>.json` (or values derived from it) must add `sensitive = true`, or wrap safe fields in `nonsensitive(...)`. Otherwise `terraform plan` fails with "Output refers to sensitive values".
+* The `inbounds` attribute of the `threexui_inbounds` data source is now marked Sensitive. Existing `output` blocks that reference `data.threexui_inbounds.<name>.inbounds` (or values derived from it) must add `sensitive = true`, or wrap safe fields in `nonsensitive(...)`. Otherwise `terraform plan` fails with "Output refers to sensitive values".
+* The `json` attribute of the `threexui_settings` data source was marked Sensitive in #143. Existing `output` blocks that reference it must add `sensitive = true`, otherwise `terraform plan` fails with "Output refers to sensitive values". The footer is recorded here so release-please surfaces the user-visible impact in the next release notes (the original PR landed without it).
+
+### Bug Fixes
+
+* confirm inbound deletion via poll-and-retry ([#136](https://github.com/batonogov/terraform-provider-threexui/issues/136)) ([#141](https://github.com/batonogov/terraform-provider-threexui/issues/141)) ([8c6fd4e](https://github.com/batonogov/terraform-provider-threexui/commit/8c6fd4ef03aed7452463f22a83c402ae9cb4a817))
+* mark threexui_inbounds data source 'inbounds' attribute as sensitive ([#145](https://github.com/batonogov/terraform-provider-threexui/issues/145)) ([1ee5993](https://github.com/batonogov/terraform-provider-threexui/commit/1ee59938d77898de6c9b1afda353abfe4b7b2265)), closes [#138](https://github.com/batonogov/terraform-provider-threexui/issues/138)
+* mark threexui_settings data source 'json' attribute as sensitive ([#143](https://github.com/batonogov/terraform-provider-threexui/issues/143)) ([d2bcee1](https://github.com/batonogov/terraform-provider-threexui/commit/d2bcee1661239ef4026b18159b356f38a4d30e03)), closes [#137](https://github.com/batonogov/terraform-provider-threexui/issues/137)
+* mark threexui_xray_config data source 'json' attribute as sensitive ([#146](https://github.com/batonogov/terraform-provider-threexui/issues/146)) ([15b1ec7](https://github.com/batonogov/terraform-provider-threexui/commit/15b1ec74a257bf1154c371a52ad97d8c2ba216d1)), closes [#139](https://github.com/batonogov/terraform-provider-threexui/issues/139)
+* re-read inbound after create/update to prevent flaky tests ([fa4b609](https://github.com/batonogov/terraform-provider-threexui/commit/fa4b6096d211913cd563aa68df1f316ca1fa4479))
+* re-read inbound after create/update to prevent flaky tests ([#131](https://github.com/batonogov/terraform-provider-threexui/issues/131)) ([51d9d0c](https://github.com/batonogov/terraform-provider-threexui/commit/51d9d0c7616b4ca3cbfbed524e3f428a62b93cd4))
+* retry transient 5xx on write endpoints ([#134](https://github.com/batonogov/terraform-provider-threexui/issues/134)) ([#142](https://github.com/batonogov/terraform-provider-threexui/issues/142)) ([71f66cc](https://github.com/batonogov/terraform-provider-threexui/commit/71f66cc998aa5a3c6163b413f2ba60d2e4f9d3b8))
+
+
+### Documentation
+
+* warn about sensitive output requirement for threexui_settings.json ([#144](https://github.com/batonogov/terraform-provider-threexui/issues/144)) ([c5927be](https://github.com/batonogov/terraform-provider-threexui/commit/c5927be49422da29c7cfb6bb217a1166cf23b7c0)), closes [#137](https://github.com/batonogov/terraform-provider-threexui/issues/137)
+
 ## [2.1.0](https://github.com/batonogov/terraform-provider-threexui/compare/v2.0.0...v2.1.0) (2026-04-24)
 
 
