@@ -14,7 +14,15 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
+
+// defaultRetryBackoff is the fixed delay between retry attempts on transient
+// 5xx responses. It is intentionally short — a longer wait would mask real
+// bugs, since this retry exists only to absorb sub-second contention spikes
+// in 3x-ui's SQLite write path on older versions.
+const defaultRetryBackoff = 500 * time.Millisecond
 
 type ClientConfig struct {
 	Endpoint           string
@@ -24,6 +32,10 @@ type ClientConfig struct {
 	TwoFactorCode      string
 	InsecureSkipVerify bool
 	Timeout            time.Duration
+	// MaxRetries is the maximum number of *additional* attempts on transient
+	// 5xx for idempotent write endpoints. 0 disables retry entirely; 1 (the
+	// default applied by the provider) means up to one retry after a backoff.
+	MaxRetries int
 }
 
 type Client struct {
@@ -33,6 +45,7 @@ type Client struct {
 	password   string
 	twoFactor  string
 	httpClient *http.Client
+	maxRetries int
 }
 
 // SetBasePath updates the client's base path to match a new webBasePath.
@@ -74,6 +87,11 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		Transport: transport,
 	}
 
+	maxRetries := cfg.MaxRetries
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+
 	return &Client{
 		baseURL:    baseURL,
 		basePath:   basePath,
@@ -81,6 +99,7 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		password:   cfg.Password,
 		twoFactor:  cfg.TwoFactorCode,
 		httpClient: client,
+		maxRetries: maxRetries,
 	}, nil
 }
 
@@ -167,7 +186,7 @@ func (c *Client) UpdateInbound(ctx context.Context, inbound *Inbound) (*Inbound,
 	}
 	relPath := fmt.Sprintf("panel/api/inbounds/update/%d", inbound.ID)
 	var out Inbound
-	if err := c.doForm(ctx, http.MethodPost, relPath, inboundToForm(inbound), &out); err != nil {
+	if err := c.doFormRetryable(ctx, http.MethodPost, relPath, inboundToForm(inbound), &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -238,7 +257,7 @@ func (c *Client) UpdateInboundClient(ctx context.Context, inboundID int, clientI
 	form.Set("id", strconv.Itoa(inboundID))
 	form.Set("settings", string(settings))
 	relPath := fmt.Sprintf("panel/api/inbounds/updateClient/%s", clientID)
-	return c.doForm(ctx, http.MethodPost, relPath, form, nil)
+	return c.doFormRetryable(ctx, http.MethodPost, relPath, form, nil)
 }
 
 func (c *Client) DeleteInboundClient(ctx context.Context, inboundID int, clientID string) error {
@@ -393,7 +412,7 @@ func (c *Client) UpdateSettings(ctx context.Context, settings map[string]any) er
 	if settings == nil {
 		return errors.New("settings payload is required")
 	}
-	return c.doJSON(ctx, http.MethodPost, "panel/setting/update", settings, nil)
+	return c.doJSONRetryable(ctx, http.MethodPost, "panel/setting/update", settings, nil)
 }
 
 // SendRestart sends the restart request but does not wait for readiness.
@@ -482,7 +501,7 @@ func (c *Client) UpdateXrayTemplate(ctx context.Context, settings map[string]any
 	if testURL != "" {
 		form.Set("outboundTestUrl", testURL)
 	}
-	return c.doForm(ctx, http.MethodPost, "panel/xray/update", form, nil)
+	return c.doFormRetryable(ctx, http.MethodPost, "panel/xray/update", form, nil)
 }
 
 func (c *Client) GetXrayOutboundTestURL(ctx context.Context) (string, error) {
@@ -515,7 +534,7 @@ func (c *Client) SetXrayOutboundTestURL(ctx context.Context, testURL string) err
 	form := url.Values{}
 	form.Set("xraySetting", string(payload))
 	form.Set("outboundTestUrl", testURL)
-	return c.doForm(ctx, http.MethodPost, "panel/xray/update", form, nil)
+	return c.doFormRetryable(ctx, http.MethodPost, "panel/xray/update", form, nil)
 }
 
 func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType string, body []byte, out any) error {
@@ -540,6 +559,96 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType st
 	return decodeAPIResponse(resp, out)
 }
 
+// HTTPStatusError carries the HTTP status code from an upstream response so
+// callers can distinguish transient 5xx (retryable) from 4xx (do not retry).
+type HTTPStatusError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *HTTPStatusError) Error() string {
+	if e.Body == "" {
+		return fmt.Sprintf("request failed: status %d", e.StatusCode)
+	}
+	return fmt.Sprintf("request failed: status %d, body: %s", e.StatusCode, e.Body)
+}
+
+// transient5xxStatus reports whether err is an *HTTPStatusError with a 5xx
+// code, returning the code alongside the boolean for callers that want to
+// log it without re-running errors.As. 5xx on a write endpoint typically
+// originates from gin's recovery middleware after a panic in the handler —
+// the panel's controllers otherwise return 200 with success:false. A panic
+// during a SQLite transaction is the canonical "transient" failure this
+// retry targets.
+func transient5xxStatus(err error) (int, bool) {
+	var httpErr *HTTPStatusError
+	if !errors.As(err, &httpErr) {
+		return 0, false
+	}
+	if httpErr.StatusCode < 500 || httpErr.StatusCode >= 600 {
+		return httpErr.StatusCode, false
+	}
+	return httpErr.StatusCode, true
+}
+
+// withRetry runs fn up to (1 + c.maxRetries) times, retrying only on a
+// transient 5xx response from an idempotent endpoint. It is the single
+// retry policy in the client; doFormRetryable / doJSONRetryable wrap it
+// so callers do not have to construct logging fields themselves.
+//
+// Not safe for non-idempotent endpoints: AddInbound (would create a
+// duplicate), AddInboundClient (duplicate), UpdateUser (the second call
+// would run with stale credentials and could leave provider state and
+// panel state out of sync), DeleteInbound (3x-ui's DelInbound calls
+// GetInbound first and errors on a missing row, so a retry after a
+// successful-but-5xx delete turns success into failure).
+//
+// Retries are visible: every retry emits a tflog.Warn so operators can
+// detect upstream flakiness instead of having it silently absorbed.
+func (c *Client) withRetry(ctx context.Context, op string, fn func() error) error {
+	var err error
+	for attempt := 0; attempt <= c.maxRetries; attempt++ {
+		err = fn()
+		if err == nil {
+			return nil
+		}
+		statusCode, retryable := transient5xxStatus(err)
+		if !retryable || attempt == c.maxRetries {
+			return err
+		}
+		// Honor cancellation before logging or sleeping so a cancelled
+		// context does not produce a "retrying" entry that we never act on.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+		tflog.Warn(ctx, "retrying transient 5xx", map[string]any{
+			"operation":    op,
+			"attempt":      attempt + 1,
+			"max_attempts": c.maxRetries,
+			"status_code":  statusCode,
+			"backoff":      defaultRetryBackoff.String(),
+		})
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(defaultRetryBackoff):
+		}
+	}
+	return err
+}
+
+func (c *Client) doFormRetryable(ctx context.Context, method, relPath string, form url.Values, out any) error { //nolint:unparam // method kept for API symmetry with doJSONRetryable / doForm
+	return c.withRetry(ctx, method+" "+relPath, func() error {
+		return c.doForm(ctx, method, relPath, form, out)
+	})
+}
+
+func (c *Client) doJSONRetryable(ctx context.Context, method, relPath string, body any, out any) error {
+	return c.withRetry(ctx, method+" "+relPath, func() error {
+		return c.doJSON(ctx, method, relPath, body, out)
+	})
+}
+
 func (c *Client) doRequestOnce(ctx context.Context, method, endpoint, contentType string, body []byte) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, endpoint, bytes.NewReader(body))
 	if err != nil {
@@ -558,7 +667,7 @@ func decodeAPIResponse(resp *http.Response, out any) error {
 	}
 	if len(body) == 0 {
 		if resp.StatusCode >= 400 {
-			return fmt.Errorf("request failed: status %d", resp.StatusCode)
+			return &HTTPStatusError{StatusCode: resp.StatusCode}
 		}
 		return nil
 	}
@@ -567,13 +676,10 @@ func decodeAPIResponse(resp *http.Response, out any) error {
 	if err := json.Unmarshal(body, &apiResp); err != nil {
 		if resp.StatusCode >= 400 {
 			msg := strings.TrimSpace(string(body))
-			if msg == "" {
-				return fmt.Errorf("request failed: status %d", resp.StatusCode)
-			}
 			if len(msg) > 1024 {
 				msg = msg[:1024] + "...(truncated)"
 			}
-			return fmt.Errorf("request failed: status %d, body: %s", resp.StatusCode, msg)
+			return &HTTPStatusError{StatusCode: resp.StatusCode, Body: msg}
 		}
 		return err
 	}

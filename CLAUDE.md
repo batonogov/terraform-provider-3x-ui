@@ -98,6 +98,17 @@ Taskfile.yml           — task build / test / fmt
 
 Unauthenticated requests return 404 (not 401). The client performs auto re-login on 401/404.
 
+### Retry on transient 5xx (write endpoints)
+
+- `Client.withRetry` — single retry policy. Wraps a request function with up to `maxRetries` additional attempts on `*HTTPStatusError` with code 5xx, fixed 500ms backoff, ctx-aware
+- `doFormRetryable` / `doJSONRetryable` — thin wrappers over `withRetry` that delegate to `doForm`/`doJSON`
+- Applied **only** to idempotent writes: `UpdateInbound`, `UpdateInboundClient`, `UpdateSettings`, `UpdateXrayTemplate`, `SetXrayOutboundTestURL`
+- **Not** applied to: `AddInbound`, `AddInboundClient` (would duplicate), `UpdateUser` (stale creds), `DeleteInbound` (3x-ui's `DelInbound` reads first and errors on missing row)
+- `tflog.Warn` emitted on each retry with `operation`, `attempt`, `status_code`, `backoff` — operators can detect upstream flakiness instead of silent absorption
+- Configurable via `max_retries` provider attribute (default `1`, set to `0` to disable). Provider plumbs default into `ClientConfig.MaxRetries`; `Client.maxRetries` is the field used by `withRetry`
+- Composes with the 401/404 auto-relogin in `doRequest`: relogin happens inside a single `withRetry` attempt; only an HTTP 5xx surfaced from `decodeAPIResponse` triggers the outer retry
+- `HTTPStatusError` — error type returned by `decodeAPIResponse` when `resp.StatusCode >= 400` (both empty-body and non-JSON paths). `errors.As` is the supported way to inspect status
+
 ## Key Code Details
 
 ### Framework (terraform-plugin-framework)

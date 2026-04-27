@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -25,7 +26,21 @@ type ThreeXUIProviderModel struct {
 	TwoFactorCode      types.String `tfsdk:"two_factor_code"`
 	InsecureSkipVerify types.Bool   `tfsdk:"insecure_skip_verify"`
 	RequestTimeout     types.String `tfsdk:"request_timeout"`
+	MaxRetries         types.Int64  `tfsdk:"max_retries"`
 }
+
+const (
+	// defaultMaxRetries is the default number of additional attempts on
+	// transient 5xx for idempotent write endpoints when max_retries is
+	// unset.
+	defaultMaxRetries = 1
+	// maxAllowedRetries caps user-supplied max_retries to prevent
+	// pathological configurations (e.g. 1000 retries × 500ms = 500s spent
+	// on a single failing request). Real upstream contention spikes
+	// resolve well within a single retry; values above this limit hide
+	// real bugs rather than absorb flakes.
+	maxAllowedRetries = 10
+)
 
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
@@ -71,6 +86,16 @@ func (p *ThreeXUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 				Optional:    true,
 				Description: "HTTP request timeout (e.g. 30s, 1m).",
 			},
+			"max_retries": schema.Int64Attribute{
+				Optional: true,
+				Description: fmt.Sprintf(
+					"Maximum number of additional attempts on transient HTTP 5xx responses for idempotent write endpoints "+
+						"(UpdateInbound, UpdateInboundClient, UpdateSettings, UpdateXrayTemplate, SetXrayOutboundTestURL). "+
+						"Each retry waits 500ms and emits a Warn-level log so upstream flakiness is observable rather than silently absorbed. "+
+						"0 disables retries entirely. Allowed range: 0..%d. Default: %d.",
+					maxAllowedRetries, defaultMaxRetries,
+				),
+			},
 		},
 	}
 }
@@ -114,6 +139,19 @@ func (p *ThreeXUIProvider) Configure(ctx context.Context, req provider.Configure
 		return
 	}
 
+	maxRetries := defaultMaxRetries
+	if !config.MaxRetries.IsNull() && !config.MaxRetries.IsUnknown() {
+		v := config.MaxRetries.ValueInt64()
+		if v < 0 || v > maxAllowedRetries {
+			resp.Diagnostics.AddError(
+				"Invalid max_retries",
+				fmt.Sprintf("max_retries must be between 0 and %d, got %d", maxAllowedRetries, v),
+			)
+			return
+		}
+		maxRetries = int(v)
+	}
+
 	client, err := NewClient(ClientConfig{
 		Endpoint:           endpoint,
 		BasePath:           basePath,
@@ -122,6 +160,7 @@ func (p *ThreeXUIProvider) Configure(ctx context.Context, req provider.Configure
 		TwoFactorCode:      twoFactorCode,
 		InsecureSkipVerify: insecureSkipVerify,
 		Timeout:            timeout,
+		MaxRetries:         maxRetries,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Client init failed", err.Error())
