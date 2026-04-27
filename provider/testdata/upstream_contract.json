@@ -1,9 +1,10 @@
 {
-  "version": "2.9.0",
+  "version": "2.9.3",
   "protocols_go_model": [
     "dokodemo-door",
     "http",
     "hysteria",
+    "hysteria2",
     "mixed",
     "shadowsocks",
     "trojan",
