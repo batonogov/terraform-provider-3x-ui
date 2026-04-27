@@ -250,12 +250,19 @@ func TestInboundResourceWaitForDeletion(t *testing.T) {
 		res := &InboundResource{client: newTestClient(t, srv.URL)}
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
+		start := time.Now()
 		err := res.waitForInboundDeletion(ctx, 11)
+		elapsed := time.Since(start)
 		if err == nil {
 			t.Fatalf("expected ctx error")
 		}
 		if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 			t.Fatalf("expected context error, got %v", err)
+		}
+		// Full attempt budget is 6 × 500ms ≈ 3s. Cancellation must
+		// short-circuit the backoff well before that.
+		if elapsed > 600*time.Millisecond {
+			t.Fatalf("backoff did not respect ctx cancel; elapsed=%v", elapsed)
 		}
 	})
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -394,8 +395,6 @@ func (r *InboundResource) waitForInboundDeletion(ctx context.Context, id int) er
 		attempts = 6
 		delay    = 500 * time.Millisecond
 	)
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
 	var lastErr error
 	for i := 0; i < attempts; i++ {
 		inbounds, err := r.client.GetInbounds(ctx)
@@ -403,25 +402,17 @@ func (r *InboundResource) waitForInboundDeletion(ctx context.Context, id int) er
 			lastErr = err
 		} else {
 			lastErr = nil
-			present := false
-			for _, in := range inbounds {
-				if in.ID == id {
-					present = true
-					break
-				}
-			}
-			if !present {
+			if !slices.ContainsFunc(inbounds, func(in Inbound) bool { return in.ID == id }) {
 				return nil
 			}
 		}
 		if i+1 == attempts {
 			break
 		}
-		timer.Reset(delay)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-timer.C:
+		case <-time.After(delay):
 		}
 	}
 	if lastErr != nil {
