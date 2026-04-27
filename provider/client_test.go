@@ -359,6 +359,105 @@ func TestUpdateInbound5xxThenReloginThenSuccess(t *testing.T) {
 	}
 }
 
+func TestUpdateInboundClientRetriesTransient5xx(t *testing.T) {
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/panel/api/inbounds/updateClient/abc" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		n := atomic.AddInt32(&calls, 1)
+		if n == 1 {
+			http.Error(w, "transient", http.StatusInternalServerError)
+			return
+		}
+		w.Write(okResponse(nil))
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	if err := client.UpdateInboundClient(context.Background(), 7, "abc", map[string]any{"id": "abc"}); err != nil {
+		t.Fatalf("UpdateInboundClient after 500-then-200 failed: %v", err)
+	}
+	if got := atomic.LoadInt32(&calls); got != 2 {
+		t.Fatalf("expected 2 calls (1 retry on 5xx), got %d", got)
+	}
+}
+
+func TestUpdateSettingsRetriesTransient5xx(t *testing.T) {
+	// Covers doJSONRetryable: same retry shape as the form path, but
+	// exercises the JSON encoding/content-type branch.
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/panel/setting/update" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		n := atomic.AddInt32(&calls, 1)
+		if n == 1 {
+			http.Error(w, "transient", http.StatusInternalServerError)
+			return
+		}
+		w.Write(okResponse(nil))
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	if err := client.UpdateSettings(context.Background(), map[string]any{"webPort": 2053}); err != nil {
+		t.Fatalf("UpdateSettings after 500-then-200 failed: %v", err)
+	}
+	if got := atomic.LoadInt32(&calls); got != 2 {
+		t.Fatalf("expected 2 calls (1 retry on 5xx), got %d", got)
+	}
+}
+
+func TestDeleteInboundDoesNotRetryOn5xx(t *testing.T) {
+	// 3x-ui's DelInbound looks up the row first and errors on a missing
+	// one, so a retry after a successful-but-5xx delete would turn success
+	// into failure.
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/panel/api/inbounds/del/7" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		atomic.AddInt32(&calls, 1)
+		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	if err := client.DeleteInbound(context.Background(), 7); err == nil {
+		t.Fatalf("expected 5xx to surface")
+	}
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("expected exactly 1 call (no retry on Delete), got %d", got)
+	}
+}
+
+func TestAddInboundClientDoesNotRetryOn5xx(t *testing.T) {
+	// AddClient is non-idempotent — a retry could create a duplicate
+	// client on the panel.
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/panel/api/inbounds/addClient" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		atomic.AddInt32(&calls, 1)
+		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	if err := client.AddInboundClient(context.Background(), 7, map[string]any{"id": "abc"}); err == nil {
+		t.Fatalf("expected 5xx to surface")
+	}
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("expected exactly 1 call (no retry on AddClient), got %d", got)
+	}
+}
+
 func TestResolvePathWithBasePath(t *testing.T) {
 	client := newTestClient(t, "http://example.com")
 	client.basePath = "/xui/"
