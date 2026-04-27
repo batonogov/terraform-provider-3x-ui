@@ -15,6 +15,8 @@ func TestDefaultSettingsForProtocol(t *testing.T) {
 		{"trojan", true, ""},
 		{"shadowsocks", true, ""},
 		{"http", true, ""},
+		{"hysteria", false, "version"},
+		{"hysteria2", false, "version"},
 		{"unknown", true, ""},
 		{"", true, ""},
 	}
@@ -63,6 +65,8 @@ func TestProtocolUsesClients(t *testing.T) {
 		{"vless", true},
 		{"trojan", true},
 		{"shadowsocks", true},
+		{"hysteria", true},
+		{"hysteria2", true},
 		{"http", false},
 		{"mixed", false},
 		{"", false},

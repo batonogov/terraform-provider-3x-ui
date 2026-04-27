@@ -84,10 +84,11 @@ resource "threexui_inbound_client" "client_a" {
 
 ## Compatibility
 
-Acceptance tests run against every supported 3x-ui version on each push to `main` and on every pull request.
+**Support policy:** the provider officially supports the two latest 3x-ui minor lines. Currently that is **2.8.x** and **2.9.x** — every released patch in both lines is exercised by the acceptance matrix on each push to `main` and every pull request. When a new minor (e.g. 2.10.0) is released, the oldest supported line is dropped from the matrix and from this table.
 
 | 3x-ui version | Status |
 | --- | --- |
+| v2.9.3 | Tested |
 | v2.9.2 | Tested |
 | v2.9.1 | Tested |
 | v2.9.0 | Tested |

@@ -47,7 +47,7 @@ docs/
 README.md              — English README; localized in 5 more languages mirroring 3x-ui upstream:
                          README.ru_RU.md, README.fa_IR.md, README.ar_EG.md, README.zh_CN.md, README.es_ES.md
 3x-ui-<version>/      — 3x-ui source snapshots (in .gitignore, for reference/diffing)
-docker-compose.yaml    — 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v2.9.2)
+docker-compose.yaml    — 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v2.9.3)
 Taskfile.yml           — task build / test / fmt
 .github/workflows/
   ci.yml               — lint, unit tests, acceptance tests, compatibility matrix (PR + push main)
@@ -200,7 +200,7 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 task build            # Build binary
 task test:unit        # Run unit tests (no Docker / Terraform needed)
 task test:acc         # Run acceptance tests (requires Docker)
-task test:acc:compat  # Run all tests with version-aware skipping (THREEXUI_VERSION, default v2.9.2)
+task test:acc:compat  # Run all tests with version-aware skipping (THREEXUI_VERSION, default v2.9.3)
 task test             # Run unit + acceptance tests
 task fmt              # gofmt
 task vet              # go vet
@@ -246,10 +246,23 @@ docker compose up -d   # Start 3x-ui on localhost:2053
 THREEXUI_VERSION=v2.8.9 task test:acc:compat
 
 # Run all versions locally:
-for v in v2.8.9 v2.8.10 v2.8.11 v2.9.0; do
+for v in v2.8.9 v2.8.10 v2.8.11 v2.9.0 v2.9.1 v2.9.2 v2.9.3; do
   echo "=== Testing $v ===" && THREEXUI_VERSION=$v task test:acc:compat
 done
 ```
+
+### Support Policy
+
+The provider officially supports the **two latest 3x-ui minor lines**. Currently that is **2.8.x** and **2.9.x** — every released patch in both lines is in the CI `acceptance-matrix` and listed as `Tested` in the README compatibility table.
+
+When a new minor (e.g. `2.10.0`) is released:
+
+1. Add the new minor's patches to `.github/workflows/ci.yml` `acceptance-matrix` and to the README compatibility tables (all 6 localized files).
+2. **Drop the oldest supported line entirely** (matrix + README) so we keep exactly two minor lines.
+3. Drop any `requireMinVersion(t, "v<dropped-line>...")` skip gates whose floor is no longer reachable, and prune the corresponding entry from the version mapping below.
+4. Update the support-policy paragraph in all six READMEs to reflect the new pair.
+
+Keep the policy line in README and the matrix entries in lockstep — the README claim "Tested" must be backed by an actual CI matrix entry.
 
 ### Version-Aware Test Skipping
 

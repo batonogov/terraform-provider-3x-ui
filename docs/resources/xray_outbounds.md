@@ -67,7 +67,7 @@ resource "threexui_xray_outbounds" "config" {
 ### outbound (Block, Optional, List)
 
 - `tag` (String, Optional) - Outbound tag name.
-- `protocol` (String, Required) - Protocol type (`freedom`, `blackhole`, `dns`, `vmess`, `vless`, `trojan`, `shadowsocks`, `socks`, `http`, `wireguard`, `hysteria`).
+- `protocol` (String, Required) - Protocol type (`freedom`, `blackhole`, `dns`, `vmess`, `vless`, `trojan`, `shadowsocks`, `socks`, `http`, `wireguard`, `hysteria`, `hysteria2`).
 - `send_through` (String, Optional) - Source IP address to bind.
 
 #### mux (Block, Optional, Max: 1)

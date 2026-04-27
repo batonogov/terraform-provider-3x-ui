@@ -204,7 +204,8 @@ func xrayOutboundsSchema() schema.Schema {
 							Optional: true, Computed: true,
 						},
 						"protocol": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "Outbound protocol (freedom, blackhole, dns, vmess, vless, trojan, shadowsocks, socks, http, wireguard, hysteria, hysteria2).",
 						},
 						"send_through": schema.StringAttribute{
 							Optional: true, Computed: true,

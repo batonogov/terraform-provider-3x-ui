@@ -7,7 +7,7 @@ description: |-
 
 # threexui_inbound (Resource)
 
-Manages an inbound proxy in the 3x-ui panel. Supports protocols: vless, vmess, trojan, shadowsocks, http, socks, mixed, wireguard, tunnel, dokodemo-door, and hysteria.
+Manages an inbound proxy in the 3x-ui panel. Supports protocols: vless, vmess, trojan, shadowsocks, http, socks, mixed, wireguard, tunnel, dokodemo-door, hysteria, and hysteria2.
 
 ## Example Usage
 
@@ -164,7 +164,7 @@ resource "threexui_inbound" "hysteria" {
 ### Top-level
 
 - `port` (Required, Number) - Port number for the inbound.
-- `protocol` (Required, String) - Protocol type (`vless`, `vmess`, `trojan`, `shadowsocks`, `http`, `socks`, `mixed`, `wireguard`, `tunnel`, `dokodemo-door`, `hysteria`).
+- `protocol` (Required, String) - Protocol type (`vless`, `vmess`, `trojan`, `shadowsocks`, `http`, `socks`, `mixed`, `wireguard`, `tunnel`, `dokodemo-door`, `hysteria`, `hysteria2`).
 - `enable` (Optional, Boolean) - Whether the inbound is enabled. Default is `true`.
 - `remark` (Optional, String) - A label/name for the inbound.
 - `listen` (Optional, String) - Listen address.
@@ -196,7 +196,7 @@ Use the block matching your `protocol`. Only one should be specified.
 
 #### `shadowsocks_settings`
 
-- `method` (Optional, String) - Encryption method (e.g. `aes-256-gcm`, `chacha20-ietf-poly1305`).
+- `method` (Optional, String) - Encryption method (e.g. `chacha20-ietf-poly1305`, `2022-blake3-aes-256-gcm`). On 3x-ui v2.9.3+ the legacy `aes-128-gcm`/`aes-256-gcm` ciphers were dropped from the xray user switch and silently route through Shadowsocks-2022; pick a chacha20 variant or a `2022-blake3-*` method to stay compatible across the matrix.
 - `password` (Optional, String) - Password.
 - `network` (Optional, String) - Network type (e.g. `tcp,udp`).
 - `iv_check` (Optional, Boolean) - Enable IV check.

@@ -154,7 +154,7 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 			Attributes: map[string]schema.Attribute{
 				"method": schema.StringAttribute{
 					Optional: true, Computed: true,
-					Description: "Encryption method (e.g. aes-256-gcm, chacha20-ietf-poly1305).",
+					Description: "Encryption method (e.g. chacha20-ietf-poly1305, 2022-blake3-aes-256-gcm). On 3x-ui v2.9.3+ the legacy aes-128-gcm/aes-256-gcm ciphers were dropped from the xray user switch and silently route through Shadowsocks-2022; pick a chacha20 variant or a 2022-blake3-* method to stay compatible across the matrix.",
 					PlanModifiers: []planmodifier.String{
 						stringplanmodifier.UseStateForUnknown(),
 					},
@@ -496,7 +496,7 @@ func expandSettingsFromModel(protocol string, m *InboundResourceModel) map[strin
 		return expandWireguardInboundSettings(m.WireguardSettings)
 	case "dokodemo-door", "tunnel":
 		return expandDokodemoInboundSettings(m.DokodemoSettings)
-	case "hysteria":
+	case "hysteria", "hysteria2":
 		return expandHysteriaInboundSettings(m.HysteriaSettings)
 	default:
 		return nil
@@ -770,7 +770,7 @@ func flattenSettingsToModel(protocol string, data map[string]any, m *InboundReso
 		m.WireguardSettings = flattenWireguardInboundSettings(data)
 	case "dokodemo-door", "tunnel":
 		m.DokodemoSettings = flattenDokodemoInboundSettings(data)
-	case "hysteria":
+	case "hysteria", "hysteria2":
 		m.HysteriaSettings = flattenHysteriaInboundSettings(data)
 	}
 }

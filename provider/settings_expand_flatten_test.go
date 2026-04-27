@@ -377,6 +377,43 @@ func TestFlattenSettingsToModel_MixedEmptyData(t *testing.T) {
 	}
 }
 
+// TestExpandFlattenSettingsModel_Hysteria2Alias locks in that "hysteria2"
+// (introduced in 3x-ui v2.9.3) routes through the same settings model as
+// "hysteria". This is the static counterpart of an acceptance test — the
+// panel may normalize the literal back to "hysteria" + settings.version=2,
+// which would cause plan-drift in an acc test, so the roundtrip is validated
+// here at the unit layer instead.
+func TestExpandFlattenSettingsModel_Hysteria2Alias(t *testing.T) {
+	model := &InboundResourceModel{
+		HysteriaSettings: &InboundHysteriaSettingsModel{
+			Version: types.Int64Value(2),
+		},
+	}
+
+	expanded := expandSettingsFromModel("hysteria2", model)
+	if expanded == nil {
+		t.Fatal("expected non-nil result for hysteria2 protocol")
+	}
+	if expanded["version"] != 2 {
+		t.Fatalf("unexpected version: %v", expanded["version"])
+	}
+
+	jsonStr := buildSettingsJSON(expanded)
+	flatMap, err := flattenSettingsToMap(jsonStr)
+	if err != nil {
+		t.Fatalf("flattenSettingsToMap error: %v", err)
+	}
+
+	result := &InboundResourceModel{}
+	flattenSettingsToModel("hysteria2", flatMap, result)
+	if result.HysteriaSettings == nil {
+		t.Fatal("expected HysteriaSettings to be set for hysteria2 protocol")
+	}
+	if result.HysteriaSettings.Version.ValueInt64() != 2 {
+		t.Fatalf("unexpected version: %d", result.HysteriaSettings.Version.ValueInt64())
+	}
+}
+
 func TestExpandSettingsFromModel_TunnelProtocol(t *testing.T) {
 	model := &InboundResourceModel{
 		DokodemoSettings: &InboundDokodemoSettingsModel{},

@@ -356,11 +356,13 @@ func TestDriftInboundProtocols_GoModel(t *testing.T) {
 	// Additional protocols the provider handles but not via explicit switch case.
 	// "vmess" and "mixed" have no per-protocol settings block (handled via default).
 	// "socks" is available via UI. "tun" is UI alias for tunnel/dokodemo-door.
+	// "dokodemo-door" is the xray-level name; upstream model.go only exposes "tunnel".
 	providerExtras := map[string]bool{
-		"vmess": true,
-		"mixed": true,
-		"socks": true,
-		"tun":   true,
+		"vmess":         true,
+		"mixed":         true,
+		"socks":         true,
+		"tun":           true,
+		"dokodemo-door": true,
 	}
 	for k := range providerExtras {
 		providerHandled[k] = true
@@ -418,11 +420,16 @@ func TestDriftInboundProtocols_GoModel(t *testing.T) {
 
 func TestDriftInboundProtocols_JS(t *testing.T) {
 	providerHandled := providerProtocolsFromSwitch(t)
+	// "hysteria2" is in upstream model.go (since 2.9.3) but UI inbound.js
+	// stores Hysteria v1/v2 both as "hysteria" with a version field.
+	// "dokodemo-door" is the xray-level name; UI uses "tunnel".
 	providerExtras := map[string]bool{
-		"vmess": true,
-		"mixed": true,
-		"socks": true,
-		"tun":   true,
+		"vmess":         true,
+		"mixed":         true,
+		"socks":         true,
+		"tun":           true,
+		"dokodemo-door": true,
+		"hysteria2":     true,
 	}
 	for k := range providerExtras {
 		providerHandled[k] = true
