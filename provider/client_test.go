@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -9,6 +10,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-log/tflogtest"
 )
 
 func okResponse(obj any) []byte {
@@ -198,6 +201,54 @@ func TestUpdateInboundMaxRetriesZeroDisablesRetry(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&calls); got != 1 {
 		t.Fatalf("expected exactly 1 call (no retry when max_retries=0), got %d", got)
+	}
+}
+
+func TestUpdateInboundEmitsRetryWarnLog(t *testing.T) {
+	// The retry path's promise of observability is part of the contract:
+	// every retry must emit a Warn entry with operation, attempt,
+	// max_attempts, status_code, and backoff. Verify it actually happens.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/panel/api/inbounds/update/7" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		http.Error(w, "transient", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	var output bytes.Buffer
+	ctx := tflogtest.RootLogger(context.Background(), &output)
+
+	client := newTestClient(t, srv.URL)
+	if _, err := client.UpdateInbound(ctx, &Inbound{ID: 7}); err == nil {
+		t.Fatalf("expected persistent 5xx to surface")
+	}
+
+	entries, err := tflogtest.MultilineJSONDecode(&output)
+	if err != nil {
+		t.Fatalf("MultilineJSONDecode: %v", err)
+	}
+	var warn map[string]any
+	for _, e := range entries {
+		if e["@level"] == "warn" && e["@message"] == "retrying transient 5xx" {
+			warn = e
+			break
+		}
+	}
+	if warn == nil {
+		t.Fatalf("expected a warn entry for the retry; got entries: %v", entries)
+	}
+	for _, key := range []string{"operation", "attempt", "max_attempts", "status_code", "backoff"} {
+		if _, ok := warn[key]; !ok {
+			t.Errorf("retry warn entry missing %q field: %v", key, warn)
+		}
+	}
+	if op, _ := warn["operation"].(string); op != "POST panel/api/inbounds/update/7" {
+		t.Errorf("unexpected operation field: %v", warn["operation"])
+	}
+	if code, _ := warn["status_code"].(float64); code != 500 {
+		t.Errorf("unexpected status_code field: %v", warn["status_code"])
 	}
 }
 

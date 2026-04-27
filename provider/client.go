@@ -573,20 +573,25 @@ func (e *HTTPStatusError) Error() string {
 	return fmt.Sprintf("request failed: status %d, body: %s", e.StatusCode, e.Body)
 }
 
-// isTransient5xx reports whether err is an *HTTPStatusError with a 5xx code.
-// 5xx on a write endpoint typically originates from gin's recovery
-// middleware after a panic in the handler — the panel's controllers
-// otherwise return 200 with success:false. A panic during a SQLite
-// transaction is the canonical "transient" failure this retry targets.
-func isTransient5xx(err error) bool {
+// transient5xxStatus reports whether err is an *HTTPStatusError with a 5xx
+// code, returning the code alongside the boolean for callers that want to
+// log it without re-running errors.As. 5xx on a write endpoint typically
+// originates from gin's recovery middleware after a panic in the handler —
+// the panel's controllers otherwise return 200 with success:false. A panic
+// during a SQLite transaction is the canonical "transient" failure this
+// retry targets.
+func transient5xxStatus(err error) (int, bool) {
 	var httpErr *HTTPStatusError
 	if !errors.As(err, &httpErr) {
-		return false
+		return 0, false
 	}
-	return httpErr.StatusCode >= 500 && httpErr.StatusCode < 600
+	if httpErr.StatusCode < 500 || httpErr.StatusCode >= 600 {
+		return httpErr.StatusCode, false
+	}
+	return httpErr.StatusCode, true
 }
 
-// withRetry runs op up to (1 + c.maxRetries) times, retrying only on a
+// withRetry runs fn up to (1 + c.maxRetries) times, retrying only on a
 // transient 5xx response from an idempotent endpoint. It is the single
 // retry policy in the client; doFormRetryable / doJSONRetryable wrap it
 // so callers do not have to construct logging fields themselves.
@@ -601,31 +606,32 @@ func isTransient5xx(err error) bool {
 // Retries are visible: every retry emits a tflog.Warn so operators can
 // detect upstream flakiness instead of having it silently absorbed.
 func (c *Client) withRetry(ctx context.Context, op string, fn func() error) error {
-	err := fn()
-	if err == nil || c.maxRetries <= 0 || !isTransient5xx(err) {
-		return err
-	}
-	for attempt := 1; attempt <= c.maxRetries; attempt++ {
-		var httpErr *HTTPStatusError
-		_ = errors.As(err, &httpErr)
+	var err error
+	for attempt := 0; attempt <= c.maxRetries; attempt++ {
+		err = fn()
+		if err == nil {
+			return nil
+		}
+		statusCode, retryable := transient5xxStatus(err)
+		if !retryable || attempt == c.maxRetries {
+			return err
+		}
+		// Honor cancellation before logging or sleeping so a cancelled
+		// context does not produce a "retrying" entry that we never act on.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
 		tflog.Warn(ctx, "retrying transient 5xx", map[string]any{
 			"operation":    op,
-			"attempt":      attempt,
+			"attempt":      attempt + 1,
 			"max_attempts": c.maxRetries,
-			"status_code":  httpErr.StatusCode,
+			"status_code":  statusCode,
 			"backoff":      defaultRetryBackoff.String(),
 		})
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(defaultRetryBackoff):
-		}
-		err = fn()
-		if err == nil {
-			return nil
-		}
-		if !isTransient5xx(err) {
-			return err
 		}
 	}
 	return err
