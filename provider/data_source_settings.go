@@ -36,7 +36,8 @@ func (d *SettingsDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 				Computed: true,
 			},
 			"json": schema.StringAttribute{
-				Computed: true,
+				Computed:  true,
+				Sensitive: true,
 			},
 		},
 	}

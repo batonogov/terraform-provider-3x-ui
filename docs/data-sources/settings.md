@@ -15,7 +15,8 @@ Retrieves all current panel settings from the 3x-ui panel as a JSON string. Incl
 data "threexui_settings" "all" {}
 
 output "panel_settings" {
-  value = data.threexui_settings.all.json
+  value     = data.threexui_settings.all.json
+  sensitive = true
 }
 ```
 
@@ -25,4 +26,4 @@ This data source has no arguments.
 
 ## Attribute Reference
 
-- `json` (String) - All panel settings as a JSON string.
+- `json` (String, Sensitive) - All panel settings as a JSON string. Marked as sensitive because the payload contains Telegram bot tokens, LDAP passwords, 2FA secrets, and other panel credentials.
