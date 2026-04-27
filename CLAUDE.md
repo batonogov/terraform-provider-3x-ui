@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+A shorter set of repository guidelines for coding agents lives in `AGENTS.md`. Keep both files in sync when changing workflow conventions.
+
 ## Purpose
 
 Terraform provider for the [3x-ui](https://github.com/MHSanaei/3x-ui) panel (Go, terraform-plugin-framework).
@@ -37,6 +39,13 @@ provider/              — all provider code
   data_source_*.go     — data sources (inbounds, server_status, settings, xray_config, xray_versions, online_clients)
   testdata/            — round-trip fixtures for corpus_test.go; see provider/testdata/README.md to refresh
 examples/              — example TF configs for manual testing
+docs/
+  index.md             — provider docs landing page (Terraform Registry)
+  resources/           — per-resource Registry docs
+  data-sources/        — per-data-source Registry docs
+  guides/              — operational walkthroughs (backup-as-code, server-migration, bulk-clients); rendered as guides on the Registry
+README.md              — English README; localized in 5 more languages mirroring 3x-ui upstream:
+                         README.ru_RU.md, README.fa_IR.md, README.ar_EG.md, README.zh_CN.md, README.es_ES.md
 3x-ui-<version>/      — 3x-ui source snapshots (in .gitignore, for reference/diffing)
 docker-compose.yaml    — 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v2.9.2)
 Taskfile.yml           — task build / test / fmt
@@ -78,6 +87,12 @@ Taskfile.yml           — task build / test / fmt
 | `threexui_client_traffics` | Client traffic statistics by email |
 
 > **Security note:** any data source that returns a raw JSON payload from the panel/Xray API (e.g. `inbounds`, `settings`, `xray_config`) MUST mark the JSON attribute `Sensitive: true`. The payloads contain client UUIDs, passwords, Reality `privateKey`, WireGuard `secretKey`, Telegram bot tokens, LDAP passwords. Comparable resource fields (`resource_inbound_client.go`, `resource_settings_tabs.go`, `xray_outbounds_schema.go`) already use `Sensitive: true` — the data source schema must mirror that.
+
+## Documentation Conventions
+
+- **README is localized** in 6 languages mirroring 3x-ui upstream (en, ru, fa, ar, zh, es). When changing user-facing copy in `README.md`, update all five `README.<locale>.md` files in the same PR. Keep the language-switcher line at the top of every file identical. Persian and Arabic READMEs wrap their body in `<div dir="rtl">`.
+- **`docs/guides/`** holds operational walkthroughs (backup-as-code, server-migration, bulk-clients). Add a guide here when introducing a workflow that needs more than an `examples/` folder. Front-matter (`page_title`, `subcategory: "Guides"`, `description`) is required for Terraform Registry rendering.
+- **`SECURITY.md`** has a per-surface table of sensitive fields handled by the provider. When adding a new resource that handles secrets (passwords, private keys, tokens, UUIDs), add a row to that table — it is the canonical list referenced by the README and by the data-source security note above.
 
 ## 3x-ui API (Key Endpoints)
 
@@ -191,6 +206,7 @@ task fmt              # gofmt
 task vet              # go vet
 task lint             # golangci-lint
 task pre-commit       # Run all pre-commit checks manually (fmt, vet, lint, build)
+markdownlint-cli2     # Lint markdown (uses .markdownlint-cli2.yaml; localized READMEs are excluded by glob)
 
 # Run a single test by name:
 TF_ACC=1 THREEXUI_ENDPOINT=http://localhost:2053 THREEXUI_USERNAME=admin THREEXUI_PASSWORD=admin \
@@ -210,7 +226,12 @@ Automatic pre-commit checks are configured:
 
 Acceptance tests are **not** run in pre-commit — use `task test:acc` explicitly.
 
-Configuration files: `.pre-commit-config.yaml`, `.golangci.yml`
+Configuration files: `.pre-commit-config.yaml`, `.golangci.yml`, `.markdownlint-cli2.yaml`.
+
+`.markdownlint-cli2.yaml` notes:
+
+- Glob list intentionally covers only `README.md`, `CONTRIBUTING.md`, `docs/**/*.md`. Localized READMEs (`README.<locale>.md`) are not linted — they mirror `README.md` structurally and a single lint pass is the source of truth.
+- `first-line-heading: false` is set because every README starts with the language-switcher line, not a heading.
 
 ## Test Environment
 
