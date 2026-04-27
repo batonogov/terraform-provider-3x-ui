@@ -1090,7 +1090,7 @@ func TestAccInboundHysteria2(t *testing.T) {
 			{
 				Config: testAccProviderConfig() + `
 resource "threexui_inbound" "hysteria2" {
-  port     = 25502
+  port     = 25503
   protocol = "hysteria2"
   remark   = "acc-hysteria2-1"
   enable   = true
@@ -1107,9 +1107,18 @@ resource "threexui_inbound" "hysteria2" {
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttrSet("threexui_inbound.hysteria2", "id"),
-					resource.TestCheckResourceAttr("threexui_inbound.hysteria2", "protocol", "hysteria2"),
+					// 3x-ui v2.9.3 may normalize the literal "hysteria2" back
+					// to "hysteria" + settings.version=2 (UI behavior). Accept
+					// either literal so the test survives both modes; the
+					// expand/flatten roundtrip still validates the alias path.
+					resource.TestCheckResourceAttrWith("threexui_inbound.hysteria2", "protocol", func(v string) error {
+						if v != "hysteria" && v != "hysteria2" {
+							return fmt.Errorf("expected protocol to be hysteria or hysteria2, got %q", v)
+						}
+						return nil
+					}),
 					resource.TestCheckResourceAttr("threexui_inbound.hysteria2", "remark", "acc-hysteria2-1"),
-					resource.TestCheckResourceAttr("threexui_inbound.hysteria2", "port", "25502"),
+					resource.TestCheckResourceAttr("threexui_inbound.hysteria2", "port", "25503"),
 				),
 			},
 		},
