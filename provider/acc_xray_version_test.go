@@ -161,10 +161,11 @@ resource "threexui_xray_version" "test" {
 						t.Fatalf("failed to simulate drift by installing %s: %s", altVersion, err)
 					}
 					// InstallXray is async — wait for the version to actually
-					// change. The window has to cover binary download + 3x-ui's
-					// internal pickup; on slow CI runners (older 3x-ui lines)
-					// 30s was occasionally too tight (issue #157).
-					const maxAttempts = 60
+					// change. The window has to cover binary download +
+					// 3x-ui's internal pickup. On slow CI runners with older
+					// 3x-ui lines (v2.9.1 specifically), 60s was still
+					// occasionally too tight (issue #157).
+					const maxAttempts = 120
 					const pollInterval = time.Second
 					for i := 0; i < maxAttempts; i++ {
 						time.Sleep(pollInterval)
