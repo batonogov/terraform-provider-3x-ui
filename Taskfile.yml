@@ -26,6 +26,7 @@ tasks:
       - docker compose down -v 2>/dev/null || true
       - docker compose up --detach --wait --quiet-pull
       - defer: docker compose down
+      - task: _wait-for-xray
       - >-
         TF_ACC=1
         TF_ACC_TERRAFORM_PATH={{.TERRAFORM_PATH}}
@@ -47,6 +48,7 @@ tasks:
       - docker compose down -v 2>/dev/null || true
       - docker compose up --detach --wait --quiet-pull
       - defer: docker compose down
+      - task: _wait-for-xray
       - >-
         TF_ACC=1
         TF_ACC_TERRAFORM_PATH={{.TERRAFORM_PATH}}
@@ -57,6 +59,41 @@ tasks:
         THREEXUI_PASSWORD=admin
         THREEXUI_VERSION={{.THREEXUI_VERSION}}
         go test ./provider -run TestAcc -count=1 -timeout 600s -v
+
+  _wait-for-xray:
+    desc: Дождаться готовности xray-подсистемы внутри 3x-ui (внутренняя задача)
+    silent: true
+    cmds:
+      # docker compose --wait + healthcheck подтверждают, что роутер 3x-ui
+      # отвечает. Но xray-подсистема инициализируется на 1–3 с позже, и до
+      # этого момента GetCurrentXrayVersion возвращает "Unknown", что роняет
+      # тесты вроде XrayVersionDrift ложным ErrXrayVersionUnknown (issue #161).
+      #
+      # Пробуем /panel/api/server/status и проверяем xray.state == "running"
+      # (или version != "Unknown"). Этот эндпоинт не ходит во внешние сервисы,
+      # в отличие от getXrayVersion (тот дёргает GitHub API за списком релизов
+      # и упирается в анонимный rate limit на шаренном runner IP — issue #161).
+      - |
+        cookie=$(mktemp)
+        trap 'rm -f "$cookie"' EXIT
+        for i in $(seq 1 30); do
+          curl -fsS -c "$cookie" -d 'username=admin&password=admin' \
+            http://localhost:2053/login >/dev/null 2>&1 || { sleep 1; continue; }
+          body=$(curl -fsS -b "$cookie" \
+            http://localhost:2053/panel/api/server/status 2>/dev/null || true)
+          # Успех: success:true и `"xray":{...,"state":"running",...}`.
+          # Якорим state по xray-блоку, а не голым `"state":"running"` —
+          # иначе будущие поля state в других секциях ответа дадут ложно
+          # успешное срабатывание.
+          if printf '%s' "$body" | grep -q '"success":true' \
+             && printf '%s' "$body" | grep -Eq '"xray":\{[^}]*"state":"running"'; then
+            echo "xray subsystem ready after ${i}s"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "xray subsystem did not become ready within 30s — last response: $body" >&2
+        exit 1
 
   fmt:
     desc: Форматировать Go-файлы

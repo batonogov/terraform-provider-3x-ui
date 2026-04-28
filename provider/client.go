@@ -211,7 +211,81 @@ func (c *Client) DeleteInbound(ctx context.Context, id int) error {
 		return errors.New("inbound id is required for delete")
 	}
 	relPath := fmt.Sprintf("panel/api/inbounds/del/%d", id)
-	return c.doForm(ctx, http.MethodPost, relPath, url.Values{}, nil)
+	op := "DELETE " + relPath
+
+	// 3x-ui's DelInbound is multi-step (xray API call → traffic cleanup →
+	// row delete). On a transient panic the handler returns 5xx after the
+	// row has already been removed — a naive `withRetry` would then hit
+	// the `GetInbound first, error on missing row` path inside DelInbound
+	// and turn success into failure (issue #161). So on 5xx we verify
+	// with GetInbounds before deciding to retry.
+	err := c.doForm(ctx, http.MethodPost, relPath, url.Values{}, nil)
+	if err == nil {
+		return nil
+	}
+	code, transient := transient5xxStatus(err)
+	if !transient {
+		return err
+	}
+
+	// First verify-and-maybe-retry pass.
+	if c.deleteVerifyAbsent(ctx, op, id, code) {
+		return nil
+	}
+
+	// Row still present (or verify itself failed). Retry the DELETE
+	// once. If it succeeds, we are done.
+	retryErr := c.doForm(ctx, http.MethodPost, relPath, url.Values{}, nil)
+	if retryErr == nil {
+		return nil
+	}
+
+	// Retry also failed. If it was another 5xx, the same panic-after-
+	// commit case may have just played out a second time — verify once
+	// more before propagating the error.
+	if retryCode, retryTransient := transient5xxStatus(retryErr); retryTransient {
+		if c.deleteVerifyAbsent(ctx, op, id, retryCode) {
+			return nil
+		}
+	}
+	return retryErr
+}
+
+// deleteVerifyAbsent calls GetInbounds and reports whether the inbound is
+// gone. Logs both the verify attempt and any verify failure so operators
+// can distinguish "row gone" from "could not check". Returns false on a
+// verify-call error — caller treats that as "still present" and proceeds
+// to retry the DELETE.
+func (c *Client) deleteVerifyAbsent(ctx context.Context, op string, id, statusCode int) bool {
+	tflog.Warn(ctx, "verifying delete after transient 5xx", map[string]any{
+		"operation":   op,
+		"status_code": statusCode,
+	})
+	gone, verifyErr := c.inboundAbsent(ctx, id)
+	if verifyErr != nil {
+		tflog.Warn(ctx, "delete verification failed; will retry DELETE", map[string]any{
+			"operation": op,
+			"error":     verifyErr.Error(),
+		})
+		return false
+	}
+	return gone
+}
+
+// inboundAbsent reports whether the inbound with id is no longer present in
+// the panel's list. A list-call error is propagated — callers must not treat
+// "could not check" as "row gone".
+func (c *Client) inboundAbsent(ctx context.Context, id int) (bool, error) {
+	inbounds, err := c.GetInbounds(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, in := range inbounds {
+		if in.ID == id {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (c *Client) GetInbound(ctx context.Context, id int) (*Inbound, error) {
@@ -613,9 +687,10 @@ func transient5xxStatus(err error) (int, bool) {
 // Not safe for non-idempotent endpoints: AddInbound (would create a
 // duplicate), AddInboundClient (duplicate), UpdateUser (the second call
 // would run with stale credentials and could leave provider state and
-// panel state out of sync), DeleteInbound (3x-ui's DelInbound calls
-// GetInbound first and errors on a missing row, so a retry after a
-// successful-but-5xx delete turns success into failure).
+// panel state out of sync). DeleteInbound has its own retry-with-verify
+// path — see DeleteInbound — because a naive retry would turn a
+// successful-but-5xx delete into a failure (DelInbound errors on a
+// missing row).
 //
 // Retries are visible: every retry emits a tflog.Warn so operators can
 // detect upstream flakiness instead of having it silently absorbed.

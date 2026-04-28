@@ -118,7 +118,8 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 - `Client.withRetry` — single retry policy. Wraps a request function with up to `maxRetries` additional attempts on `*HTTPStatusError` with code 5xx, fixed 500ms backoff, ctx-aware
 - `doFormRetryable` / `doJSONRetryable` — thin wrappers over `withRetry` that delegate to `doForm`/`doJSON`
 - Applied **only** to idempotent writes: `UpdateInbound`, `UpdateInboundClient`, `UpdateSettings`, `UpdateXrayTemplate`, `SetXrayOutboundTestURL`
-- **Not** applied to: `AddInbound`, `AddInboundClient` (would duplicate), `UpdateUser` (stale creds), `DeleteInbound` (3x-ui's `DelInbound` reads first and errors on missing row)
+- **Not** applied via `withRetry` to: `AddInbound`, `AddInboundClient` (would duplicate), `UpdateUser` (stale creds)
+- `DeleteInbound` has a custom retry-with-verify path (not `withRetry`): on 5xx it calls `inboundAbsent` (one `GetInbounds`) — if the row is gone, returns success (the panel handler panicked after the SQLite delete had already committed); if the row is still present, retries the DELETE once. 4xx surfaces immediately. Rationale: `DelInbound` reads-then-deletes and errors on a missing row, so a naive `withRetry` would turn a successful-but-5xx delete into a failure (#161). Tests: `TestDeleteInboundReturnsSuccessIfRowAbsentAfter5xx`, `TestDeleteInboundRetriesOnce5xxIfRowStillPresent`, `TestDeleteInboundDoesNotRetryOn4xx`
 - `tflog.Warn` emitted on each retry with `operation`, `attempt`, `status_code`, `backoff` — operators can detect upstream flakiness instead of silent absorption
 - Configurable via `max_retries` provider attribute (default `1`, set to `0` to disable). Provider plumbs default into `ClientConfig.MaxRetries`; `Client.maxRetries` is the field used by `withRetry`
 - Composes with the 401/404 auto-relogin in `doRequest`: relogin happens inside a single `withRetry` attempt; only an HTTP 5xx surfaced from `decodeAPIResponse` triggers the outer retry
@@ -128,10 +129,10 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 
 Distinct from the 5xx retry above. 3x-ui occasionally returns `success: true` from a create/update endpoint while the underlying SQLite commit is not yet visible to a follow-up GET (#157). The 5xx retry doesn't help — the response is HTTP 200, just empty/missing the row. So a separate application-layer policy:
 
-- `Client.WithReadAfterWriteRetry` — polls a caller-provided `func() (found bool, err error)` up to `readAfterWriteAttempts` (5) times with `readAfterWriteBackoff` (500ms) between attempts. A non-nil err aborts immediately (read failures are not retried — only the "not visible yet" condition is). Emits `tflog.Warn` per retry with `operation`, `attempt`, `max_attempts`, `backoff`
+- `Client.WithReadAfterWriteRetry` — polls a caller-provided `func() (found bool, err error)` up to `readAfterWriteAttempts` (20) times with `readAfterWriteBackoff` (500ms) between attempts. A non-nil err aborts immediately (read failures are not retried — only the "not visible yet" condition is). Emits `tflog.Warn` per retry with `operation`, `attempt`, `max_attempts`, `backoff`
 - Applied to: `InboundResource.Create` (resolves the new row by `port` if `AddInbound` returned an empty obj), `InboundClientResource.Create`/`Update` (waits for the new client to appear in the inbound's settings JSON), `XrayVersionResource.waitForXrayVersion` (ignores `ErrXrayVersionUnknown` while xray is restarting)
 - **Not** applied to plain `Read` — for an idle read, "row not present" is meaningful (resource was deleted out-of-band) and must be reported to Terraform immediately rather than retried
-- Test helpers `testAccCheckInboundDestroyed` / `testAccCheckInboundClientDestroyed` use a similar bounded poll (`destroyVisibilityAttempts × destroyVisibilityBackoff`) for the inverse case: waiting for a successful DELETE to become invisible to a follow-up GET
+- Test helpers `testAccCheckInboundDestroyed` / `testAccCheckInboundClientDestroyed` use a similar bounded poll (`destroyVisibilityAttempts × destroyVisibilityBackoff` = 60 × 500ms = 30s) for the inverse case: waiting for a successful DELETE to become invisible to a follow-up GET. Resource-side counterpart: `InboundResource.waitForInboundDeletion` (20 × 500ms = 10s) emits a Warning, not an Error, on exhaustion — the API has already accepted the DELETE, so leaving the resource in TF state would be the worse failure mode (#136, #161)
 
 ## Key Code Details
 
@@ -300,6 +301,22 @@ Acceptance tests require Terraform and environment variables for correct provide
 - `TF_ACC_PROVIDER_HOST=registry.terraform.io`
 
 All of this is already configured in `Taskfile.yml` → `task test`.
+
+### Readiness Contract (acceptance suite)
+
+The acceptance suite assumes 3x-ui is ready in **two stages**, both gated before any test runs:
+
+1. **Panel router up** — `docker-compose.yaml` declares a healthcheck that polls `/login`. `docker compose up --wait` blocks until the healthcheck passes (max ~30s). Without this, `--wait` only waits for "container started", which is earlier than the gin router being ready.
+2. **Xray subsystem initialized** — `Taskfile.yml` `_wait-for-xray` runs after `compose up --wait` and polls `/panel/api/server/status` until `xray.state == "running"` (max 30s). Without this, tests like `TestAccXrayVersionDrift` start before xray reports its version and fail with bogus `ErrXrayVersionUnknown` (#161). Do NOT use `/panel/api/server/getXrayVersion` for this — that endpoint fetches the GitHub release list anonymously and intermittently rate-limits on shared CI runner IPs.
+
+When adding new tests that touch xray-only state (templates, versions, restart-required settings), assume both gates have passed — do NOT add per-test sleeps.
+
+### CI Flake Mitigation
+
+Beyond the in-process retry budgets (`withRetry`, `WithReadAfterWriteRetry`, `waitForInboundDeletion`, `destroyVisibilityAttempts`), CI itself has two safety nets:
+
+- **Per-job retry** — `acceptance-tests` and `acceptance-matrix` jobs in `.github/workflows/ci.yml` use `nick-fields/retry@v3` with `max_attempts: 2`. Catches the residual flake rate from GHCR pull jitter, one-off SQLite spikes, and runner contention. A green retry should be a no-op for code; if a retry consistently changes behavior, that is a real bug — diff the two attempt logs.
+- **Flaky test gate** — `skipIfFlaky(t, reason)` in `provider/test_helpers.go` skips when `THREEXUI_SKIP_FLAKY` env is set. Sub-day mitigation when a test starts firing falsely: gate it, push, file a follow-up. Quarantined tests must be tracked (#161 or follow-up) — the gate is not a permanent home.
 
 ## Releases
 

@@ -519,27 +519,190 @@ func TestUpdateSettingsRetriesTransient5xx(t *testing.T) {
 	}
 }
 
-func TestDeleteInboundDoesNotRetryOn5xx(t *testing.T) {
-	// 3x-ui's DelInbound looks up the row first and errors on a missing
-	// one, so a retry after a successful-but-5xx delete would turn success
-	// into failure.
-	var calls int32
+func TestDeleteInboundReturnsSuccessIfRowAbsentAfter5xx(t *testing.T) {
+	// 3x-ui's DelInbound is multi-step: a panic after the SQLite row was
+	// already removed surfaces as 5xx, but the row is gone. We verify with
+	// GetInbounds — if the row is absent, the delete succeeded.
+	var deleteCalls, listCalls int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/panel/api/inbounds/del/7" {
+		switch r.URL.Path {
+		case "/panel/api/inbounds/del/7":
+			atomic.AddInt32(&deleteCalls, 1)
+			http.Error(w, "boom", http.StatusInternalServerError)
+		case "/panel/api/inbounds/list":
+			atomic.AddInt32(&listCalls, 1)
+			_, _ = w.Write(okResponse([]Inbound{{ID: 99}}))
+		default:
 			w.WriteHeader(http.StatusNotFound)
-			return
 		}
-		atomic.AddInt32(&calls, 1)
-		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	if err := client.DeleteInbound(context.Background(), 7); err != nil {
+		t.Fatalf("expected success after verifying row absent, got: %v", err)
+	}
+	if got := atomic.LoadInt32(&deleteCalls); got != 1 {
+		t.Fatalf("expected exactly 1 DELETE call, got %d", got)
+	}
+	if got := atomic.LoadInt32(&listCalls); got != 1 {
+		t.Fatalf("expected exactly 1 LIST call (verification), got %d", got)
+	}
+}
+
+func TestDeleteInboundRetriesOnce5xxIfRowStillPresent(t *testing.T) {
+	// If the row is still present after a 5xx, retry the DELETE once. A
+	// retry that succeeds returns nil; a retry that 5xxes again surfaces
+	// the error.
+	var deleteCalls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/panel/api/inbounds/del/7":
+			n := atomic.AddInt32(&deleteCalls, 1)
+			if n == 1 {
+				http.Error(w, "boom", http.StatusInternalServerError)
+				return
+			}
+			_, _ = w.Write(okResponse(nil))
+		case "/panel/api/inbounds/list":
+			_, _ = w.Write(okResponse([]Inbound{{ID: 7}}))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	if err := client.DeleteInbound(context.Background(), 7); err != nil {
+		t.Fatalf("expected success after retry, got: %v", err)
+	}
+	if got := atomic.LoadInt32(&deleteCalls); got != 2 {
+		t.Fatalf("expected 2 DELETE calls (1 original + 1 retry), got %d", got)
+	}
+}
+
+func TestDeleteInboundProceedsToRetryWhenVerifyFails(t *testing.T) {
+	// If the verify call (GetInbounds) itself fails, we cannot conclude
+	// "row gone", so we fall through to retrying the DELETE. The DELETE
+	// retry succeeds here, so the operation succeeds.
+	var deleteCalls, listCalls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/panel/api/inbounds/del/7":
+			n := atomic.AddInt32(&deleteCalls, 1)
+			if n == 1 {
+				http.Error(w, "boom", http.StatusInternalServerError)
+				return
+			}
+			_, _ = w.Write(okResponse(nil))
+		case "/panel/api/inbounds/list":
+			atomic.AddInt32(&listCalls, 1)
+			http.Error(w, "list down", http.StatusInternalServerError)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	if err := client.DeleteInbound(context.Background(), 7); err != nil {
+		t.Fatalf("expected success after retry, got: %v", err)
+	}
+	if got := atomic.LoadInt32(&deleteCalls); got != 2 {
+		t.Fatalf("expected 2 DELETE calls (original + retry), got %d", got)
+	}
+	if got := atomic.LoadInt32(&listCalls); got != 1 {
+		t.Fatalf("expected exactly 1 LIST call (verify attempted once), got %d", got)
+	}
+}
+
+func TestDeleteInboundReverifiesAfterSecond5xx(t *testing.T) {
+	// Both DELETEs return 5xx, but on the second 5xx the row is now
+	// gone (panic-after-commit, twice). The second verify catches this
+	// and we treat the whole operation as success rather than surfacing
+	// a false failure.
+	var deleteCalls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/panel/api/inbounds/del/7":
+			atomic.AddInt32(&deleteCalls, 1)
+			http.Error(w, "boom", http.StatusInternalServerError)
+		case "/panel/api/inbounds/list":
+			// First verify: row still present. Second verify: gone.
+			n := atomic.LoadInt32(&deleteCalls)
+			if n == 1 {
+				_, _ = w.Write(okResponse([]Inbound{{ID: 7}}))
+			} else {
+				_, _ = w.Write(okResponse([]Inbound{}))
+			}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	if err := client.DeleteInbound(context.Background(), 7); err != nil {
+		t.Fatalf("expected success after second-5xx re-verify, got: %v", err)
+	}
+	if got := atomic.LoadInt32(&deleteCalls); got != 2 {
+		t.Fatalf("expected 2 DELETE calls, got %d", got)
+	}
+}
+
+func TestDeleteInboundSurfacesSecond5xxIfRowStillPresent(t *testing.T) {
+	// Both DELETEs return 5xx and the row is still present after each
+	// verify. The error from the retry surfaces.
+	var deleteCalls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/panel/api/inbounds/del/7":
+			atomic.AddInt32(&deleteCalls, 1)
+			http.Error(w, "boom", http.StatusInternalServerError)
+		case "/panel/api/inbounds/list":
+			_, _ = w.Write(okResponse([]Inbound{{ID: 7}}))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	err := client.DeleteInbound(context.Background(), 7)
+	if err == nil {
+		t.Fatalf("expected 5xx to surface when row remains")
+	}
+	if got := atomic.LoadInt32(&deleteCalls); got != 2 {
+		t.Fatalf("expected 2 DELETE calls, got %d", got)
+	}
+}
+
+func TestDeleteInboundDoesNotRetryOn4xx(t *testing.T) {
+	// 4xx (auth, validation) is not transient — surface immediately.
+	var deleteCalls, listCalls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/panel/api/inbounds/del/7":
+			atomic.AddInt32(&deleteCalls, 1)
+			http.Error(w, "bad request", http.StatusBadRequest)
+		case "/panel/api/inbounds/list":
+			atomic.AddInt32(&listCalls, 1)
+			_, _ = w.Write(okResponse([]Inbound{}))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
 	}))
 	defer srv.Close()
 
 	client := newTestClient(t, srv.URL)
 	if err := client.DeleteInbound(context.Background(), 7); err == nil {
-		t.Fatalf("expected 5xx to surface")
+		t.Fatalf("expected 4xx to surface")
 	}
-	if got := atomic.LoadInt32(&calls); got != 1 {
-		t.Fatalf("expected exactly 1 call (no retry on Delete), got %d", got)
+	if got := atomic.LoadInt32(&deleteCalls); got != 1 {
+		t.Fatalf("expected exactly 1 DELETE call (no retry on 4xx), got %d", got)
+	}
+	if got := atomic.LoadInt32(&listCalls); got != 0 {
+		t.Fatalf("expected no LIST call (no verification on 4xx), got %d", got)
 	}
 }
 

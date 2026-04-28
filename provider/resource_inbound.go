@@ -445,8 +445,11 @@ func (r *InboundResource) Delete(ctx context.Context, req resource.DeleteRequest
 // row), so we never re-issue DELETE — the original DELETE has already been
 // accepted.
 func (r *InboundResource) waitForInboundDeletion(ctx context.Context, id int) error {
+	// Budget aligned with readAfterWriteAttempts/Backoff so the delete-side
+	// visibility window matches the read-after-write side; both observe the
+	// same SQLite contention pattern (issue #161).
 	const (
-		attempts = 6
+		attempts = 20
 		delay    = 500 * time.Millisecond
 	)
 	var lastErr error

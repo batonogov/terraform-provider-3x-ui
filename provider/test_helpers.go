@@ -29,3 +29,55 @@ func requireMinVersion(t *testing.T, min string) {
 		t.Skipf("requires 3x-ui >= %s, running %s", min, v)
 	}
 }
+
+// skipFatalHelper is the narrow subset of *testing.T this package's
+// version-gating helpers depend on. Defined as an interface so the
+// helpers can be unit-tested with a fake — testing.TB is sealed and
+// cannot be implemented outside the standard library.
+type skipFatalHelper interface {
+	Helper()
+	Skipf(format string, args ...any)
+	Fatal(args ...any)
+}
+
+// skipOnFlakyVersions skips the test if THREEXUI_VERSION matches any of
+// the listed versions. Use for tests that fail deterministically on a
+// specific upstream panel version due to a known upstream bug — not for
+// transient flakes (use skipIfFlaky for those). `reason` should reference
+// a tracking issue so the gate is removed once upstream is fixed.
+func skipOnFlakyVersions(t skipFatalHelper, reason string, versions ...string) {
+	t.Helper()
+	if len(versions) == 0 {
+		t.Fatal("skipOnFlakyVersions requires at least one version")
+	}
+	v := os.Getenv("THREEXUI_VERSION")
+	if v == "" {
+		return
+	}
+	for _, bad := range versions {
+		if v == bad {
+			t.Skipf("known-broken on %s: %s", v, reason)
+		}
+	}
+}
+
+// needs sub-day quarantine (see CLAUDE.md → CI Flake Mitigation). Removing
+// it forces every quarantine to start with a Taskfile/CI plumbing change.
+//
+// skipIfFlaky quarantines a known-flaky test when THREEXUI_SKIP_FLAKY is
+// set (any non-empty value). The intent is to give us a sub-day mitigation
+// path when a test starts firing falsely — flip the env var in CI, file an
+// issue with the failure log, and unblock contributors. Tests gated this
+// way must be tracked in #161 (or a follow-up issue) and either fixed or
+// removed; the gate is not a permanent home. `reason` is included in the
+// skip message so reviewers can see *why* a test is quarantined without
+// chasing git blame.
+//
+//nolint:unused // intentional pre-deployed gate; called only when a test
+func skipIfFlaky(t *testing.T, reason string) {
+	t.Helper()
+	if os.Getenv("THREEXUI_SKIP_FLAKY") == "" {
+		return
+	}
+	t.Skipf("quarantined as flaky (THREEXUI_SKIP_FLAKY set): %s", reason)
+}

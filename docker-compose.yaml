@@ -8,3 +8,14 @@ services:
       XUI_ENABLE_FAIL2BAN: "true"
     tty: true
     restart: unless-stopped
+    # `/` returns 200 (login page) once the gin router is up — earlier
+    # than the default --wait, which only checks that the container
+    # started. /login is POST-only and answers GET with 404, so we cannot
+    # use it. Xray-subsystem readiness is verified separately by the test
+    # runner — see Taskfile.yml `_wait-for-xray`.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:2053/ >/dev/null || exit 1"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 5s

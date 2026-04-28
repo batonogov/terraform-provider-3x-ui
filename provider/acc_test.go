@@ -151,11 +151,15 @@ func testAccClientFromEnvNoLogin() (*Client, error) {
 // CheckDestroy helpers wait for a successful DELETE to become visible to a
 // follow-up GET. 3x-ui's DELETE endpoint can return success while a
 // concurrent GET still observes the row under SQLite contention — see
-// issue #157. CI runners are slower than local hardware and the matrix
-// test hammers SQLite for tens of seconds before late subtests run, so
-// the budget here has to cover that worst case (~7s).
+// issues #157 and #161. CI runners are slower than local hardware and the
+// matrix test hammers SQLite for tens of seconds before late subtests run.
+// 15 × 500ms = 7.5s was insufficient on v2.9.1; 30 × 500ms = 15s was
+// insufficient on v2.9.0 mixed-protocol cleanup; 60 × 500ms = 30s now
+// covers the worst case we have observed (#161). The escalating-budget
+// pattern is a smell; the underlying slowness is tracked separately so
+// we stop bumping and start investigating: see #164.
 const (
-	destroyVisibilityAttempts = 15
+	destroyVisibilityAttempts = 60
 	destroyVisibilityBackoff  = 500 * time.Millisecond
 )
 
