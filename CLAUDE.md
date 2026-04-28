@@ -251,7 +251,7 @@ All third-party code that runs in CI or pre-commit is pinned to a commit SHA, no
 
 **Pre-commit hooks** (`.pre-commit-config.yaml`) — external `repo:` references use `rev: <sha>  # frozen: <tag>`. This is the format `pre-commit autoupdate --freeze` produces. Bare `pre-commit autoupdate` will un-pin — always use the `--freeze` flag locally, or update the SHA manually.
 
-**Docker images** in `docker-compose.yaml` are NOT digest-pinned. They run only as ephemeral test environments (3x-ui panel for acceptance tests), never in published artifacts — so the supply-chain blast radius is limited to a CI run.
+**Docker images** in `docker-compose.yaml` are intentionally NOT digest-pinned. They run only as ephemeral test environments (3x-ui panel for acceptance tests), never in published artifacts, and have no access to release secrets — the residual risk is a tampered test signal, not a poisoned release. Maintaining digests for all 7 matrix versions manually outweighs the closed-off risk (#168).
 
 **Go modules** are covered by `go.sum` hashing — no extra pinning needed. The `go install ...@vX.Y.Z` references in workflows install specific versions whose contents are verified by Go's module proxy.
 
