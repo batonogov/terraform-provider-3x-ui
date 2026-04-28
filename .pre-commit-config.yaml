@@ -40,9 +40,13 @@ repos:
         language: system
         types: [markdown]
 
-  # Common hooks for any files
+  # Common hooks for any files.
+  # rev pinned to a commit SHA (not a tag) — same rationale as the pinned
+  # GitHub Actions in .github/workflows/: tags are mutable. Update via
+  # `pre-commit autoupdate --freeze` which produces this exact `<sha>
+  # frozen: <tag>` format. Bare `pre-commit autoupdate` will un-pin.
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: c4a0b883114b00d8d76b479c820ce7950211c99b  # frozen: v4.5.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer

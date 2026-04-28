@@ -243,6 +243,26 @@ Configuration files: `.pre-commit-config.yaml`, `.golangci.yml`, `.markdownlint-
 - Glob list intentionally covers only `README.md`, `CONTRIBUTING.md`, `docs/**/*.md`. Localized READMEs (`README.<locale>.md`) are not linted — they mirror `README.md` structurally and a single lint pass is the source of truth.
 - `first-line-heading: false` is set because every README starts with the language-switcher line, not a heading.
 
+## Supply-Chain Pinning
+
+All third-party code that runs in CI or pre-commit is pinned to a commit SHA, not a floating tag. Tags are mutable — a maintainer can re-tag to point at different code without any diff in our workflow files. SHA pins make every dependency change a reviewable diff.
+
+**GitHub Actions** (`.github/workflows/*.yml`) — every `uses:` reference is pinned as `<owner>/<repo>@<sha> # vN`. The trailing `# vN` comment is the format Dependabot recognizes for major-version tracking; weekly Dependabot PRs bump the SHA when the action publishes a new vN.x release. Same rule applies to first-party `actions/*` for consistency.
+
+**Pre-commit hooks** (`.pre-commit-config.yaml`) — external `repo:` references use `rev: <sha>  # frozen: <tag>`. This is the format `pre-commit autoupdate --freeze` produces. Bare `pre-commit autoupdate` will un-pin — always use the `--freeze` flag locally, or update the SHA manually.
+
+**Docker images** in `docker-compose.yaml` are NOT digest-pinned. They run only as ephemeral test environments (3x-ui panel for acceptance tests), never in published artifacts — so the supply-chain blast radius is limited to a CI run.
+
+**Go modules** are covered by `go.sum` hashing — no extra pinning needed. The `go install ...@vX.Y.Z` references in workflows install specific versions whose contents are verified by Go's module proxy.
+
+When adding a new third-party action or pre-commit hook, resolve the SHA via:
+
+```bash
+gh api repos/<owner>/<repo>/git/refs/tags/<tag> --jq '.object.sha,.object.type'
+# if type is "tag" (annotated), dereference:
+gh api repos/<owner>/<repo>/git/tags/<sha> --jq '.object.sha'
+```
+
 ## Test Environment
 
 ```bash
