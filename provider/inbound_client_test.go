@@ -212,8 +212,8 @@ func TestInboundResourceWaitForDeletion(t *testing.T) {
 		if err := res.waitForInboundDeletion(context.Background(), 1); err == nil {
 			t.Fatalf("expected error after exhausting attempts")
 		}
-		if got := atomic.LoadInt32(&lists); got != 6 {
-			t.Fatalf("expected 6 list calls, got %d", got)
+		if got := atomic.LoadInt32(&lists); got != 20 {
+			t.Fatalf("expected 20 list calls, got %d", got)
 		}
 	})
 

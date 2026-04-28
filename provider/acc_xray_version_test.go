@@ -163,9 +163,11 @@ resource "threexui_xray_version" "test" {
 					// InstallXray is async — wait for the version to actually
 					// change. The window has to cover binary download +
 					// 3x-ui's internal pickup. On slow CI runners with older
-					// 3x-ui lines (v2.9.1 specifically), 60s was still
-					// occasionally too tight (issue #157).
-					const maxAttempts = 120
+					// 3x-ui lines (v2.8.x and v2.9.1) we saw timeouts at 120s
+					// (issue #161), so the budget is bumped to 180s — still
+					// well below the per-test 600s limit, but generous enough
+					// to absorb GHCR pull jitter and runner contention.
+					const maxAttempts = 180
 					const pollInterval = time.Second
 					for i := 0; i < maxAttempts; i++ {
 						time.Sleep(pollInterval)
