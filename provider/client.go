@@ -27,8 +27,11 @@ const defaultRetryBackoff = 500 * time.Millisecond
 // readAfterWriteAttempts is the maximum number of times a post-write read
 // will be retried while the just-written row is not yet visible. 3x-ui
 // occasionally returns success from add/update endpoints before the SQLite
-// commit becomes visible to a follow-up GET — see issue #157.
-const readAfterWriteAttempts = 5
+// commit becomes visible to a follow-up GET — see issue #157. The matrix
+// acceptance test sustains write pressure for tens of seconds, and CI
+// runners are slower than local hardware, so the budget is sized for the
+// worst-case lag observed (~5s).
+const readAfterWriteAttempts = 10
 
 // readAfterWriteBackoff is the delay between read-after-write retry attempts.
 // Same rationale as defaultRetryBackoff: long enough to absorb a typical
