@@ -56,6 +56,12 @@ jobs:
         uses: arduino/setup-task@v2
         with:
           version: 3.x
+          # Authenticated requests get a much higher GitHub API rate limit.
+          # Without this, setup-task fetches release metadata anonymously
+          # and shares a low per-IP quota with every other Actions runner;
+          # we hit "API rate limit exceeded" intermittently on the matrix
+          # (issue #161 — observed on Compat (v2.9.0) for PR #162).
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install golangci-lint
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.3
@@ -80,6 +86,12 @@ jobs:
         uses: arduino/setup-task@v2
         with:
           version: 3.x
+          # Authenticated requests get a much higher GitHub API rate limit.
+          # Without this, setup-task fetches release metadata anonymously
+          # and shares a low per-IP quota with every other Actions runner;
+          # we hit "API rate limit exceeded" intermittently on the matrix
+          # (issue #161 — observed on Compat (v2.9.0) for PR #162).
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run unit tests
         run: task test:unit
@@ -105,6 +117,12 @@ jobs:
         uses: arduino/setup-task@v2
         with:
           version: 3.x
+          # Authenticated requests get a much higher GitHub API rate limit.
+          # Without this, setup-task fetches release metadata anonymously
+          # and shares a low per-IP quota with every other Actions runner;
+          # we hit "API rate limit exceeded" intermittently on the matrix
+          # (issue #161 — observed on Compat (v2.9.0) for PR #162).
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -152,6 +170,12 @@ jobs:
         uses: arduino/setup-task@v2
         with:
           version: 3.x
+          # Authenticated requests get a much higher GitHub API rate limit.
+          # Without this, setup-task fetches release metadata anonymously
+          # and shares a low per-IP quota with every other Actions runner;
+          # we hit "API rate limit exceeded" intermittently on the matrix
+          # (issue #161 — observed on Compat (v2.9.0) for PR #162).
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
