@@ -303,6 +303,26 @@ func (r *InboundResource) Read(ctx context.Context, req resource.ReadRequest, re
 	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
 }
 
+// inboundReflectsSent reports whether got reflects the scalar fields we
+// just wrote in sent. Used to detect the post-update SQLite visibility lag
+// (issue #157): if these scalars don't yet match the request, the panel
+// hasn't applied the update on the read side. Settings / StreamSettings /
+// Sniffing are deliberately excluded — the panel may decorate them
+// (Reality keys, defaults), so byte-equality is too strict for a
+// visibility check.
+func inboundReflectsSent(got, sent *Inbound) bool {
+	if got == nil || sent == nil {
+		return false
+	}
+	return got.Remark == sent.Remark &&
+		got.Port == sent.Port &&
+		got.Enable == sent.Enable &&
+		got.Listen == sent.Listen &&
+		got.Total == sent.Total &&
+		got.ExpiryTime == sent.ExpiryTime &&
+		got.Protocol == sent.Protocol
+}
+
 func (r *InboundResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan InboundResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -358,9 +378,20 @@ func (r *InboundResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	// Re-read the inbound via GET to ensure consistent state (#131).
-	updated, err := r.client.GetInbound(ctx, id)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to read updated inbound", err.Error())
+	// Under SQLite contention the GET may briefly return the pre-update
+	// snapshot, which Terraform then rejects as inconsistent. Poll until
+	// scalar fields we just wrote are reflected, or the budget expires
+	// (issue #157).
+	var updated *Inbound
+	if retryErr := r.client.WithReadAfterWriteRetry(ctx, fmt.Sprintf("read updated inbound %d", id), func() (bool, error) {
+		got, getErr := r.client.GetInbound(ctx, id)
+		if getErr != nil {
+			return false, getErr
+		}
+		updated = got
+		return inboundReflectsSent(got, inbound), nil
+	}); retryErr != nil {
+		resp.Diagnostics.AddError("Failed to read updated inbound", retryErr.Error())
 		return
 	}
 
