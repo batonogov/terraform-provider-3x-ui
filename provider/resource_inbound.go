@@ -224,9 +224,32 @@ func (r *InboundResource) Create(ctx context.Context, req resource.CreateRequest
 		resp.Diagnostics.AddError("Failed to create inbound", err.Error())
 		return
 	}
+
+	// 3x-ui occasionally returns success with an empty obj when SQLite is
+	// contended: the row is committed seconds later. Recover by polling the
+	// list endpoint for the matching port (3x-ui enforces port uniqueness).
+	// See issue #157.
 	if created == nil || created.ID == 0 {
-		resp.Diagnostics.AddError("Empty response", "API returned nil inbound or zero ID")
-		return
+		var resolvedID int
+		retryErr := r.client.WithReadAfterWriteRetry(ctx, "AddInbound resolve by port", func() (bool, error) {
+			list, listErr := r.client.GetInbounds(ctx)
+			if listErr != nil {
+				return false, listErr
+			}
+			for i := range list {
+				if list[i].Port == inbound.Port {
+					resolvedID = list[i].ID
+					return true, nil
+				}
+			}
+			return false, nil
+		})
+		if retryErr != nil {
+			resp.Diagnostics.AddError("Failed to resolve created inbound",
+				fmt.Sprintf("AddInbound returned success but the row was not visible: %s", retryErr.Error()))
+			return
+		}
+		created = &Inbound{ID: resolvedID}
 	}
 
 	// Re-read the inbound via GET to ensure consistent state (#131).

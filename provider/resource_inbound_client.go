@@ -243,8 +243,14 @@ func (r *InboundClientResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 
-	// Read back from API to populate state.
-	state := r.readClientState(ctx, &resp.Diagnostics, inboundID, clientID)
+	// Read back from API to populate state. The just-added client may not
+	// be visible to a subsequent GET if SQLite is contended (issue #157),
+	// so poll until it appears or the budget is exhausted.
+	state, err := r.readClientStateWithRetry(ctx, inboundID, clientID)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to read created inbound client", err.Error())
+		return
+	}
 	if state == nil {
 		return
 	}
@@ -310,7 +316,11 @@ func (r *InboundClientResource) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 
-	state := r.readClientState(ctx, &resp.Diagnostics, inboundID, clientID)
+	state, err := r.readClientStateWithRetry(ctx, inboundID, clientID)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to read updated inbound client", err.Error())
+		return
+	}
 	if state == nil {
 		return
 	}
@@ -389,6 +399,35 @@ func (r *InboundClientResource) readClientState(ctx context.Context, diags *diag
 	}
 
 	return inboundClientToModel(inboundID, clientID, found)
+}
+
+// readClientStateWithRetry is the post-write variant of readClientState: it
+// treats "client not yet visible" as a transient condition and polls until
+// the row appears or the budget is exhausted (issue #157). Use it only
+// after a successful AddInboundClient/UpdateInboundClient — for plain Read
+// the absence of a client is meaningful and should not be retried.
+func (r *InboundClientResource) readClientStateWithRetry(ctx context.Context, inboundID int, clientID string) (*InboundClientResourceModel, error) {
+	var state *InboundClientResourceModel
+	err := r.client.WithReadAfterWriteRetry(ctx, fmt.Sprintf("read inbound %d client %s", inboundID, clientID), func() (bool, error) {
+		inbound, getErr := r.client.GetInbound(ctx, inboundID)
+		if getErr != nil {
+			return false, getErr
+		}
+		settings, parseErr := parseInboundSettings(inbound.Settings)
+		if parseErr != nil {
+			return false, parseErr
+		}
+		found := findClientByID(settings.Clients, clientID)
+		if found == nil {
+			return false, nil
+		}
+		state = inboundClientToModel(inboundID, clientID, found)
+		return true, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
 }
 
 // ---------------------------------------------------------------------------

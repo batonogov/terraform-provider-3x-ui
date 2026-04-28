@@ -24,6 +24,17 @@ import (
 // in 3x-ui's SQLite write path on older versions.
 const defaultRetryBackoff = 500 * time.Millisecond
 
+// readAfterWriteAttempts is the maximum number of times a post-write read
+// will be retried while the just-written row is not yet visible. 3x-ui
+// occasionally returns success from add/update endpoints before the SQLite
+// commit becomes visible to a follow-up GET — see issue #157.
+const readAfterWriteAttempts = 5
+
+// readAfterWriteBackoff is the delay between read-after-write retry attempts.
+// Same rationale as defaultRetryBackoff: long enough to absorb a typical
+// SQLite contention spike, short enough not to mask real bugs.
+const readAfterWriteBackoff = 500 * time.Millisecond
+
 type ClientConfig struct {
 	Endpoint           string
 	BasePath           string
@@ -647,6 +658,44 @@ func (c *Client) doJSONRetryable(ctx context.Context, method, relPath string, bo
 	return c.withRetry(ctx, method+" "+relPath, func() error {
 		return c.doJSON(ctx, method, relPath, body, out)
 	})
+}
+
+// WithReadAfterWriteRetry polls fn until the row is visible (found=true) or
+// the budget is exhausted. It is distinct from withRetry: that one absorbs
+// transient HTTP 5xx, this one absorbs application-layer "success but the
+// row is not visible yet" gaps. Callers pass an opName for telemetry.
+//
+// fn returns (found, err). A non-nil err aborts immediately (no retry — if
+// the read itself failed, the panel is in worse shape than just slow).
+// found=false triggers a backoff and another attempt.
+func (c *Client) WithReadAfterWriteRetry(ctx context.Context, opName string, fn func() (bool, error)) error {
+	for attempt := 0; attempt < readAfterWriteAttempts; attempt++ {
+		found, err := fn()
+		if err != nil {
+			return err
+		}
+		if found {
+			return nil
+		}
+		if attempt == readAfterWriteAttempts-1 {
+			break
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
+		tflog.Warn(ctx, "retrying read-after-write", map[string]any{
+			"operation":    opName,
+			"attempt":      attempt + 1,
+			"max_attempts": readAfterWriteAttempts,
+			"backoff":      readAfterWriteBackoff.String(),
+		})
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(readAfterWriteBackoff):
+		}
+	}
+	return fmt.Errorf("%s: row not visible after %d attempts (%s total)", opName, readAfterWriteAttempts, readAfterWriteBackoff*time.Duration(readAfterWriteAttempts-1))
 }
 
 func (c *Client) doRequestOnce(ctx context.Context, method, endpoint, contentType string, body []byte) (*http.Response, error) {

@@ -147,6 +147,16 @@ func testAccClientFromEnvNoLogin() (*Client, error) {
 	})
 }
 
+// destroyVisibilityAttempts × destroyVisibilityBackoff is how long the
+// CheckDestroy helpers wait for a successful DELETE to become visible to a
+// follow-up GET. 3x-ui's DELETE endpoint can return success while a
+// concurrent GET still observes the row for up to a few hundred ms under
+// SQLite contention — see issue #157.
+const (
+	destroyVisibilityAttempts = 5
+	destroyVisibilityBackoff  = 500 * time.Millisecond
+)
+
 func testAccCheckInboundDestroyed(state *terraform.State) error {
 	client, err := testAccClientFromEnv()
 	if err != nil {
@@ -160,8 +170,21 @@ func testAccCheckInboundDestroyed(state *terraform.State) error {
 		if err != nil {
 			continue
 		}
-		if _, err := client.GetInbound(context.Background(), id); err == nil {
-			return fmt.Errorf("inbound %d still exists", id)
+		var lastErr error
+		gone := false
+		for attempt := 0; attempt < destroyVisibilityAttempts; attempt++ {
+			if _, getErr := client.GetInbound(context.Background(), id); getErr != nil {
+				gone = true
+				break
+			}
+			lastErr = nil
+			time.Sleep(destroyVisibilityBackoff)
+		}
+		if !gone {
+			if lastErr != nil {
+				return fmt.Errorf("inbound %d still exists after %d attempts: %w", id, destroyVisibilityAttempts, lastErr)
+			}
+			return fmt.Errorf("inbound %d still exists after %d attempts", id, destroyVisibilityAttempts)
 		}
 	}
 	return nil
@@ -180,16 +203,25 @@ func testAccCheckInboundClientDestroyed(state *terraform.State) error {
 		if err != nil {
 			continue
 		}
-		inbound, err := client.GetInbound(context.Background(), inboundID)
-		if err != nil {
-			continue
+		gone := false
+		for attempt := 0; attempt < destroyVisibilityAttempts; attempt++ {
+			inbound, getErr := client.GetInbound(context.Background(), inboundID)
+			if getErr != nil {
+				gone = true
+				break
+			}
+			settings, parseErr := parseInboundSettings(inbound.Settings)
+			if parseErr != nil {
+				return parseErr
+			}
+			if findClientByID(settings.Clients, clientID) == nil {
+				gone = true
+				break
+			}
+			time.Sleep(destroyVisibilityBackoff)
 		}
-		settings, err := parseInboundSettings(inbound.Settings)
-		if err != nil {
-			return err
-		}
-		if found := findClientByID(settings.Clients, clientID); found != nil {
-			return fmt.Errorf("inbound client %s still exists", rs.Primary.ID)
+		if !gone {
+			return fmt.Errorf("inbound client %s still exists after %d attempts", rs.Primary.ID, destroyVisibilityAttempts)
 		}
 	}
 	return nil

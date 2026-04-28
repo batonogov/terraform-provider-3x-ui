@@ -124,6 +124,15 @@ Unauthenticated requests return 404 (not 401). The client performs auto re-login
 - Composes with the 401/404 auto-relogin in `doRequest`: relogin happens inside a single `withRetry` attempt; only an HTTP 5xx surfaced from `decodeAPIResponse` triggers the outer retry
 - `HTTPStatusError` — error type returned by `decodeAPIResponse` when `resp.StatusCode >= 400` (both empty-body and non-JSON paths). `errors.As` is the supported way to inspect status
 
+### Read-after-write retry (post-write reads)
+
+Distinct from the 5xx retry above. 3x-ui occasionally returns `success: true` from a create/update endpoint while the underlying SQLite commit is not yet visible to a follow-up GET (#157). The 5xx retry doesn't help — the response is HTTP 200, just empty/missing the row. So a separate application-layer policy:
+
+- `Client.WithReadAfterWriteRetry` — polls a caller-provided `func() (found bool, err error)` up to `readAfterWriteAttempts` (5) times with `readAfterWriteBackoff` (500ms) between attempts. A non-nil err aborts immediately (read failures are not retried — only the "not visible yet" condition is). Emits `tflog.Warn` per retry with `operation`, `attempt`, `max_attempts`, `backoff`
+- Applied to: `InboundResource.Create` (resolves the new row by `port` if `AddInbound` returned an empty obj), `InboundClientResource.Create`/`Update` (waits for the new client to appear in the inbound's settings JSON), `XrayVersionResource.waitForXrayVersion` (ignores `ErrXrayVersionUnknown` while xray is restarting)
+- **Not** applied to plain `Read` — for an idle read, "row not present" is meaningful (resource was deleted out-of-band) and must be reported to Terraform immediately rather than retried
+- Test helpers `testAccCheckInboundDestroyed` / `testAccCheckInboundClientDestroyed` use a similar bounded poll (`destroyVisibilityAttempts × destroyVisibilityBackoff`) for the inverse case: waiting for a successful DELETE to become invisible to a follow-up GET
+
 ## Key Code Details
 
 ### Framework (terraform-plugin-framework)
