@@ -113,8 +113,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Per-job retry catches the residual flake rate after the in-process
+      # retry/poll budgets are exhausted (issue #161): GHCR pull jitter,
+      # one-off SQLite contention spikes, transient xray-subsystem startup
+      # races. A green retry should produce *no* difference in code behavior;
+      # if it does, that is a real bug and the diff between attempts will
+      # show it. max_attempts=2 is the cheap-insurance setting.
       - name: Run acceptance tests
-        run: task test:acc
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 18
+          max_attempts: 2
+          retry_on: error
+          command: task test:acc
 
   acceptance-matrix:
     name: Compat (${{ matrix.version }})
@@ -150,6 +161,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run compatibility tests
+        uses: nick-fields/retry@v3
         env:
           THREEXUI_VERSION: ${{ matrix.version }}
-        run: task test:acc:compat
+        with:
+          timeout_minutes: 18
+          max_attempts: 2
+          retry_on: error
+          command: task test:acc:compat
