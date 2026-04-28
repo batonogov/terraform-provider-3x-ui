@@ -162,7 +162,7 @@ resource "threexui_inbound_client" "client_a" {
 
 ### المتطلبات
 
-- Go 1.25+
+- Go (الإصدار مثبّت في [`go.mod`](go.mod))
 - [Task](https://taskfile.dev/) — task runner
 - [golangci-lint](https://golangci-lint.run/welcome/install/) — linter
 - [pre-commit](https://pre-commit.com/) — git hooks
