@@ -30,19 +30,26 @@ func requireMinVersion(t *testing.T, min string) {
 	}
 }
 
+// skipFatalHelper is the narrow subset of *testing.T this package's
+// version-gating helpers depend on. Defined as an interface so the
+// helpers can be unit-tested with a fake — testing.TB is sealed and
+// cannot be implemented outside the standard library.
+type skipFatalHelper interface {
+	Helper()
+	Skipf(format string, args ...any)
+	Fatal(args ...any)
+}
+
 // skipOnFlakyVersions skips the test if THREEXUI_VERSION matches any of
 // the listed versions. Use for tests that fail deterministically on a
 // specific upstream panel version due to a known upstream bug — not for
-// transient flakes (use skipIfFlaky for those). The last argument is the
-// reason and should reference a tracking issue so the gate is removed
-// once upstream is fixed.
-func skipOnFlakyVersions(t *testing.T, versionsAndReason ...string) {
+// transient flakes (use skipIfFlaky for those). `reason` should reference
+// a tracking issue so the gate is removed once upstream is fixed.
+func skipOnFlakyVersions(t skipFatalHelper, reason string, versions ...string) {
 	t.Helper()
-	if len(versionsAndReason) < 2 {
-		t.Fatal("skipOnFlakyVersions requires at least one version plus a reason")
+	if len(versions) == 0 {
+		t.Fatal("skipOnFlakyVersions requires at least one version")
 	}
-	reason := versionsAndReason[len(versionsAndReason)-1]
-	versions := versionsAndReason[:len(versionsAndReason)-1]
 	v := os.Getenv("THREEXUI_VERSION")
 	if v == "" {
 		return

@@ -155,7 +155,9 @@ func testAccClientFromEnvNoLogin() (*Client, error) {
 // matrix test hammers SQLite for tens of seconds before late subtests run.
 // 15 × 500ms = 7.5s was insufficient on v2.9.1; 30 × 500ms = 15s was
 // insufficient on v2.9.0 mixed-protocol cleanup; 60 × 500ms = 30s now
-// covers the worst case we have observed (#161).
+// covers the worst case we have observed (#161). The escalating-budget
+// pattern is a smell; the underlying slowness is tracked separately so
+// we stop bumping and start investigating: see #164.
 const (
 	destroyVisibilityAttempts = 60
 	destroyVisibilityBackoff  = 500 * time.Millisecond

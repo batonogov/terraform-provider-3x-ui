@@ -81,9 +81,12 @@ tasks:
             http://localhost:2053/login >/dev/null 2>&1 || { sleep 1; continue; }
           body=$(curl -fsS -b "$cookie" \
             http://localhost:2053/panel/api/server/status 2>/dev/null || true)
-          # Успех: success:true и xray.state == "running".
+          # Успех: success:true и `"xray":{...,"state":"running",...}`.
+          # Якорим state по xray-блоку, а не голым `"state":"running"` —
+          # иначе будущие поля state в других секциях ответа дадут ложно
+          # успешное срабатывание.
           if printf '%s' "$body" | grep -q '"success":true' \
-             && printf '%s' "$body" | grep -q '"state":"running"'; then
+             && printf '%s' "$body" | grep -Eq '"xray":\{[^}]*"state":"running"'; then
             echo "xray subsystem ready after ${i}s"
             exit 0
           fi
