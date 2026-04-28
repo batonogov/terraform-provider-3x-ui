@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.1.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.1.0...v3.1.1) (2026-04-28)
+
+
+### Bug Fixes
+
+* retry post-write reads to absorb 3x-ui SQLite visibility lag ([#158](https://github.com/batonogov/terraform-provider-threexui/issues/158)) ([7ee68fb](https://github.com/batonogov/terraform-provider-threexui/commit/7ee68fbeccc43b8e54cf2c20426ac7b5ef5a12d7))
+* stabilize CI flakes (DeleteInbound retry-with-verify, readiness gate, per-job retry) ([#162](https://github.com/batonogov/terraform-provider-threexui/issues/162)) ([afa1a7e](https://github.com/batonogov/terraform-provider-threexui/commit/afa1a7e083f79a2445944c789e3fa67a152e93b9))
+
 ## [3.1.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.0.0...v3.1.0) (2026-04-27)
 
 
