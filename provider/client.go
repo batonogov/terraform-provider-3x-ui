@@ -30,8 +30,8 @@ const defaultRetryBackoff = 500 * time.Millisecond
 // commit becomes visible to a follow-up GET — see issue #157. The matrix
 // acceptance test sustains write pressure for tens of seconds, and CI
 // runners are slower than local hardware, so the budget is sized for the
-// worst-case lag observed (~5s).
-const readAfterWriteAttempts = 10
+// worst-case lag observed in CI (~10s — local lag is sub-second).
+const readAfterWriteAttempts = 20
 
 // readAfterWriteBackoff is the delay between read-after-write retry attempts.
 // Same rationale as defaultRetryBackoff: long enough to absorb a typical
