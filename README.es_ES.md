@@ -160,7 +160,7 @@ El proveedor maneja secretos que el panel emite automáticamente (Reality `priva
 
 ### Requisitos
 
-- Go 1.26+
+- Go (versión fijada en [`go.mod`](go.mod))
 - [Task](https://taskfile.dev/) — runner de tareas
 - [golangci-lint](https://golangci-lint.run/welcome/install/) — linter
 - [pre-commit](https://pre-commit.com/) — hooks de git

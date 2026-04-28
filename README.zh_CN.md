@@ -160,7 +160,7 @@ provider 会处理面板自动派发的各种密钥(Reality `privateKey`、WireG
 
 ### 依赖
 
-- Go 1.26+
+- Go（版本以 [`go.mod`](go.mod) 为准）
 - [Task](https://taskfile.dev/) —— 任务运行器
 - [golangci-lint](https://golangci-lint.run/welcome/install/) —— linter
 - [pre-commit](https://pre-commit.com/) —— git hooks 框架
