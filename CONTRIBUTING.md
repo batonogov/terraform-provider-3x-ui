@@ -4,7 +4,7 @@ Thank you for your interest in contributing to the Terraform Provider for 3x-ui!
 
 ## Prerequisites
 
-- **Go 1.25+**
+- **Go 1.26+**
 - **[Task](https://taskfile.dev/)** — task runner (`brew install go-task` / `go install github.com/go-task/task/v3/cmd/task@latest`)
 - **[golangci-lint](https://golangci-lint.run/welcome/install/)**
 - **[pre-commit](https://pre-commit.com/)** — git hooks framework (`pip install pre-commit`)

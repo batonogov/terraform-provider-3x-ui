@@ -160,7 +160,7 @@ The provider handles secrets the panel issues automatically (Reality `privateKey
 
 ### Requirements
 
-- Go 1.25+
+- Go 1.26+
 - [Task](https://taskfile.dev/) — task runner
 - [golangci-lint](https://golangci-lint.run/welcome/install/) — linter
 - [pre-commit](https://pre-commit.com/) — git hooks framework

@@ -160,7 +160,7 @@ resource "threexui_inbound_client" "client_a" {
 
 ### Что нужно
 
-- Go 1.25+
+- Go 1.26+
 - [Task](https://taskfile.dev/) — раннер задач
 - [golangci-lint](https://golangci-lint.run/welcome/install/) — линтер
 - [pre-commit](https://pre-commit.com/) — git-хуки
