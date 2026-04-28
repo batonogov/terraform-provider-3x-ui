@@ -65,11 +65,14 @@ tasks:
     silent: true
     cmds:
       # docker compose --wait + healthcheck подтверждают, что роутер 3x-ui
-      # отвечает на /login. Но xray-подсистема инициализируется на 1–3 с
-      # позже, и до этого момента /panel/api/server/getXrayVersion отдаёт
-      # пустой массив или 404, что роняет тесты вроде XrayVersionDrift с
-      # ложноположительной "регрессией" (issue #161). Здесь логинимся и
-      # ждём, пока getXrayVersion вернёт непустой список.
+      # отвечает. Но xray-подсистема инициализируется на 1–3 с позже, и до
+      # этого момента GetCurrentXrayVersion возвращает "Unknown", что роняет
+      # тесты вроде XrayVersionDrift ложным ErrXrayVersionUnknown (issue #161).
+      #
+      # Пробуем /panel/api/server/status и проверяем xray.state == "running"
+      # (или version != "Unknown"). Этот эндпоинт не ходит во внешние сервисы,
+      # в отличие от getXrayVersion (тот дёргает GitHub API за списком релизов
+      # и упирается в анонимный rate limit на шаренном runner IP — issue #161).
       - |
         cookie=$(mktemp)
         trap 'rm -f "$cookie"' EXIT
@@ -77,10 +80,10 @@ tasks:
           curl -fsS -c "$cookie" -d 'username=admin&password=admin' \
             http://localhost:2053/login >/dev/null 2>&1 || { sleep 1; continue; }
           body=$(curl -fsS -b "$cookie" \
-            http://localhost:2053/panel/api/server/getXrayVersion 2>/dev/null || true)
-          # Успех: success:true и obj — непустой JSON-массив.
+            http://localhost:2053/panel/api/server/status 2>/dev/null || true)
+          # Успех: success:true и xray.state == "running".
           if printf '%s' "$body" | grep -q '"success":true' \
-             && printf '%s' "$body" | grep -Eq '"obj":\s*\[[^]]'; then
+             && printf '%s' "$body" | grep -q '"state":"running"'; then
             echo "xray subsystem ready after ${i}s"
             exit 0
           fi

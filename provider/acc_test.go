@@ -153,10 +153,11 @@ func testAccClientFromEnvNoLogin() (*Client, error) {
 // concurrent GET still observes the row under SQLite contention — see
 // issues #157 and #161. CI runners are slower than local hardware and the
 // matrix test hammers SQLite for tens of seconds before late subtests run.
-// 15 × 500ms = 7.5s was insufficient on v2.9.1 in CI; 30 × 500ms = 15s
-// matches the worst-case lag observed.
+// 15 × 500ms = 7.5s was insufficient on v2.9.1; 30 × 500ms = 15s was
+// insufficient on v2.9.0 mixed-protocol cleanup; 60 × 500ms = 30s now
+// covers the worst case we have observed (#161).
 const (
-	destroyVisibilityAttempts = 30
+	destroyVisibilityAttempts = 60
 	destroyVisibilityBackoff  = 500 * time.Millisecond
 )
 

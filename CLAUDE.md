@@ -132,7 +132,7 @@ Distinct from the 5xx retry above. 3x-ui occasionally returns `success: true` fr
 - `Client.WithReadAfterWriteRetry` — polls a caller-provided `func() (found bool, err error)` up to `readAfterWriteAttempts` (5) times with `readAfterWriteBackoff` (500ms) between attempts. A non-nil err aborts immediately (read failures are not retried — only the "not visible yet" condition is). Emits `tflog.Warn` per retry with `operation`, `attempt`, `max_attempts`, `backoff`
 - Applied to: `InboundResource.Create` (resolves the new row by `port` if `AddInbound` returned an empty obj), `InboundClientResource.Create`/`Update` (waits for the new client to appear in the inbound's settings JSON), `XrayVersionResource.waitForXrayVersion` (ignores `ErrXrayVersionUnknown` while xray is restarting)
 - **Not** applied to plain `Read` — for an idle read, "row not present" is meaningful (resource was deleted out-of-band) and must be reported to Terraform immediately rather than retried
-- Test helpers `testAccCheckInboundDestroyed` / `testAccCheckInboundClientDestroyed` use a similar bounded poll (`destroyVisibilityAttempts × destroyVisibilityBackoff` = 30 × 500ms = 15s) for the inverse case: waiting for a successful DELETE to become invisible to a follow-up GET. Resource-side counterpart: `InboundResource.waitForInboundDeletion` (20 × 500ms = 10s) emits a Warning, not an Error, on exhaustion — the API has already accepted the DELETE, so leaving the resource in TF state would be the worse failure mode (#136, #161)
+- Test helpers `testAccCheckInboundDestroyed` / `testAccCheckInboundClientDestroyed` use a similar bounded poll (`destroyVisibilityAttempts × destroyVisibilityBackoff` = 60 × 500ms = 30s) for the inverse case: waiting for a successful DELETE to become invisible to a follow-up GET. Resource-side counterpart: `InboundResource.waitForInboundDeletion` (20 × 500ms = 10s) emits a Warning, not an Error, on exhaustion — the API has already accepted the DELETE, so leaving the resource in TF state would be the worse failure mode (#136, #161)
 
 ## Key Code Details
 
@@ -307,7 +307,7 @@ All of this is already configured in `Taskfile.yml` → `task test`.
 The acceptance suite assumes 3x-ui is ready in **two stages**, both gated before any test runs:
 
 1. **Panel router up** — `docker-compose.yaml` declares a healthcheck that polls `/login`. `docker compose up --wait` blocks until the healthcheck passes (max ~30s). Without this, `--wait` only waits for "container started", which is earlier than the gin router being ready.
-2. **Xray subsystem initialized** — `Taskfile.yml` `_wait-for-xray` runs after `compose up --wait` and polls `/panel/api/server/getXrayVersion` until it returns a non-empty list (max 30s). Without this, tests like `TestAccXrayVersionDrift` start before xray reports its version and fail with bogus `ErrXrayVersionUnknown` (#161).
+2. **Xray subsystem initialized** — `Taskfile.yml` `_wait-for-xray` runs after `compose up --wait` and polls `/panel/api/server/status` until `xray.state == "running"` (max 30s). Without this, tests like `TestAccXrayVersionDrift` start before xray reports its version and fail with bogus `ErrXrayVersionUnknown` (#161). Do NOT use `/panel/api/server/getXrayVersion` for this — that endpoint fetches the GitHub release list anonymously and intermittently rate-limits on shared CI runner IPs.
 
 When adding new tests that touch xray-only state (templates, versions, restart-required settings), assume both gates have passed — do NOT add per-test sleeps.
 

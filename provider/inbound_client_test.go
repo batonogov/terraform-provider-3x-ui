@@ -212,6 +212,8 @@ func TestInboundResourceWaitForDeletion(t *testing.T) {
 		if err := res.waitForInboundDeletion(context.Background(), 1); err == nil {
 			t.Fatalf("expected error after exhausting attempts")
 		}
+		// destroyVisibilityAttempts changed; resource-side waitForInboundDeletion
+		// is intentionally separate (20×500ms = 10s) — see provider/resource_inbound.go.
 		if got := atomic.LoadInt32(&lists); got != 20 {
 			t.Fatalf("expected 20 list calls, got %d", got)
 		}
