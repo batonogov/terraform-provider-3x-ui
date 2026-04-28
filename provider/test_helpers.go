@@ -30,6 +30,30 @@ func requireMinVersion(t *testing.T, min string) {
 	}
 }
 
+// skipOnFlakyVersions skips the test if THREEXUI_VERSION matches any of
+// the listed versions. Use for tests that fail deterministically on a
+// specific upstream panel version due to a known upstream bug — not for
+// transient flakes (use skipIfFlaky for those). The last argument is the
+// reason and should reference a tracking issue so the gate is removed
+// once upstream is fixed.
+func skipOnFlakyVersions(t *testing.T, versionsAndReason ...string) {
+	t.Helper()
+	if len(versionsAndReason) < 2 {
+		t.Fatal("skipOnFlakyVersions requires at least one version plus a reason")
+	}
+	reason := versionsAndReason[len(versionsAndReason)-1]
+	versions := versionsAndReason[:len(versionsAndReason)-1]
+	v := os.Getenv("THREEXUI_VERSION")
+	if v == "" {
+		return
+	}
+	for _, bad := range versions {
+		if v == bad {
+			t.Skipf("known-broken on %s: %s", v, reason)
+		}
+	}
+}
+
 // needs sub-day quarantine (see CLAUDE.md → CI Flake Mitigation). Removing
 // it forces every quarantine to start with a Taskfile/CI plumbing change.
 //
