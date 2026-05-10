@@ -45,11 +45,12 @@ type XrayOutboundMux struct {
 }
 
 type XrayFreedomSettings struct {
-	DomainStrategy types.String          `tfsdk:"domain_strategy"`
-	Redirect       types.String          `tfsdk:"redirect"`
-	Fragment       []XrayFreedomFragment `tfsdk:"fragment"`
-	Noises         []XrayFreedomNoise    `tfsdk:"noises"`
-	IPsBlocked     types.List            `tfsdk:"ips_blocked"` // list of string
+	DomainStrategy types.String           `tfsdk:"domain_strategy"`
+	Redirect       types.String           `tfsdk:"redirect"`
+	Fragment       []XrayFreedomFragment  `tfsdk:"fragment"`
+	Noises         []XrayFreedomNoise     `tfsdk:"noises"`
+	FinalRules     []XrayFreedomFinalRule `tfsdk:"final_rule"`
+	IPsBlocked     types.List             `tfsdk:"ips_blocked"` // list of string
 }
 
 type XrayFreedomFragment struct {
@@ -62,6 +63,14 @@ type XrayFreedomNoise struct {
 	Type   types.String `tfsdk:"type"`
 	Packet types.String `tfsdk:"packet"`
 	Delay  types.String `tfsdk:"delay"`
+}
+
+type XrayFreedomFinalRule struct {
+	Action     types.String `tfsdk:"action"`
+	Network    types.String `tfsdk:"network"`
+	Port       types.String `tfsdk:"port"`
+	IP         types.List   `tfsdk:"ip"` // list of string
+	BlockDelay types.String `tfsdk:"block_delay"`
 }
 
 type XrayBlackholeSettings struct {
@@ -89,6 +98,7 @@ type XrayVlessOutSettings struct {
 	ID         types.String `tfsdk:"id"`
 	Flow       types.String `tfsdk:"flow"`
 	Encryption types.String `tfsdk:"encryption"`
+	ReverseTag types.String `tfsdk:"reverse_tag"`
 }
 
 type XrayTrojanOutSettings struct {
@@ -243,7 +253,7 @@ func xrayOutboundsSchema() schema.Schema {
 										Optional:    true,
 										Computed:    true,
 										ElementType: types.StringType,
-										Description: "List of IPs/CIDRs to block (e.g. geoip:cn).",
+										Description: "Deprecated legacy list of IPs/CIDRs to block (e.g. geoip:cn). Use final_rule on 3x-ui v2.9.4+.",
 									},
 								},
 								Blocks: map[string]schema.Block{
@@ -272,6 +282,29 @@ func xrayOutboundsSchema() schema.Schema {
 													Optional: true, Computed: true,
 												},
 												"delay": schema.StringAttribute{
+													Optional: true, Computed: true,
+												},
+											},
+										},
+									},
+									"final_rule": schema.ListNestedBlock{
+										NestedObject: schema.NestedBlockObject{
+											Attributes: map[string]schema.Attribute{
+												"action": schema.StringAttribute{
+													Optional: true, Computed: true,
+												},
+												"network": schema.StringAttribute{
+													Optional: true, Computed: true,
+												},
+												"port": schema.StringAttribute{
+													Optional: true, Computed: true,
+												},
+												"ip": schema.ListAttribute{
+													Optional:    true,
+													Computed:    true,
+													ElementType: types.StringType,
+												},
+												"block_delay": schema.StringAttribute{
 													Optional: true, Computed: true,
 												},
 											},
@@ -347,6 +380,11 @@ func xrayOutboundsSchema() schema.Schema {
 									},
 									"encryption": schema.StringAttribute{
 										Optional: true, Computed: true,
+									},
+									"reverse_tag": schema.StringAttribute{
+										Optional:    true,
+										Computed:    true,
+										Description: "VLESS reverse tag. Stored in 3x-ui as reverse.tag.",
 									},
 								},
 							},
@@ -686,10 +724,39 @@ func expandFreedomSettingsFromModel(list []XrayFreedomSettings) []any {
 			}
 			entry["noises"] = noises
 		}
+		if len(fs.FinalRules) > 0 {
+			entry["final_rule"] = expandFreedomFinalRulesFromModel(fs.FinalRules)
+		}
 		if !fs.IPsBlocked.IsNull() && !fs.IPsBlocked.IsUnknown() {
 			entry["ips_blocked"] = typesListToAnySlice(fs.IPsBlocked)
 		}
 		out = append(out, entry)
+	}
+	return out
+}
+
+func expandFreedomFinalRulesFromModel(list []XrayFreedomFinalRule) []any {
+	out := make([]any, 0, len(list))
+	for _, r := range list {
+		entry := map[string]any{}
+		if !r.Action.IsNull() && !r.Action.IsUnknown() {
+			entry["action"] = r.Action.ValueString()
+		}
+		if !r.Network.IsNull() && !r.Network.IsUnknown() {
+			entry["network"] = r.Network.ValueString()
+		}
+		if !r.Port.IsNull() && !r.Port.IsUnknown() {
+			entry["port"] = r.Port.ValueString()
+		}
+		if !r.IP.IsNull() && !r.IP.IsUnknown() {
+			entry["ip"] = typesListToAnySlice(r.IP)
+		}
+		if !r.BlockDelay.IsNull() && !r.BlockDelay.IsUnknown() {
+			entry["block_delay"] = r.BlockDelay.ValueString()
+		}
+		if len(entry) > 0 {
+			out = append(out, entry)
+		}
 	}
 	return out
 }
@@ -769,6 +836,9 @@ func expandVlessSettingsFromModel(list []XrayVlessOutSettings) []any {
 		}
 		if !vs.Encryption.IsNull() && !vs.Encryption.IsUnknown() {
 			entry["encryption"] = vs.Encryption.ValueString()
+		}
+		if !vs.ReverseTag.IsNull() && !vs.ReverseTag.IsUnknown() {
+			entry["reverse_tag"] = vs.ReverseTag.ValueString()
 		}
 		out = append(out, entry)
 	}
@@ -1148,6 +1218,10 @@ func flattenFreedomSettingsToModel(list []any) []XrayFreedomSettings {
 			fs.Noises = noises
 		}
 
+		if v, ok := raw["final_rule"].([]any); ok && len(v) > 0 {
+			fs.FinalRules = flattenFreedomFinalRulesToModel(v)
+		}
+
 		if v, ok := raw["ips_blocked"]; ok {
 			fs.IPsBlocked = anySliceToTypesList(v)
 		} else {
@@ -1155,6 +1229,40 @@ func flattenFreedomSettingsToModel(list []any) []XrayFreedomSettings {
 		}
 
 		out = append(out, fs)
+	}
+	return out
+}
+
+func flattenFreedomFinalRulesToModel(list []any) []XrayFreedomFinalRule {
+	out := make([]XrayFreedomFinalRule, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		rule := XrayFreedomFinalRule{}
+		if v, ok := raw["action"].(string); ok && v != "" {
+			rule.Action = types.StringValue(v)
+		} else {
+			rule.Action = types.StringNull()
+		}
+		if v, ok := raw["network"].(string); ok && v != "" {
+			rule.Network = types.StringValue(v)
+		} else {
+			rule.Network = types.StringNull()
+		}
+		if v, ok := raw["port"].(string); ok && v != "" {
+			rule.Port = types.StringValue(v)
+		} else {
+			rule.Port = types.StringNull()
+		}
+		rule.IP = anySliceToTypesList(raw["ip"])
+		if v, ok := raw["block_delay"].(string); ok && v != "" {
+			rule.BlockDelay = types.StringValue(v)
+		} else {
+			rule.BlockDelay = types.StringNull()
+		}
+		out = append(out, rule)
 	}
 	return out
 }
@@ -1296,6 +1404,11 @@ func flattenVlessSettingsToModel(list []any) []XrayVlessOutSettings {
 			vs.Encryption = types.StringValue(v)
 		} else {
 			vs.Encryption = types.StringNull()
+		}
+		if v, ok := raw["reverse_tag"].(string); ok && v != "" {
+			vs.ReverseTag = types.StringValue(v)
+		} else {
+			vs.ReverseTag = types.StringNull()
 		}
 
 		out = append(out, vs)
@@ -1735,6 +1848,11 @@ func expandFreedomSettings(m map[string]any) map[string]any {
 			out["noises"] = n
 		}
 	}
+	if v, ok := item["final_rule"]; ok {
+		if rules, ok := v.([]any); ok && len(rules) > 0 {
+			out["finalRules"] = expandFreedomFinalRules(rules)
+		}
+	}
 	if v, ok := item["ips_blocked"]; ok {
 		if list, ok := v.([]any); ok && len(list) > 0 {
 			out["ipsBlocked"] = list
@@ -1742,6 +1860,36 @@ func expandFreedomSettings(m map[string]any) map[string]any {
 	}
 	if len(out) == 0 {
 		return nil
+	}
+	return out
+}
+
+func expandFreedomFinalRules(list []any) []any {
+	out := make([]any, 0, len(list))
+	for _, item := range list {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		entry := map[string]any{}
+		if v, ok := m["action"].(string); ok && v != "" {
+			entry["action"] = v
+		}
+		if v, ok := m["network"].(string); ok && v != "" {
+			entry["network"] = v
+		}
+		if v, ok := m["port"].(string); ok && v != "" {
+			entry["port"] = v
+		}
+		if v, ok := m["ip"].([]any); ok && len(v) > 0 {
+			entry["ip"] = expandStringList(v)
+		}
+		if v, ok := m["block_delay"].(string); ok && v != "" {
+			entry["blockDelay"] = v
+		}
+		if len(entry) > 0 {
+			out = append(out, entry)
+		}
 	}
 	return out
 }
@@ -1904,6 +2052,9 @@ func expandVlessOutSettings(m map[string]any) map[string]any {
 	}
 	if v, ok := item["encryption"].(string); ok && v != "" {
 		user["encryption"] = v
+	}
+	if v, ok := item["reverse_tag"].(string); ok && v != "" {
+		user["reverse"] = map[string]any{"tag": v}
 	}
 	if len(user) > 0 {
 		server["users"] = []any{user}
@@ -2278,8 +2429,39 @@ func flattenFreedomSettings(in map[string]any) map[string]any {
 		}
 		out["noises"] = noises
 	}
+	if v, ok := in["finalRules"].([]any); ok && len(v) > 0 {
+		out["final_rule"] = flattenFreedomFinalRules(v)
+	}
 	if v, ok := in["ipsBlocked"].([]any); ok && len(v) > 0 {
 		out["ips_blocked"] = v
+	}
+	return out
+}
+
+func flattenFreedomFinalRules(list []any) []any {
+	out := make([]any, 0, len(list))
+	for _, item := range list {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		entry := map[string]any{}
+		if v, ok := m["action"].(string); ok {
+			entry["action"] = v
+		}
+		if v, ok := m["network"].(string); ok {
+			entry["network"] = v
+		}
+		if v, ok := m["port"].(string); ok {
+			entry["port"] = v
+		}
+		if v, ok := m["ip"].([]any); ok {
+			entry["ip"] = v
+		}
+		if v, ok := m["blockDelay"].(string); ok {
+			entry["block_delay"] = v
+		}
+		out = append(out, entry)
 	}
 	return out
 }
@@ -2316,12 +2498,8 @@ func flattenOutboundDNSSettings(in map[string]any) map[string]any {
 
 func flattenVnextFirstUser(in map[string]any, fields ...string) map[string]any {
 	out := map[string]any{}
-	vnext, ok := in["vnext"].([]any)
-	if !ok || len(vnext) == 0 {
-		return out
-	}
-	server, ok := vnext[0].(map[string]any)
-	if !ok {
+	server := firstVnextServer(in)
+	if server == nil {
 		return out
 	}
 	if v, ok := server["address"].(string); ok {
@@ -2344,12 +2522,37 @@ func flattenVnextFirstUser(in map[string]any, fields ...string) map[string]any {
 	return out
 }
 
+func firstVnextServer(in map[string]any) map[string]any {
+	vnext, ok := in["vnext"].([]any)
+	if !ok || len(vnext) == 0 {
+		return nil
+	}
+	server, ok := vnext[0].(map[string]any)
+	if !ok {
+		return nil
+	}
+	return server
+}
+
 func flattenVmessOutSettings(in map[string]any) map[string]any {
 	return flattenVnextFirstUser(in, "id", "security")
 }
 
 func flattenVlessOutSettings(in map[string]any) map[string]any {
-	return flattenVnextFirstUser(in, "id", "flow", "encryption")
+	out := flattenVnextFirstUser(in, "id", "flow", "encryption")
+	server := firstVnextServer(in)
+	if server == nil {
+		return out
+	}
+	users, ok := server["users"].([]any)
+	if ok && len(users) > 0 {
+		if user, ok := users[0].(map[string]any); ok {
+			if tag := reverseTagValue(user["reverse"]); tag != "" {
+				out["reverse_tag"] = tag
+			}
+		}
+	}
+	return out
 }
 
 func flattenServersFirst(in map[string]any, fields ...string) map[string]any {

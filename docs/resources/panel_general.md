@@ -49,6 +49,7 @@ resource "threexui_panel_general" "settings" {
 
 - `external_traffic_inform_enable` (Optional, Boolean) - Enable external traffic notifications. Default is `false`.
 - `external_traffic_inform_uri` (Optional, String) - External traffic notification URI. Default is `""`.
+- `restart_xray_on_client_disable` (Optional, Boolean) - Restart Xray when clients are automatically disabled by expiry or traffic limit. Default is `true` on 3x-ui v2.9.4+.
 
 ### LDAP
 

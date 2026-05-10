@@ -1,5 +1,5 @@
 {
-  "version": "2.9.3",
+  "version": "2.9.4",
   "protocols_go_model": [
     "dokodemo-door",
     "http",
@@ -83,6 +83,7 @@
     "id",
     "limitIp",
     "password",
+    "reverse",
     "reset",
     "security",
     "subId",
@@ -95,6 +96,7 @@
     "expireDiff",
     "externalTrafficInformEnable",
     "externalTrafficInformURI",
+    "restartXrayOnClientDisable",
     "ldapAutoCreate",
     "ldapAutoDelete",
     "ldapBaseDN",
@@ -172,7 +174,6 @@
     "basics",
     "dns",
     "outbounds",
-    "reverse",
     "routing"
   ]
 }

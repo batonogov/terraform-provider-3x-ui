@@ -65,8 +65,8 @@ resource "threexui_inbound" "vless" {
     network  = "tcp"
     security = "reality"
     reality_settings {
-      target       = "www.apple.com:443"
-      server_names = ["www.apple.com"]
+      target       = "www.amazon.com:443"
+      server_names = ["www.amazon.com"]
     }
   }
 
@@ -90,6 +90,7 @@ resource "threexui_inbound_client" "client_a" {
 
 | إصدار 3x-ui | الحالة |
 | --- | --- |
+| v2.9.4 | تم اختباره |
 | v2.9.3 | تم اختباره |
 | v2.9.2 | تم اختباره |
 | v2.9.1 | تم اختباره |

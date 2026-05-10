@@ -69,3 +69,15 @@ func TestClientDeleteInboundClient(t *testing.T) {
 		t.Fatalf("unexpected path: %s", gotPath)
 	}
 }
+
+func TestClientDeleteInboundClientIgnoresMissingClient(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(failResponse("Client Not Found In Inbound For ID: cid"))
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	if err := client.DeleteInboundClient(context.Background(), 9, "cid"); err != nil {
+		t.Fatalf("expected missing client delete to be idempotent, got %v", err)
+	}
+}

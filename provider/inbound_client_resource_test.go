@@ -100,3 +100,26 @@ func TestGetClientIDFromModel(t *testing.T) {
 		}
 	})
 }
+
+func TestInboundClientReverseTagExpandFlatten(t *testing.T) {
+	model := &InboundClientResourceModel{
+		InboundID:  types.Int64Value(1),
+		ClientID:   types.StringValue("uuid"),
+		Email:      types.StringValue("user@test.com"),
+		ReverseTag: types.StringValue("reverse-a"),
+	}
+
+	expanded := expandInboundClientFromModel(model)
+	reverse, ok := expanded["reverse"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected reverse map, got %T", expanded["reverse"])
+	}
+	if reverse["tag"] != "reverse-a" {
+		t.Fatalf("unexpected reverse tag: %v", reverse["tag"])
+	}
+
+	flattened := inboundClientToModel(1, "uuid", expanded)
+	if flattened.ReverseTag.ValueString() != "reverse-a" {
+		t.Fatalf("expected reverse-a, got %q", flattened.ReverseTag.ValueString())
+	}
+}

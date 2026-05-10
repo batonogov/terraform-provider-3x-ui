@@ -11,6 +11,8 @@ Manages the reverse proxy section of the Xray template configuration. Uses a **s
 
 This is a singleton resource. Deleting this resource only removes it from Terraform state; it does not reset the reverse proxy configuration.
 
+> **Compatibility note:** 3x-ui v2.9.4 removed the legacy reverse settings UI page. Keep this resource for legacy panels and existing Xray template imports. For v2.9.4+ VLESS reverse configuration, prefer `reverse_tag` on `threexui_inbound_client` and `threexui_xray_outbounds.vless_settings`.
+
 ## Example Usage
 
 ```hcl

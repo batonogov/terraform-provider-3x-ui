@@ -895,8 +895,8 @@ func ensureRealityDefaults(reality map[string]any) {
 			return
 		}
 	}
-	reality["target"] = "www.apple.com:443"
-	reality["serverNames"] = []any{"www.apple.com", "apple.com"}
+	reality["target"] = "www.amazon.com:443"
+	reality["serverNames"] = []any{"www.amazon.com", "amazon.com"}
 }
 
 func mergeRealityFromExisting(existing *Inbound, reality map[string]any) {
