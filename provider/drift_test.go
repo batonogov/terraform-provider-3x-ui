@@ -621,6 +621,7 @@ func TestDriftClientFields(t *testing.T) {
 		"auth": true, "email": true, "limitIp": true, "totalGB": true,
 		"expiryTime": true, "enable": true, "tgId": true, "subId": true,
 		"comment": true, "reset": true, "created_at": true, "updated_at": true,
+		"reverse": true,
 	}
 
 	dir := latestSnapshotDir(t)
@@ -661,7 +662,7 @@ func TestDriftAllSettingFields(t *testing.T) {
 		"remarkModel": true, "datepicker": true, "timeLocation": true,
 		"expireDiff": true, "trafficDiff": true, "webCertFile": true,
 		"webKeyFile": true, "externalTrafficInformEnable": true,
-		"externalTrafficInformURI": true,
+		"externalTrafficInformURI": true, "restartXrayOnClientDisable": true,
 		// LDAP
 		"ldapEnable": true, "ldapHost": true, "ldapPort": true,
 		"ldapUseTLS": true, "ldapBindDN": true, "ldapPassword": true,
@@ -736,6 +737,7 @@ func TestDriftXraySettingsPages(t *testing.T) {
 	// Intentionally skipped: "advanced" is not a real resource, just raw JSON.
 	providerExtras := map[string]bool{
 		"advanced": true,
+		"reverse":  true, // legacy threexui_xray_reverse; upstream UI page was removed in v2.9.4
 	}
 
 	dir := latestSnapshotDir(t)

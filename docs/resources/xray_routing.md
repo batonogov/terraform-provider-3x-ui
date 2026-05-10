@@ -29,14 +29,10 @@ resource "threexui_xray_routing" "config" {
     domain       = ["geosite:category-ads"]
     outbound_tag = "blocked"
   }
-
-  rule {
-    type         = "field"
-    inbound_tag  = ["api"]
-    outbound_tag = "api"
-  }
 }
 ```
+
+> **Note:** 3x-ui v2.9.4+ manages the internal `api` inbound to `api` outbound routing rule automatically. The provider omits that internal rule from Terraform state to avoid drift.
 
 ## Argument Reference
 

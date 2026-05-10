@@ -393,6 +393,9 @@ func flattenRoutingRules(list []any) []any {
 		if !ok {
 			continue
 		}
+		if isInternalAPIRoutingRule(m) {
+			continue
+		}
 		entry := map[string]any{}
 
 		if v, ok := m["type"].(string); ok {
@@ -438,4 +441,32 @@ func flattenRoutingRules(list []any) []any {
 		out = append(out, entry)
 	}
 	return out
+}
+
+func isInternalAPIRoutingRule(m map[string]any) bool {
+	outboundTag, ok := m["outboundTag"].(string)
+	if !ok || outboundTag != "api" {
+		return false
+	}
+	return routingValueContainsString(m["inboundTag"], "api")
+}
+
+func routingValueContainsString(raw any, value string) bool {
+	switch v := raw.(type) {
+	case string:
+		return v == value
+	case []string:
+		for _, item := range v {
+			if item == value {
+				return true
+			}
+		}
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok && s == value {
+				return true
+			}
+		}
+	}
+	return false
 }

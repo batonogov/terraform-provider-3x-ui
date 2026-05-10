@@ -28,8 +28,8 @@ resource "threexui_inbound" "vless" {
     network  = "tcp"
     security = "reality"
     reality_settings {
-      target       = "www.apple.com:443"
-      server_names = ["www.apple.com"]
+      target       = "www.amazon.com:443"
+      server_names = ["www.amazon.com"]
     }
     tcp_settings {
       accept_proxy_protocol = false
@@ -355,8 +355,8 @@ resource "threexui_inbound" "example" {
     network  = "tcp"
     security = "reality"
     reality_settings {
-      target       = "www.apple.com:443"
-      server_names = ["www.apple.com"]
+      target       = "www.amazon.com:443"
+      server_names = ["www.amazon.com"]
     }
   }
 

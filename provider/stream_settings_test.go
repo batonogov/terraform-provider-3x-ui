@@ -58,7 +58,7 @@ func TestExpandRealitySettings_NoTargetDefaults(t *testing.T) {
 	if result == nil {
 		t.Fatalf("expected non-nil")
 	}
-	if result["target"] != "www.apple.com:443" {
+	if result["target"] != "www.amazon.com:443" {
 		t.Fatalf("expected default target, got %v", result["target"])
 	}
 }

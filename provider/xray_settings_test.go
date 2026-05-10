@@ -377,6 +377,32 @@ func TestFlattenXrayRoutingToMap(t *testing.T) {
 	}
 }
 
+func TestFlattenXrayRoutingToMap_SkipsInternalAPIRule(t *testing.T) {
+	data := map[string]any{
+		"rules": []any{
+			map[string]any{
+				"type":        "field",
+				"inboundTag":  []any{"api"},
+				"outboundTag": "api",
+			},
+			map[string]any{
+				"type":        "field",
+				"ip":          []any{"geoip:private"},
+				"outboundTag": "blocked",
+			},
+		},
+	}
+	result := flattenXrayRoutingToMap(data)
+	rules, ok := result["rule"].([]any)
+	if !ok || len(rules) != 1 {
+		t.Fatalf("expected only user-managed rule, got %v", result["rule"])
+	}
+	rule := rules[0].(map[string]any)
+	if rule["outbound_tag"] != "blocked" {
+		t.Fatalf("expected blocked rule to remain, got %v", rule)
+	}
+}
+
 func TestFlattenXrayBasicsToMap(t *testing.T) {
 	data := map[string]any{
 		"log": map[string]any{
@@ -1672,6 +1698,43 @@ func TestExpandOutbounds_FreedomIPsBlocked(t *testing.T) {
 	}
 }
 
+func TestExpandOutbounds_FreedomFinalRules(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"tag":      "direct",
+			"protocol": "freedom",
+			"freedom_settings": []any{
+				map[string]any{
+					"domain_strategy": "AsIs",
+					"final_rule": []any{
+						map[string]any{
+							"action":      "block",
+							"network":     "tcp",
+							"port":        "443",
+							"ip":          []any{"geoip:private"},
+							"block_delay": "0",
+						},
+					},
+				},
+			},
+		},
+	}
+	result := expandOutbounds(list)
+	settings := result[0].(map[string]any)["settings"].(map[string]any)
+	finalRules, ok := settings["finalRules"].([]any)
+	if !ok || len(finalRules) != 1 {
+		t.Fatalf("expected 1 finalRules entry, got %v", settings["finalRules"])
+	}
+	rule := finalRules[0].(map[string]any)
+	if rule["blockDelay"] != "0" {
+		t.Fatalf("expected blockDelay 0, got %v", rule["blockDelay"])
+	}
+	ips, ok := rule["ip"].([]string)
+	if !ok || len(ips) != 1 || ips[0] != "geoip:private" {
+		t.Fatalf("unexpected finalRules ip: %v", rule["ip"])
+	}
+}
+
 func TestFlattenOutbounds_FreedomIPsBlocked(t *testing.T) {
 	data := []any{
 		map[string]any{
@@ -1695,6 +1758,59 @@ func TestFlattenOutbounds_FreedomIPsBlocked(t *testing.T) {
 	}
 	if ipsBlocked[0] != "geoip:cn" || ipsBlocked[1] != "10.0.0.0/8" {
 		t.Fatalf("unexpected ips_blocked values: %v", ipsBlocked)
+	}
+}
+
+func TestFlattenOutbounds_FreedomFinalRules(t *testing.T) {
+	data := []any{
+		map[string]any{
+			"tag":      "direct",
+			"protocol": "freedom",
+			"settings": map[string]any{
+				"domainStrategy": "AsIs",
+				"finalRules": []any{
+					map[string]any{
+						"action":     "block",
+						"network":    "tcp",
+						"port":       "443",
+						"ip":         []any{"geoip:private"},
+						"blockDelay": "0",
+					},
+				},
+			},
+		},
+	}
+	result := flattenXrayOutboundsToMap(data)
+	freedom := result["outbound"].([]any)[0].(map[string]any)["freedom_settings"].([]any)[0].(map[string]any)
+	finalRules, ok := freedom["final_rule"].([]any)
+	if !ok || len(finalRules) != 1 {
+		t.Fatalf("expected 1 final_rule entry, got %v", freedom["final_rule"])
+	}
+	rule := finalRules[0].(map[string]any)
+	if rule["block_delay"] != "0" {
+		t.Fatalf("expected block_delay 0, got %v", rule["block_delay"])
+	}
+}
+
+func TestOutboundsVlessReverseTagRoundtrip(t *testing.T) {
+	input := map[string]any{
+		"outbound": []any{
+			map[string]any{
+				"tag": "vless-out", "protocol": "vless",
+				"vless_settings": []any{map[string]any{
+					"address":     "example.com",
+					"port":        443,
+					"id":          "test-uuid",
+					"encryption":  "none",
+					"reverse_tag": "reverse-a",
+				}},
+			},
+		},
+	}
+	flattened := flattenXrayOutboundsToMap(buildXrayOutboundsJSON(input))
+	vless := flattened["outbound"].([]any)[0].(map[string]any)["vless_settings"].([]any)[0].(map[string]any)
+	if vless["reverse_tag"] != "reverse-a" {
+		t.Fatalf("expected reverse-a, got %v", vless["reverse_tag"])
 	}
 }
 

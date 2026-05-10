@@ -26,8 +26,8 @@ resource "threexui_inbound" "vless" {
     network  = "tcp"
     security = "reality"
     reality_settings {
-      target       = "www.apple.com:443"
-      server_names = ["www.apple.com"]
+      target       = "www.amazon.com:443"
+      server_names = ["www.amazon.com"]
     }
   }
 }
@@ -77,6 +77,7 @@ resource "threexui_inbound_client" "hysteria_user" {
 - `security` (Optional, String) - Security type.
 - `password` (Optional, String, Sensitive) - Client password (used by trojan/shadowsocks).
 - `flow` (Optional, String) - Flow control (e.g. `xtls-rprx-vision`).
+- `reverse_tag` (Optional, String) - VLESS reverse tag. Stored in 3x-ui as `reverse.tag` and available on 3x-ui v2.9.4+.
 - `auth` (Optional, String) - Auth password for Hysteria clients. Used as client identifier instead of UUID.
 - `limit_ip` (Optional, Number) - Maximum concurrent connections.
 - `total_gb` (Optional, Number) - Traffic limit in GB.

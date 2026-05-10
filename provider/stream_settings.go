@@ -284,8 +284,8 @@ func expandRealitySettings(list []any) map[string]any {
 		}
 	}
 	if !hasRealityServerNames(rs) {
-		rs["target"] = "www.apple.com:443"
-		rs["serverNames"] = []any{"www.apple.com", "apple.com"}
+		rs["target"] = "www.amazon.com:443"
+		rs["serverNames"] = []any{"www.amazon.com", "amazon.com"}
 	}
 	if len(rs) == 0 {
 		return nil

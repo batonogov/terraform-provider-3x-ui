@@ -587,6 +587,7 @@ type PanelGeneralModel struct {
 	WebKeyFile                  types.String `tfsdk:"web_key_file"`
 	ExternalTrafficInformEnable types.Bool   `tfsdk:"external_traffic_inform_enable"`
 	ExternalTrafficInformURI    types.String `tfsdk:"external_traffic_inform_uri"`
+	RestartXrayOnClientDisable  types.Bool   `tfsdk:"restart_xray_on_client_disable"`
 	LDAPEnable                  types.Bool   `tfsdk:"ldap_enable"`
 	LDAPHost                    types.String `tfsdk:"ldap_host"`
 	LDAPPort                    types.Int64  `tfsdk:"ldap_port"`
@@ -678,6 +679,14 @@ func panelGeneralSchema() schema.Schema {
 			"external_traffic_inform_uri": schema.StringAttribute{
 				Optional: true, Computed: true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"restart_xray_on_client_disable": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Restart Xray when clients are automatically disabled by expiry or traffic limit.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"ldap_enable": schema.BoolAttribute{
 				Optional: true, Computed: true,
@@ -816,6 +825,9 @@ func expandPanelGeneral(m *PanelGeneralModel) map[string]any {
 	if !m.ExternalTrafficInformURI.IsNull() && !m.ExternalTrafficInformURI.IsUnknown() {
 		payload["externalTrafficInformURI"] = m.ExternalTrafficInformURI.ValueString()
 	}
+	if !m.RestartXrayOnClientDisable.IsNull() && !m.RestartXrayOnClientDisable.IsUnknown() {
+		payload["restartXrayOnClientDisable"] = m.RestartXrayOnClientDisable.ValueBool()
+	}
 	if !m.LDAPEnable.IsNull() && !m.LDAPEnable.IsUnknown() {
 		payload["ldapEnable"] = m.LDAPEnable.ValueBool()
 	}
@@ -927,6 +939,9 @@ func flattenPanelGeneral(in map[string]any) *PanelGeneralModel {
 	}
 	if v, ok := in["externalTrafficInformURI"]; ok {
 		m.ExternalTrafficInformURI = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["restartXrayOnClientDisable"]; ok {
+		m.RestartXrayOnClientDisable = types.BoolValue(boolValue(v))
 	}
 	if v, ok := in["ldapEnable"]; ok {
 		m.LDAPEnable = types.BoolValue(boolValue(v))

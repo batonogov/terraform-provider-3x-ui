@@ -356,7 +356,11 @@ func (c *Client) DeleteInboundClient(ctx context.Context, inboundID int, clientI
 		return errors.New("client id is required for delete client")
 	}
 	relPath := fmt.Sprintf("panel/api/inbounds/%d/delClient/%s", inboundID, clientID)
-	return c.doForm(ctx, http.MethodPost, relPath, url.Values{}, nil)
+	err := c.doForm(ctx, http.MethodPost, relPath, url.Values{}, nil)
+	if err != nil && strings.Contains(err.Error(), "Client Not Found") {
+		return nil
+	}
+	return err
 }
 
 func (c *Client) GetServerStatus(ctx context.Context) (map[string]any, error) {

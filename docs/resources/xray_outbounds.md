@@ -85,7 +85,15 @@ Each outbound should have exactly one `*_settings` block matching its `protocol`
 
 - `domain_strategy` (String, Optional) - Domain strategy (e.g. `AsIs`, `UseIP`).
 - `redirect` (String, Optional) - Redirect address.
-- `ips_blocked` (List of String, Optional) - List of IPs/CIDRs to block (e.g. `geoip:cn`).
+- `ips_blocked` (List of String, Optional) - Deprecated legacy list of IPs/CIDRs to block (e.g. `geoip:cn`). Use `final_rule` on 3x-ui v2.9.4+.
+
+##### final_rule (Block, Optional, List)
+
+- `action` (String, Optional) - Rule action, for example `block`.
+- `network` (String, Optional) - Network selector, for example `tcp`, `udp`, or `tcp,udp`.
+- `port` (String, Optional) - Port or port range.
+- `ip` (List of String, Optional) - IP/CIDR/geosite entries.
+- `block_delay` (String, Optional) - Block delay value stored as `blockDelay` in 3x-ui.
 
 ##### fragment (Block, Optional, Max: 1)
 
@@ -125,6 +133,7 @@ Each outbound should have exactly one `*_settings` block matching its `protocol`
 - `id` (String, Optional) - VLESS user ID (UUID).
 - `flow` (String, Optional) - Flow control (e.g. `xtls-rprx-vision`).
 - `encryption` (String, Optional) - Encryption method.
+- `reverse_tag` (String, Optional) - VLESS reverse tag. Stored in 3x-ui as `reverse.tag` and available on 3x-ui v2.9.4+.
 
 #### trojan_settings (Block, Optional, Max: 1)
 

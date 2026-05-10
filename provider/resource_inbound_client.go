@@ -44,6 +44,7 @@ type InboundClientResourceModel struct {
 	Security   types.String `tfsdk:"security"`
 	Password   types.String `tfsdk:"password"`
 	Flow       types.String `tfsdk:"flow"`
+	ReverseTag types.String `tfsdk:"reverse_tag"`
 	Auth       types.String `tfsdk:"auth"`
 	LimitIP    types.Int64  `tfsdk:"limit_ip"`
 	TotalGB    types.Int64  `tfsdk:"total_gb"`
@@ -111,6 +112,14 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 			"flow": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"reverse_tag": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "VLESS reverse tag. Stored in 3x-ui as reverse.tag.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -449,6 +458,11 @@ func expandInboundClientFromModel(m *InboundClientResourceModel) map[string]any 
 	if !m.Flow.IsNull() && !m.Flow.IsUnknown() {
 		client["flow"] = m.Flow.ValueString()
 	}
+	if !m.ReverseTag.IsNull() && !m.ReverseTag.IsUnknown() {
+		if tag := m.ReverseTag.ValueString(); tag != "" {
+			client["reverse"] = map[string]any{"tag": tag}
+		}
+	}
 	if !m.Auth.IsNull() && !m.Auth.IsUnknown() {
 		client["auth"] = m.Auth.ValueString()
 	}
@@ -492,6 +506,7 @@ func inboundClientToModel(inboundID int, clientID string, client map[string]any)
 		Security:   types.StringValue(stringValue(client["security"])),
 		Password:   types.StringValue(stringValue(client["password"])),
 		Flow:       types.StringValue(stringValue(client["flow"])),
+		ReverseTag: types.StringValue(reverseTagValue(client["reverse"])),
 		Auth:       types.StringValue(stringValue(client["auth"])),
 		LimitIP:    types.Int64Value(int64(intValue(client["limitIp"]))),
 		TotalGB:    types.Int64Value(int64(intValue(client["totalGB"]))),
@@ -502,6 +517,14 @@ func inboundClientToModel(inboundID int, clientID string, client map[string]any)
 		Comment:    types.StringValue(stringValue(client["comment"])),
 		Reset:      types.Int64Value(int64(intValue(client["reset"]))),
 	}
+}
+
+func reverseTagValue(raw any) string {
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return ""
+	}
+	return stringValue(m["tag"])
 }
 
 func getClientIDFromModel(m *InboundClientResourceModel, client map[string]any) string {

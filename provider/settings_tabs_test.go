@@ -221,10 +221,11 @@ func TestFlattenPanelSubscription(t *testing.T) {
 
 func TestFlattenPanelGeneral(t *testing.T) {
 	in := map[string]any{
-		"webListen":   "0.0.0.0",
-		"webPort":     float64(2053),
-		"webBasePath": "/panel/",
-		"pageSize":    float64(25),
+		"webListen":                  "0.0.0.0",
+		"webPort":                    float64(2053),
+		"webBasePath":                "/panel/",
+		"pageSize":                   float64(25),
+		"restartXrayOnClientDisable": true,
 	}
 	m := flattenPanelGeneral(in)
 	if m.WebListen.ValueString() != "0.0.0.0" {
@@ -235,6 +236,13 @@ func TestFlattenPanelGeneral(t *testing.T) {
 	}
 	if m.WebBasePath.ValueString() != "/panel/" {
 		t.Fatalf("unexpected web_base_path: %v", m.WebBasePath)
+	}
+	if !m.RestartXrayOnClientDisable.ValueBool() {
+		t.Fatalf("unexpected restart_xray_on_client_disable: %v", m.RestartXrayOnClientDisable)
+	}
+	expanded := expandPanelGeneral(m)
+	if expanded["restartXrayOnClientDisable"] != true {
+		t.Fatalf("unexpected expanded restartXrayOnClientDisable: %v", expanded["restartXrayOnClientDisable"])
 	}
 }
 

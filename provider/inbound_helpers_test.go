@@ -155,7 +155,7 @@ func TestEnsureRealityDefaults_DeriveFromTarget(t *testing.T) {
 func TestEnsureRealityDefaults_NoTargetNoNames(t *testing.T) {
 	reality := map[string]any{}
 	ensureRealityDefaults(reality)
-	if reality["target"] != "www.apple.com:443" {
+	if reality["target"] != "www.amazon.com:443" {
 		t.Fatalf("expected default target")
 	}
 	names := reality["serverNames"].([]any)
