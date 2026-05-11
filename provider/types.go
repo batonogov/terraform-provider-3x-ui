@@ -24,6 +24,7 @@ type Inbound struct {
 	StreamSettings string `json:"streamSettings"`
 	Tag            string `json:"tag"`
 	Sniffing       string `json:"sniffing"`
+	NodeID         *int   `json:"nodeId,omitempty"`
 }
 
 // ClientTraffic represents traffic statistics for a client (xray.ClientTraffic).

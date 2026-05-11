@@ -48,6 +48,8 @@ resource "threexui_inbound" "vless" {
 
 The provider authenticates to the 3x-ui panel using username and password. These can be provided directly in the provider configuration or via environment variables.
 
+3x-ui v3 protects login and unsafe API requests with CSRF tokens. The provider fetches and refreshes those tokens automatically; no additional configuration is required.
+
 -> **Note:** The provider has **partial** 2FA support. You can supply a TOTP code via the `two_factor_code` attribute, and it will be sent with the initial login request. However, TOTP codes expire every 30 seconds. Because the provider performs automatic re-login when the session expires (on HTTP 401/404), subsequent logins will fail once the original code is no longer valid. For short-lived operations (a single `terraform apply`) this may work, but long-running or repeated runs will require a fresh code each time.
 
 ## Argument Reference
@@ -61,4 +63,4 @@ The provider authenticates to the 3x-ui panel using username and password. These
 - `request_timeout` (Optional, String) - HTTP request timeout (e.g. `30s`, `1m`). Default is `30s`.
 - `max_retries` (Optional, Number) - Maximum number of additional attempts on transient HTTP 5xx responses for **idempotent write endpoints only** (`UpdateInbound`, `UpdateInboundClient`, `UpdateSettings`, `UpdateXrayTemplate`, `SetXrayOutboundTestURL`). Each retry waits 500ms and emits a `Warn`-level log entry, so upstream flakiness is observable rather than silently absorbed. Set to `0` to disable retries entirely. Allowed range: `0..10`. Default is `1`.
 
--> **Why this exists:** 3x-ui's pre-v2.9.0 inbound update path is not transactional, and a panic in the panel's handler goroutine surfaces as a 5xx via `gin.Recovery`. v2.9.0 reworked the path to run inside a SQLite transaction (`buildRuntimeInboundForAPI(tx, ...)`) and is more robust, but older versions still in our compatibility matrix occasionally surface this. The retry is scoped to write endpoints whose service-level handlers replace the entire row by id (truly idempotent at the SQL level), so repeating the same request after a transient failure is safe.
+-> **Why this exists:** 3x-ui's pre-v2.9.0 inbound update path was not transactional, and a panic in the panel's handler goroutine surfaced as a 5xx via `gin.Recovery`. v2.9.0 reworked the path to run inside a SQLite transaction (`buildRuntimeInboundForAPI(tx, ...)`) and is more robust, but transient upstream 5xx responses can still happen under write pressure. The retry is scoped to write endpoints whose service-level handlers replace the entire row by id (truly idempotent at the SQL level), so repeating the same request after a transient failure is safe.

@@ -47,7 +47,7 @@ docs/
 README.md              — English README; localized in 5 more languages mirroring 3x-ui upstream:
                          README.ru_RU.md, README.fa_IR.md, README.ar_EG.md, README.zh_CN.md, README.es_ES.md
 3x-ui-<version>/      — 3x-ui source snapshots (in .gitignore, for reference/diffing)
-docker-compose.yaml    — 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v2.9.4)
+docker-compose.yaml    — 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v3.0.0)
 Taskfile.yml           — task build / test / fmt
 .github/workflows/
   ci.yml               — lint, unit tests, acceptance tests, compatibility matrix (PR + push main)
@@ -96,7 +96,9 @@ Taskfile.yml           — task build / test / fmt
 
 ## 3x-ui API (Key Endpoints)
 
-- `POST /login` — authentication (form: username, password, twoFactorCode)
+- `GET /csrf-token` — anonymous/session CSRF bootstrap for 3x-ui v3 unsafe requests
+- `POST /login` — authentication (form: username, password, twoFactorCode, optional `_csrf`; v3 requires `X-CSRF-Token`)
+- `GET /panel/csrf-token` — authenticated CSRF refresh for 3x-ui v3 SPA/API POSTs
 - `GET /panel/api/inbounds/list` — all inbounds
 - `GET /panel/api/inbounds/get/:id` — single inbound
 - `POST /panel/api/inbounds/add` — create (form-encoded)
@@ -105,13 +107,15 @@ Taskfile.yml           — task build / test / fmt
 - `POST /panel/api/inbounds/addClient` — add client
 - `POST /panel/api/inbounds/updateClient/:clientId` — update client
 - `POST /panel/api/inbounds/:id/delClient/:clientId` — delete client
+- `GET /panel/api/nodes/list` + `/panel/api/nodes/*` — v3 multi-node API surface
 - `POST /panel/setting/all` — all settings
 - `POST /panel/setting/update` — update settings (JSON body)
+- `GET /panel/setting/getApiToken` / `POST /panel/setting/regenerateApiToken` — v3 panel API token
 - `POST /panel/setting/updateUser` — change admin credentials (JSON: oldUsername, oldPassword, newUsername, newPassword)
 - `POST /panel/xray` — Xray template (xraySetting)
 - `POST /panel/xray/update` — update Xray template
 
-Unauthenticated requests return 404 (not 401). The client performs auto re-login on 401/404.
+Unauthenticated `/panel/api` requests return 404 (not 401). The client performs auto re-login on 401/404. 3x-ui v3 rejects unsafe methods with 403 when CSRF is missing/stale; the client bootstraps `/csrf-token`, sends `X-CSRF-Token`, and refreshes via `/panel/csrf-token` before retrying once.
 
 ### Retry on transient 5xx (write endpoints)
 
@@ -210,7 +214,7 @@ Distinct from the 5xx retry above. 3x-ui occasionally returns `success: true` fr
 task build            # Build binary
 task test:unit        # Run unit tests (no Docker / Terraform needed)
 task test:acc         # Run acceptance tests (requires Docker)
-task test:acc:compat  # Run all tests with version-aware skipping (THREEXUI_VERSION, default v2.9.4)
+task test:acc:compat  # Run all tests with version-aware skipping (THREEXUI_VERSION, default v3.0.0)
 task test             # Run unit + acceptance tests
 task fmt              # gofmt
 task vet              # go vet
@@ -251,7 +255,7 @@ All third-party code that runs in CI or pre-commit is pinned to a commit SHA, no
 
 **Pre-commit hooks** (`.pre-commit-config.yaml`) — external `repo:` references use `rev: <sha>  # frozen: <tag>`. This is the format `pre-commit autoupdate --freeze` produces. Bare `pre-commit autoupdate` will un-pin — always use the `--freeze` flag locally, or update the SHA manually.
 
-**Docker images** in `docker-compose.yaml` are intentionally NOT digest-pinned. They run only as ephemeral test environments (3x-ui panel for acceptance tests), never in published artifacts, and have no access to release secrets — the residual risk is a tampered test signal, not a poisoned release. Maintaining digests for all 7 matrix versions manually outweighs the closed-off risk (#168).
+**Docker images** in `docker-compose.yaml` are intentionally NOT digest-pinned. They run only as ephemeral test environments (3x-ui panel for acceptance tests), never in published artifacts, and have no access to release secrets — the residual risk is a tampered test signal, not a poisoned release. Maintaining digests for all matrix versions manually outweighs the closed-off risk (#168).
 
 **Go modules** are covered by `go.sum` hashing — no extra pinning needed. The `go install ...@vX.Y.Z` references in workflows install specific versions whose contents are verified by Go's module proxy.
 
@@ -273,19 +277,19 @@ docker compose up -d   # Start 3x-ui on localhost:2053
 # Do not set THREEXUI_BASE_PATH
 
 # Run all tests with version-aware skipping:
-THREEXUI_VERSION=v2.8.9 task test:acc:compat
+THREEXUI_VERSION=v2.9.0 task test:acc:compat
 
 # Run all versions locally:
-for v in v2.8.9 v2.8.10 v2.8.11 v2.9.0 v2.9.1 v2.9.2 v2.9.3 v2.9.4; do
+for v in v2.9.0 v2.9.1 v2.9.2 v2.9.3 v2.9.4 v3.0.0; do
   echo "=== Testing $v ===" && THREEXUI_VERSION=$v task test:acc:compat
 done
 ```
 
 ### Support Policy
 
-The provider officially supports the **two latest 3x-ui minor lines**. Currently that is **2.8.x** and **2.9.x** — every released patch in both lines is in the CI `acceptance-matrix` and listed as `Tested` in the README compatibility table.
+The provider officially supports the **two latest 3x-ui minor lines**. Currently that is **2.9.x** and **3.0.x** — every released patch in both lines is in the CI `acceptance-matrix` and listed as `Tested` in the README compatibility table.
 
-When a new minor (e.g. `2.10.0`) is released:
+When a new minor (e.g. `3.1.0`) is released:
 
 1. Add the new minor's patches to `.github/workflows/ci.yml` `acceptance-matrix` and to the README compatibility tables (all 6 localized files).
 2. **Drop the oldest supported line entirely** (matrix + README) so we keep exactly two minor lines.
@@ -303,9 +307,9 @@ tests requiring a newer version are automatically skipped via `t.Skip()`.
 Version mapping:
 
 - **v2.9.0+**: mixed protocol, WireGuard mtu as list/gateway/dns, sniffing ips\_excluded/domains\_excluded
-- **v2.8.11+**: tunnel protocol, DNS enable\_parallel\_query/use\_system\_hosts
+- **v3.0.0+**: CSRF-protected unsafe requests, inbound `nodeId`, multi-node/API-token upstream surface
 
-Tests without `requireMinVersion` run on all supported versions (v2.8.9+).
+Tests without `requireMinVersion` run on all supported versions (v2.9.0+).
 Helper: `provider/test_helpers.go` (`requireMinVersion` uses `golang.org/x/mod/semver`).
 
 Acceptance tests use `terraform-plugin-testing`:
@@ -326,7 +330,7 @@ All of this is already configured in `Taskfile.yml` → `task test`.
 
 The acceptance suite assumes 3x-ui is ready in **two stages**, both gated before any test runs:
 
-1. **Panel router up** — `docker-compose.yaml` declares a healthcheck that polls `/login`. `docker compose up --wait` blocks until the healthcheck passes (max ~30s). Without this, `--wait` only waits for "container started", which is earlier than the gin router being ready.
+1. **Panel router up** — `docker-compose.yaml` declares a healthcheck that polls `/`. `docker compose up --wait` blocks until the healthcheck passes (max ~30s). Without this, `--wait` only waits for "container started", which is earlier than the gin router being ready. Do not poll `GET /login`: in v2 it is POST-only and in v3 login POST is CSRF-protected.
 2. **Xray subsystem initialized** — `Taskfile.yml` `_wait-for-xray` runs after `compose up --wait` and polls `/panel/api/server/status` until `xray.state == "running"` (max 30s). Without this, tests like `TestAccXrayVersionDrift` start before xray reports its version and fail with bogus `ErrXrayVersionUnknown` (#161). Do NOT use `/panel/api/server/getXrayVersion` for this — that endpoint fetches the GitHub release list anonymously and intermittently rate-limits on shared CI runner IPs.
 
 When adding new tests that touch xray-only state (templates, versions, restart-required settings), assume both gates have passed — do NOT add per-test sleeps.
@@ -335,7 +339,7 @@ When adding new tests that touch xray-only state (templates, versions, restart-r
 
 Beyond the in-process retry budgets (`withRetry`, `WithReadAfterWriteRetry`, `waitForInboundDeletion`, `destroyVisibilityAttempts`), CI itself has two safety nets:
 
-- **Per-job retry** — `acceptance-tests` and `acceptance-matrix` jobs in `.github/workflows/ci.yml` use `nick-fields/retry@v3` with `max_attempts: 2`. Catches the residual flake rate from GHCR pull jitter, one-off SQLite spikes, and runner contention. A green retry should be a no-op for code; if a retry consistently changes behavior, that is a real bug — diff the two attempt logs.
+- **Per-job retry** — `acceptance-tests` and `acceptance-matrix` jobs in `.github/workflows/ci.yml` use `nick-fields/retry@v4` with `max_attempts: 2`. Catches the residual flake rate from GHCR pull jitter, one-off SQLite spikes, and runner contention. A green retry should be a no-op for code; if a retry consistently changes behavior, that is a real bug — diff the two attempt logs.
 - **Flaky test gate** — `skipIfFlaky(t, reason)` in `provider/test_helpers.go` skips when `THREEXUI_SKIP_FLAKY` env is set. Sub-day mitigation when a test starts firing falsely: gate it, push, file a follow-up. Quarantined tests must be tracked (#161 or follow-up) — the gate is not a permanent home.
 
 ## Releases

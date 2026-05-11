@@ -84,18 +84,16 @@ resource "threexui_inbound_client" "client_a" {
 
 ## Compatibilidad
 
-**Política de soporte:** el proveedor soporta oficialmente las dos últimas líneas menores de 3x-ui. Actualmente son **2.8.x** y **2.9.x** — cada parche publicado de ambas líneas se ejecuta en la matriz de aceptación en cada push a `main` y en cada pull request. Cuando se publique una nueva versión menor (p. ej. 2.10.0), la línea soportada más antigua se eliminará de la matriz y de esta tabla.
+**Política de soporte:** el proveedor soporta oficialmente las dos últimas líneas menores de 3x-ui. Actualmente son **2.9.x** y **3.0.x** — cada parche publicado de ambas líneas se ejecuta en la matriz de aceptación en cada push a `main` y en cada pull request. Cuando se publique una nueva versión menor (p. ej. 3.1.0), la línea soportada más antigua se eliminará de la matriz y de esta tabla.
 
 | Versión de 3x-ui | Estado |
 | --- | --- |
+| v3.0.0 | Probado |
 | v2.9.4 | Probado |
 | v2.9.3 | Probado |
 | v2.9.2 | Probado |
 | v2.9.1 | Probado |
 | v2.9.0 | Probado |
-| v2.8.11 | Probado |
-| v2.8.10 | Probado |
-| v2.8.9 | Probado |
 
 Las funciones de protocolos nuevos están protegidas con `requireMinVersion` y se omiten automáticamente en versiones antiguas, por lo que el proveedor funciona en toda la matriz sin forks por versión.
 

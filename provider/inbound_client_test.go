@@ -270,6 +270,7 @@ func TestInboundResourceWaitForDeletion(t *testing.T) {
 }
 
 func TestInboundToForm(t *testing.T) {
+	nodeID := 42
 	in := &Inbound{
 		ID:             1,
 		Up:             2,
@@ -285,6 +286,7 @@ func TestInboundToForm(t *testing.T) {
 		Settings:       "{}",
 		StreamSettings: "{}",
 		Sniffing:       "{}",
+		NodeID:         &nodeID,
 	}
 
 	form := inboundToForm(in)
@@ -304,6 +306,7 @@ func TestInboundToForm(t *testing.T) {
 		"settings":             []string{"{}"},
 		"streamSettings":       []string{"{}"},
 		"sniffing":             []string{"{}"},
+		"nodeId":               []string{"42"},
 	}
 	if form.Encode() != want.Encode() {
 		t.Fatalf("unexpected form: %s", form.Encode())
