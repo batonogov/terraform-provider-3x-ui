@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 )
 
-// TestDataSourceSensitiveAttributes guards the CLAUDE.md security rule that any
+// TestDataSourceSensitiveAttributes guards the AGENTS.md security rule that any
 // data source returning a raw JSON payload from the panel/Xray API must mark its
 // JSON attribute Sensitive. Without this assertion a future refactor could
 // silently drop the flag and re-expose client UUIDs/passwords, Reality keys,
