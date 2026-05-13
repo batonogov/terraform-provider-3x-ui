@@ -2,7 +2,9 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -11,7 +13,6 @@ import (
 // --- Panel General: page_size, remark_model, time_location, update, idempotency ---
 
 func TestAccPanelGeneral(t *testing.T) {
-	requireMinVersion(t, "v2.8.10")
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
@@ -173,7 +174,6 @@ resource "threexui_panel_general" "test" {
 // --- Panel General: LDAP fields ---
 
 func TestAccPanelGeneralLDAP(t *testing.T) {
-	requireMinVersion(t, "v2.8.10")
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
@@ -431,7 +431,6 @@ resource "threexui_panel_telegram" "test" {
 // Terraform applies independent resources concurrently, so both paths compete
 // for the settings API. The settingsMu mutex must serialize these operations.
 func TestAccPanelGeneralConcurrentSettings(t *testing.T) {
-	requireMinVersion(t, "v2.8.10")
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
@@ -595,7 +594,6 @@ resource "threexui_panel_subscription" "test" {
 // same graph without lost updates. Both compete for the xray template
 // endpoint; xrayTemplateMu must serialize them.
 func TestAccPanelGeneralConcurrentXray(t *testing.T) {
-	requireMinVersion(t, "v2.8.10")
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
@@ -911,10 +909,12 @@ resource "threexui_panel_subscription" "test" {
 // because the framework re-configures the provider between apply and
 // post-apply plan, which would create a new client with the old base_path.
 func TestAccPanelGeneralBasePathChange(t *testing.T) {
-	requireMinVersion(t, "v2.8.10")
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("TF_ACC not set")
 	}
+	skipOnFlakyVersions(t,
+		"3x-ui v3.0.0 applies the first panel SIGHUP restart after webBasePath changes, then stops processing later panel restarts; this test needs a second restart to restore the shared acceptance container (#176)",
+		"v3.0.0")
 
 	client, err := testAccClientFromEnv()
 	if err != nil {
@@ -933,14 +933,14 @@ func TestAccPanelGeneralBasePathChange(t *testing.T) {
 	}
 
 	// Ensure we restore the original base path regardless of outcome.
+	restored := false
 	t.Cleanup(func() {
-		// Panel is on /testbp/ — keep basePath as-is to reach it.
-		client.SetBasePath("/testbp/")
-		_ = client.UpdateSettings(ctx, original) // restores webBasePath to "/"
-		_ = client.SendRestart(ctx)              // restart on /testbp/ (current)
-		client.SetBasePath("/")                  // panel will restart on /
-		_ = client.WaitForReady(ctx)
-		_ = client.SetXrayOutboundTestURL(ctx, originalTestURL)
+		if restored {
+			return
+		}
+		if err := restorePanelGeneralAfterBasePathChange(ctx, client, original, originalTestURL); err != nil {
+			t.Logf("cleanup panel settings after base path change: %v", err)
+		}
 	})
 
 	// --- Simulate what applyPanelGeneral does ---
@@ -975,4 +975,61 @@ func TestAccPanelGeneralBasePathChange(t *testing.T) {
 	if got != newTestURL {
 		t.Fatalf("xray outbound test url = %q, want %q", got, newTestURL)
 	}
+
+	if err := restorePanelGeneralAfterBasePathChange(ctx, client, original, originalTestURL); err != nil {
+		t.Fatalf("restore panel settings after base path change: %v", err)
+	}
+	restored = true
+}
+
+func restorePanelGeneralAfterBasePathChange(ctx context.Context, client *Client, original map[string]any, originalTestURL string) error {
+	originalBasePath := normalizeBasePath(stringValue(original["webBasePath"]))
+	restoreSettings := mergeSettings(original, map[string]any{"webBasePath": originalBasePath})
+	candidates := []string{"/testbp/", originalBasePath, "/"}
+	seen := make(map[string]bool, len(candidates))
+	errs := make([]string, 0, len(candidates))
+
+	for _, currentBasePath := range candidates {
+		currentBasePath = normalizeBasePath(currentBasePath)
+		if seen[currentBasePath] {
+			continue
+		}
+		seen[currentBasePath] = true
+
+		client.SetBasePath(currentBasePath)
+		if err := client.Login(ctx); err != nil {
+			errs = append(errs, fmt.Sprintf("login on %s: %v", currentBasePath, err))
+			continue
+		}
+		if err := client.UpdateSettings(ctx, restoreSettings); err != nil {
+			errs = append(errs, fmt.Sprintf("update settings on %s: %v", currentBasePath, err))
+			continue
+		}
+		restoredSettings, err := client.GetSettings(ctx)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("read settings on %s after restore update: %v", currentBasePath, err))
+			continue
+		}
+		if got := normalizeBasePath(stringValue(restoredSettings["webBasePath"])); got != originalBasePath {
+			errs = append(errs, fmt.Sprintf("webBasePath on %s after restore update = %q, want %q", currentBasePath, got, originalBasePath))
+			continue
+		}
+		if err := client.SendRestart(ctx); err != nil {
+			errs = append(errs, fmt.Sprintf("restart panel on %s: %v", currentBasePath, err))
+			continue
+		}
+
+		client.SetBasePath(originalBasePath)
+		if err := client.WaitForReady(ctx); err != nil {
+			errs = append(errs, fmt.Sprintf("wait for %s: %v", originalBasePath, err))
+			continue
+		}
+		if err := client.SetXrayOutboundTestURL(ctx, originalTestURL); err != nil {
+			errs = append(errs, fmt.Sprintf("restore xray outbound test url on %s: %v", originalBasePath, err))
+			continue
+		}
+		return nil
+	}
+
+	return fmt.Errorf("%s", strings.Join(errs, "; "))
 }

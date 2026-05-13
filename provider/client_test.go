@@ -81,6 +81,92 @@ func TestLoginSuccess(t *testing.T) {
 	}
 }
 
+func TestLoginWithCSRFToken(t *testing.T) {
+	var csrfCalls int32
+	var loginCalls int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/csrf-token":
+			atomic.AddInt32(&csrfCalls, 1)
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "prelogin"})
+			w.Write(okResponse("csrf-token"))
+		case "/login":
+			atomic.AddInt32(&loginCalls, 1)
+			if r.Header.Get(csrfHeaderName) != "csrf-token" {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			if _, err := r.Cookie("3x-ui"); err != nil {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			r.ParseForm()
+			if r.FormValue("_csrf") != "csrf-token" {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			w.Write(okResponse(nil))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	if err := client.Login(context.Background()); err != nil {
+		t.Fatalf("login failed: %v", err)
+	}
+	if got := atomic.LoadInt32(&csrfCalls); got != 1 {
+		t.Fatalf("expected 1 csrf call, got %d", got)
+	}
+	if got := atomic.LoadInt32(&loginCalls); got != 1 {
+		t.Fatalf("expected 1 login call, got %d", got)
+	}
+}
+
+func TestPostRefreshesCSRFTokenOn403(t *testing.T) {
+	var csrfCalls int32
+	var apiCalls int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/panel/csrf-token":
+			atomic.AddInt32(&csrfCalls, 1)
+			w.Write(okResponse("fresh-token"))
+		case "/panel/api/inbounds/onlines":
+			n := atomic.AddInt32(&apiCalls, 1)
+			if n == 1 {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			if r.Header.Get(csrfHeaderName) != "fresh-token" {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			w.Write(okResponse([]string{"client@example.com"}))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	clients, err := client.GetOnlineClients(context.Background())
+	if err != nil {
+		t.Fatalf("GetOnlineClients failed: %v", err)
+	}
+	if len(clients) != 1 || clients[0] != "client@example.com" {
+		t.Fatalf("unexpected clients: %#v", clients)
+	}
+	if got := atomic.LoadInt32(&csrfCalls); got != 1 {
+		t.Fatalf("expected 1 csrf refresh call, got %d", got)
+	}
+	if got := atomic.LoadInt32(&apiCalls); got != 2 {
+		t.Fatalf("expected 2 api calls, got %d", got)
+	}
+}
+
 func TestAutoReloginOn404(t *testing.T) {
 	var loginCalls int32
 	var apiCalls int32

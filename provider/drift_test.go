@@ -313,6 +313,147 @@ func toSet(s []string) map[string]bool {
 	return m
 }
 
+func extractInboundJSProtocols(t *testing.T, jsPath string) []string {
+	t.Helper()
+	data, err := os.ReadFile(jsPath)
+	if err != nil {
+		t.Fatalf("cannot read inbound model JS: %v", err)
+	}
+
+	content := string(data)
+	start := strings.Index(content, "const Protocols = {")
+	if start == -1 {
+		start = strings.Index(content, "export const Protocols = {")
+	}
+	if start == -1 {
+		t.Fatal("cannot find Protocols object in inbound model JS")
+	}
+	end := strings.Index(content[start:], "};")
+	if end == -1 {
+		t.Fatal("cannot find end of Protocols object in inbound model JS")
+	}
+	block := content[start : start+end]
+
+	re := regexp.MustCompile(`\w+:\s*['"]([^'"]+)['"]`)
+	matches := re.FindAllStringSubmatch(block, -1)
+	if len(matches) == 0 {
+		t.Fatal("no protocols found in Protocols object")
+	}
+
+	seen := make(map[string]bool)
+	for _, m := range matches {
+		seen[m[1]] = true
+	}
+	return toSortedSlice(seen)
+}
+
+func upstreamInboundJSPath(dir string) string {
+	legacy := filepath.Join(dir, "web", "assets", "js", "model", "inbound.js")
+	if _, err := os.Stat(legacy); err == nil {
+		return legacy
+	}
+	return filepath.Join(dir, "frontend", "src", "models", "inbound.js")
+}
+
+func upstreamProtocolForms(t *testing.T, dir string) []string {
+	t.Helper()
+	formDir := filepath.Join(dir, "web", "html", "form", "protocol")
+	if entries, err := os.ReadDir(formDir); err == nil {
+		var upstream []string
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".html") {
+				continue
+			}
+			upstream = append(upstream, strings.TrimSuffix(e.Name(), ".html"))
+		}
+		sort.Strings(upstream)
+		return upstream
+	}
+
+	return extractInboundJSProtocols(t, upstreamInboundJSPath(dir))
+}
+
+func upstreamStreamForms(t *testing.T, dir string) []string {
+	t.Helper()
+	streamDir := filepath.Join(dir, "web", "html", "form", "stream")
+	if entries, err := os.ReadDir(streamDir); err == nil {
+		var upstream []string
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".html") {
+				continue
+			}
+			upstream = append(upstream, strings.TrimSuffix(e.Name(), ".html"))
+		}
+		sort.Strings(upstream)
+		return upstream
+	}
+
+	data, err := os.ReadFile(upstreamInboundJSPath(dir))
+	if err != nil {
+		t.Fatalf("cannot read inbound model JS: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "class StreamSettings") {
+		t.Fatal("cannot find StreamSettings class in inbound model JS")
+	}
+
+	seen := map[string]bool{"stream_settings": true}
+	re := regexp.MustCompile(`\w+Settings:\s*network\s*===\s*['"]([^'"]+)['"]`)
+	for _, m := range re.FindAllStringSubmatch(content, -1) {
+		seen["stream_"+m[1]] = true
+	}
+	if strings.Contains(content, "externalProxy") {
+		seen["external_proxy"] = true
+	}
+	if strings.Contains(content, "finalmask") {
+		seen["stream_finalmask"] = true
+	}
+	if strings.Contains(content, "sockopt") {
+		seen["stream_sockopt"] = true
+	}
+	return toSortedSlice(seen)
+}
+
+func upstreamXraySettingsPages(t *testing.T, dir string) []string {
+	t.Helper()
+	xrayDir := filepath.Join(dir, "web", "html", "settings", "xray")
+	if entries, err := os.ReadDir(xrayDir); err == nil {
+		var upstream []string
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".html") {
+				continue
+			}
+			upstream = append(upstream, strings.TrimSuffix(e.Name(), ".html"))
+		}
+		sort.Strings(upstream)
+		return upstream
+	}
+
+	vuePath := filepath.Join(dir, "frontend", "src", "pages", "xray", "XrayPage.vue")
+	data, err := os.ReadFile(vuePath)
+	if err != nil {
+		t.Fatalf("cannot read XrayPage.vue: %v", err)
+	}
+	content := string(data)
+	componentPages := map[string]string{
+		"BasicsTab":    "basics",
+		"RoutingTab":   "routing",
+		"OutboundsTab": "outbounds",
+		"BalancersTab": "balancers",
+		"DnsTab":       "dns",
+	}
+	seen := make(map[string]bool)
+	for component, page := range componentPages {
+		if strings.Contains(content, component) {
+			seen[page] = true
+		}
+	}
+	if strings.Contains(content, "tpl-advanced") || strings.Contains(content, "advancedText") {
+		seen["advanced"] = true
+	}
+	return toSortedSlice(seen)
+}
+
 // checkMissing reports upstream items not found in provider set.
 func checkMissing(t *testing.T, upstream []string, provider map[string]bool, skip map[string]bool, msgFmt string) {
 	t.Helper()
@@ -439,34 +580,7 @@ func TestDriftInboundProtocols_JS(t *testing.T) {
 	var upstream []string
 
 	if dir != "" {
-		jsPath := filepath.Join(dir, "web", "assets", "js", "model", "inbound.js")
-		data, err := os.ReadFile(jsPath)
-		if err != nil {
-			t.Fatalf("cannot read inbound.js: %v", err)
-		}
-
-		content := string(data)
-		start := strings.Index(content, "const Protocols = {")
-		if start == -1 {
-			t.Fatal("cannot find Protocols object in inbound.js")
-		}
-		end := strings.Index(content[start:], "};")
-		if end == -1 {
-			t.Fatal("cannot find end of Protocols object in inbound.js")
-		}
-		block := content[start : start+end]
-
-		re := regexp.MustCompile(`\w+:\s*'([^']+)'`)
-		matches := re.FindAllStringSubmatch(block, -1)
-		if len(matches) == 0 {
-			t.Fatal("no protocols found in Protocols object")
-		}
-
-		seen := make(map[string]bool)
-		for _, m := range matches {
-			seen[m[1]] = true
-		}
-		upstream = toSortedSlice(seen)
+		upstream = extractInboundJSProtocols(t, upstreamInboundJSPath(dir))
 	} else {
 		c := loadContract(t)
 		upstream = c.ProtocolsJS
@@ -488,9 +602,12 @@ func TestDriftProtocolForms(t *testing.T) {
 	providerBlocks := providerSettingsBlockProtocols()
 	// Additional mappings not derived from block names.
 	providerExtras := map[string]bool{
-		"vmess": true, // vmess has no settings block but is handled
-		"tun":   true, // alias for tunnel/dokodemo-door
-		"mixed": true, // mixed reuses the socks form in 3x-ui
+		"vmess":    true, // vmess has no settings block but is handled
+		"tun":      true, // alias for tunnel/dokodemo-door
+		"tunnel":   true, // v3 UI name for the dokodemo settings block
+		"mixed":    true, // mixed reuses the socks form in 3x-ui
+		"socks":    true, // legacy UI protocol kept for existing configs
+		"dokodemo": true, // legacy form name; v3 UI uses tunnel
 	}
 	for k := range providerExtras {
 		providerBlocks[k] = true
@@ -500,19 +617,7 @@ func TestDriftProtocolForms(t *testing.T) {
 	var upstream []string
 
 	if dir != "" {
-		formDir := filepath.Join(dir, "web", "html", "form", "protocol")
-		entries, err := os.ReadDir(formDir)
-		if err != nil {
-			t.Fatalf("cannot read protocol form dir: %v", err)
-		}
-
-		for _, e := range entries {
-			if e.IsDir() || !strings.HasSuffix(e.Name(), ".html") {
-				continue
-			}
-			upstream = append(upstream, strings.TrimSuffix(e.Name(), ".html"))
-		}
-		sort.Strings(upstream)
+		upstream = upstreamProtocolForms(t, dir)
 	} else {
 		c := loadContract(t)
 		upstream = c.ProtocolForms
@@ -548,19 +653,7 @@ func TestDriftStreamSettingsForms(t *testing.T) {
 	var upstream []string
 
 	if dir != "" {
-		streamDir := filepath.Join(dir, "web", "html", "form", "stream")
-		entries, err := os.ReadDir(streamDir)
-		if err != nil {
-			t.Fatalf("cannot read stream form dir: %v", err)
-		}
-
-		for _, e := range entries {
-			if e.IsDir() || !strings.HasSuffix(e.Name(), ".html") {
-				continue
-			}
-			upstream = append(upstream, strings.TrimSuffix(e.Name(), ".html"))
-		}
-		sort.Strings(upstream)
+		upstream = upstreamStreamForms(t, dir)
 	} else {
 		c := loadContract(t)
 		upstream = c.StreamForms
@@ -744,19 +837,7 @@ func TestDriftXraySettingsPages(t *testing.T) {
 	var upstream []string
 
 	if dir != "" {
-		xrayDir := filepath.Join(dir, "web", "html", "settings", "xray")
-		entries, err := os.ReadDir(xrayDir)
-		if err != nil {
-			t.Fatalf("cannot read xray settings dir: %v", err)
-		}
-
-		for _, e := range entries {
-			if e.IsDir() || !strings.HasSuffix(e.Name(), ".html") {
-				continue
-			}
-			upstream = append(upstream, strings.TrimSuffix(e.Name(), ".html"))
-		}
-		sort.Strings(upstream)
+		upstream = upstreamXraySettingsPages(t, dir)
 	} else {
 		c := loadContract(t)
 		upstream = c.XraySettingsPages

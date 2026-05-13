@@ -208,11 +208,9 @@ resource "threexui_inbound" "dokodemo" {
 	})
 }
 
-// --- Tunnel (dokodemo-door alias in 3x-ui 2.8.11+) ---
+// --- Tunnel (dokodemo-door alias) ---
 
 func TestAccInboundTunnel(t *testing.T) {
-	requireMinVersion(t, "v2.8.11") // tunnel protocol added in v2.8.11
-
 	tunnelConfig := testAccProviderConfig() + `
 resource "threexui_inbound" "tunnel" {
   port     = 25030

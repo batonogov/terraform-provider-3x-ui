@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -38,6 +39,8 @@ const readAfterWriteAttempts = 20
 // SQLite contention spike, short enough not to mask real bugs.
 const readAfterWriteBackoff = 500 * time.Millisecond
 
+const csrfHeaderName = "X-CSRF-Token"
+
 type ClientConfig struct {
 	Endpoint           string
 	BasePath           string
@@ -60,6 +63,8 @@ type Client struct {
 	twoFactor  string
 	httpClient *http.Client
 	maxRetries int
+	authMu     sync.Mutex
+	csrfToken  string
 }
 
 // SetBasePath updates the client's base path to match a new webBasePath.
@@ -118,11 +123,26 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 }
 
 func (c *Client) Login(ctx context.Context) error {
+	c.authMu.Lock()
+	defer c.authMu.Unlock()
+	return c.loginLocked(ctx)
+}
+
+func (c *Client) loginLocked(ctx context.Context) error {
+	csrfToken, err := c.fetchCSRFToken(ctx, "csrf-token", true)
+	if err != nil {
+		return err
+	}
+	c.csrfToken = csrfToken
+
 	form := url.Values{}
 	form.Set("username", c.username)
 	form.Set("password", c.password)
 	if c.twoFactor != "" {
 		form.Set("twoFactorCode", c.twoFactor)
+	}
+	if csrfToken != "" {
+		form.Set("_csrf", csrfToken)
 	}
 
 	endpoint, err := c.resolvePath("login")
@@ -135,6 +155,9 @@ func (c *Client) Login(ctx context.Context) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if csrfToken != "" {
+		req.Header.Set(csrfHeaderName, csrfToken)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -142,8 +165,16 @@ func (c *Client) Login(ctx context.Context) error {
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode >= 400 {
+		return httpStatusError(resp.StatusCode, body)
+	}
+
 	var apiResp apiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+	if err := json.Unmarshal(body, &apiResp); err != nil {
 		return err
 	}
 	if !apiResp.Success {
@@ -153,6 +184,85 @@ func (c *Client) Login(ctx context.Context) error {
 		return errors.New(apiResp.Msg)
 	}
 	return nil
+}
+
+func (c *Client) fetchCSRFToken(ctx context.Context, relPath string, optional bool) (string, error) {
+	endpoint, err := c.resolvePath(relPath)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("X-Requested-With", "XMLHttpRequest")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode >= 400 {
+		if optional && (resp.StatusCode == http.StatusUnauthorized ||
+			resp.StatusCode == http.StatusForbidden ||
+			resp.StatusCode == http.StatusNotFound) {
+			return "", nil
+		}
+		return "", httpStatusError(resp.StatusCode, body)
+	}
+
+	var apiResp apiResponse
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		if optional {
+			return "", nil
+		}
+		return "", err
+	}
+	if !apiResp.Success {
+		if optional {
+			return "", nil
+		}
+		if apiResp.Msg == "" {
+			return "", errors.New("csrf token request failed")
+		}
+		return "", errors.New(apiResp.Msg)
+	}
+	if apiResp.Obj == nil {
+		return "", nil
+	}
+
+	var token string
+	if err := json.Unmarshal(apiResp.Obj, &token); err != nil {
+		if optional {
+			return "", nil
+		}
+		return "", err
+	}
+	return token, nil
+}
+
+func (c *Client) refreshCSRFToken(ctx context.Context) (bool, error) {
+	c.authMu.Lock()
+	defer c.authMu.Unlock()
+
+	for _, relPath := range []string{"panel/csrf-token", "csrf-token"} {
+		token, err := c.fetchCSRFToken(ctx, relPath, true)
+		if err != nil {
+			return false, err
+		}
+		if token != "" {
+			c.csrfToken = token
+			return true, nil
+		}
+	}
+	c.csrfToken = ""
+	return false, nil
 }
 
 func (c *Client) doJSON(ctx context.Context, method, relPath string, body any, out any) error {
@@ -634,19 +744,46 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType st
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusNotFound {
-		if err := c.Login(ctx); err != nil {
-			return err
-		}
+	if resp.StatusCode == http.StatusForbidden && requiresCSRF(method) {
 		resp.Body.Close()
+		refreshed, refreshErr := c.refreshCSRFToken(ctx)
+		if refreshErr != nil {
+			return refreshErr
+		}
+		if !refreshed {
+			return &HTTPStatusError{StatusCode: http.StatusForbidden}
+		}
 		resp, err = c.doRequestOnce(ctx, method, endpoint, contentType, body)
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
 	}
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusNotFound {
+		resp.Body.Close()
+		if err := c.Login(ctx); err != nil {
+			return err
+		}
+		resp, err = c.doRequestOnce(ctx, method, endpoint, contentType, body)
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode == http.StatusForbidden && requiresCSRF(method) {
+			resp.Body.Close()
+			refreshed, refreshErr := c.refreshCSRFToken(ctx)
+			if refreshErr != nil {
+				return refreshErr
+			}
+			if !refreshed {
+				return &HTTPStatusError{StatusCode: http.StatusForbidden}
+			}
+			resp, err = c.doRequestOnce(ctx, method, endpoint, contentType, body)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	defer resp.Body.Close()
 
 	return decodeAPIResponse(resp, out)
 }
@@ -663,6 +800,14 @@ func (e *HTTPStatusError) Error() string {
 		return fmt.Sprintf("request failed: status %d", e.StatusCode)
 	}
 	return fmt.Sprintf("request failed: status %d, body: %s", e.StatusCode, e.Body)
+}
+
+func httpStatusError(statusCode int, body []byte) error {
+	msg := strings.TrimSpace(string(body))
+	if len(msg) > 1024 {
+		msg = msg[:1024] + "...(truncated)"
+	}
+	return &HTTPStatusError{StatusCode: statusCode, Body: msg}
 }
 
 // transient5xxStatus reports whether err is an *HTTPStatusError with a 5xx
@@ -788,7 +933,24 @@ func (c *Client) doRequestOnce(ctx context.Context, method, endpoint, contentTyp
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
+	if requiresCSRF(method) {
+		c.authMu.Lock()
+		token := c.csrfToken
+		c.authMu.Unlock()
+		if token != "" {
+			req.Header.Set(csrfHeaderName, token)
+		}
+	}
 	return c.httpClient.Do(req)
+}
+
+func requiresCSRF(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions, http.MethodTrace:
+		return false
+	default:
+		return true
+	}
 }
 
 func decodeAPIResponse(resp *http.Response, out any) error {
@@ -806,11 +968,7 @@ func decodeAPIResponse(resp *http.Response, out any) error {
 	var apiResp apiResponse
 	if err := json.Unmarshal(body, &apiResp); err != nil {
 		if resp.StatusCode >= 400 {
-			msg := strings.TrimSpace(string(body))
-			if len(msg) > 1024 {
-				msg = msg[:1024] + "...(truncated)"
-			}
-			return &HTTPStatusError{StatusCode: resp.StatusCode, Body: msg}
+			return httpStatusError(resp.StatusCode, body)
 		}
 		return err
 	}
@@ -878,5 +1036,8 @@ func inboundToForm(in *Inbound) url.Values {
 	form.Set("settings", in.Settings)
 	form.Set("streamSettings", in.StreamSettings)
 	form.Set("sniffing", in.Sniffing)
+	if in.NodeID != nil {
+		form.Set("nodeId", strconv.Itoa(*in.NodeID))
+	}
 	return form
 }

@@ -173,6 +173,7 @@ resource "threexui_inbound" "hysteria" {
 - `total` (Optional, Number) - Total traffic limit in bytes.
 - `expiry_time` (Optional, Number) - Expiry time as Unix timestamp in milliseconds.
 - `traffic_reset` (Optional, String) - Traffic reset period. Default is `never`.
+- `node_id` (Optional, Number) - 3x-ui v3 node ID for multi-node deployments. Leave unset for the local panel. Changing this value recreates the inbound because 3x-ui v3 does not support moving an existing inbound between nodes.
 
 ### Per-protocol Settings Blocks
 

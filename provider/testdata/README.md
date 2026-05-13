@@ -22,18 +22,29 @@ When the upstream 3x-ui panel changes its API payloads:
 3. Fetch raw payloads:
 
    ```bash
-   # Login
-   TOKEN=$(curl -s -c - http://localhost:2053/login \
-     -d 'username=admin&password=admin' | grep session)
+   # Login (3x-ui v3 requires CSRF)
+   COOKIE=$(mktemp)
+   CSRF=$(curl -fsS -c "$COOKIE" -b "$COOKIE" http://localhost:2053/csrf-token 2>/dev/null \
+     | sed -n 's/.*"obj":"\([^"]*\)".*/\1/p' || true)
+   if [ -n "$CSRF" ]; then
+     curl -fsS -c "$COOKIE" -b "$COOKIE" -H "X-CSRF-Token: $CSRF" \
+       -d "username=admin&password=admin&_csrf=$CSRF" \
+       http://localhost:2053/login >/dev/null
+   else
+     curl -fsS -c "$COOKIE" -b "$COOKIE" -d 'username=admin&password=admin' \
+       http://localhost:2053/login >/dev/null
+   fi
 
    # Inbound list (extract settings/streamSettings/sniffing from each)
-   curl -s -b "$TOKEN" http://localhost:2053/panel/api/inbounds/list | jq .
+   curl -s -b "$COOKIE" http://localhost:2053/panel/api/inbounds/list | jq .
 
    # Xray template
-   curl -s -b "$TOKEN" -X POST http://localhost:2053/panel/xray | jq .obj
+   curl -s -b "$COOKIE" -H "X-CSRF-Token: $CSRF" \
+     -X POST http://localhost:2053/panel/xray | jq .obj
 
    # Panel settings
-   curl -s -b "$TOKEN" -X POST http://localhost:2053/panel/setting/all | jq .obj
+   curl -s -b "$COOKIE" -H "X-CSRF-Token: $CSRF" \
+     -X POST http://localhost:2053/panel/setting/all | jq .obj
    ```
 
 4. Replace the fixture files with the new payloads

@@ -108,7 +108,7 @@ func TestAccXrayVersionDrift(t *testing.T) {
 	// hide it; remove the gate once the upstream pickup is fixed.
 	skipOnFlakyVersions(t,
 		"InstallXray pickup is unreliable on this panel version (#163)",
-		"v2.8.9", "v2.9.1")
+		"v2.9.1")
 	client, err := testAccClientFromEnv()
 	if err != nil {
 		t.Fatalf("client init: %s", err)
@@ -171,7 +171,7 @@ resource "threexui_xray_version" "test" {
 					// InstallXray is async — wait for the version to actually
 					// change. The window has to cover binary download +
 					// 3x-ui's internal pickup. On slow CI runners with older
-					// 3x-ui lines (v2.8.x and v2.9.1) we saw timeouts at 120s
+					// supported 3x-ui lines (v2.9.1) we saw timeouts at 120s
 					// (issue #161), so the budget is bumped to 180s — still
 					// well below the per-test 600s limit, but generous enough
 					// to absorb GHCR pull jitter and runner contention.
