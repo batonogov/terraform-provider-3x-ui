@@ -22,7 +22,7 @@ tasks:
     vars:
       TERRAFORM_PATH:
         sh: which terraform
-      THREEXUI_VERSION: '{{.THREEXUI_VERSION | default "v3.0.0"}}'
+      THREEXUI_VERSION: '{{.THREEXUI_VERSION | default "v3.0.1"}}'
     cmds:
       - docker compose down -v 2>/dev/null || true
       - docker compose up --detach --wait --quiet-pull
@@ -44,7 +44,7 @@ tasks:
     vars:
       TERRAFORM_PATH:
         sh: which terraform
-      THREEXUI_VERSION: '{{.THREEXUI_VERSION | default "v3.0.0"}}'
+      THREEXUI_VERSION: '{{.THREEXUI_VERSION | default "v3.0.1"}}'
     cmds:
       - echo "Running tests against 3x-ui {{.THREEXUI_VERSION}} at http://localhost:2053"
       - docker compose down -v 2>/dev/null || true

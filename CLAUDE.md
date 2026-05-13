@@ -47,7 +47,7 @@ docs/
 README.md              — English README; localized in 5 more languages mirroring 3x-ui upstream:
                          README.ru_RU.md, README.fa_IR.md, README.ar_EG.md, README.zh_CN.md, README.es_ES.md
 3x-ui-<version>/      — 3x-ui source snapshots (in .gitignore, for reference/diffing)
-docker-compose.yaml    — 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v3.0.0)
+docker-compose.yaml    — 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v3.0.1)
 Taskfile.yml           — task build / test / fmt
 .github/workflows/
   ci.yml               — lint, unit tests, acceptance tests, compatibility matrix (PR + push main)
@@ -214,7 +214,7 @@ Distinct from the 5xx retry above. 3x-ui occasionally returns `success: true` fr
 task build            # Build binary
 task test:unit        # Run unit tests (no Docker / Terraform needed)
 task test:acc         # Run acceptance tests (requires Docker)
-task test:acc:compat  # Run all tests with version-aware skipping (THREEXUI_VERSION, default v3.0.0)
+task test:acc:compat  # Run all tests with version-aware skipping (THREEXUI_VERSION, default v3.0.1)
 task test             # Run unit + acceptance tests
 task fmt              # gofmt
 task vet              # go vet
@@ -280,7 +280,7 @@ docker compose up -d   # Start 3x-ui on localhost:2053
 THREEXUI_VERSION=v2.9.0 task test:acc:compat
 
 # Run all versions locally:
-for v in v2.9.0 v2.9.1 v2.9.2 v2.9.3 v2.9.4 v3.0.0; do
+for v in v2.9.0 v2.9.1 v2.9.2 v2.9.3 v2.9.4 v3.0.0 v3.0.1; do
   echo "=== Testing $v ===" && THREEXUI_VERSION=$v task test:acc:compat
 done
 ```
