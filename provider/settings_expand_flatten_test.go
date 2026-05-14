@@ -266,6 +266,39 @@ func TestBuildFlattenSettings_DokodemoPortMap(t *testing.T) {
 	}
 }
 
+func TestBuildFlattenSettings_TunnelRewriteFields(t *testing.T) {
+	input := map[string]any{
+		"rewrite_address": "127.0.0.1",
+		"rewrite_port":    8443,
+		"allowed_network": "tcp",
+		"follow_redirect": true,
+	}
+	jsonStr := buildSettingsJSON(input)
+	result, err := flattenSettings(jsonStr)
+	if err != nil {
+		t.Fatalf("flattenSettings error: %v", err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(result))
+	}
+	m, ok := result[0].(map[string]any)
+	if !ok {
+		t.Fatal("expected map[string]any")
+	}
+	if m["rewrite_address"] != "127.0.0.1" {
+		t.Fatalf("unexpected rewrite_address: %v", m["rewrite_address"])
+	}
+	if m["rewrite_port"] != 8443 {
+		t.Fatalf("unexpected rewrite_port: %v", m["rewrite_port"])
+	}
+	if m["allowed_network"] != "tcp" {
+		t.Fatalf("unexpected allowed_network: %v", m["allowed_network"])
+	}
+	if m["follow_redirect"] != true {
+		t.Fatalf("unexpected follow_redirect: %v", m["follow_redirect"])
+	}
+}
+
 func TestBuildFlattenSettings_Mixed(t *testing.T) {
 	input := map[string]any{
 		"auth":     "password",
@@ -416,20 +449,52 @@ func TestExpandFlattenSettingsModel_Hysteria2Alias(t *testing.T) {
 
 func TestExpandSettingsFromModel_TunnelProtocol(t *testing.T) {
 	model := &InboundResourceModel{
-		DokodemoSettings: &InboundDokodemoSettingsModel{},
+		DokodemoSettings: &InboundDokodemoSettingsModel{
+			RewriteAddress: types.StringValue("127.0.0.1"),
+			RewritePort:    types.Int64Value(8443),
+			AllowedNetwork: types.StringValue("tcp"),
+		},
 	}
-	// tunnel should dispatch to the same expand as dokodemo-door
 	result := expandSettingsFromModel("tunnel", model)
 	if result == nil {
 		t.Fatal("expected non-nil result for tunnel protocol")
+	}
+	if result["rewrite_address"] != "127.0.0.1" || result["address"] != "127.0.0.1" {
+		t.Fatalf("unexpected tunnel address aliases: %v", result)
+	}
+	if result["rewrite_port"] != 8443 || result["port"] != 8443 {
+		t.Fatalf("unexpected tunnel port aliases: %v", result)
+	}
+	if result["allowed_network"] != "tcp" || result["network"] != "tcp" {
+		t.Fatalf("unexpected tunnel network aliases: %v", result)
+	}
+}
+
+func TestExpandSettingsFromModel_TunnelProtocolLegacyFields(t *testing.T) {
+	model := &InboundResourceModel{
+		DokodemoSettings: &InboundDokodemoSettingsModel{
+			Address: types.StringValue("127.0.0.2"),
+			Port:    types.Int64Value(9443),
+			Network: types.StringValue("udp"),
+		},
+	}
+	result := expandSettingsFromModel("tunnel", model)
+	if result["rewrite_address"] != "127.0.0.2" || result["address"] != "127.0.0.2" {
+		t.Fatalf("unexpected tunnel address aliases: %v", result)
+	}
+	if result["rewrite_port"] != 9443 || result["port"] != 9443 {
+		t.Fatalf("unexpected tunnel port aliases: %v", result)
+	}
+	if result["allowed_network"] != "udp" || result["network"] != "udp" {
+		t.Fatalf("unexpected tunnel network aliases: %v", result)
 	}
 }
 
 func TestFlattenSettingsToModel_TunnelProtocol(t *testing.T) {
 	data := map[string]any{
-		"address": "10.0.0.1",
-		"port":    8080,
-		"network": "tcp",
+		"rewrite_address": "10.0.0.1",
+		"rewrite_port":    8080,
+		"allowed_network": "tcp",
 	}
 	model := &InboundResourceModel{}
 	flattenSettingsToModel("tunnel", data, model)
@@ -438,5 +503,20 @@ func TestFlattenSettingsToModel_TunnelProtocol(t *testing.T) {
 	}
 	if model.DokodemoSettings.Address.ValueString() != "10.0.0.1" {
 		t.Fatalf("unexpected address: %s", model.DokodemoSettings.Address.ValueString())
+	}
+	if model.DokodemoSettings.RewriteAddress.ValueString() != "10.0.0.1" {
+		t.Fatalf("unexpected rewrite_address: %s", model.DokodemoSettings.RewriteAddress.ValueString())
+	}
+	if model.DokodemoSettings.Port.ValueInt64() != 8080 {
+		t.Fatalf("unexpected port: %d", model.DokodemoSettings.Port.ValueInt64())
+	}
+	if model.DokodemoSettings.RewritePort.ValueInt64() != 8080 {
+		t.Fatalf("unexpected rewrite_port: %d", model.DokodemoSettings.RewritePort.ValueInt64())
+	}
+	if model.DokodemoSettings.Network.ValueString() != "tcp" {
+		t.Fatalf("unexpected network: %s", model.DokodemoSettings.Network.ValueString())
+	}
+	if model.DokodemoSettings.AllowedNetwork.ValueString() != "tcp" {
+		t.Fatalf("unexpected allowed_network: %s", model.DokodemoSettings.AllowedNetwork.ValueString())
 	}
 }

@@ -396,10 +396,11 @@ resource "threexui_panel_telegram" "test" {
 			},
 			// ImportState
 			{
-				ResourceName:      "threexui_panel_telegram.test",
-				ImportState:       true,
-				ImportStateVerify: true,
-				ImportStateId:     "settings",
+				ResourceName:            "threexui_panel_telegram.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateId:           "settings",
+				ImportStateVerifyIgnore: []string{"tg_bot_token"},
 			},
 			// Idempotency
 			{

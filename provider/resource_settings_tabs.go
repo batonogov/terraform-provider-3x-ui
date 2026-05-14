@@ -235,6 +235,7 @@ type PanelSubscriptionModel struct {
 	SubUpdates       types.Int64  `tfsdk:"sub_updates"`
 	SubEncrypt       types.Bool   `tfsdk:"sub_encrypt"`
 	SubShowInfo      types.Bool   `tfsdk:"sub_show_info"`
+	SubEmailInRemark types.Bool   `tfsdk:"sub_email_in_remark"`
 	SubURI           types.String `tfsdk:"sub_uri"`
 	SubJsonPath      types.String `tfsdk:"sub_json_path"`
 	SubJsonURI       types.String `tfsdk:"sub_json_uri"`
@@ -328,6 +329,12 @@ func panelSubscriptionSchema() schema.Schema {
 			},
 			"sub_show_info": schema.BoolAttribute{
 				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"sub_email_in_remark": schema.BoolAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "Include the client email in subscription profile names.",
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"sub_uri": schema.StringAttribute{
@@ -441,6 +448,9 @@ func expandPanelSubscription(m *PanelSubscriptionModel) map[string]any {
 	if !m.SubShowInfo.IsNull() && !m.SubShowInfo.IsUnknown() {
 		payload["subShowInfo"] = m.SubShowInfo.ValueBool()
 	}
+	if !m.SubEmailInRemark.IsNull() && !m.SubEmailInRemark.IsUnknown() {
+		payload["subEmailInRemark"] = m.SubEmailInRemark.ValueBool()
+	}
 	if !m.SubURI.IsNull() && !m.SubURI.IsUnknown() {
 		payload["subURI"] = m.SubURI.ValueString()
 	}
@@ -529,6 +539,9 @@ func flattenPanelSubscription(in map[string]any) *PanelSubscriptionModel {
 	if v, ok := in["subShowInfo"]; ok {
 		m.SubShowInfo = types.BoolValue(boolValue(v))
 	}
+	if v, ok := in["subEmailInRemark"]; ok {
+		m.SubEmailInRemark = types.BoolValue(boolValue(v))
+	}
 	if v, ok := in["subURI"]; ok {
 		m.SubURI = types.StringValue(stringValue(v))
 	}
@@ -577,6 +590,7 @@ type PanelGeneralModel struct {
 	WebPort                     types.Int64  `tfsdk:"web_port"`
 	WebBasePath                 types.String `tfsdk:"web_base_path"`
 	SessionMaxAge               types.Int64  `tfsdk:"session_max_age"`
+	TrustedProxyCIDRs           types.String `tfsdk:"trusted_proxy_cidrs"`
 	PageSize                    types.Int64  `tfsdk:"page_size"`
 	RemarkModel                 types.String `tfsdk:"remark_model"`
 	DatePicker                  types.String `tfsdk:"date_picker"`
@@ -639,6 +653,13 @@ func panelGeneralSchema() schema.Schema {
 			"session_max_age": schema.Int64Attribute{
 				Optional: true, Computed: true,
 				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+			"trusted_proxy_cidrs": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+				Description: "Comma-separated trusted reverse proxy IPs/CIDRs used by 3x-ui when honoring " +
+					"X-Forwarded-For, X-Forwarded-Host, and X-Real-IP headers.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"page_size": schema.Int64Attribute{
 				Optional: true, Computed: true,
@@ -795,6 +816,9 @@ func expandPanelGeneral(m *PanelGeneralModel) map[string]any {
 	if !m.SessionMaxAge.IsNull() && !m.SessionMaxAge.IsUnknown() {
 		payload["sessionMaxAge"] = int(m.SessionMaxAge.ValueInt64())
 	}
+	if !m.TrustedProxyCIDRs.IsNull() && !m.TrustedProxyCIDRs.IsUnknown() {
+		payload["trustedProxyCIDRs"] = m.TrustedProxyCIDRs.ValueString()
+	}
 	if !m.PageSize.IsNull() && !m.PageSize.IsUnknown() {
 		payload["pageSize"] = int(m.PageSize.ValueInt64())
 	}
@@ -909,6 +933,9 @@ func flattenPanelGeneral(in map[string]any) *PanelGeneralModel {
 	}
 	if v, ok := in["sessionMaxAge"]; ok {
 		m.SessionMaxAge = types.Int64Value(int64(intValue(v)))
+	}
+	if v, ok := in["trustedProxyCIDRs"]; ok {
+		m.TrustedProxyCIDRs = types.StringValue(stringValue(v))
 	}
 	if v, ok := in["pageSize"]; ok {
 		m.PageSize = types.Int64Value(int64(intValue(v)))
@@ -1050,6 +1077,48 @@ func settingsReadTyped(
 	return settings
 }
 
+func preserveSettingSecret(observed, configured types.String) types.String {
+	if configured.IsNull() || configured.IsUnknown() {
+		return observed
+	}
+
+	configuredValue := configured.ValueString()
+	if observed.IsNull() || observed.IsUnknown() {
+		return configured
+	}
+
+	observedValue := observed.ValueString()
+	if configuredValue == "" && observedValue != "" {
+		return configured
+	}
+	if configuredValue != "" && observedValue == "" {
+		return configured
+	}
+
+	return observed
+}
+
+func preservePanelGeneralSecrets(state, configured *PanelGeneralModel) {
+	if state == nil || configured == nil {
+		return
+	}
+	state.LDAPPassword = preserveSettingSecret(state.LDAPPassword, configured.LDAPPassword)
+}
+
+func preservePanelSecuritySecrets(state, configured *PanelSecurityModel) {
+	if state == nil || configured == nil {
+		return
+	}
+	state.TwoFactorToken = preserveSettingSecret(state.TwoFactorToken, configured.TwoFactorToken)
+}
+
+func preservePanelTelegramSecrets(state, configured *PanelTelegramModel) {
+	if state == nil || configured == nil {
+		return
+	}
+	state.TgBotToken = preserveSettingSecret(state.TgBotToken, configured.TgBotToken)
+}
+
 // ---------------------------------------------------------------------------
 // PanelGeneralResource (threexui_panel_general)
 // ---------------------------------------------------------------------------
@@ -1123,14 +1192,22 @@ func (r *PanelGeneralResource) Create(ctx context.Context, req resource.CreateRe
 	if state == nil {
 		return
 	}
+	preservePanelGeneralSecrets(state, &plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
-func (r *PanelGeneralResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *PanelGeneralResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var prior PanelGeneralModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	state := r.readPanelGeneralState(ctx, &resp.Diagnostics)
 	if state == nil {
 		return
 	}
+	preservePanelGeneralSecrets(state, &prior)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1150,6 +1227,7 @@ func (r *PanelGeneralResource) Update(ctx context.Context, req resource.UpdateRe
 	if state == nil {
 		return
 	}
+	preservePanelGeneralSecrets(state, &plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1287,15 +1365,23 @@ func (r *PanelSecurityResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 	state := flattenPanelSecurity(settings)
+	preservePanelSecuritySecrets(state, &plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
-func (r *PanelSecurityResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *PanelSecurityResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var prior PanelSecurityModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
 	if settings == nil {
 		return
 	}
 	state := flattenPanelSecurity(settings)
+	preservePanelSecuritySecrets(state, &prior)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1319,6 +1405,7 @@ func (r *PanelSecurityResource) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 	state := flattenPanelSecurity(settings)
+	preservePanelSecuritySecrets(state, &plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1400,15 +1487,23 @@ func (r *PanelTelegramResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 	state := flattenPanelTelegram(settings)
+	preservePanelTelegramSecrets(state, &plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
-func (r *PanelTelegramResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *PanelTelegramResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var prior PanelTelegramModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
 	if settings == nil {
 		return
 	}
 	state := flattenPanelTelegram(settings)
+	preservePanelTelegramSecrets(state, &prior)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1430,6 +1525,7 @@ func (r *PanelTelegramResource) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 	state := flattenPanelTelegram(settings)
+	preservePanelTelegramSecrets(state, &plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 

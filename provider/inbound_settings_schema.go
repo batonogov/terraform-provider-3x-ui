@@ -59,8 +59,11 @@ type InboundWireguardSettingsModel struct {
 type InboundDokodemoSettingsModel struct {
 	Address        types.String `tfsdk:"address"`
 	Port           types.Int64  `tfsdk:"port"`
+	RewriteAddress types.String `tfsdk:"rewrite_address"`
+	RewritePort    types.Int64  `tfsdk:"rewrite_port"`
 	PortMap        types.Map    `tfsdk:"port_map"` // map of string
 	Network        types.String `tfsdk:"network"`
+	AllowedNetwork types.String `tfsdk:"allowed_network"`
 	FollowRedirect types.Bool   `tfsdk:"follow_redirect"`
 }
 
@@ -381,6 +384,22 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 						int64planmodifier.UseStateForUnknown(),
 					},
 				},
+				"rewrite_address": schema.StringAttribute{
+					Optional: true, Computed: true,
+					Description: "Tunnel rewrite address (3x-ui v3.0.2+). For tunnel inbounds, this is mirrored " +
+						"with address for compatibility with older panels.",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"rewrite_port": schema.Int64Attribute{
+					Optional: true, Computed: true,
+					Description: "Tunnel rewrite port (3x-ui v3.0.2+). For tunnel inbounds, this is mirrored " +
+						"with port for compatibility with older panels.",
+					PlanModifiers: []planmodifier.Int64{
+						int64planmodifier.UseStateForUnknown(),
+					},
+				},
 				"port_map": schema.MapAttribute{
 					Optional:    true,
 					Computed:    true,
@@ -393,6 +412,14 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 				"network": schema.StringAttribute{
 					Optional: true, Computed: true,
 					Description: "Network type (e.g. 'tcp', 'udp', 'tcp,udp').",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"allowed_network": schema.StringAttribute{
+					Optional: true, Computed: true,
+					Description: "Tunnel allowed network (3x-ui v3.0.2+). For tunnel inbounds, this is mirrored " +
+						"with network for compatibility with older panels.",
 					PlanModifiers: []planmodifier.String{
 						stringplanmodifier.UseStateForUnknown(),
 					},
@@ -495,7 +522,7 @@ func expandSettingsFromModel(protocol string, m *InboundResourceModel) map[strin
 	case "wireguard":
 		return expandWireguardInboundSettings(m.WireguardSettings)
 	case "dokodemo-door", "tunnel":
-		return expandDokodemoInboundSettings(m.DokodemoSettings)
+		return expandDokodemoInboundSettings(protocol, m.DokodemoSettings)
 	case "hysteria", "hysteria2":
 		return expandHysteriaInboundSettings(m.HysteriaSettings)
 	default:
@@ -637,9 +664,12 @@ func expandWireguardInboundSettings(m *InboundWireguardSettingsModel) map[string
 	return out
 }
 
-func expandDokodemoInboundSettings(m *InboundDokodemoSettingsModel) map[string]any {
+func expandDokodemoInboundSettings(protocol string, m *InboundDokodemoSettingsModel) map[string]any {
 	if m == nil {
 		return nil
+	}
+	if protocol == "tunnel" {
+		return expandTunnelInboundSettings(m)
 	}
 	out := map[string]any{}
 	if !m.Address.IsNull() && !m.Address.IsUnknown() {
@@ -666,6 +696,56 @@ func expandDokodemoInboundSettings(m *InboundDokodemoSettingsModel) map[string]a
 		out["follow_redirect"] = m.FollowRedirect.ValueBool()
 	}
 	return out
+}
+
+func expandTunnelInboundSettings(m *InboundDokodemoSettingsModel) map[string]any {
+	out := map[string]any{}
+
+	if address, ok := firstKnownString(m.RewriteAddress, m.Address); ok {
+		out["rewrite_address"] = address
+		out["address"] = address
+	}
+	if port, ok := firstKnownInt64(m.RewritePort, m.Port); ok {
+		out["rewrite_port"] = int(port)
+		out["port"] = int(port)
+	}
+	if !m.PortMap.IsNull() && !m.PortMap.IsUnknown() {
+		pm := map[string]any{}
+		for k, v := range m.PortMap.Elements() {
+			if sv, ok := v.(types.String); ok {
+				pm[k] = sv.ValueString()
+			}
+		}
+		if len(pm) > 0 {
+			out["port_map"] = pm
+		}
+	}
+	if network, ok := firstKnownString(m.AllowedNetwork, m.Network); ok {
+		out["allowed_network"] = network
+		out["network"] = network
+	}
+	if !m.FollowRedirect.IsNull() && !m.FollowRedirect.IsUnknown() {
+		out["follow_redirect"] = m.FollowRedirect.ValueBool()
+	}
+	return out
+}
+
+func firstKnownString(values ...types.String) (string, bool) {
+	for _, v := range values {
+		if !v.IsNull() && !v.IsUnknown() && v.ValueString() != "" {
+			return v.ValueString(), true
+		}
+	}
+	return "", false
+}
+
+func firstKnownInt64(values ...types.Int64) (int64, bool) {
+	for _, v := range values {
+		if !v.IsNull() && !v.IsUnknown() {
+			return v.ValueInt64(), true
+		}
+	}
+	return 0, false
 }
 
 func expandHysteriaInboundSettings(m *InboundHysteriaSettingsModel) map[string]any {
@@ -769,7 +849,7 @@ func flattenSettingsToModel(protocol string, data map[string]any, m *InboundReso
 	case "wireguard":
 		m.WireguardSettings = flattenWireguardInboundSettings(data)
 	case "dokodemo-door", "tunnel":
-		m.DokodemoSettings = flattenDokodemoInboundSettings(data)
+		m.DokodemoSettings = flattenDokodemoInboundSettings(protocol, data)
 	case "hysteria", "hysteria2":
 		m.HysteriaSettings = flattenHysteriaInboundSettings(data)
 	}
@@ -959,20 +1039,37 @@ func flattenWireguardInboundSettings(data map[string]any) *InboundWireguardSetti
 	return m
 }
 
-func flattenDokodemoInboundSettings(data map[string]any) *InboundDokodemoSettingsModel {
+func flattenDokodemoInboundSettings(protocol string, data map[string]any) *InboundDokodemoSettingsModel {
 	if len(data) == 0 {
 		return nil
 	}
 	m := &InboundDokodemoSettingsModel{}
-	if v, ok := data["address"].(string); ok && v != "" {
-		m.Address = types.StringValue(v)
+	address, hasAddress := firstMapString(data, "address", "rewrite_address")
+	if hasAddress {
+		m.Address = types.StringValue(address)
 	} else {
 		m.Address = types.StringNull()
 	}
-	if v, ok := data["port"]; ok {
+	if v, ok := firstMapValue(data, "port", "rewrite_port"); ok {
 		m.Port = types.Int64Value(int64(intValue(v)))
 	} else {
 		m.Port = types.Int64Null()
+	}
+	if protocol == "tunnel" {
+		rewriteAddress, hasRewriteAddress := firstMapString(data, "rewrite_address", "address")
+		if hasRewriteAddress {
+			m.RewriteAddress = types.StringValue(rewriteAddress)
+		} else {
+			m.RewriteAddress = types.StringNull()
+		}
+		if v, ok := firstMapValue(data, "rewrite_port", "port"); ok {
+			m.RewritePort = types.Int64Value(int64(intValue(v)))
+		} else {
+			m.RewritePort = types.Int64Null()
+		}
+	} else {
+		m.RewriteAddress = types.StringNull()
+		m.RewritePort = types.Int64Null()
 	}
 	if v, ok := data["port_map"]; ok {
 		switch pm := v.(type) {
@@ -990,10 +1087,21 @@ func flattenDokodemoInboundSettings(data map[string]any) *InboundDokodemoSetting
 	} else {
 		m.PortMap = types.MapNull(types.StringType)
 	}
-	if v, ok := data["network"].(string); ok && v != "" {
-		m.Network = types.StringValue(v)
+	network, hasNetwork := firstMapString(data, "network", "allowed_network")
+	if hasNetwork {
+		m.Network = types.StringValue(network)
 	} else {
 		m.Network = types.StringNull()
+	}
+	if protocol == "tunnel" {
+		allowedNetwork, hasAllowedNetwork := firstMapString(data, "allowed_network", "network")
+		if hasAllowedNetwork {
+			m.AllowedNetwork = types.StringValue(allowedNetwork)
+		} else {
+			m.AllowedNetwork = types.StringNull()
+		}
+	} else {
+		m.AllowedNetwork = types.StringNull()
 	}
 	if v, ok := data["follow_redirect"].(bool); ok {
 		m.FollowRedirect = types.BoolValue(v)
@@ -1001,6 +1109,24 @@ func flattenDokodemoInboundSettings(data map[string]any) *InboundDokodemoSetting
 		m.FollowRedirect = types.BoolNull()
 	}
 	return m
+}
+
+func firstMapValue(data map[string]any, keys ...string) (any, bool) {
+	for _, key := range keys {
+		if v, ok := data[key]; ok {
+			return v, true
+		}
+	}
+	return nil, false
+}
+
+func firstMapString(data map[string]any, keys ...string) (string, bool) {
+	for _, key := range keys {
+		if v, ok := data[key].(string); ok && v != "" {
+			return v, true
+		}
+	}
+	return "", false
 }
 
 func flattenHysteriaInboundSettings(data map[string]any) *InboundHysteriaSettingsModel {

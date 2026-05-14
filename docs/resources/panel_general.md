@@ -35,6 +35,7 @@ resource "threexui_panel_general" "settings" {
 - `web_cert_file` (Optional, String) - TLS certificate file path. Default is `""`.
 - `web_key_file` (Optional, String) - TLS key file path. Default is `""`.
 - `session_max_age` (Optional, Number) - Session max age in minutes. Default is `360`.
+- `trusted_proxy_cidrs` (Optional, String) - Comma-separated trusted reverse proxy IPs/CIDRs used for forwarded headers. Default is `127.0.0.1/32,::1/128` on 3x-ui v3.0.2+.
 
 ### Display
 

@@ -754,7 +754,7 @@ func TestDriftAllSettingFields(t *testing.T) {
 		"webBasePath": true, "sessionMaxAge": true, "pageSize": true,
 		"remarkModel": true, "datepicker": true, "timeLocation": true,
 		"expireDiff": true, "trafficDiff": true, "webCertFile": true,
-		"webKeyFile": true, "externalTrafficInformEnable": true,
+		"webKeyFile": true, "trustedProxyCIDRs": true, "externalTrafficInformEnable": true,
 		"externalTrafficInformURI": true, "restartXrayOnClientDisable": true,
 		// LDAP
 		"ldapEnable": true, "ldapHost": true, "ldapPort": true,
@@ -778,7 +778,7 @@ func TestDriftAllSettingFields(t *testing.T) {
 		"subListen": true, "subPort": true, "subPath": true,
 		"subDomain": true, "subCertFile": true, "subKeyFile": true,
 		"subUpdates": true, "subEncrypt": true, "subShowInfo": true,
-		"subURI": true, "subJsonPath": true, "subJsonURI": true,
+		"subEmailInRemark": true, "subURI": true, "subJsonPath": true, "subJsonURI": true,
 		"subJsonFragment": true, "subJsonNoises": true, "subJsonMux": true,
 		"subJsonRules": true, "subClashEnable": true, "subClashPath": true,
 		"subClashURI": true,

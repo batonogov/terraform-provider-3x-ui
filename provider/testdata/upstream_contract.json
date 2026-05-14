@@ -1,5 +1,5 @@
 {
-  "version": "3.0.1",
+  "version": "3.0.2",
   "protocols_go_model": [
     "http",
     "hysteria",
@@ -126,6 +126,7 @@
     "subDomain",
     "subEnable",
     "subEncrypt",
+    "subEmailInRemark",
     "subEnableRouting",
     "subJsonEnable",
     "subJsonFragment",
@@ -157,6 +158,7 @@
     "tgRunTime",
     "timeLocation",
     "trafficDiff",
+    "trustedProxyCIDRs",
     "twoFactorEnable",
     "twoFactorToken",
     "webBasePath",

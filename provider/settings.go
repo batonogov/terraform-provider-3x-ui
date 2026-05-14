@@ -66,10 +66,16 @@ func buildSettingsJSON(item map[string]any) string {
 	if v, ok := item["address"].(string); ok && v != "" {
 		payload["address"] = v
 	}
+	if v, ok := item["rewrite_address"].(string); ok && v != "" {
+		payload["rewriteAddress"] = v
+	}
 	if v, ok := item["port"]; ok {
 		if p := intValue(v); p != 0 {
 			payload["port"] = p
 		}
+	}
+	if v, ok := item["rewrite_port"]; ok {
+		payload["rewritePort"] = intValue(v)
 	}
 	if v, ok := item["port_map"]; ok {
 		switch pm := v.(type) {
@@ -81,6 +87,9 @@ func buildSettingsJSON(item map[string]any) string {
 	}
 	if v, ok := item["follow_redirect"]; ok {
 		payload["followRedirect"] = boolValue(v)
+	}
+	if v, ok := item["allowed_network"].(string); ok && v != "" {
+		payload["allowedNetwork"] = v
 	}
 	if v, ok := item["mtu"]; ok {
 		switch val := v.(type) {
@@ -193,14 +202,23 @@ func flattenSettings(settings string) ([]any, error) {
 	if v, ok := payload["address"].(string); ok {
 		out["address"] = v
 	}
+	if v, ok := payload["rewriteAddress"].(string); ok {
+		out["rewrite_address"] = v
+	}
 	if v, ok := payload["port"]; ok {
 		out["port"] = intValue(v)
+	}
+	if v, ok := payload["rewritePort"]; ok {
+		out["rewrite_port"] = intValue(v)
 	}
 	if v, ok := payload["portMap"].(map[string]any); ok {
 		out["port_map"] = flattenStringMap(v)
 	}
 	if v, ok := payload["followRedirect"].(bool); ok {
 		out["follow_redirect"] = v
+	}
+	if v, ok := payload["allowedNetwork"].(string); ok {
+		out["allowed_network"] = v
 	}
 	if v, ok := payload["mtu"]; ok {
 		switch val := v.(type) {
