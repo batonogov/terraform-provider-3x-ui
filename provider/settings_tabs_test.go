@@ -271,10 +271,54 @@ func TestPreserveSettingSecret_ConfiguredNonEmptyObservedEmpty(t *testing.T) {
 	}
 }
 
+func TestPreserveSettingSecret_ConfiguredNonEmptyObservedRedacted(t *testing.T) {
+	got := preserveSettingSecret(types.StringValue("********"), types.StringValue("configured-secret"))
+	if got.ValueString() != "configured-secret" {
+		t.Fatalf("expected configured secret, got %q", got.ValueString())
+	}
+}
+
 func TestPreserveSettingSecret_ObservedDifferentNonEmpty(t *testing.T) {
 	got := preserveSettingSecret(types.StringValue("remote-secret"), types.StringValue("state-secret"))
 	if got.ValueString() != "remote-secret" {
 		t.Fatalf("expected observed secret, got %q", got.ValueString())
+	}
+}
+
+func TestMergeSettingsForUpdate_PreservesCachedRedactedSecret(t *testing.T) {
+	client := &Client{}
+	client.rememberConfiguredSettingSecrets(map[string]any{"tgBotToken": "configured-token"})
+
+	existing := map[string]any{
+		"pageSize":     float64(25),
+		"tgBotToken":   "",
+		"ldapPassword": "********",
+	}
+	client.rememberConfiguredSettingSecrets(map[string]any{"ldapPassword": "configured-password"})
+
+	merged := mergeSettingsForUpdate(client, existing, map[string]any{"pageSize": 50})
+	if merged["tgBotToken"] != "configured-token" {
+		t.Fatalf("expected cached tgBotToken, got %v", merged["tgBotToken"])
+	}
+	if merged["ldapPassword"] != "configured-password" {
+		t.Fatalf("expected cached ldapPassword, got %v", merged["ldapPassword"])
+	}
+	if existing["tgBotToken"] != "" {
+		t.Fatalf("mergeSettingsForUpdate mutated existing tgBotToken: %v", existing["tgBotToken"])
+	}
+}
+
+func TestMergeSettingsForUpdate_DoesNotOverrideDesiredSecret(t *testing.T) {
+	client := &Client{}
+	client.rememberConfiguredSettingSecrets(map[string]any{"tgBotToken": "configured-token"})
+
+	merged := mergeSettingsForUpdate(
+		client,
+		map[string]any{"pageSize": float64(25), "tgBotToken": ""},
+		map[string]any{"pageSize": 50, "tgBotToken": ""},
+	)
+	if merged["tgBotToken"] != "" {
+		t.Fatalf("expected desired empty tgBotToken, got %v", merged["tgBotToken"])
 	}
 }
 

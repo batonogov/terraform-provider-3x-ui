@@ -106,6 +106,102 @@ func TestSettingsMu_NoConcurrentReadModifyWrite(t *testing.T) {
 	}
 }
 
+func TestApplyPanelGeneralPreservesCachedRedactedSettingSecrets(t *testing.T) {
+	var updateBody map[string]any
+	state := map[string]any{
+		"pageSize":       float64(25),
+		"tgBotToken":     "",
+		"twoFactorToken": "********",
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+		case "/panel/setting/all":
+			w.Write(okResponse(state))
+		case "/panel/setting/update":
+			if err := json.NewDecoder(r.Body).Decode(&updateBody); err != nil {
+				t.Errorf("decode update body: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			state = updateBody
+			w.Write(okResponse(nil))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	client.rememberConfiguredSettingSecrets(map[string]any{
+		"tgBotToken":     "telegram-token",
+		"twoFactorToken": "totp-secret",
+	})
+
+	r := &PanelGeneralResource{client: client}
+	plan := &PanelGeneralModel{PageSize: types.Int64Value(50)}
+	var d diag.Diagnostics
+	r.applyPanelGeneral(context.Background(), plan, &d)
+	if d.HasError() {
+		t.Fatalf("applyPanelGeneral: %s", d.Errors()[0].Detail())
+	}
+
+	if updateBody["pageSize"] != float64(50) {
+		t.Fatalf("pageSize = %v, want 50", updateBody["pageSize"])
+	}
+	if updateBody["tgBotToken"] != "telegram-token" {
+		t.Fatalf("tgBotToken = %v, want cached token", updateBody["tgBotToken"])
+	}
+	if updateBody["twoFactorToken"] != "totp-secret" {
+		t.Fatalf("twoFactorToken = %v, want cached token", updateBody["twoFactorToken"])
+	}
+}
+
+func TestSettingsApplyTypedAllowsExplicitSecretClear(t *testing.T) {
+	var updateBody map[string]any
+	state := map[string]any{
+		"remarkModel": "-io",
+		"tgBotToken":  "",
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+		case "/panel/setting/all":
+			w.Write(okResponse(state))
+		case "/panel/setting/update":
+			if err := json.NewDecoder(r.Body).Decode(&updateBody); err != nil {
+				t.Errorf("decode update body: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			state = updateBody
+			w.Write(okResponse(nil))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	client.rememberConfiguredSettingSecrets(map[string]any{"tgBotToken": "telegram-token"})
+
+	var d diag.Diagnostics
+	settingsApplyTyped(context.Background(), map[string]any{"tgBotToken": ""}, &d, client)
+	if d.HasError() {
+		t.Fatalf("settingsApplyTyped: %s", d.Errors()[0].Detail())
+	}
+
+	if updateBody["tgBotToken"] != "" {
+		t.Fatalf("tgBotToken = %v, want explicit empty value", updateBody["tgBotToken"])
+	}
+}
+
 // TestXrayTemplateMu_NoConcurrentReadModifyWrite verifies that
 // xrayTemplateMu serializes concurrent xray template updates from
 // SetXrayOutboundTestURL (called by applyPanelGeneral) and

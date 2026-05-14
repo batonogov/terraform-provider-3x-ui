@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -1039,6 +1040,12 @@ func flattenPanelGeneral(in map[string]any) *PanelGeneralModel {
 
 var settingsMu sync.Mutex
 
+var panelSettingSecretKeys = []string{
+	"ldapPassword",
+	"twoFactorToken",
+	"tgBotToken",
+}
+
 func settingsApplyTyped(
 	ctx context.Context,
 	desired map[string]any,
@@ -1058,10 +1065,12 @@ func settingsApplyTyped(
 		return
 	}
 
-	merged := mergeSettings(existing, desired)
+	merged := mergeSettingsForUpdate(client, existing, desired)
 	if err := client.UpdateSettings(ctx, merged); err != nil {
 		diags.AddError("Failed to update settings", err.Error())
+		return
 	}
+	client.rememberConfiguredSettingSecrets(desired)
 }
 
 func settingsReadTyped(
@@ -1075,6 +1084,98 @@ func settingsReadTyped(
 		return nil
 	}
 	return settings
+}
+
+func mergeSettingsForUpdate(client *Client, existing, desired map[string]any) map[string]any {
+	if client != nil {
+		existing = client.preserveCachedSettingSecrets(existing, desired)
+	}
+	return mergeSettings(existing, desired)
+}
+
+func (c *Client) rememberConfiguredSettingSecrets(settings map[string]any) {
+	if c == nil || len(settings) == 0 {
+		return
+	}
+
+	c.settingsSecretMu.Lock()
+	defer c.settingsSecretMu.Unlock()
+
+	for _, key := range panelSettingSecretKeys {
+		value, ok := settings[key]
+		if !ok {
+			continue
+		}
+
+		secret := stringValue(value)
+		if secret == "" || isRedactedSettingSecretValue(secret) {
+			delete(c.settingsSecrets, key)
+			continue
+		}
+
+		if c.settingsSecrets == nil {
+			c.settingsSecrets = make(map[string]string)
+		}
+		c.settingsSecrets[key] = secret
+	}
+}
+
+func (c *Client) preserveCachedSettingSecrets(existing, desired map[string]any) map[string]any {
+	if c == nil || len(existing) == 0 {
+		return existing
+	}
+
+	c.settingsSecretMu.Lock()
+	defer c.settingsSecretMu.Unlock()
+
+	if len(c.settingsSecrets) == 0 {
+		return existing
+	}
+
+	out := existing
+	copied := false
+	for _, key := range panelSettingSecretKeys {
+		if _, configured := desired[key]; configured {
+			continue
+		}
+
+		cached := c.settingsSecrets[key]
+		if cached == "" || !isRedactedSettingSecret(existing[key]) {
+			continue
+		}
+
+		if !copied {
+			out = make(map[string]any, len(existing))
+			for k, v := range existing {
+				out[k] = v
+			}
+			copied = true
+		}
+		out[key] = cached
+	}
+	return out
+}
+
+func isRedactedSettingSecret(value any) bool {
+	secret, ok := value.(string)
+	if !ok {
+		return value == nil
+	}
+	return isRedactedSettingSecretValue(secret)
+}
+
+func isRedactedSettingSecretValue(secret string) bool {
+	trimmed := strings.TrimSpace(secret)
+	if trimmed == "" {
+		return true
+	}
+	if strings.EqualFold(trimmed, "redacted") || strings.EqualFold(trimmed, "<redacted>") {
+		return true
+	}
+	if len(trimmed) >= 3 && strings.Trim(trimmed, "*") == "" {
+		return true
+	}
+	return false
 }
 
 func preserveSettingSecret(observed, configured types.String) types.String {
@@ -1091,7 +1192,7 @@ func preserveSettingSecret(observed, configured types.String) types.String {
 	if configuredValue == "" && observedValue != "" {
 		return configured
 	}
-	if configuredValue != "" && observedValue == "" {
+	if configuredValue != "" && isRedactedSettingSecretValue(observedValue) {
 		return configured
 	}
 
@@ -1193,6 +1294,7 @@ func (r *PanelGeneralResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 	preservePanelGeneralSecrets(state, &plan)
+	r.client.rememberConfiguredSettingSecrets(expandPanelGeneral(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1208,6 +1310,7 @@ func (r *PanelGeneralResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 	preservePanelGeneralSecrets(state, &prior)
+	r.client.rememberConfiguredSettingSecrets(expandPanelGeneral(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1228,6 +1331,7 @@ func (r *PanelGeneralResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 	preservePanelGeneralSecrets(state, &plan)
+	r.client.rememberConfiguredSettingSecrets(expandPanelGeneral(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1240,6 +1344,7 @@ func (r *PanelGeneralResource) ImportState(ctx context.Context, _ resource.Impor
 	if state == nil {
 		return
 	}
+	r.client.rememberConfiguredSettingSecrets(expandPanelGeneral(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1264,12 +1369,13 @@ func (r *PanelGeneralResource) applyPanelGeneral(ctx context.Context, plan *Pane
 		}
 
 		needRestart := panelSettingsNeedRestart(existing, desired)
-		merged := mergeSettings(existing, desired)
+		merged := mergeSettingsForUpdate(r.client, existing, desired)
 		if err := r.client.UpdateSettings(ctx, merged); err != nil {
 			settingsMu.Unlock()
 			diags.AddError("Failed to update settings", err.Error())
 			return
 		}
+		r.client.rememberConfiguredSettingSecrets(desired)
 		settingsMu.Unlock()
 
 		if needRestart {
@@ -1366,6 +1472,7 @@ func (r *PanelSecurityResource) Create(ctx context.Context, req resource.CreateR
 	}
 	state := flattenPanelSecurity(settings)
 	preservePanelSecuritySecrets(state, &plan)
+	r.client.rememberConfiguredSettingSecrets(expandPanelSecurity(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1382,6 +1489,7 @@ func (r *PanelSecurityResource) Read(ctx context.Context, req resource.ReadReque
 	}
 	state := flattenPanelSecurity(settings)
 	preservePanelSecuritySecrets(state, &prior)
+	r.client.rememberConfiguredSettingSecrets(expandPanelSecurity(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1406,6 +1514,7 @@ func (r *PanelSecurityResource) Update(ctx context.Context, req resource.UpdateR
 	}
 	state := flattenPanelSecurity(settings)
 	preservePanelSecuritySecrets(state, &plan)
+	r.client.rememberConfiguredSettingSecrets(expandPanelSecurity(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1419,6 +1528,7 @@ func (r *PanelSecurityResource) ImportState(ctx context.Context, _ resource.Impo
 		return
 	}
 	state := flattenPanelSecurity(settings)
+	r.client.rememberConfiguredSettingSecrets(expandPanelSecurity(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1488,6 +1598,7 @@ func (r *PanelTelegramResource) Create(ctx context.Context, req resource.CreateR
 	}
 	state := flattenPanelTelegram(settings)
 	preservePanelTelegramSecrets(state, &plan)
+	r.client.rememberConfiguredSettingSecrets(expandPanelTelegram(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1504,6 +1615,7 @@ func (r *PanelTelegramResource) Read(ctx context.Context, req resource.ReadReque
 	}
 	state := flattenPanelTelegram(settings)
 	preservePanelTelegramSecrets(state, &prior)
+	r.client.rememberConfiguredSettingSecrets(expandPanelTelegram(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1526,6 +1638,7 @@ func (r *PanelTelegramResource) Update(ctx context.Context, req resource.UpdateR
 	}
 	state := flattenPanelTelegram(settings)
 	preservePanelTelegramSecrets(state, &plan)
+	r.client.rememberConfiguredSettingSecrets(expandPanelTelegram(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1539,6 +1652,7 @@ func (r *PanelTelegramResource) ImportState(ctx context.Context, _ resource.Impo
 		return
 	}
 	state := flattenPanelTelegram(settings)
+	r.client.rememberConfiguredSettingSecrets(expandPanelTelegram(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -1660,11 +1774,12 @@ func (r *PanelSubscriptionResource) applySubscription(ctx context.Context, plan 
 		diags.AddError("Failed to get settings", err.Error())
 		return
 	}
-	merged := mergeSettings(existing, desired)
+	merged := mergeSettingsForUpdate(r.client, existing, desired)
 	if err := r.client.UpdateSettings(ctx, merged); err != nil {
 		diags.AddError("Failed to update settings", err.Error())
 		return
 	}
+	r.client.rememberConfiguredSettingSecrets(desired)
 
 	// Second apply (workaround for 3x-ui bug).
 	existing2, err := r.client.GetSettings(ctx)
@@ -1672,11 +1787,12 @@ func (r *PanelSubscriptionResource) applySubscription(ctx context.Context, plan 
 		diags.AddError("Failed to get settings (second apply)", err.Error())
 		return
 	}
-	merged2 := mergeSettings(existing2, desired)
+	merged2 := mergeSettingsForUpdate(r.client, existing2, desired)
 	if err := r.client.UpdateSettings(ctx, merged2); err != nil {
 		diags.AddError("Failed to update settings (second apply)", err.Error())
 		return
 	}
+	r.client.rememberConfiguredSettingSecrets(desired)
 }
 
 // ---------------------------------------------------------------------------

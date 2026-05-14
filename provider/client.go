@@ -56,15 +56,17 @@ type ClientConfig struct {
 }
 
 type Client struct {
-	baseURL    *url.URL
-	basePath   string
-	username   string
-	password   string
-	twoFactor  string
-	httpClient *http.Client
-	maxRetries int
-	authMu     sync.Mutex
-	csrfToken  string
+	baseURL          *url.URL
+	basePath         string
+	username         string
+	password         string
+	twoFactor        string
+	httpClient       *http.Client
+	maxRetries       int
+	authMu           sync.Mutex
+	csrfToken        string
+	settingsSecretMu sync.Mutex
+	settingsSecrets  map[string]string
 }
 
 // SetBasePath updates the client's base path to match a new webBasePath.
