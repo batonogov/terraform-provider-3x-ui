@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.4.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.3.0...v3.4.0) (2026-05-14)
+
+
+### Features
+
+* support 3x-ui v3.0.1 ([#180](https://github.com/batonogov/terraform-provider-threexui/issues/180)) ([15d5766](https://github.com/batonogov/terraform-provider-threexui/commit/15d5766b48bb0d54e61cdaf22b605fc2fd6815d0))
+* support 3x-ui v3.0.2 ([#185](https://github.com/batonogov/terraform-provider-threexui/issues/185)) ([05fc657](https://github.com/batonogov/terraform-provider-threexui/commit/05fc65718edd7d76e185305869884e89d5bea770))
+
+
+### Bug Fixes
+
+* preserve redacted panel setting secrets ([#186](https://github.com/batonogov/terraform-provider-threexui/issues/186)) ([9562079](https://github.com/batonogov/terraform-provider-threexui/commit/95620799638ebeeffa7b04363a88fc5126d5cfda))
+
 ## [3.3.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.2.0...v3.3.0) (2026-05-13)
 
 
