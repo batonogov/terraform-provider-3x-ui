@@ -201,11 +201,12 @@ func TestFlattenPanelTelegram(t *testing.T) {
 
 func TestFlattenPanelSubscription(t *testing.T) {
 	in := map[string]any{
-		"subEnable":     true,
-		"subJsonEnable": false,
-		"subTitle":      "My Sub",
-		"subPort":       float64(443),
-		"subEncrypt":    true,
+		"subEnable":        true,
+		"subJsonEnable":    false,
+		"subTitle":         "My Sub",
+		"subPort":          float64(443),
+		"subEncrypt":       true,
+		"subEmailInRemark": false,
 	}
 	m := flattenPanelSubscription(in)
 	if m.SubEnable.ValueBool() != true {
@@ -217,6 +218,9 @@ func TestFlattenPanelSubscription(t *testing.T) {
 	if m.SubPort.ValueInt64() != 443 {
 		t.Fatalf("unexpected sub_port: %v", m.SubPort)
 	}
+	if m.SubEmailInRemark.ValueBool() {
+		t.Fatalf("unexpected sub_email_in_remark: %v", m.SubEmailInRemark)
+	}
 }
 
 func TestFlattenPanelGeneral(t *testing.T) {
@@ -224,6 +228,7 @@ func TestFlattenPanelGeneral(t *testing.T) {
 		"webListen":                  "0.0.0.0",
 		"webPort":                    float64(2053),
 		"webBasePath":                "/panel/",
+		"trustedProxyCIDRs":          "127.0.0.1/32,10.0.0.0/8",
 		"pageSize":                   float64(25),
 		"restartXrayOnClientDisable": true,
 	}
@@ -237,12 +242,39 @@ func TestFlattenPanelGeneral(t *testing.T) {
 	if m.WebBasePath.ValueString() != "/panel/" {
 		t.Fatalf("unexpected web_base_path: %v", m.WebBasePath)
 	}
+	if m.TrustedProxyCIDRs.ValueString() != "127.0.0.1/32,10.0.0.0/8" {
+		t.Fatalf("unexpected trusted_proxy_cidrs: %v", m.TrustedProxyCIDRs)
+	}
 	if !m.RestartXrayOnClientDisable.ValueBool() {
 		t.Fatalf("unexpected restart_xray_on_client_disable: %v", m.RestartXrayOnClientDisable)
 	}
 	expanded := expandPanelGeneral(m)
+	if expanded["trustedProxyCIDRs"] != "127.0.0.1/32,10.0.0.0/8" {
+		t.Fatalf("unexpected expanded trustedProxyCIDRs: %v", expanded["trustedProxyCIDRs"])
+	}
 	if expanded["restartXrayOnClientDisable"] != true {
 		t.Fatalf("unexpected expanded restartXrayOnClientDisable: %v", expanded["restartXrayOnClientDisable"])
+	}
+}
+
+func TestPreserveSettingSecret_ConfiguredEmptyObservedNonEmpty(t *testing.T) {
+	got := preserveSettingSecret(types.StringValue("existing-secret"), types.StringValue(""))
+	if got.ValueString() != "" {
+		t.Fatalf("expected configured empty string, got %q", got.ValueString())
+	}
+}
+
+func TestPreserveSettingSecret_ConfiguredNonEmptyObservedEmpty(t *testing.T) {
+	got := preserveSettingSecret(types.StringValue(""), types.StringValue("configured-secret"))
+	if got.ValueString() != "configured-secret" {
+		t.Fatalf("expected configured secret, got %q", got.ValueString())
+	}
+}
+
+func TestPreserveSettingSecret_ObservedDifferentNonEmpty(t *testing.T) {
+	got := preserveSettingSecret(types.StringValue("remote-secret"), types.StringValue("state-secret"))
+	if got.ValueString() != "remote-secret" {
+		t.Fatalf("expected observed secret, got %q", got.ValueString())
 	}
 }
 

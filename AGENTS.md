@@ -47,7 +47,7 @@ docs/
   guides/              - operational walkthroughs (backup-as-code, server-migration, bulk-clients)
 README.md              - English README; localized in README.ru_RU.md, README.fa_IR.md, README.ar_EG.md, README.zh_CN.md, README.es_ES.md
 3x-ui-<version>/       - 3x-ui source snapshots (in .gitignore, for reference/diffing)
-docker-compose.yaml    - 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v3.0.1)
+docker-compose.yaml    - 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v3.0.2)
 Taskfile.yml           - task build / test / fmt
 .github/workflows/
   ci.yml               - lint, unit tests, acceptance tests, compatibility matrix (PR + push main)
@@ -104,7 +104,7 @@ Use `task` for all routine work:
 - `task lint` runs `golangci-lint run`.
 - `task test:unit` runs unit tests only.
 - `task test:acc` starts Docker Compose and runs Terraform acceptance tests.
-- `task test:acc:compat` runs acceptance tests against a selectable 3x-ui version via `THREEXUI_VERSION` (defaults to `v3.0.1`).
+- `task test:acc:compat` runs acceptance tests against a selectable 3x-ui version via `THREEXUI_VERSION` (defaults to `v3.0.2`).
 - `task test` runs both unit and acceptance suites.
 - `task pre-commit` runs the Go pre-commit checks: fmt, vet, lint, and build. The actual `.pre-commit-config.yaml` also includes markdown and common file checks.
 
@@ -340,7 +340,7 @@ docker compose up -d   # Start 3x-ui on localhost:2053
 THREEXUI_VERSION=v2.9.0 task test:acc:compat
 
 # Run all versions locally:
-for v in v2.9.0 v2.9.1 v2.9.2 v2.9.3 v2.9.4 v3.0.0 v3.0.1; do
+for v in v2.9.0 v2.9.1 v2.9.2 v2.9.3 v2.9.4 v3.0.0 v3.0.1 v3.0.2; do
   echo "=== Testing $v ===" && THREEXUI_VERSION=$v task test:acc:compat
 done
 ```

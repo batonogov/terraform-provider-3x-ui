@@ -68,6 +68,7 @@ resource "threexui_panel_subscription" "settings" {
 - `sub_updates` (Optional, Number) - Update interval in hours.
 - `sub_encrypt` (Optional, Boolean) - Encrypt subscription data.
 - `sub_show_info` (Optional, Boolean) - Show info in subscription.
+- `sub_email_in_remark` (Optional, Boolean) - Include the client email in subscription profile names. Default is `true` on 3x-ui v3.0.2+.
 
 ### URI
 

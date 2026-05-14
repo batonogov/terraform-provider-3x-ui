@@ -237,8 +237,11 @@ Used for both `tunnel` and `dokodemo-door` protocols.
 
 - `address` (Optional, String) - Target address.
 - `port` (Optional, Number) - Target port.
+- `rewrite_address` (Optional, String) - Tunnel rewrite address on 3x-ui v3.0.2+. Mirrored with `address` for older panel compatibility.
+- `rewrite_port` (Optional, Number) - Tunnel rewrite port on 3x-ui v3.0.2+. Mirrored with `port` for older panel compatibility.
 - `port_map` (Optional, Map of String) - Port mapping.
 - `network` (Optional, String) - Network type.
+- `allowed_network` (Optional, String) - Tunnel allowed network on 3x-ui v3.0.2+. Mirrored with `network` for older panel compatibility.
 - `follow_redirect` (Optional, Boolean) - Follow redirect.
 
 #### `hysteria_settings`
