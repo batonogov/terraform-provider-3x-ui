@@ -48,6 +48,25 @@ resource "threexui_inbound" "vless" {
 
 The provider authenticates to the 3x-ui panel using username and password. These can be provided directly in the provider configuration or via environment variables.
 
+For first-run bootstrap of a fresh panel, you can configure `bootstrap_username` and `bootstrap_password` in addition to the steady-state `username` and `password`. Use this together with `threexui_panel_user` to rotate the panel to the steady-state credentials during the same apply. On 3x-ui v2.9.x, failed logins can expose the submitted password in panel logs or Telegram login notifications, so the provider tries bootstrap credentials before the steady-state credentials. On 3x-ui v3.x, the provider tries steady-state credentials first and falls back to bootstrap credentials only if the panel rejects them. The provider does not silently try `admin`/`admin`; bootstrap credentials must be configured explicitly.
+
+```hcl
+provider "threexui" {
+  endpoint = "http://localhost:2053"
+
+  username = var.threexui_username
+  password = var.threexui_password
+
+  bootstrap_username = "admin"
+  bootstrap_password = "admin"
+}
+
+resource "threexui_panel_user" "admin" {
+  username = var.threexui_username
+  password = var.threexui_password
+}
+```
+
 3x-ui v3 protects login and unsafe API requests with CSRF tokens. The provider fetches and refreshes those tokens automatically; no additional configuration is required.
 
 -> **Note:** The provider has **partial** 2FA support. You can supply a TOTP code via the `two_factor_code` attribute, and it will be sent with the initial login request. However, TOTP codes expire every 30 seconds. Because the provider performs automatic re-login when the session expires (on HTTP 401/404), subsequent logins will fail once the original code is no longer valid. For short-lived operations (a single `terraform apply`) this may work, but long-running or repeated runs will require a fresh code each time.
@@ -58,6 +77,8 @@ The provider authenticates to the 3x-ui panel using username and password. These
 - `base_path` (Optional, String) - Base path configured in 3x-ui (`webBasePath`). Default is `/`.
 - `username` (Optional, String) - 3x-ui username. Default is `admin`.
 - `password` (Optional, String, Sensitive) - 3x-ui password. Default is `admin`.
+- `bootstrap_username` (Optional, String) - Bootstrap username for explicit first-run credential rotation. On 3x-ui v2.9.x it is tried before the primary `username`/`password` to avoid exposing the desired password in failed-login logs; on 3x-ui v3.x it is tried only after the primary credentials are rejected. Must be set together with `bootstrap_password`.
+- `bootstrap_password` (Optional, String, Sensitive) - Bootstrap password for explicit first-run credential rotation. On 3x-ui v2.9.x it is tried before the primary `username`/`password` to avoid exposing the desired password in failed-login logs; on 3x-ui v3.x it is tried only after the primary credentials are rejected. Must be set together with `bootstrap_username`.
 - `two_factor_code` (Optional, String, Sensitive) - TOTP code for 2FA login. Used for the initial authentication request. See the note above about re-login limitations.
 - `insecure_skip_verify` (Optional, Boolean) - Skip TLS certificate verification (useful for self-signed certs). Default is `false`.
 - `request_timeout` (Optional, String) - HTTP request timeout (e.g. `30s`, `1m`). Default is `30s`.

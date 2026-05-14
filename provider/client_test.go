@@ -267,6 +267,178 @@ func TestLoginFailure(t *testing.T) {
 	}
 }
 
+func TestLoginWithBootstrapCredentialsUsesBootstrapFirstWithoutCSRF(t *testing.T) {
+	var loginCalls int32
+	var attempts []string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/login" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		atomic.AddInt32(&loginCalls, 1)
+		r.ParseForm()
+		attempts = append(attempts, r.FormValue("username")+":"+r.FormValue("password"))
+		if r.FormValue("username") == "admin" && r.FormValue("password") == "admin" {
+			w.Write(okResponse(nil))
+			return
+		}
+
+		w.Write(failResponse("unexpected credentials"))
+	}))
+	defer srv.Close()
+
+	client, err := NewClient(ClientConfig{
+		Endpoint: srv.URL,
+		BasePath: "/",
+		Username: "desired-admin",
+		Password: "desired-pass",
+		Timeout:  time.Second,
+	})
+	if err != nil {
+		t.Fatalf("NewClient error: %v", err)
+	}
+
+	used, err := client.LoginWithBootstrapCredentials(context.Background(), "admin", "admin")
+	if err != nil {
+		t.Fatalf("LoginWithBootstrapCredentials failed: %v", err)
+	}
+	if !used {
+		t.Fatal("expected bootstrap credentials to be used")
+	}
+	if got := atomic.LoadInt32(&loginCalls); got != 1 {
+		t.Fatalf("expected only the bootstrap login attempt, got %d", got)
+	}
+	if len(attempts) != 1 || attempts[0] != "admin:admin" {
+		t.Fatalf("expected bootstrap credentials first without probing desired password, got %v", attempts)
+	}
+	if client.username != "admin" || client.password != "admin" {
+		t.Fatalf("expected active client credentials to switch to bootstrap credentials")
+	}
+}
+
+func TestLoginWithBootstrapCredentialsPrefersPrimaryWithCSRF(t *testing.T) {
+	var loginCalls int32
+	var attempts []string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/csrf-token":
+			w.Write(okResponse("csrf-token"))
+		case "/login":
+			atomic.AddInt32(&loginCalls, 1)
+			r.ParseForm()
+			attempts = append(attempts, r.FormValue("username")+":"+r.FormValue("password"))
+			if r.Header.Get(csrfHeaderName) != "csrf-token" || r.FormValue("_csrf") != "csrf-token" {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			if r.FormValue("username") == "desired-admin" && r.FormValue("password") == "desired-pass" {
+				w.Write(okResponse(nil))
+				return
+			}
+			w.Write(failResponse("unexpected credentials"))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client, err := NewClient(ClientConfig{
+		Endpoint: srv.URL,
+		BasePath: "/",
+		Username: "desired-admin",
+		Password: "desired-pass",
+		Timeout:  time.Second,
+	})
+	if err != nil {
+		t.Fatalf("NewClient error: %v", err)
+	}
+
+	used, err := client.LoginWithBootstrapCredentials(context.Background(), "admin", "admin")
+	if err != nil {
+		t.Fatalf("LoginWithBootstrapCredentials failed: %v", err)
+	}
+	if used {
+		t.Fatal("bootstrap credentials should not be used when primary credentials work")
+	}
+	if got := atomic.LoadInt32(&loginCalls); got != 1 {
+		t.Fatalf("expected only the primary login attempt, got %d", got)
+	}
+	if len(attempts) != 1 || attempts[0] != "desired-admin:desired-pass" {
+		t.Fatalf("expected primary credentials first with CSRF support, got %v", attempts)
+	}
+	if client.username != "desired-admin" || client.password != "desired-pass" {
+		t.Fatalf("expected active client credentials to remain primary credentials")
+	}
+}
+
+func TestLoginWithBootstrapCredentialsDoesNotFallbackOnHTTPError(t *testing.T) {
+	var loginCalls int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/login" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		atomic.AddInt32(&loginCalls, 1)
+		http.Error(w, "temporary failure", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	used, err := client.LoginWithBootstrapCredentials(context.Background(), "admin", "admin")
+	if err == nil {
+		t.Fatal("expected HTTP 500 login error")
+	}
+	if used {
+		t.Fatal("bootstrap credentials must not be used for HTTP errors")
+	}
+	if got := atomic.LoadInt32(&loginCalls); got != 1 {
+		t.Fatalf("expected exactly 1 login attempt, got %d", got)
+	}
+}
+
+func TestLoginWithBootstrapCredentialsRestoresPrimaryWhenBootstrapFails(t *testing.T) {
+	var loginCalls int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/login" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		atomic.AddInt32(&loginCalls, 1)
+		w.Write(failResponse("wrongUsernameOrPassword"))
+	}))
+	defer srv.Close()
+
+	client, err := NewClient(ClientConfig{
+		Endpoint: srv.URL,
+		BasePath: "/",
+		Username: "desired-admin",
+		Password: "desired-pass",
+		Timeout:  time.Second,
+	})
+	if err != nil {
+		t.Fatalf("NewClient error: %v", err)
+	}
+
+	used, err := client.LoginWithBootstrapCredentials(context.Background(), "admin", "admin")
+	if err == nil {
+		t.Fatal("expected bootstrap login error")
+	}
+	if used {
+		t.Fatal("bootstrap should not be reported as used when it failed")
+	}
+	if got := atomic.LoadInt32(&loginCalls); got != 2 {
+		t.Fatalf("expected bootstrap+primary login attempts, got %d", got)
+	}
+	if client.username != "desired-admin" || client.password != "desired-pass" {
+		t.Fatalf("expected primary credentials to be restored after failed bootstrap login")
+	}
+}
+
 func TestUpdateInboundMaxRetriesZeroDisablesRetry(t *testing.T) {
 	// Operators must be able to opt out of retry entirely (max_retries=0)
 	// so a transient 5xx surfaces immediately without any silent retry.

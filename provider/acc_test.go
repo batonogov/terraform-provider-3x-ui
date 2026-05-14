@@ -22,6 +22,13 @@ const (
 	envInsecureSkipVerify = "THREEXUI_INSECURE_SKIP_VERIFY"
 )
 
+func getenvDefault(name, fallback string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return fallback
+}
+
 func testAccProtoV6ProviderFactories() map[string]func() (tfprotov6.ProviderServer, error) {
 	return map[string]func() (tfprotov6.ProviderServer, error){
 		"threexui": providerserver.NewProtocol6WithError(New("test")()),
@@ -82,6 +89,45 @@ provider "threexui" {
 	return config + "\n"
 }
 
+func testAccProviderConfigWithBootstrap(username, password, bootstrapUsername, bootstrapPassword string) string {
+	endpoint := os.Getenv(envEndpoint)
+	basePath := os.Getenv(envBasePath)
+	insecure := os.Getenv(envInsecureSkipVerify)
+
+	namespace := os.Getenv("TF_ACC_PROVIDER_NAMESPACE")
+	host := os.Getenv("TF_ACC_PROVIDER_HOST")
+	if namespace == "" {
+		namespace = "hashicorp"
+	}
+	if host == "" {
+		host = "registry.terraform.io"
+	}
+
+	config := fmt.Sprintf(`terraform {
+  required_providers {
+    threexui = {
+      source = "%s/%s/threexui"
+    }
+  }
+}
+
+provider "threexui" {
+  endpoint           = %q
+  username           = %q
+  password           = %q
+  bootstrap_username = %q
+  bootstrap_password = %q
+`, host, namespace, endpoint, username, password, bootstrapUsername, bootstrapPassword)
+	if basePath != "" {
+		config += fmt.Sprintf("  base_path          = %q\n", basePath)
+	}
+	if insecure != "" {
+		config += fmt.Sprintf("  insecure_skip_verify = %s\n", insecure)
+	}
+	config += "}\n"
+	return config + "\n"
+}
+
 func testAccClientFromEnv() (*Client, error) {
 	endpoint := os.Getenv(envEndpoint)
 	basePath := os.Getenv(envBasePath)
@@ -119,17 +165,22 @@ func testAccClientFromEnv() (*Client, error) {
 }
 
 func testAccClientFromEnvNoLogin() (*Client, error) {
-	endpoint := os.Getenv(envEndpoint)
-	basePath := os.Getenv(envBasePath)
 	username := os.Getenv(envUsername)
 	password := os.Getenv(envPassword)
-	insecure := os.Getenv(envInsecureSkipVerify)
 	if username == "" {
 		username = "admin"
 	}
 	if password == "" {
 		password = "admin"
 	}
+
+	return testAccClientWithCredentials(username, password)
+}
+
+func testAccClientWithCredentials(username, password string) (*Client, error) {
+	endpoint := os.Getenv(envEndpoint)
+	basePath := os.Getenv(envBasePath)
+	insecure := os.Getenv(envInsecureSkipVerify)
 	insecureBool := false
 	if insecure != "" {
 		if v, err := strconv.ParseBool(insecure); err == nil {
