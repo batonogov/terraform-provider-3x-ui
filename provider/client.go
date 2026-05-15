@@ -597,14 +597,19 @@ func isUpstreamRateLimitError(err error) bool {
 
 func (c *Client) GetXrayVersions(ctx context.Context) ([]string, error) {
 	var out []string
+	var lastErr error
 	backoff := versionRetryBaseBackoff
 	for attempt := 0; attempt <= versionRetryAttempts; attempt++ {
 		err := c.doJSON(ctx, http.MethodGet, "panel/api/server/getXrayVersion", nil, &out)
 		if err == nil {
 			return out, nil
 		}
-		if !isUpstreamRateLimitError(err) || attempt == versionRetryAttempts {
+		lastErr = err
+		if !isUpstreamRateLimitError(err) {
 			return nil, err
+		}
+		if attempt == versionRetryAttempts {
+			break
 		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
@@ -621,7 +626,7 @@ func (c *Client) GetXrayVersions(ctx context.Context) ([]string, error) {
 			backoff *= 2
 		}
 	}
-	return nil, fmt.Errorf("getXrayVersion: upstream rate limit persisted after %d retries", versionRetryAttempts)
+	return nil, fmt.Errorf("getXrayVersion: upstream rate limit persisted after %d retries: %w", versionRetryAttempts, lastErr)
 }
 
 // ErrXrayVersionUnknown is returned when the 3x-ui API reports the Xray

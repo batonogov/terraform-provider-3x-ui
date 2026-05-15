@@ -101,13 +101,14 @@ resource "threexui_xray_version" "test" {
 // (drift detected) and that applying brings the version back to A.
 func TestAccXrayVersionDrift(t *testing.T) {
 	testAccPreCheck(t)
-	// InstallXray reliably accepts the request on these panel versions
-	// but the panel never picks up the new binary (verified across two
-	// retries on PR #162 — same 182s timeout). This is upstream behavior,
-	// not a budget problem. Tracked separately so we don't permanently
-	// hide it; remove the gate once the upstream pickup is fixed.
+	// v2.9.1 has a confirmed upstream bug: InstallXray accepts the request
+	// but the panel never picks up the new binary regardless of how many
+	// retries or how long we wait (verified across two full CI retries on
+	// PR #162). This is not a flake — it is a deterministic upstream defect
+	// that cannot be fixed at the provider level. Remove the gate once the
+	// upstream pickup is fixed. See #163.
 	skipOnFlakyVersions(t,
-		"InstallXray pickup is unreliable on this panel version (#163)",
+		"InstallXray pickup is broken on this panel version (upstream bug #163)",
 		"v2.9.1")
 	client, err := testAccClientFromEnv()
 	if err != nil {
