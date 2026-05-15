@@ -312,6 +312,35 @@ Configuration files: `.pre-commit-config.yaml`, `.golangci.yml`,
 - Glob list intentionally covers only `README.md`, `CONTRIBUTING.md`, `docs/**/*.md`. Localized READMEs (`README.<locale>.md`) are not linted because they mirror `README.md` structurally and a single lint pass is the source of truth.
 - `first-line-heading: false` is set because every README starts with the language-switcher line, not a heading.
 
+### gosec (security linter)
+
+`gosec` is enabled in `.golangci.yml` alongside the other linters. It runs as
+part of `task lint` and the CI `lint` job.
+
+**Test-file exclusions** — `gosec` is suppressed for `*_test.go` files because
+the following rules fire false positives on test code:
+
+- **G304** (file path injection) — test file paths are derived from
+  `runtime.Caller` or test-controlled environment variables, never from user
+  input.
+- **G101** (hardcoded credentials) — test fixtures contain realistic-looking
+  but inert data (e.g. placeholder UUIDs, test passwords).
+- **G124** (cookie attributes) — cookies are set on test HTTP servers only,
+  never exposed to real browsers.
+
+**`#nosec` annotations in production code** — a small number of intentional
+suppressions exist in `provider/client.go`:
+
+- `#nosec G402` on `InsecureSkipVerify` in the TLS config — the provider
+  manages self-hosted panels that frequently use self-signed certificates;
+  the user explicitly opts in via the `insecure_skip_verify` provider attribute.
+- `#nosec G104` on `resp.Body.Close()` calls in `doRequest` — these discard
+  response bodies before retrying (CSRF refresh, re-login); the Close error
+  is not actionable at these points.
+
+When adding new `#nosec` annotations, include a comment explaining why the
+finding is a false positive or intentionally accepted.
+
 ## Supply-Chain Pinning
 
 All third-party code that runs in CI or pre-commit is pinned to a commit SHA,
@@ -436,6 +465,7 @@ retry), CI itself has three safety nets:
 - **Per-job retry** - `acceptance-tests` and `acceptance-matrix` jobs in `.github/workflows/ci.yml` use `nick-fields/retry@v4` with `max_attempts: 2`. Catches the residual flake rate from GHCR pull jitter, one-off SQLite spikes, and runner contention. A green retry should be a no-op for code; if a retry consistently changes behavior, that is a real bug. Diff the two attempt logs.
 - **Flaky test gate** - `skipIfFlaky(t, reason)` in `provider/test_helpers.go` skips when `THREEXUI_SKIP_FLAKY` env is set. Sub-day mitigation when a test starts firing falsely: gate it, push, file a follow-up. Quarantined tests must be tracked (#161 or follow-up); the gate is not a permanent home.
 - **GitHub API rate-limit mitigation** - three layers addressing 3x-ui's unauthenticated GitHub API calls (#184): (1) provider-level `GetXrayVersions` retry with exponential backoff on rate-limit errors, (2) `_warm-xray-version-cache` Taskfile task pre-populates 3x-ui's 15-minute internal cache before tests, (3) `GITHUB_TOKEN` passed to the container via `docker-compose.yaml` env var for forward-compatibility with future 3x-ui versions that may use it for authenticated API calls.
+- **Container logs artifact on failure** - both `acceptance-tests` and `acceptance-matrix` jobs capture `docker compose logs 3xui` when a step fails and upload the log as a GitHub Actions artifact (7-day retention). Artifact names: `3xui-container-logs-acceptance` (single job), `3xui-container-logs-<version>` (matrix job). Useful for diagnosing panel-side errors (xray crashes, startup failures, API errors) without re-running the job locally. Uses `actions/upload-artifact` pinned to SHA per the supply-chain policy.
 
 ## Releases
 
