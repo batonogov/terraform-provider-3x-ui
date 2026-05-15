@@ -20,6 +20,7 @@ linters:
     - gocritic
     - errname
     - errorlint
+    - gosec
 
   settings:
     errcheck:
@@ -49,6 +50,14 @@ linters:
         linters:
           - errcheck
           - gocritic
+
+      # G304 is safe in tests: paths are derived from runtime.Caller or
+      # test-controlled environment variables, not user input.
+      # G101 fixtures use realistic-looking but inert test data.
+      # G124 cookies are test-server-only, never exposed to real browsers.
+      - path: _test\.go
+        linters:
+          - gosec
 
       - path: vendor/
         linters:

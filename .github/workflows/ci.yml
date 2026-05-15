@@ -148,6 +148,18 @@ jobs:
           retry_on: error
           command: task test:acc
 
+      - name: Capture 3x-ui container logs
+        if: failure()
+        run: docker compose logs 3xui > 3xui-container.log 2>&1
+
+      - name: Upload container logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: 3xui-container-logs-acceptance
+          path: 3xui-container.log
+          retention-days: 7
+
   acceptance-matrix:
     name: Compat (${{ matrix.version }})
     runs-on: ubuntu-latest
@@ -195,3 +207,15 @@ jobs:
           max_attempts: 2
           retry_on: error
           command: task test:acc:compat
+
+      - name: Capture 3x-ui container logs
+        if: failure()
+        run: docker compose logs 3xui > 3xui-container.log 2>&1
+
+      - name: Upload container logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: 3xui-container-logs-${{ matrix.version }}
+          path: 3xui-container.log
+          retention-days: 7
