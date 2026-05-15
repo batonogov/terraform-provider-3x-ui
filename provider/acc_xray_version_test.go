@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -122,9 +123,21 @@ func TestAccXrayVersionDrift(t *testing.T) {
 		t.Fatalf("GetXrayVersions: %s", err)
 	}
 
-	currentVersion, err := client.GetCurrentXrayVersion(ctx)
+	// GetCurrentXrayVersion may return ErrXrayVersionUnknown if xray is
+	// restarting after a previous test's InstallXray. Retry briefly.
+	var currentVersion string
+	for i := 0; i < 30; i++ {
+		currentVersion, err = client.GetCurrentXrayVersion(ctx)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, ErrXrayVersionUnknown) {
+			t.Fatalf("GetCurrentXrayVersion: %s", err)
+		}
+		time.Sleep(time.Second)
+	}
 	if err != nil {
-		t.Fatalf("GetCurrentXrayVersion: %s", err)
+		t.Fatalf("GetCurrentXrayVersion: xray not running after 30s: %s", err)
 	}
 
 	// Find an alternative version different from the current one.
