@@ -49,8 +49,9 @@ README.md              - English README; localized in README.ru_RU.md, README.fa
 3x-ui-<version>/       - 3x-ui source snapshots (in .gitignore, for reference/diffing)
 docker-compose.yaml    - 3x-ui on port 2053 (version via THREEXUI_VERSION env, default v3.0.2)
 Taskfile.yml           - task build / test / fmt
+.github/FUNDING.yml    - GitHub Sponsors funding config (github: batonogov)
 .github/workflows/
-  ci.yml               - lint, unit tests, acceptance tests, compatibility matrix (PR + push main)
+  ci.yml               - lint, govulncheck, unit tests, acceptance tests, compatibility matrix (PR + push main)
   docs.yml             - docs/examples validation: terraform fmt, markdownlint, yamllint (PR + push main)
   release-please.yml   - Release Please + GoReleaser (conventional commits -> semver tag -> build + sign + publish)
 ```
@@ -339,6 +340,13 @@ digests for all matrix versions manually outweighs the closed-off risk (#168).
 **Go modules** are covered by `go.sum` hashing; no extra pinning needed. The
 `go install ...@vX.Y.Z` references in workflows install specific versions whose
 contents are verified by Go's module proxy.
+
+**govulncheck** (`golang.org/x/vuln/cmd/govulncheck`) runs in the `lint` CI job
+as a vulnerability scan before fmt/vet/lint. It is installed with a pinned
+version (`@vX.Y.Z`, currently `v1.1.4`) — never `@latest` — so the build is
+reproducible and the version bump is a visible diff. To update: check the
+latest release at `https://github.com/golang/vuln/releases`, update the `@vX.Y.Z`
+tag in `.github/workflows/ci.yml`, and note the version in this paragraph.
 
 When adding a new third-party action or pre-commit hook, resolve the SHA via:
 
