@@ -195,6 +195,19 @@ refreshes via `/panel/csrf-token` before retrying once.
 - Composes with the 401/404 auto-relogin in `doRequest`: relogin happens inside a single `withRetry` attempt; only an HTTP 5xx surfaced from `decodeAPIResponse` triggers the outer retry.
 - `HTTPStatusError` - error type returned by `decodeAPIResponse` when `resp.StatusCode >= 400` (both empty-body and non-JSON paths). `errors.As` is the supported way to inspect status.
 
+### Retry on upstream GitHub API rate limit (GetXrayVersions)
+
+Distinct from the 5xx retry above. The 3x-ui panel calls `api.github.com` for
+Xray release metadata without authentication. On shared IPs the unauthenticated
+rate limit (60 req/hr) is exhausted quickly, and the panel returns `success:false`
+with a message containing "rate limit". This comes back as HTTP 200 (not 5xx),
+so `withRetry` does not cover it.
+
+- `isUpstreamRateLimitError(err)` - detects "rate limit" (case-insensitive) in the error message from `decodeAPIResponse`.
+- `GetXrayVersions` retries up to `versionRetryAttempts` (4) times with exponential backoff (`versionRetryBaseBackoff` = 2s, doubling: 2s, 4s, 8s, 16s; ~30s worst case). Only retries on rate-limit errors; other errors surface immediately.
+- This is a **production fix**, not just CI: any provider user behind a shared IP with multiple 3x-ui instances benefits.
+- The 3x-ui `getXrayVersion` handler caches the GitHub API response for 15 minutes. Once the cache is warm, subsequent calls do not hit GitHub at all. The retry is primarily for the cold-start window.
+
 ### Read-after-write retry (post-write reads)
 
 Distinct from the 5xx retry above. 3x-ui occasionally returns `success: true`
@@ -403,24 +416,26 @@ All of this is already configured in `Taskfile.yml` -> `task test`.
 
 ### Readiness Contract (acceptance suite)
 
-The acceptance suite assumes 3x-ui is ready in **two stages**, both gated before
+The acceptance suite assumes 3x-ui is ready in **three stages**, all gated before
 any test runs:
 
 1. **Panel router up** - `docker-compose.yaml` declares a healthcheck that polls `/`. `docker compose up --wait` blocks until the healthcheck passes (max ~30s). Without this, `--wait` only waits for "container started", which is earlier than the gin router being ready. Do not poll `GET /login`: in v2 it is POST-only and in v3 login POST is CSRF-protected.
 2. **Xray subsystem initialized** - `Taskfile.yml` `_wait-for-xray` runs after `compose up --wait` and polls `/panel/api/server/status` until `xray.state == "running"` (max 30s). Without this, tests like `TestAccXrayVersionDrift` start before xray reports its version and fail with bogus `ErrXrayVersionUnknown` (#161). Do NOT use `/panel/api/server/getXrayVersion` for this: that endpoint fetches the GitHub release list anonymously and intermittently rate-limits on shared CI runner IPs.
+3. **Xray version cache pre-warmed** - `Taskfile.yml` `_warm-xray-version-cache` runs after `_wait-for-xray` and calls `/panel/api/server/getXrayVersion` with retries (5 attempts, exponential backoff 1s–16s). Once the 3x-ui internal cache is warm (15-min TTL), subsequent test calls never hit GitHub. Non-fatal: logs a warning on failure and proceeds (#184).
 
 When adding new tests that touch xray-only state (templates, versions,
-restart-required settings), assume both gates have passed. Do NOT add per-test
+restart-required settings), assume all three gates have passed. Do NOT add per-test
 sleeps.
 
 ### CI Flake Mitigation
 
 Beyond the in-process retry budgets (`withRetry`, `WithReadAfterWriteRetry`,
-`waitForInboundDeletion`, `destroyVisibilityAttempts`), CI itself has two safety
-nets:
+`waitForInboundDeletion`, `destroyVisibilityAttempts`, `GetXrayVersions` rate-limit
+retry), CI itself has three safety nets:
 
 - **Per-job retry** - `acceptance-tests` and `acceptance-matrix` jobs in `.github/workflows/ci.yml` use `nick-fields/retry@v4` with `max_attempts: 2`. Catches the residual flake rate from GHCR pull jitter, one-off SQLite spikes, and runner contention. A green retry should be a no-op for code; if a retry consistently changes behavior, that is a real bug. Diff the two attempt logs.
 - **Flaky test gate** - `skipIfFlaky(t, reason)` in `provider/test_helpers.go` skips when `THREEXUI_SKIP_FLAKY` env is set. Sub-day mitigation when a test starts firing falsely: gate it, push, file a follow-up. Quarantined tests must be tracked (#161 or follow-up); the gate is not a permanent home.
+- **GitHub API rate-limit mitigation** - three layers addressing 3x-ui's unauthenticated GitHub API calls (#184): (1) provider-level `GetXrayVersions` retry with exponential backoff on rate-limit errors, (2) `_warm-xray-version-cache` Taskfile task pre-populates 3x-ui's 15-minute internal cache before tests, (3) `GITHUB_TOKEN` passed to the container via `docker-compose.yaml` env var for forward-compatibility with future 3x-ui versions that may use it for authenticated API calls.
 
 ## Releases
 

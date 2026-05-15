@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -101,13 +102,14 @@ resource "threexui_xray_version" "test" {
 // (drift detected) and that applying brings the version back to A.
 func TestAccXrayVersionDrift(t *testing.T) {
 	testAccPreCheck(t)
-	// InstallXray reliably accepts the request on these panel versions
-	// but the panel never picks up the new binary (verified across two
-	// retries on PR #162 — same 182s timeout). This is upstream behavior,
-	// not a budget problem. Tracked separately so we don't permanently
-	// hide it; remove the gate once the upstream pickup is fixed.
+	// v2.9.1 has a confirmed upstream bug: InstallXray accepts the request
+	// but the panel never picks up the new binary regardless of how many
+	// retries or how long we wait (verified across two full CI retries on
+	// PR #162). This is not a flake — it is a deterministic upstream defect
+	// that cannot be fixed at the provider level. Remove the gate once the
+	// upstream pickup is fixed. See #163.
 	skipOnFlakyVersions(t,
-		"InstallXray pickup is unreliable on this panel version (#163)",
+		"InstallXray pickup is broken on this panel version (upstream bug #163)",
 		"v2.9.1")
 	client, err := testAccClientFromEnv()
 	if err != nil {
@@ -121,9 +123,21 @@ func TestAccXrayVersionDrift(t *testing.T) {
 		t.Fatalf("GetXrayVersions: %s", err)
 	}
 
-	currentVersion, err := client.GetCurrentXrayVersion(ctx)
+	// GetCurrentXrayVersion may return ErrXrayVersionUnknown if xray is
+	// restarting after a previous test's InstallXray. Retry briefly.
+	var currentVersion string
+	for i := 0; i < 30; i++ {
+		currentVersion, err = client.GetCurrentXrayVersion(ctx)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, ErrXrayVersionUnknown) {
+			t.Fatalf("GetCurrentXrayVersion: %s", err)
+		}
+		time.Sleep(time.Second)
+	}
 	if err != nil {
-		t.Fatalf("GetCurrentXrayVersion: %s", err)
+		t.Fatalf("GetCurrentXrayVersion: xray not running after 30s: %s", err)
 	}
 
 	// Find an alternative version different from the current one.
@@ -165,27 +179,41 @@ resource "threexui_xray_version" "test" {
 			// then run a plan-only step expecting drift to be detected.
 			{
 				PreConfig: func() {
-					if err := client.InstallXray(ctx, altVersion); err != nil {
-						t.Fatalf("failed to simulate drift by installing %s: %s", altVersion, err)
-					}
-					// InstallXray is async — wait for the version to actually
-					// change. The window has to cover binary download +
-					// 3x-ui's internal pickup. On slow CI runners with older
-					// supported 3x-ui lines (v2.9.1) we saw timeouts at 120s
-					// (issue #161), so the budget is bumped to 180s — still
-					// well below the per-test 600s limit, but generous enough
-					// to absorb GHCR pull jitter and runner contention.
-					const maxAttempts = 180
-					const pollInterval = time.Second
-					for i := 0; i < maxAttempts; i++ {
-						time.Sleep(pollInterval)
-						cur, err := client.GetCurrentXrayVersion(ctx)
-						if err == nil && cur == altVersion {
-							t.Logf("drift simulated: version changed to %s after %ds", altVersion, i+1)
-							return
+					const maxInstallAttempts = 3
+					const maxPollAttempts = 20
+					const maxBackoff = 8 * time.Second
+
+					for installAttempt := 0; installAttempt < maxInstallAttempts; installAttempt++ {
+						if err := client.InstallXray(ctx, altVersion); err != nil {
+							t.Fatalf("failed to simulate drift by installing %s: %s", altVersion, err)
+						}
+
+						pollBackoff := 2 * time.Second
+						for pollAttempt := 0; pollAttempt < maxPollAttempts; pollAttempt++ {
+							cur, err := client.GetCurrentXrayVersion(ctx)
+							if err == nil && cur == altVersion {
+								t.Logf("drift simulated: version changed to %s (install %d, poll %d)",
+									altVersion, installAttempt+1, pollAttempt+1)
+								return
+							}
+							select {
+							case <-ctx.Done():
+								t.Fatalf("context cancelled during drift poll: %s", ctx.Err())
+							case <-time.After(pollBackoff):
+							}
+							pollBackoff *= 2
+							if pollBackoff > maxBackoff {
+								pollBackoff = maxBackoff
+							}
+						}
+
+						if installAttempt < maxInstallAttempts-1 {
+							t.Logf("InstallXray(%s) accepted but version unchanged after %d polls — re-issuing install (attempt %d/%d)",
+								altVersion, maxPollAttempts, installAttempt+2, maxInstallAttempts)
 						}
 					}
-					t.Fatalf("InstallXray(%s) returned success but version did not change within %ds", altVersion, maxAttempts)
+					t.Fatalf("InstallXray(%s) returned success but version did not change after %d install attempts x %d polls",
+						altVersion, maxInstallAttempts, maxPollAttempts)
 				},
 				Config:             config,
 				PlanOnly:           true,

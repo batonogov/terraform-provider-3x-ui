@@ -6,6 +6,7 @@ services:
     environment:
       XRAY_VMESS_AEAD_FORCED: "false"
       XUI_ENABLE_FAIL2BAN: "true"
+      GITHUB_TOKEN: "${GITHUB_TOKEN:-}"
     tty: true
     restart: unless-stopped
     # `/` returns 200 (login page) once the gin router is up — earlier

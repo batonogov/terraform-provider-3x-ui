@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -984,6 +985,123 @@ func TestAddInboundClientDoesNotRetryOn5xx(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&calls); got != 1 {
 		t.Fatalf("expected exactly 1 call (no retry on AddClient), got %d", got)
+	}
+}
+
+func TestIsUpstreamRateLimitError(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want bool
+	}{
+		{nil, false},
+		{errors.New("something else"), false},
+		{errors.New("request failed: status 200, msg: Get Version (GitHub API error: API rate limit exceeded for 1.2.3.4)"), true},
+		{errors.New("request failed: status 200, msg: Get Version (GitHub API error: Rate Limit exceeded)"), true},
+		{errors.New("request failed: status 200, msg: connection refused"), false},
+	} {
+		if got := isUpstreamRateLimitError(tc.err); got != tc.want {
+			t.Errorf("isUpstreamRateLimitError(%v) = %v, want %v", tc.err, got, tc.want)
+		}
+	}
+}
+
+func TestGetXrayVersionsRetriesOnRateLimit(t *testing.T) {
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/panel/api/server/getXrayVersion" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		n := atomic.AddInt32(&calls, 1)
+		if n == 1 {
+			w.Write(failResponse("Get Version (GitHub API error: API rate limit exceeded)"))
+			return
+		}
+		w.Write(okResponse([]string{"v26.2.6", "v26.2.5"}))
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	versions, err := client.GetXrayVersions(context.Background())
+	if err != nil {
+		t.Fatalf("GetXrayVersions: %v", err)
+	}
+	if len(versions) != 2 {
+		t.Fatalf("expected 2 versions, got %d", len(versions))
+	}
+	if got := atomic.LoadInt32(&calls); got != 2 {
+		t.Fatalf("expected 2 calls (1 rate-limit + 1 success), got %d", got)
+	}
+}
+
+func TestGetXrayVersionsRetriesExhausted(t *testing.T) {
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/panel/api/server/getXrayVersion" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		atomic.AddInt32(&calls, 1)
+		w.Write(failResponse("Get Version (GitHub API error: API rate limit exceeded)"))
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	_, err := client.GetXrayVersions(context.Background())
+	if err == nil {
+		t.Fatal("expected error after retries exhausted")
+	}
+	// 1 initial + versionRetryAttempts retries
+	if got := atomic.LoadInt32(&calls); got != int32(1+versionRetryAttempts) {
+		t.Fatalf("expected %d calls, got %d", 1+versionRetryAttempts, got)
+	}
+}
+
+func TestGetXrayVersionsNoRetryNonRateLimit(t *testing.T) {
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/panel/api/server/getXrayVersion" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		atomic.AddInt32(&calls, 1)
+		w.Write(failResponse("connection refused"))
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	_, err := client.GetXrayVersions(context.Background())
+	if err == nil {
+		t.Fatal("expected non-rate-limit error to surface")
+	}
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("expected exactly 1 call (no retry), got %d", got)
+	}
+}
+
+func TestGetXrayVersionsRateLimitRetryRespectsCtxCancel(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/panel/api/server/getXrayVersion" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Write(failResponse("Get Version (GitHub API error: API rate limit exceeded)"))
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	_, err := client.GetXrayVersions(ctx)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	// Context should cancel during the first or second backoff (~2-4s without cancel),
+	// so elapsed must be well under the full retry window.
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("backoff did not respect ctx cancel; elapsed=%v", elapsed)
 	}
 }
 
