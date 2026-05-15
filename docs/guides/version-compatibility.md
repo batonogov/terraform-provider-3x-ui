@@ -1,0 +1,110 @@
+---
+page_title: "Version compatibility with 3x-ui"
+subcategory: "Guides"
+description: |-
+  Which 3x-ui releases are tested, what changed between them, and how the provider handles version-specific features.
+---
+
+# Version compatibility with 3x-ui
+
+The 3x-ui panel evolves quickly, and some releases introduce breaking API changes that affect the provider. This guide documents which versions are supported, what changed between them, and how to pin the version you need.
+
+## Support policy
+
+The provider officially supports the **two latest 3x-ui minor lines**. Currently that is **2.9.x** and **3.0.x** — every released patch in both lines is exercised by the acceptance matrix on each push to `main` and every pull request. When a new minor (e.g. 3.1.0) is released, the oldest supported line is dropped from the matrix and from this table.
+
+## Compatibility table
+
+| 3x-ui version | Status | Notes |
+| --- | --- | --- |
+| v3.0.2 | Tested | Latest v3.0.x patch. CSRF-protected API. |
+| v3.0.1 | Tested | CSRF-protected API. |
+| v3.0.0 | Tested | CSRF tokens introduced (see [Breaking changes](#breaking-changes)). Multi-node surface, API token endpoint. |
+| v2.9.4 | Tested | Latest v2.9.x patch. Outbound `final_rule` and `reverse_tag` fields. |
+| v2.9.3 | Tested | |
+| v2.9.2 | Tested | |
+| v2.9.1 | Tested | `InstallXray` API skips execution (upstream bug, see [Known issues](#known-issues)). |
+| v2.9.0 | Tested | Mixed protocol, WireGuard MTU list, sniffing exclusions (see [Breaking changes](#breaking-changes)). |
+
+Older lines (2.8.x and earlier) are no longer tested. The provider may still work, but compatibility is not guaranteed.
+
+## Known issues
+
+### v2.9.1 — `InstallXray` skips execution
+
+In 3x-ui v2.9.1, the `InstallXray` API handler returns success without actually running the installation. This is an upstream bug fixed in later patches. The `threexui_xray_version` resource may report success while Xray is not updated. Upgrade to v2.9.2 or later to resolve this.
+
+### v3.0.0+ — CSRF-protected requests
+
+Starting with v3.0.0, 3x-ui requires a CSRF token for all unsafe HTTP methods (POST, PUT, DELETE). The provider handles this automatically:
+
+1. On startup, it fetches an anonymous CSRF token from `GET /csrf-token` (v3.x only).
+2. The token is sent as the `X-CSRF-Token` header on every mutating request.
+3. On a 403 (stale token), the provider refreshes via `GET /panel/csrf-token` and retries once.
+
+No configuration is needed on your end. The CSRF flow is transparent.
+
+## Breaking changes
+
+### v2.9.0 — WireGuard MTU field
+
+In 3x-ui v2.9.0, the WireGuard `mtu` attribute changed from a single integer to a list of two integers `[v4, v6]`. The provider schema exposes `mtu` as a list. If you are upgrading from v2.8.x, update your Terraform configuration:
+
+```hcl
+# Before (v2.8.x)
+mtu = 1280
+
+# After (v2.9.0+)
+mtu = [1280, 1280]
+```
+
+WireGuard also gained `gateway` and `dns` list fields in v2.9.0.
+
+### v2.9.0 — KCP congestion fields
+
+The KCP congestion fields `congestion`, `read_buffer_size`, and `write_buffer_size` were replaced by `cwnd_multiplier` and `max_sending_window`. Update your KCP stream settings if you used these attributes.
+
+### v2.9.0 — Sniffing exclusions
+
+The sniffing block gained `ips_excluded` and `domains_excluded` fields. These are optional and backward-compatible — existing configurations are unaffected.
+
+### v3.0.0 — CSRF tokens
+
+See [v3.0.0+ CSRF-protected requests](#v300--csrf-protected-requests) above. This is a breaking change in the 3x-ui API surface, not in the Terraform schema. The provider abstracts it away, but custom scripts or direct API calls targeting v3.0.0+ must include CSRF handling.
+
+### v3.0.0 — Inbound `nodeId`
+
+Inbound objects gained a `nodeId` field for the multi-node feature introduced in v3.0.0. The provider ignores this field in single-panel setups.
+
+## Version-aware test skipping
+
+The provider's acceptance test suite uses `requireMinVersion(t, "vX.Y.Z")` to skip tests that rely on features not present in older 3x-ui versions. This is intentional: the same test binary runs against every supported version, and feature-gated tests are skipped automatically based on the `THREEXUI_VERSION` environment variable.
+
+Current version gates:
+
+- **v2.9.0+**: mixed protocol inbound, WireGuard `mtu` as list, `gateway`, `dns`, sniffing `ips_excluded`/`domains_excluded`, KCP `cwnd_multiplier`/`max_sending_window`.
+- **v3.0.0+**: CSRF-protected unsafe requests, inbound `nodeId`, multi-node surface, API token endpoint.
+
+Tests without `requireMinVersion` run on all supported versions (v2.9.0+).
+
+## Selecting a 3x-ui version
+
+The provider communicates with whatever 3x-ui version is running on your host. To pin the panel version in Docker:
+
+```bash
+# Set the 3x-ui image tag
+export THREEXUI_VERSION=v3.0.2
+
+# Start the container
+docker compose up -d
+```
+
+In `docker-compose.yaml`, the image tag is parameterized via `${THREEXUI_VERSION:-v3.0.2}`, so omitting the variable defaults to the latest tested version.
+
+For the Terraform provider itself, use the latest release from the [Terraform Registry](https://registry.terraform.io/providers/batonogov/threexui). The single provider binary supports all 3x-ui versions listed in the compatibility table above.
+
+## Related
+
+- [Backup-as-code](backup-as-code.md) — version your panel state alongside your infrastructure.
+- [Server migration](server-migration.md) — migrate between servers running the same or different 3x-ui versions.
+- [Bulk client onboarding](bulk-clients.md) — add many clients at once, compatible with all supported versions.
