@@ -28,6 +28,7 @@ tasks:
       - docker compose up --detach --wait --quiet-pull
       - defer: docker compose down
       - task: _wait-for-xray
+      - task: _warm-xray-version-cache
       - >-
         TF_ACC=1
         TF_ACC_TERRAFORM_PATH={{.TERRAFORM_PATH}}
@@ -51,6 +52,7 @@ tasks:
       - docker compose up --detach --wait --quiet-pull
       - defer: docker compose down
       - task: _wait-for-xray
+      - task: _warm-xray-version-cache
       - >-
         TF_ACC=1
         TF_ACC_TERRAFORM_PATH={{.TERRAFORM_PATH}}
@@ -105,6 +107,41 @@ tasks:
         done
         echo "xray subsystem did not become ready within 30s — last response: $body" >&2
         exit 1
+
+  _warm-xray-version-cache:
+    desc: Pre-warm 3x-ui's internal GitHub API cache to avoid rate limiting during tests
+    silent: true
+    cmds:
+      # 3x-ui caches the GitHub API response for 15 minutes. On cold start
+      # the first getXrayVersion call fetches from GitHub. Pre-warming the
+      # cache eliminates rate-limit failures during the actual test run.
+      # Non-fatal: logs a warning on failure, does not block tests.
+      - |
+        cookie=$(mktemp)
+        trap 'rm -f "$cookie"' EXIT
+        csrf_body=$(curl -fsS -c "$cookie" -b "$cookie" \
+          "http://localhost:2053/csrf-token" 2>/dev/null || true)
+        csrf=$(printf '%s' "$csrf_body" | sed -n 's/.*"obj":"\([^"]*\)".*/\1/p')
+        if [ -n "$csrf" ]; then
+          curl -fsS -c "$cookie" -b "$cookie" -H "X-CSRF-Token: $csrf" \
+            -d "username=admin&password=admin&_csrf=$csrf" \
+            "http://localhost:2053/login" >/dev/null 2>&1
+        else
+          curl -fsS -c "$cookie" -b "$cookie" \
+            -d 'username=admin&password=admin' \
+            "http://localhost:2053/login" >/dev/null 2>&1
+        fi
+        for i in 1 2 3 4 5; do
+          body=$(curl -fsS -b "$cookie" \
+            "http://localhost:2053/panel/api/server/getXrayVersion" 2>/dev/null || true)
+          if printf '%s' "$body" | grep -q '"success":true'; then
+            count=$(printf '%s' "$body" | grep -o '"v[0-9]' | wc -l | tr -d ' ')
+            echo "xray version cache warmed (${count} versions fetched)"
+            exit 0
+          fi
+          sleep $((2 ** (i - 1)))
+        done
+        echo "warning: could not warm xray version cache (rate limited?) — tests will proceed"
 
   fmt:
     desc: Форматировать Go-файлы

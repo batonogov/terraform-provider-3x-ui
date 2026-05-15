@@ -134,6 +134,8 @@ jobs:
       # show it. max_attempts=2 is the cheap-insurance setting.
       - name: Run acceptance tests
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           timeout_minutes: 18
           max_attempts: 2
@@ -181,6 +183,7 @@ jobs:
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
         env:
           THREEXUI_VERSION: ${{ matrix.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           timeout_minutes: 18
           max_attempts: 2

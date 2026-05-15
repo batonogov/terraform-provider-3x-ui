@@ -577,12 +577,51 @@ func (c *Client) GetServerStatus(ctx context.Context) (map[string]any, error) {
 	return out, nil
 }
 
+const (
+	// versionRetryAttempts is the maximum number of retries for GetXrayVersions
+	// when the upstream GitHub API rate-limits the 3x-ui panel's internal
+	// cache fetch. Exponential backoff: 2s, 4s, 8s, 16s.
+	versionRetryAttempts    = 4
+	versionRetryBaseBackoff = 2 * time.Second
+)
+
+// isUpstreamRateLimitError reports whether err originated from 3x-ui's
+// getXrayVersion handler failing due to an upstream GitHub API rate limit.
+// The panel returns success:false with a message containing "rate limit".
+func isUpstreamRateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "rate limit")
+}
+
 func (c *Client) GetXrayVersions(ctx context.Context) ([]string, error) {
 	var out []string
-	if err := c.doJSON(ctx, http.MethodGet, "panel/api/server/getXrayVersion", nil, &out); err != nil {
-		return nil, err
+	backoff := versionRetryBaseBackoff
+	for attempt := 0; attempt <= versionRetryAttempts; attempt++ {
+		err := c.doJSON(ctx, http.MethodGet, "panel/api/server/getXrayVersion", nil, &out)
+		if err == nil {
+			return out, nil
+		}
+		if !isUpstreamRateLimitError(err) || attempt == versionRetryAttempts {
+			return nil, err
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		tflog.Warn(ctx, "retrying getXrayVersion after upstream rate limit", map[string]any{
+			"attempt":      attempt + 1,
+			"max_attempts": versionRetryAttempts,
+			"backoff":      backoff.String(),
+		})
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(backoff):
+			backoff *= 2
+		}
 	}
-	return out, nil
+	return nil, fmt.Errorf("getXrayVersion: upstream rate limit persisted after %d retries", versionRetryAttempts)
 }
 
 // ErrXrayVersionUnknown is returned when the 3x-ui API reports the Xray
