@@ -175,6 +175,14 @@ auto re-login on 401/404. 3x-ui v3 rejects unsafe methods with 403 when CSRF is
 missing/stale; the client bootstraps `/csrf-token`, sends `X-CSRF-Token`, and
 refreshes via `/panel/csrf-token` before retrying once.
 
+### Provider authentication and bootstrap credentials
+
+- Provider config defaults `username`/`password` to `admin`/`admin` when omitted.
+- `bootstrap_username` and `bootstrap_password` are explicit opt-in credentials for first-run panel bootstrap. They must be configured together and non-empty; `bootstrap_password` is `Sensitive` and listed in `SECURITY.md`.
+- `Client.LoginWithBootstrapCredentials` uses anonymous `GET /csrf-token` as the panel-generation signal. If a token is returned (3x-ui v3.x), the client tries steady-state `username`/`password` first and falls back to bootstrap credentials only on a panel login rejection. If no token is returned (3x-ui v2.9.x), the client tries bootstrap credentials first to avoid submitting and exposing the desired steady-state password through failed-login logs or Telegram login notifications.
+- Bootstrap fallback is only for ordinary login rejection (`loginFailedError`). HTTP status errors, network errors, and CSRF bootstrap errors surface immediately and must not trigger a credential fallback.
+- Intended workflow: configure provider `username`/`password` with the desired steady-state credentials, add `bootstrap_username`/`bootstrap_password` for the initial panel credentials, and manage `threexui_panel_user` in the same apply so the panel rotates to steady-state credentials. Coverage: `TestLoginWithBootstrapCredentials*`, `TestProviderSensitiveAttributes`, `TestAccPanelUserBootstrapCredentials`.
+
 ### Retry on transient 5xx (write endpoints)
 
 - `Client.withRetry` - single retry policy. Wraps a request function with up to `maxRetries` additional attempts on `*HTTPStatusError` with code 5xx, fixed 500ms backoff, ctx-aware.
@@ -250,7 +258,7 @@ application-layer policy:
 
 - `threexui_panel_user` is a singleton (ID = `"user"`), manages admin credentials.
 - Write-only: no API for reading username/password, Read is a no-op (state preserved).
-- Create uses `r.client.username/password` as old credentials.
+- Create uses `r.client.username/password` as old credentials. In the first-run bootstrap workflow, the provider may be authenticated with bootstrap credentials for the create, then this resource rotates the panel to the steady-state provider `username`/`password`.
 - Update uses previous state as old credentials.
 - After successful `UpdateUser`, client updates its stored credentials for subsequent requests.
 - Delete only clears TF state; credentials on the panel are not reverted.

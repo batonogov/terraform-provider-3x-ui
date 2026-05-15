@@ -32,7 +32,7 @@ The 3x-ui panel issues and stores secrets that this provider reads and writes. T
 
 | Surface | Sensitive fields |
 | --- | --- |
-| Provider config | `password`, `two_factor_code` |
+| Provider config | `password`, `bootstrap_password`, `two_factor_code` |
 | `threexui_inbound` (`stream_settings.reality_settings`) | `private_key`, auto-generated short IDs |
 | `threexui_inbound` (`wireguard_settings`) | `secret_key`, peer `private_key` |
 | `threexui_inbound_client` | client `id` (UUID), `password` (trojan/ss), `auth` (hysteria) |

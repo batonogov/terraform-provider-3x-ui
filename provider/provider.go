@@ -23,6 +23,8 @@ type ThreeXUIProviderModel struct {
 	BasePath           types.String `tfsdk:"base_path"`
 	Username           types.String `tfsdk:"username"`
 	Password           types.String `tfsdk:"password"`
+	BootstrapUsername  types.String `tfsdk:"bootstrap_username"`
+	BootstrapPassword  types.String `tfsdk:"bootstrap_password"`
 	TwoFactorCode      types.String `tfsdk:"two_factor_code"`
 	InsecureSkipVerify types.Bool   `tfsdk:"insecure_skip_verify"`
 	RequestTimeout     types.String `tfsdk:"request_timeout"`
@@ -73,6 +75,15 @@ func (p *ThreeXUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 				Sensitive:   true,
 				Description: "3x-ui password.",
 			},
+			"bootstrap_username": schema.StringAttribute{
+				Optional:    true,
+				Description: "Bootstrap username for explicit first-run credential rotation. On 3x-ui v2.9.x it is tried before the primary username/password to avoid exposing the desired password in failed-login logs; on 3x-ui v3.x it is tried only after the primary credentials are rejected. Must be set together with bootstrap_password.",
+			},
+			"bootstrap_password": schema.StringAttribute{
+				Optional:    true,
+				Sensitive:   true,
+				Description: "Bootstrap password for explicit first-run credential rotation. On 3x-ui v2.9.x it is tried before the primary username/password to avoid exposing the desired password in failed-login logs; on 3x-ui v3.x it is tried only after the primary credentials are rejected. Must be set together with bootstrap_username.",
+			},
 			"two_factor_code": schema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
@@ -119,6 +130,40 @@ func (p *ThreeXUIProvider) Configure(ctx context.Context, req provider.Configure
 	password := "admin"
 	if !config.Password.IsNull() && !config.Password.IsUnknown() {
 		password = config.Password.ValueString()
+	}
+	bootstrapUsername := ""
+	bootstrapUsernameSet := false
+	if config.BootstrapUsername.IsUnknown() {
+		resp.Diagnostics.AddError("Invalid bootstrap_username", "bootstrap_username must be known during provider configuration.")
+		return
+	}
+	if !config.BootstrapUsername.IsNull() {
+		bootstrapUsername = config.BootstrapUsername.ValueString()
+		bootstrapUsernameSet = true
+	}
+	bootstrapPassword := ""
+	bootstrapPasswordSet := false
+	if config.BootstrapPassword.IsUnknown() {
+		resp.Diagnostics.AddError("Invalid bootstrap_password", "bootstrap_password must be known during provider configuration.")
+		return
+	}
+	if !config.BootstrapPassword.IsNull() {
+		bootstrapPassword = config.BootstrapPassword.ValueString()
+		bootstrapPasswordSet = true
+	}
+	if bootstrapUsernameSet != bootstrapPasswordSet {
+		resp.Diagnostics.AddError(
+			"Invalid bootstrap credentials",
+			"bootstrap_username and bootstrap_password must be configured together.",
+		)
+		return
+	}
+	if bootstrapUsernameSet && (bootstrapUsername == "" || bootstrapPassword == "") {
+		resp.Diagnostics.AddError(
+			"Invalid bootstrap credentials",
+			"bootstrap_username and bootstrap_password must be non-empty when configured.",
+		)
+		return
 	}
 	twoFactorCode := ""
 	if !config.TwoFactorCode.IsNull() && !config.TwoFactorCode.IsUnknown() {
@@ -167,9 +212,23 @@ func (p *ThreeXUIProvider) Configure(ctx context.Context, req provider.Configure
 		return
 	}
 
-	if err := client.Login(ctx); err != nil {
-		resp.Diagnostics.AddError("Login failed", err.Error())
-		return
+	if bootstrapUsernameSet {
+		usedBootstrap, err := client.LoginWithBootstrapCredentials(ctx, bootstrapUsername, bootstrapPassword)
+		if err != nil {
+			resp.Diagnostics.AddError("Login failed", err.Error())
+			return
+		}
+		if usedBootstrap {
+			resp.Diagnostics.AddWarning(
+				"Bootstrap credentials used",
+				"The provider authenticated with bootstrap_username/bootstrap_password for this run. Rotate the panel to the primary credentials with threexui_panel_user so future runs do not need the bootstrap credentials.",
+			)
+		}
+	} else {
+		if err := client.Login(ctx); err != nil {
+			resp.Diagnostics.AddError("Login failed", err.Error())
+			return
+		}
 	}
 
 	resp.DataSourceData = client

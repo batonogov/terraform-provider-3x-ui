@@ -80,6 +80,14 @@ type apiResponse struct {
 	Obj     json.RawMessage `json:"obj"`
 }
 
+type loginFailedError struct {
+	message string
+}
+
+func (e *loginFailedError) Error() string {
+	return e.message
+}
+
 func NewClient(cfg ClientConfig) (*Client, error) {
 	if cfg.Endpoint == "" {
 		return nil, errors.New("endpoint is required")
@@ -128,6 +136,92 @@ func (c *Client) Login(ctx context.Context) error {
 	c.authMu.Lock()
 	defer c.authMu.Unlock()
 	return c.loginLocked(ctx)
+}
+
+type loginCredentialAttempt struct {
+	username  string
+	password  string
+	bootstrap bool
+	label     string
+}
+
+// LoginWithBootstrapCredentials tries primary and opt-in bootstrap credentials
+// in the safest order for the detected panel generation. 3x-ui v2.9 logs the
+// password from failed login attempts, so panels without anonymous CSRF support
+// try bootstrap credentials first and avoid probing with the desired steady
+// state password during fresh-panel bootstrap. 3x-ui v3 has anonymous CSRF
+// bootstrap and redacted failed-login logs, so it keeps the steady-state
+// primary-first behavior.
+func (c *Client) LoginWithBootstrapCredentials(ctx context.Context, bootstrapUsername, bootstrapPassword string) (bool, error) {
+	c.authMu.Lock()
+	defer c.authMu.Unlock()
+
+	primaryUsername := c.username
+	primaryPassword := c.password
+
+	csrfToken, err := c.fetchCSRFToken(ctx, "csrf-token", true)
+	if err != nil {
+		return false, err
+	}
+	c.csrfToken = csrfToken
+
+	primary := loginCredentialAttempt{
+		username: primaryUsername,
+		password: primaryPassword,
+		label:    "primary",
+	}
+	bootstrap := loginCredentialAttempt{
+		username:  bootstrapUsername,
+		password:  bootstrapPassword,
+		bootstrap: true,
+		label:     "bootstrap",
+	}
+
+	attempts := []loginCredentialAttempt{primary, bootstrap}
+	if csrfToken == "" {
+		attempts = []loginCredentialAttempt{bootstrap, primary}
+	}
+
+	usedBootstrap, err := c.loginWithCredentialOrderLocked(ctx, attempts)
+	if err != nil {
+		c.username = primaryUsername
+		c.password = primaryPassword
+		return false, err
+	}
+
+	return usedBootstrap, nil
+}
+
+func (c *Client) loginWithCredentialOrderLocked(ctx context.Context, attempts []loginCredentialAttempt) (bool, error) {
+	var firstErr error
+	var firstLabel string
+	var lastErr error
+
+	for _, attempt := range attempts {
+		c.username = attempt.username
+		c.password = attempt.password
+
+		err := c.loginLocked(ctx)
+		if err == nil {
+			return attempt.bootstrap, nil
+		}
+		if firstErr == nil {
+			firstErr = err
+			firstLabel = attempt.label
+		}
+		lastErr = err
+
+		var loginErr *loginFailedError
+		if !errors.As(err, &loginErr) {
+			return false, err
+		}
+	}
+
+	if len(attempts) == 0 {
+		return false, errors.New("no login credentials configured")
+	}
+	lastLabel := attempts[len(attempts)-1].label
+	return false, fmt.Errorf("%s login failed; %s login also failed: %w", firstLabel, lastLabel, lastErr)
 }
 
 func (c *Client) loginLocked(ctx context.Context) error {
@@ -181,9 +275,9 @@ func (c *Client) loginLocked(ctx context.Context) error {
 	}
 	if !apiResp.Success {
 		if apiResp.Msg == "" {
-			return errors.New("login failed")
+			return &loginFailedError{message: "login failed"}
 		}
-		return errors.New(apiResp.Msg)
+		return &loginFailedError{message: apiResp.Msg}
 	}
 	return nil
 }
