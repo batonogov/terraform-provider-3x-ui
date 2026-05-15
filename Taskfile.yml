@@ -17,6 +17,11 @@ tasks:
     cmds:
       - go test ./provider -skip '^TestAcc' -count=1 -v
 
+  test:unit:coverage:
+    desc: Запустить unit-тесты с покрытием (coverage.out, atomic mode)
+    cmds:
+      - go test ./provider -skip '^TestAcc' -count=1 -coverprofile=coverage.out -covermode=atomic -v
+
   test:acc:
     desc: Запустить acceptance-тесты (нужен локальный 3x-ui)
     vars:

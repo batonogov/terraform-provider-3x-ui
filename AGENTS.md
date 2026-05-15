@@ -103,6 +103,7 @@ Use `task` for all routine work:
 - `task vet` runs `go vet ./...`.
 - `task lint` runs `golangci-lint run`.
 - `task test:unit` runs unit tests only.
+- `task test:unit:coverage` runs unit tests with Go coverage profiling (`coverage.out`, atomic mode). Used by CI to generate the coverage report uploaded to Codecov.
 - `task test:acc` starts Docker Compose and runs Terraform acceptance tests.
 - `task test:acc:compat` runs acceptance tests against a selectable 3x-ui version via `THREEXUI_VERSION` (defaults to `v3.0.2`).
 - `task test` runs both unit and acceptance suites.
@@ -436,6 +437,19 @@ retry), CI itself has three safety nets:
 - **Per-job retry** - `acceptance-tests` and `acceptance-matrix` jobs in `.github/workflows/ci.yml` use `nick-fields/retry@v4` with `max_attempts: 2`. Catches the residual flake rate from GHCR pull jitter, one-off SQLite spikes, and runner contention. A green retry should be a no-op for code; if a retry consistently changes behavior, that is a real bug. Diff the two attempt logs.
 - **Flaky test gate** - `skipIfFlaky(t, reason)` in `provider/test_helpers.go` skips when `THREEXUI_SKIP_FLAKY` env is set. Sub-day mitigation when a test starts firing falsely: gate it, push, file a follow-up. Quarantined tests must be tracked (#161 or follow-up); the gate is not a permanent home.
 - **GitHub API rate-limit mitigation** - three layers addressing 3x-ui's unauthenticated GitHub API calls (#184): (1) provider-level `GetXrayVersions` retry with exponential backoff on rate-limit errors, (2) `_warm-xray-version-cache` Taskfile task pre-populates 3x-ui's 15-minute internal cache before tests, (3) `GITHUB_TOKEN` passed to the container via `docker-compose.yaml` env var for forward-compatibility with future 3x-ui versions that may use it for authenticated API calls.
+
+### Codecov Coverage Reporting
+
+The `unit-tests` CI job runs `task test:unit:coverage` to produce a Go coverage
+profile (`coverage.out`, atomic mode) and uploads it to
+[Codecov](https://codecov.io) via `codecov/codecov-action@v6`. Upload is
+authenticated with the `CODECOV_TOKEN` repository secret.
+
+- Coverage is reported on every push to `main` and on every PR (the CI workflow
+  triggers on both).
+- The coverage badge in `README.md` (all locales) links to the Codecov dashboard.
+- `test:unit:coverage` in `Taskfile.yml` is the single source of truth for the
+  coverage command; CI calls it via `task` rather than an inline `go test` invocation.
 
 ## Releases
 
