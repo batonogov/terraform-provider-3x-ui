@@ -96,8 +96,13 @@ jobs:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }} # see top-of-file note
 
-      - name: Run unit tests
-        run: task test:unit
+      - name: Run unit tests with coverage
+        run: task test:unit:coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   acceptance-tests:
     name: Acceptance Tests

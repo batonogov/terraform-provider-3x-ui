@@ -105,6 +105,7 @@ Use `task` for all routine work:
 - `task vet` runs `go vet ./...`.
 - `task lint` runs `golangci-lint run`.
 - `task test:unit` runs unit tests only.
+- `task test:unit:coverage` runs unit tests with Go coverage profiling (`coverage.out`, atomic mode). Used by CI to generate the coverage report uploaded to Codecov.
 - `task test:acc` starts Docker Compose and runs Terraform acceptance tests.
 - `task test:acc:compat` runs acceptance tests against a selectable 3x-ui version via `THREEXUI_VERSION` (defaults to `v3.0.2`).
 - `task test` runs both unit and acceptance suites.
@@ -493,6 +494,19 @@ digging through CI logs.
 
 The version list in the matrix must be kept in sync with `ci.yml`
 `acceptance-matrix` and the README compatibility tables.
+
+### Codecov Coverage Reporting
+
+The `unit-tests` CI job runs `task test:unit:coverage` to produce a Go coverage
+profile (`coverage.out`, atomic mode) and uploads it to
+[Codecov](https://codecov.io) via `codecov/codecov-action@v6`. Upload is
+authenticated with the `CODECOV_TOKEN` repository secret.
+
+- Coverage is reported on every push to `main` and on every PR (the CI workflow
+  triggers on both).
+- The coverage badge in `README.md` (all locales) links to the Codecov dashboard.
+- `test:unit:coverage` in `Taskfile.yml` is the single source of truth for the
+  coverage command; CI calls it via `task` rather than an inline `go test` invocation.
 
 ## Releases
 
