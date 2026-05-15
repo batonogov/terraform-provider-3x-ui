@@ -53,6 +53,7 @@ Taskfile.yml           - task build / test / fmt
   ci.yml               - lint, unit tests, acceptance tests, compatibility matrix (PR + push main)
   docs.yml             - docs/examples validation: terraform fmt, markdownlint, yamllint (PR + push main)
   release-please.yml   - Release Please + GoReleaser (conventional commits -> semver tag -> build + sign + publish)
+  flake-tracking.yml   - weekly compat matrix with continue-on-error, posts per-version results table as GitHub issue
 ```
 
 ## Provider Resources
@@ -436,6 +437,24 @@ retry), CI itself has three safety nets:
 - **Per-job retry** - `acceptance-tests` and `acceptance-matrix` jobs in `.github/workflows/ci.yml` use `nick-fields/retry@v4` with `max_attempts: 2`. Catches the residual flake rate from GHCR pull jitter, one-off SQLite spikes, and runner contention. A green retry should be a no-op for code; if a retry consistently changes behavior, that is a real bug. Diff the two attempt logs.
 - **Flaky test gate** - `skipIfFlaky(t, reason)` in `provider/test_helpers.go` skips when `THREEXUI_SKIP_FLAKY` env is set. Sub-day mitigation when a test starts firing falsely: gate it, push, file a follow-up. Quarantined tests must be tracked (#161 or follow-up); the gate is not a permanent home.
 - **GitHub API rate-limit mitigation** - three layers addressing 3x-ui's unauthenticated GitHub API calls (#184): (1) provider-level `GetXrayVersions` retry with exponential backoff on rate-limit errors, (2) `_warm-xray-version-cache` Taskfile task pre-populates 3x-ui's 15-minute internal cache before tests, (3) `GITHUB_TOKEN` passed to the container via `docker-compose.yaml` env var for forward-compatibility with future 3x-ui versions that may use it for authenticated API calls.
+
+### Weekly Flake-Rate Tracking
+
+`.github/workflows/flake-tracking.yml` runs an unattended compatibility matrix
+every Monday at 09:03 UTC (also via `workflow_dispatch`). Purpose: surface
+per-version flake rates as a GitHub issue so regressions are visible without
+digging through CI logs.
+
+- **`compat` job** - same matrix as `ci.yml` `acceptance-matrix`, each version
+  runs `task test:acc:compat` with `nick-fields/retry` (max 2 attempts).
+  `continue-on-error: true` ensures every version runs even if one fails.
+- **`report` job** - runs after `compat` (uses `if: always()`). Queries the
+  GitHub Actions API for each matrix job's conclusion, builds a Markdown table
+  (version / result), and opens a GitHub issue titled
+  "CI Flake Rate Report -- Week of YYYY-MM-DD" with the `ci` label.
+
+The version list in the matrix must be kept in sync with `ci.yml`
+`acceptance-matrix` and the README compatibility tables.
 
 ## Releases
 
