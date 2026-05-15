@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.5.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.4.0...v3.5.0) (2026-05-15)
+
+
+### Features
+
+* add bootstrap provider credentials ([#187](https://github.com/batonogov/terraform-provider-threexui/issues/187)) ([846fcde](https://github.com/batonogov/terraform-provider-threexui/commit/846fcdec9d8f3d76082209f8ff56172911d87d84))
+
 ## [3.4.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.3.0...v3.4.0) (2026-05-14)
 
 
