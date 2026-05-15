@@ -108,6 +108,9 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	}
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	// #nosec G402 -- InsecureSkipVerify is intentional: the provider manages
+	// self-hosted panels that frequently use self-signed certificates. The
+	// user explicitly opts in via the insecure_skip_verify provider attribute.
 	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify}
 
 	client := &http.Client{
@@ -886,6 +889,7 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType st
 	}
 
 	if resp.StatusCode == http.StatusForbidden && requiresCSRF(method) {
+		// #nosec G104 -- discarding body before retry; Close error is not actionable
 		resp.Body.Close()
 		refreshed, refreshErr := c.refreshCSRFToken(ctx)
 		if refreshErr != nil {
@@ -900,6 +904,7 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType st
 		}
 	}
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusNotFound {
+		// #nosec G104 -- discarding body before re-login; Close error is not actionable
 		resp.Body.Close()
 		if err := c.Login(ctx); err != nil {
 			return err
@@ -909,6 +914,7 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType st
 			return err
 		}
 		if resp.StatusCode == http.StatusForbidden && requiresCSRF(method) {
+			// #nosec G104 -- discarding body before retry; Close error is not actionable
 			resp.Body.Close()
 			refreshed, refreshErr := c.refreshCSRFToken(ctx)
 			if refreshErr != nil {
