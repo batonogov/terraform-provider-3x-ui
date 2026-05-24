@@ -357,7 +357,7 @@ func (r *InboundClientResource) Delete(ctx context.Context, req resource.DeleteR
 		return
 	}
 
-	if err := r.client.DeleteInboundClient(ctx, inboundID, clientID); err != nil {
+	if err := r.client.DeleteInboundClient(ctx, inboundID, clientID, cur.Email.ValueString()); err != nil {
 		if strings.Contains(err.Error(), "no client remained in Inbound") {
 			resp.State.RemoveResource(ctx)
 			return

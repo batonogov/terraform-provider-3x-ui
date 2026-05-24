@@ -67,6 +67,8 @@ type Client struct {
 	csrfToken        string
 	settingsSecretMu sync.Mutex
 	settingsSecrets  map[string]string
+	newClientMu      sync.Mutex
+	newClientAPI     *bool // nil=undetected, true=v3.1.0+ /panel/api/clients/*, false=old
 }
 
 // SetBasePath updates the client's base path to match a new webBasePath.
@@ -524,6 +526,25 @@ func (c *Client) AddInboundClient(ctx context.Context, inboundID int, client map
 	if client == nil {
 		return errors.New("client data is required")
 	}
+
+	if c.useNewClientAPI(ctx) {
+		payload := map[string]any{
+			"client":     client,
+			"inboundIds": []int{inboundID},
+		}
+		err := c.doJSON(ctx, http.MethodPost, "panel/api/clients/add", payload, nil)
+		if err == nil {
+			c.setNewClientAPI(true)
+			return nil
+		}
+		if isHTTPNotFound(err) {
+			c.setNewClientAPI(false)
+		} else {
+			return err
+		}
+	}
+
+	// Old endpoint (v2.9.x, v3.0.x)
 	payload := map[string]any{"clients": []map[string]any{client}}
 	settings, err := json.Marshal(payload)
 	if err != nil {
@@ -545,6 +566,26 @@ func (c *Client) UpdateInboundClient(ctx context.Context, inboundID int, clientI
 	if client == nil {
 		return errors.New("client data is required")
 	}
+
+	if c.useNewClientAPI(ctx) {
+		email, _ := client["email"].(string)
+		if email == "" {
+			return errors.New("client email is required for v3.1.0+ update")
+		}
+		relPath := fmt.Sprintf("panel/api/clients/update/%s", url.PathEscape(email))
+		err := c.doJSONRetryable(ctx, http.MethodPost, relPath, client, nil)
+		if err == nil {
+			c.setNewClientAPI(true)
+			return nil
+		}
+		if isHTTPNotFound(err) {
+			c.setNewClientAPI(false)
+		} else {
+			return err
+		}
+	}
+
+	// Old endpoint (v2.9.x, v3.0.x)
 	payload := map[string]any{"clients": []map[string]any{client}}
 	settings, err := json.Marshal(payload)
 	if err != nil {
@@ -557,13 +598,31 @@ func (c *Client) UpdateInboundClient(ctx context.Context, inboundID int, clientI
 	return c.doFormRetryable(ctx, http.MethodPost, relPath, form, nil)
 }
 
-func (c *Client) DeleteInboundClient(ctx context.Context, inboundID int, clientID string) error {
+func (c *Client) DeleteInboundClient(ctx context.Context, inboundID int, clientID string, email string) error {
 	if inboundID == 0 {
 		return errors.New("inbound id is required for delete client")
 	}
 	if clientID == "" {
 		return errors.New("client id is required for delete client")
 	}
+
+	if c.useNewClientAPI(ctx) && email != "" {
+		relPath := fmt.Sprintf("panel/api/clients/del/%s", url.PathEscape(email))
+		err := c.doForm(ctx, http.MethodPost, relPath, url.Values{}, nil)
+		if err == nil {
+			c.setNewClientAPI(true)
+			return nil
+		}
+		if isHTTPNotFound(err) {
+			c.setNewClientAPI(false)
+		} else if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "Not Found") {
+			return nil
+		} else {
+			return err
+		}
+	}
+
+	// Old endpoint (v2.9.x, v3.0.x)
 	relPath := fmt.Sprintf("panel/api/inbounds/%d/delClient/%s", inboundID, clientID)
 	err := c.doForm(ctx, http.MethodPost, relPath, url.Values{}, nil)
 	if err != nil && strings.Contains(err.Error(), "Client Not Found") {
@@ -681,6 +740,24 @@ func (c *Client) GetXrayConfig(ctx context.Context) (map[string]any, error) {
 }
 
 func (c *Client) GetOnlineClients(ctx context.Context) ([]string, error) {
+	if c.useNewClientAPI(ctx) {
+		var out []string
+		err := c.doJSON(ctx, http.MethodPost, "panel/api/clients/onlines", nil, &out)
+		if err == nil {
+			c.setNewClientAPI(true)
+			if out == nil {
+				out = []string{}
+			}
+			return out, nil
+		}
+		if isHTTPNotFound(err) {
+			c.setNewClientAPI(false)
+		} else {
+			return nil, err
+		}
+	}
+
+	// Old endpoint (v2.9.x, v3.0.x)
 	var out []string
 	if err := c.doJSON(ctx, http.MethodPost, "panel/api/inbounds/onlines", nil, &out); err != nil {
 		return nil, err
@@ -695,6 +772,26 @@ func (c *Client) GetClientTraffics(ctx context.Context, email string) (*ClientTr
 	if email == "" {
 		return nil, errors.New("email is required for get client traffics")
 	}
+
+	if c.useNewClientAPI(ctx) {
+		relPath := fmt.Sprintf("panel/api/clients/traffic/%s", url.PathEscape(email))
+		var out ClientTraffic
+		err := c.doJSON(ctx, http.MethodGet, relPath, nil, &out)
+		if err == nil {
+			c.setNewClientAPI(true)
+			if out.Email == "" {
+				return nil, fmt.Errorf("client with email %q not found", email)
+			}
+			return &out, nil
+		}
+		if isHTTPNotFound(err) {
+			c.setNewClientAPI(false)
+		} else {
+			return nil, err
+		}
+	}
+
+	// Old endpoint (v2.9.x, v3.0.x)
 	relPath := fmt.Sprintf("panel/api/inbounds/getClientTraffics/%s", url.PathEscape(email))
 	var out ClientTraffic
 	if err := c.doJSON(ctx, http.MethodGet, relPath, nil, &out); err != nil {
@@ -1186,4 +1283,55 @@ func inboundToForm(in *Inbound) url.Values {
 		form.Set("nodeId", strconv.Itoa(*in.NodeID))
 	}
 	return form
+}
+
+// useNewClientAPI returns true if the v3.1.0+ /panel/api/clients/* surface
+// should be tried. On the first call it probes the panel to detect the
+// available API surface. Subsequent calls use the cached result.
+func (c *Client) useNewClientAPI(ctx context.Context) bool {
+	c.newClientMu.Lock()
+	defer c.newClientMu.Unlock()
+	if c.newClientAPI != nil {
+		return *c.newClientAPI
+	}
+
+	endpoint, err := c.resolvePath("panel/api/clients/list")
+	if err != nil {
+		return false
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
+	if err != nil {
+		return false
+	}
+	req.Header.Set("X-Requested-With", "XMLHttpRequest")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body) //nolint:errcheck // probe: discard error is safe
+
+	isNew := resp.StatusCode == http.StatusOK
+	c.newClientAPI = &isNew
+	if isNew {
+		tflog.Info(ctx, "detected 3x-ui v3.1.0+ client API surface")
+	} else {
+		tflog.Info(ctx, "detected 3x-ui v2.9.x/v3.0.x client API surface")
+	}
+	return isNew
+}
+
+func (c *Client) setNewClientAPI(v bool) {
+	c.newClientMu.Lock()
+	c.newClientAPI = &v
+	c.newClientMu.Unlock()
+}
+
+// isHTTPNotFound reports whether err originated from an HTTP 404 response.
+func isHTTPNotFound(err error) bool {
+	var httpErr *HTTPStatusError
+	if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
+		return true
+	}
+	return false
 }
