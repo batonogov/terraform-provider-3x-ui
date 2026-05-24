@@ -51,7 +51,7 @@ docker-compose.yaml    - 3x-ui on port 2053 (version via THREEXUI_VERSION env, d
 Taskfile.yml           - task build / test / fmt
 .github/workflows/
   ci.yml               - lint, unit tests, acceptance tests, compatibility matrix (PR + push main)
-  docs.yml             - docs/examples validation: terraform fmt, markdownlint, yamllint; tfplugindocs validate for schema/docs drift (PR + push main)
+  docs.yml             - docs/examples validation: terraform fmt, markdownlint, yamllint (PR + push main)
   release-please.yml   - Release Please + GoReleaser (conventional commits -> semver tag -> build + sign + publish)
 ```
 
@@ -436,20 +436,6 @@ retry), CI itself has three safety nets:
 - **Per-job retry** - `acceptance-tests` and `acceptance-matrix` jobs in `.github/workflows/ci.yml` use `nick-fields/retry@v4` with `max_attempts: 2`. Catches the residual flake rate from GHCR pull jitter, one-off SQLite spikes, and runner contention. A green retry should be a no-op for code; if a retry consistently changes behavior, that is a real bug. Diff the two attempt logs.
 - **Flaky test gate** - `skipIfFlaky(t, reason)` in `provider/test_helpers.go` skips when `THREEXUI_SKIP_FLAKY` env is set. Sub-day mitigation when a test starts firing falsely: gate it, push, file a follow-up. Quarantined tests must be tracked (#161 or follow-up); the gate is not a permanent home.
 - **GitHub API rate-limit mitigation** - three layers addressing 3x-ui's unauthenticated GitHub API calls (#184): (1) provider-level `GetXrayVersions` retry with exponential backoff on rate-limit errors, (2) `_warm-xray-version-cache` Taskfile task pre-populates 3x-ui's 15-minute internal cache before tests, (3) `GITHUB_TOKEN` passed to the container via `docker-compose.yaml` env var for forward-compatibility with future 3x-ui versions that may use it for authenticated API calls.
-
-### Docs/Schema Drift Check (tfplugindocs validate)
-
-The `tfplugindocs-validate` job in `.github/workflows/docs.yml` runs
-`tfplugindocs validate --provider-name threexui` to ensure every resource and
-data source registered in the provider schema has a corresponding doc file
-under `docs/resources/` or `docs/data-sources/`. This catches schema/docs
-drift: a new resource without a doc file, a renamed resource whose doc was not
-moved, or a stale doc for a removed resource.
-
-Path triggers include `docs/**`, `examples/**`, `provider/**/*.go`, `go.mod`,
-and `go.sum` so that both doc-only changes and schema-affecting code changes
-are validated. When adding a new resource or data source, include the
-corresponding doc file in the same PR; otherwise this job will fail.
 
 ## Releases
 
