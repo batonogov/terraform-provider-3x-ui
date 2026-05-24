@@ -534,11 +534,10 @@ func (c *Client) AddInboundClient(ctx context.Context, inboundID int, client map
 		}
 		err := c.doJSON(ctx, http.MethodPost, "panel/api/clients/add", payload, nil)
 		if err == nil {
-			c.setNewClientAPI(true)
 			return nil
 		}
 		if isHTTPNotFound(err) {
-			c.setNewClientAPI(false)
+			c.markLegacyClientAPI()
 		} else {
 			return err
 		}
@@ -575,11 +574,10 @@ func (c *Client) UpdateInboundClient(ctx context.Context, inboundID int, clientI
 		relPath := fmt.Sprintf("panel/api/clients/update/%s", url.PathEscape(email))
 		err := c.doJSONRetryable(ctx, http.MethodPost, relPath, client, nil)
 		if err == nil {
-			c.setNewClientAPI(true)
 			return nil
 		}
 		if isHTTPNotFound(err) {
-			c.setNewClientAPI(false)
+			c.markLegacyClientAPI()
 		} else {
 			return err
 		}
@@ -610,12 +608,11 @@ func (c *Client) DeleteInboundClient(ctx context.Context, inboundID int, clientI
 		relPath := fmt.Sprintf("panel/api/clients/del/%s", url.PathEscape(email))
 		err := c.doForm(ctx, http.MethodPost, relPath, url.Values{}, nil)
 		if err == nil {
-			c.setNewClientAPI(true)
 			return nil
 		}
 		if isHTTPNotFound(err) {
-			c.setNewClientAPI(false)
-		} else if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "Not Found") {
+			c.markLegacyClientAPI()
+		} else if strings.Contains(strings.ToLower(err.Error()), "client not found") {
 			return nil
 		} else {
 			return err
@@ -744,14 +741,13 @@ func (c *Client) GetOnlineClients(ctx context.Context) ([]string, error) {
 		var out []string
 		err := c.doJSON(ctx, http.MethodPost, "panel/api/clients/onlines", nil, &out)
 		if err == nil {
-			c.setNewClientAPI(true)
 			if out == nil {
 				out = []string{}
 			}
 			return out, nil
 		}
 		if isHTTPNotFound(err) {
-			c.setNewClientAPI(false)
+			c.markLegacyClientAPI()
 		} else {
 			return nil, err
 		}
@@ -778,14 +774,13 @@ func (c *Client) GetClientTraffics(ctx context.Context, email string) (*ClientTr
 		var out ClientTraffic
 		err := c.doJSON(ctx, http.MethodGet, relPath, nil, &out)
 		if err == nil {
-			c.setNewClientAPI(true)
 			if out.Email == "" {
 				return nil, fmt.Errorf("client with email %q not found", email)
 			}
 			return &out, nil
 		}
 		if isHTTPNotFound(err) {
-			c.setNewClientAPI(false)
+			c.markLegacyClientAPI()
 		} else {
 			return nil, err
 		}
@@ -1288,6 +1283,9 @@ func inboundToForm(in *Inbound) url.Values {
 // useNewClientAPI returns true if the v3.1.0+ /panel/api/clients/* surface
 // should be tried. On the first call it probes the panel to detect the
 // available API surface. Subsequent calls use the cached result.
+// The probe goes through doRequest so it benefits from auto re-login
+// on expired sessions (a raw HTTP GET would get 404 on unauthenticated
+// v3.1.0+ and incorrectly mark the API as old).
 func (c *Client) useNewClientAPI(ctx context.Context) bool {
 	c.newClientMu.Lock()
 	defer c.newClientMu.Unlock()
@@ -1295,23 +1293,9 @@ func (c *Client) useNewClientAPI(ctx context.Context) bool {
 		return *c.newClientAPI
 	}
 
-	endpoint, err := c.resolvePath("panel/api/clients/list")
-	if err != nil {
-		return false
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
-	if err != nil {
-		return false
-	}
-	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, resp.Body) //nolint:errcheck // probe: discard error is safe
-
-	isNew := resp.StatusCode == http.StatusOK
+	var out json.RawMessage
+	err := c.doJSON(ctx, http.MethodGet, "panel/api/clients/list", nil, &out)
+	isNew := err == nil
 	c.newClientAPI = &isNew
 	if isNew {
 		tflog.Info(ctx, "detected 3x-ui v3.1.0+ client API surface")
@@ -1321,7 +1305,8 @@ func (c *Client) useNewClientAPI(ctx context.Context) bool {
 	return isNew
 }
 
-func (c *Client) setNewClientAPI(v bool) {
+func (c *Client) markLegacyClientAPI() {
+	v := false
 	c.newClientMu.Lock()
 	c.newClientAPI = &v
 	c.newClientMu.Unlock()
