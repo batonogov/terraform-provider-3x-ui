@@ -555,7 +555,7 @@ func (c *Client) AddInboundClient(ctx context.Context, inboundID int, client map
 	return c.doForm(ctx, http.MethodPost, "panel/api/inbounds/addClient", form, nil)
 }
 
-func (c *Client) UpdateInboundClient(ctx context.Context, inboundID int, clientID string, client map[string]any) error {
+func (c *Client) UpdateInboundClient(ctx context.Context, inboundID int, clientID string, currentEmail string, client map[string]any) error {
 	if inboundID == 0 {
 		return errors.New("inbound id is required for update client")
 	}
@@ -567,11 +567,13 @@ func (c *Client) UpdateInboundClient(ctx context.Context, inboundID int, clientI
 	}
 
 	if c.useNewClientAPI(ctx) {
-		email, _ := client["email"].(string)
-		if email == "" {
+		if currentEmail == "" {
+			currentEmail, _ = client["email"].(string)
+		}
+		if currentEmail == "" {
 			return errors.New("client email is required for v3.1.0+ update")
 		}
-		relPath := fmt.Sprintf("panel/api/clients/update/%s", url.PathEscape(email))
+		relPath := fmt.Sprintf("panel/api/clients/update/%s", url.PathEscape(currentEmail))
 		err := c.doJSONRetryable(ctx, http.MethodPost, relPath, client, nil)
 		if err == nil {
 			return nil

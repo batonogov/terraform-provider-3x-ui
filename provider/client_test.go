@@ -743,7 +743,7 @@ func TestUpdateInboundClientRetriesTransient5xx(t *testing.T) {
 	defer srv.Close()
 
 	client := newTestClient(t, srv.URL)
-	if err := client.UpdateInboundClient(context.Background(), 7, "abc", map[string]any{"id": "abc"}); err != nil {
+	if err := client.UpdateInboundClient(context.Background(), 7, "abc", "", map[string]any{"id": "abc"}); err != nil {
 		t.Fatalf("UpdateInboundClient after 500-then-200 failed: %v", err)
 	}
 	if got := atomic.LoadInt32(&calls); got != 2 {

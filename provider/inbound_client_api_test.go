@@ -83,7 +83,7 @@ func TestClientUpdateInboundClient(t *testing.T) {
 	client := newTestClient(t, srv.URL)
 	setLegacyClientAPI(client)
 	data := map[string]any{"id": "uuid", "email": "a@b"}
-	if err := client.UpdateInboundClient(context.Background(), 2, "uuid", data); err != nil {
+	if err := client.UpdateInboundClient(context.Background(), 2, "uuid", "", data); err != nil {
 		t.Fatalf("UpdateInboundClient failed: %v", err)
 	}
 	if gotPath != "/panel/api/inbounds/updateClient/uuid" {
@@ -105,7 +105,7 @@ func TestClientUpdateInboundClientNewAPI(t *testing.T) {
 
 	client := newTestClient(t, srv.URL)
 	data := map[string]any{"id": "uuid", "email": "a@b"}
-	if err := client.UpdateInboundClient(context.Background(), 2, "uuid", data); err != nil {
+	if err := client.UpdateInboundClient(context.Background(), 2, "uuid", "a@b", data); err != nil {
 		t.Fatalf("UpdateInboundClient failed: %v", err)
 	}
 	if gotPath != "/panel/api/clients/update/a@b" {
@@ -113,6 +113,33 @@ func TestClientUpdateInboundClientNewAPI(t *testing.T) {
 	}
 	if gotBody["id"] != "uuid" || gotBody["email"] != "a@b" {
 		t.Fatalf("expected client data in body, got %v", gotBody)
+	}
+}
+
+func TestClientUpdateInboundClientNewAPIEmailChange(t *testing.T) {
+	var gotPath string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		if r.Method == http.MethodPost {
+			json.NewDecoder(r.Body).Decode(&gotBody)
+		}
+		w.Write(okResponse(nil))
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	data := map[string]any{"id": "uuid", "email": "new@b"}
+	if err := client.UpdateInboundClient(context.Background(), 2, "uuid", "old@b", data); err != nil {
+		t.Fatalf("UpdateInboundClient failed: %v", err)
+	}
+	// URL must use the OLD email to look up the existing record
+	if gotPath != "/panel/api/clients/update/old@b" {
+		t.Fatalf("unexpected path: %s (expected /panel/api/clients/update/old@b)", gotPath)
+	}
+	// Body must contain the NEW email
+	if gotBody["email"] != "new@b" {
+		t.Fatalf("expected new email in body, got %v", gotBody["email"])
 	}
 }
 

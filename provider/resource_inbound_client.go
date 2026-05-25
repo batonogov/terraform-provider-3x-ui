@@ -320,7 +320,7 @@ func (r *InboundClientResource) Update(ctx context.Context, req resource.UpdateR
 	clientData := expandInboundClientFromModel(&plan)
 	clientData["id"] = clientID
 
-	if err := r.client.UpdateInboundClient(ctx, inboundID, clientID, clientData); err != nil {
+	if err := r.client.UpdateInboundClient(ctx, inboundID, clientID, cur.Email.ValueString(), clientData); err != nil {
 		resp.Diagnostics.AddError("Failed to update inbound client", err.Error())
 		return
 	}
