@@ -23,11 +23,8 @@ func (trafficCounterModifier) MarkdownDescription(_ context.Context) string {
 }
 
 func (m trafficCounterModifier) PlanModifyInt64(ctx context.Context, req planmodifier.Int64Request, resp *planmodifier.Int64Response) {
-	// Create: no prior state — use standard UseStateForUnknown behaviour.
+	// Create: no prior state — leave plan value as-is (unknown).
 	if req.StateValue.IsNull() {
-		if resp.PlanValue.IsUnknown() {
-			resp.PlanValue = req.StateValue
-		}
 		return
 	}
 
