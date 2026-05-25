@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.6.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.5.0...v3.6.0) (2026-05-25)
+
+
+### Features
+
+* add 3x-ui v3.1.0 support ([#201](https://github.com/batonogov/terraform-provider-threexui/issues/201)) ([3ecd8c0](https://github.com/batonogov/terraform-provider-threexui/commit/3ecd8c0cd624057b1bca6ae8c8e50dab849532c1))
+* add govulncheck to CI and enable GitHub Sponsors ([#192](https://github.com/batonogov/terraform-provider-threexui/issues/192)) ([6874072](https://github.com/batonogov/terraform-provider-threexui/commit/687407213925b4e837a3e140bc098894ce810efd))
+* enable gosec linter and capture container logs on CI failure ([#194](https://github.com/batonogov/terraform-provider-threexui/issues/194)) ([500731b](https://github.com/batonogov/terraform-provider-threexui/commit/500731b07d18ac2cd0f47f70801a8856f3d3c4fe))
+* report test coverage to Codecov and add badge ([#193](https://github.com/batonogov/terraform-provider-threexui/issues/193)) ([fd286c3](https://github.com/batonogov/terraform-provider-threexui/commit/fd286c3e3440cc933317b6e0e0ce10d50b69b31b))
+
+
+### Bug Fixes
+
+* stabilize CI compat matrix around Xray version rate limits ([#189](https://github.com/batonogov/terraform-provider-threexui/issues/189)) ([9515338](https://github.com/batonogov/terraform-provider-threexui/commit/9515338fa16897ff36595d93c641df4e10eff387))
+* suppress drift on traffic counter fields during inbound update ([#203](https://github.com/batonogov/terraform-provider-threexui/issues/203)) ([9b12113](https://github.com/batonogov/terraform-provider-threexui/commit/9b121138681ab119bcda23a61abd61b6dc8e85f7))
+
 ## [3.5.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.4.0...v3.5.0) (2026-05-15)
 
 
