@@ -1,6 +1,5 @@
 ---
 page_title: "3x-ui Provider"
-subcategory: ""
 description: |-
   Terraform provider for managing 3x-ui panel resources.
 ---
