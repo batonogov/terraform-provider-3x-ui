@@ -27,6 +27,7 @@ import (
 var (
 	_ resource.Resource                = &InboundResource{}
 	_ resource.ResourceWithImportState = &InboundResource{}
+	_ resource.ResourceWithModifyPlan  = &InboundResource{}
 )
 
 type InboundResource struct {
@@ -490,6 +491,40 @@ func (r *InboundResource) waitForInboundDeletion(ctx context.Context, id int) er
 
 func (r *InboundResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+// trafficCounterPaths lists computed traffic-counter attributes that change
+// continuously outside of Terraform.  During update ModifyPlan marks them as
+// unknown so the framework accepts any value returned by Read, preventing
+// "Provider produced inconsistent result after apply" errors (#202).
+var trafficCounterPaths = []path.Path{
+	path.Root("up"),
+	path.Root("down"),
+	path.Root("all_time"),
+	path.Root("last_traffic_reset_time"),
+}
+
+func (r *InboundResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// Create: no prior state — nothing to do.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	// Destroy: plan is null — nothing to do.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// No-op plan: if state and plan are identical, don't touch traffic counters.
+	if req.Plan.Raw.Equal(req.State.Raw) {
+		return
+	}
+
+	// Real update: mark traffic counters as unknown so Terraform accepts
+	// whatever Read returns (#202).
+	for _, p := range trafficCounterPaths {
+		resp.Plan.SetAttribute(ctx, p, types.Int64Unknown())
+	}
 }
 
 // ---------------------------------------------------------------------------
