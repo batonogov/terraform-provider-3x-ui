@@ -252,6 +252,16 @@ func (r *InboundClientResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 
+	// 3x-ui v3.1.0 ClientService.Create forcibly overrides enable=false to
+	// true. Issue a corrective update when the plan requests enable=false so
+	// the post-create read returns the correct value.
+	if !plan.Enable.IsNull() && !plan.Enable.IsUnknown() && !plan.Enable.ValueBool() {
+		if err := r.client.UpdateInboundClient(ctx, inboundID, clientID, plan.Email.ValueString(), clientData); err != nil {
+			resp.Diagnostics.AddError("Failed to correct enable field after create", err.Error())
+			return
+		}
+	}
+
 	// Read back from API to populate state. The just-added client may not
 	// be visible to a subsequent GET if SQLite is contended (issue #157),
 	// so poll until it appears or the budget is exhausted.
