@@ -12,6 +12,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/batonogov/terraform-provider-threexui)](https://goreportcard.com/report/github.com/batonogov/terraform-provider-threexui)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/batonogov/terraform-provider-threexui)](go.mod)
 [![Last Commit](https://img.shields.io/github/last-commit/batonogov/terraform-provider-threexui)](https://github.com/batonogov/terraform-provider-threexui/commits/main)
+[![Codecov](https://codecov.io/gh/batonogov/terraform-provider-threexui/branch/main/graph/badge.svg)](https://codecov.io/gh/batonogov/terraform-provider-threexui)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## چرا از این Provider استفاده کنیم
@@ -86,10 +87,11 @@ resource "threexui_inbound_client" "client_a" {
 
 ## سازگاری
 
-**سیاست پشتیبانی:** این provider به‌طور رسمی از دو خط مینور آخر 3x-ui پشتیبانی می‌کند. در حال حاضر این یعنی **2.9.x** و **3.0.x** — هر patch منتشرشده از هر دو خط در هر push به `main` و هر pull request توسط ماتریس acceptance اجرا می‌شود. وقتی مینور جدیدی (مثلاً 3.1.0) منتشر شود، قدیمی‌ترین خط پشتیبانی‌شده از ماتریس و این جدول حذف می‌شود.
+**سیاست پشتیبانی:** این provider به‌طور رسمی از سه خط مینور 3x-ui پشتیبانی می‌کند: **2.9.x**، **3.0.x** و **3.1.x** — هر patch منتشرشده از هر سه خط در هر push به `main` و هر pull request توسط ماتریس acceptance اجرا می‌شود.
 
 | نسخهٔ 3x-ui | وضعیت |
 | --- | --- |
+| v3.1.0 | تست‌شده |
 | v3.0.2 | تست‌شده |
 | v3.0.1 | تست‌شده |
 | v3.0.0 | تست‌شده |

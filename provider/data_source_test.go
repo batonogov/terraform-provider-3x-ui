@@ -43,6 +43,7 @@ func TestClientGetClientTrafficsPathEscape(t *testing.T) {
 	defer srv.Close()
 
 	client := newTestClient(t, srv.URL)
+	setLegacyClientAPI(client)
 	_, err := client.GetClientTraffics(context.Background(), "user/slash")
 	if err != nil {
 		t.Fatalf("GetClientTraffics failed: %v", err)

@@ -12,6 +12,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/batonogov/terraform-provider-threexui)](https://goreportcard.com/report/github.com/batonogov/terraform-provider-threexui)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/batonogov/terraform-provider-threexui)](go.mod)
 [![Last Commit](https://img.shields.io/github/last-commit/batonogov/terraform-provider-threexui)](https://github.com/batonogov/terraform-provider-threexui/commits/main)
+[![Codecov](https://codecov.io/gh/batonogov/terraform-provider-threexui/branch/main/graph/badge.svg)](https://codecov.io/gh/batonogov/terraform-provider-threexui)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## ليه نستخدمه
@@ -86,10 +87,11 @@ resource "threexui_inbound_client" "client_a" {
 
 ## التوافق
 
-**سياسة الدعم:** الـ provider بيدعم رسميًا آخر سطرين فرعيين (minor) من 3x-ui. حاليًا ده يعني **2.9.x** و **3.0.x** — كل patch متنزّل من السطرين بيتشغّل في matrix الـ acceptance في كل push على `main` و في كل pull request. لما ينزل minor جديد (مثلاً 3.1.0)، أقدم سطر مدعوم بيتشال من الـ matrix و من الجدول ده.
+**سياسة الدعم:** الـ provider بيدعم رسميًا تلات سطور فرعية (minor) من 3x-ui: **2.9.x**، **3.0.x** و **3.1.x** — كل patch متنزّل من السطور دي بيتشغّل في matrix الـ acceptance في كل push على `main` و في كل pull request.
 
 | إصدار 3x-ui | الحالة |
 | --- | --- |
+| v3.1.0 | تم اختباره |
 | v3.0.2 | تم اختباره |
 | v3.0.1 | تم اختباره |
 | v3.0.0 | تم اختباره |

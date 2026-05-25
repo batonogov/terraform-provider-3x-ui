@@ -10,6 +10,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/batonogov/terraform-provider-threexui)](https://goreportcard.com/report/github.com/batonogov/terraform-provider-threexui)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/batonogov/terraform-provider-threexui)](go.mod)
 [![Last Commit](https://img.shields.io/github/last-commit/batonogov/terraform-provider-threexui)](https://github.com/batonogov/terraform-provider-threexui/commits/main)
+[![Codecov](https://codecov.io/gh/batonogov/terraform-provider-threexui/branch/main/graph/badge.svg)](https://codecov.io/gh/batonogov/terraform-provider-threexui)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## 为什么用它
@@ -84,10 +85,11 @@ resource "threexui_inbound_client" "client_a" {
 
 ## 兼容性
 
-**支持策略:** 本 provider 正式支持最新的两个 3x-ui 次要版本线。目前是 **2.9.x** 和 **3.0.x** —— 两个版本线下的每个已发布补丁版本都会在每次 push 到 `main` 和每个 pull request 时由 acceptance 矩阵覆盖。当新次要版本(例如 3.1.0)发布时,最旧的受支持版本线会从矩阵和本表中移除。
+**支持策略:** 本 provider 正式支持三条 3x-ui 次要版本线: **2.9.x**、**3.0.x** 和 **3.1.x** —— 三条版本线下的每个已发布补丁版本都会在每次 push 到 `main` 和每个 pull request 时由 acceptance 矩阵覆盖。
 
 | 3x-ui 版本 | 状态 |
 | --- | --- |
+| v3.1.0 | 已测试 |
 | v3.0.2 | 已测试 |
 | v3.0.1 | 已测试 |
 | v3.0.0 | 已测试 |

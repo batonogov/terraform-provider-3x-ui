@@ -10,6 +10,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/batonogov/terraform-provider-threexui)](https://goreportcard.com/report/github.com/batonogov/terraform-provider-threexui)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/batonogov/terraform-provider-threexui)](go.mod)
 [![Last Commit](https://img.shields.io/github/last-commit/batonogov/terraform-provider-threexui)](https://github.com/batonogov/terraform-provider-threexui/commits/main)
+[![Codecov](https://codecov.io/gh/batonogov/terraform-provider-threexui/branch/main/graph/badge.svg)](https://codecov.io/gh/batonogov/terraform-provider-threexui)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## Por qué usarlo
@@ -84,10 +85,11 @@ resource "threexui_inbound_client" "client_a" {
 
 ## Compatibilidad
 
-**Política de soporte:** el proveedor soporta oficialmente las dos últimas líneas menores de 3x-ui. Actualmente son **2.9.x** y **3.0.x** — cada parche publicado de ambas líneas se ejecuta en la matriz de aceptación en cada push a `main` y en cada pull request. Cuando se publique una nueva versión menor (p. ej. 3.1.0), la línea soportada más antigua se eliminará de la matriz y de esta tabla.
+**Política de soporte:** el proveedor soporta oficialmente tres líneas menores de 3x-ui: **2.9.x**, **3.0.x** y **3.1.x** — cada parche publicado de las tres líneas se ejecuta en la matriz de aceptación en cada push a `main` y en cada pull request.
 
 | Versión de 3x-ui | Estado |
 | --- | --- |
+| v3.1.0 | Probado |
 | v3.0.2 | Probado |
 | v3.0.1 | Probado |
 | v3.0.0 | Probado |

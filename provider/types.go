@@ -1,9 +1,14 @@
 package provider
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // Inbound represents a 3x-ui inbound (model.Inbound).
-// Note: settings/streamSettings/sniffing are JSON strings as used by the API.
+// Note: settings/streamSettings/sniffing are JSON strings internally.
+// Custom UnmarshalJSON handles both the legacy format (escaped JSON strings)
+// used by v2.9.x/v3.0.x and the modern format (nested JSON objects) used by v3.1.0+.
 type Inbound struct {
 	ID                   int             `json:"id"`
 	Up                   int64           `json:"up"`
@@ -25,6 +30,46 @@ type Inbound struct {
 	Tag            string `json:"tag"`
 	Sniffing       string `json:"sniffing"`
 	NodeID         *int   `json:"nodeId,omitempty"`
+}
+
+func (i *Inbound) UnmarshalJSON(data []byte) error {
+	type Alias Inbound
+	aux := &struct {
+		Settings       json.RawMessage `json:"settings"`
+		StreamSettings json.RawMessage `json:"streamSettings"`
+		Sniffing       json.RawMessage `json:"sniffing"`
+		*Alias
+	}{
+		Alias: (*Alias)(i),
+	}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	i.Settings = rawJSONToString(aux.Settings)
+	i.StreamSettings = rawJSONToString(aux.StreamSettings)
+	i.Sniffing = rawJSONToString(aux.Sniffing)
+	return nil
+}
+
+// rawJSONToString normalises a JSON field that may be either a JSON string
+// (legacy v2.9.x/v3.0.x: "settings":"{\"clients\":[]}") or a raw JSON
+// object/array (v3.1.0+: "settings":{"clients":[]}) back to the plain
+// string the provider uses internally.
+func rawJSONToString(raw json.RawMessage) string {
+	if raw == nil {
+		return ""
+	}
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return ""
+	}
+	if len(trimmed) >= 2 && trimmed[0] == '"' {
+		var s string
+		if err := json.Unmarshal(raw, &s); err == nil {
+			return s
+		}
+	}
+	return trimmed
 }
 
 // ClientTraffic represents traffic statistics for a client (xray.ClientTraffic).

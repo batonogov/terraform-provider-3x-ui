@@ -67,6 +67,8 @@ type Client struct {
 	csrfToken        string
 	settingsSecretMu sync.Mutex
 	settingsSecrets  map[string]string
+	newClientMu      sync.Mutex
+	newClientAPI     *bool // nil=undetected, true=v3.1.0+ /panel/api/clients/*, false=old
 }
 
 // SetBasePath updates the client's base path to match a new webBasePath.
@@ -108,6 +110,9 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	}
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	// #nosec G402 -- InsecureSkipVerify is intentional: the provider manages
+	// self-hosted panels that frequently use self-signed certificates. The
+	// user explicitly opts in via the insecure_skip_verify provider attribute.
 	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify}
 
 	client := &http.Client{
@@ -521,6 +526,24 @@ func (c *Client) AddInboundClient(ctx context.Context, inboundID int, client map
 	if client == nil {
 		return errors.New("client data is required")
 	}
+
+	if c.useNewClientAPI(ctx) {
+		payload := map[string]any{
+			"client":     client,
+			"inboundIds": []int{inboundID},
+		}
+		err := c.doJSON(ctx, http.MethodPost, "panel/api/clients/add", payload, nil)
+		if err == nil {
+			return nil
+		}
+		if isHTTPNotFound(err) {
+			c.markLegacyClientAPI()
+		} else {
+			return err
+		}
+	}
+
+	// Old endpoint (v2.9.x, v3.0.x)
 	payload := map[string]any{"clients": []map[string]any{client}}
 	settings, err := json.Marshal(payload)
 	if err != nil {
@@ -532,7 +555,7 @@ func (c *Client) AddInboundClient(ctx context.Context, inboundID int, client map
 	return c.doForm(ctx, http.MethodPost, "panel/api/inbounds/addClient", form, nil)
 }
 
-func (c *Client) UpdateInboundClient(ctx context.Context, inboundID int, clientID string, client map[string]any) error {
+func (c *Client) UpdateInboundClient(ctx context.Context, inboundID int, clientID string, currentEmail string, client map[string]any) error {
 	if inboundID == 0 {
 		return errors.New("inbound id is required for update client")
 	}
@@ -542,6 +565,27 @@ func (c *Client) UpdateInboundClient(ctx context.Context, inboundID int, clientI
 	if client == nil {
 		return errors.New("client data is required")
 	}
+
+	if c.useNewClientAPI(ctx) {
+		if currentEmail == "" {
+			currentEmail, _ = client["email"].(string)
+		}
+		if currentEmail == "" {
+			return errors.New("client email is required for v3.1.0+ update")
+		}
+		relPath := fmt.Sprintf("panel/api/clients/update/%s", url.PathEscape(currentEmail))
+		err := c.doJSONRetryable(ctx, http.MethodPost, relPath, client, nil)
+		if err == nil {
+			return nil
+		}
+		if isHTTPNotFound(err) {
+			c.markLegacyClientAPI()
+		} else {
+			return err
+		}
+	}
+
+	// Old endpoint (v2.9.x, v3.0.x)
 	payload := map[string]any{"clients": []map[string]any{client}}
 	settings, err := json.Marshal(payload)
 	if err != nil {
@@ -554,13 +598,30 @@ func (c *Client) UpdateInboundClient(ctx context.Context, inboundID int, clientI
 	return c.doFormRetryable(ctx, http.MethodPost, relPath, form, nil)
 }
 
-func (c *Client) DeleteInboundClient(ctx context.Context, inboundID int, clientID string) error {
+func (c *Client) DeleteInboundClient(ctx context.Context, inboundID int, clientID string, email string) error {
 	if inboundID == 0 {
 		return errors.New("inbound id is required for delete client")
 	}
 	if clientID == "" {
 		return errors.New("client id is required for delete client")
 	}
+
+	if c.useNewClientAPI(ctx) && email != "" {
+		relPath := fmt.Sprintf("panel/api/clients/del/%s", url.PathEscape(email))
+		err := c.doForm(ctx, http.MethodPost, relPath, url.Values{}, nil)
+		if err == nil {
+			return nil
+		}
+		if isHTTPNotFound(err) {
+			c.markLegacyClientAPI()
+		} else if strings.Contains(strings.ToLower(err.Error()), "client not found") {
+			return nil
+		} else {
+			return err
+		}
+	}
+
+	// Old endpoint (v2.9.x, v3.0.x)
 	relPath := fmt.Sprintf("panel/api/inbounds/%d/delClient/%s", inboundID, clientID)
 	err := c.doForm(ctx, http.MethodPost, relPath, url.Values{}, nil)
 	if err != nil && strings.Contains(err.Error(), "Client Not Found") {
@@ -678,6 +739,23 @@ func (c *Client) GetXrayConfig(ctx context.Context) (map[string]any, error) {
 }
 
 func (c *Client) GetOnlineClients(ctx context.Context) ([]string, error) {
+	if c.useNewClientAPI(ctx) {
+		var out []string
+		err := c.doJSON(ctx, http.MethodPost, "panel/api/clients/onlines", nil, &out)
+		if err == nil {
+			if out == nil {
+				out = []string{}
+			}
+			return out, nil
+		}
+		if isHTTPNotFound(err) {
+			c.markLegacyClientAPI()
+		} else {
+			return nil, err
+		}
+	}
+
+	// Old endpoint (v2.9.x, v3.0.x)
 	var out []string
 	if err := c.doJSON(ctx, http.MethodPost, "panel/api/inbounds/onlines", nil, &out); err != nil {
 		return nil, err
@@ -692,6 +770,25 @@ func (c *Client) GetClientTraffics(ctx context.Context, email string) (*ClientTr
 	if email == "" {
 		return nil, errors.New("email is required for get client traffics")
 	}
+
+	if c.useNewClientAPI(ctx) {
+		relPath := fmt.Sprintf("panel/api/clients/traffic/%s", url.PathEscape(email))
+		var out ClientTraffic
+		err := c.doJSON(ctx, http.MethodGet, relPath, nil, &out)
+		if err == nil {
+			if out.Email == "" {
+				return nil, fmt.Errorf("client with email %q not found", email)
+			}
+			return &out, nil
+		}
+		if isHTTPNotFound(err) {
+			c.markLegacyClientAPI()
+		} else {
+			return nil, err
+		}
+	}
+
+	// Old endpoint (v2.9.x, v3.0.x)
 	relPath := fmt.Sprintf("panel/api/inbounds/getClientTraffics/%s", url.PathEscape(email))
 	var out ClientTraffic
 	if err := c.doJSON(ctx, http.MethodGet, relPath, nil, &out); err != nil {
@@ -886,6 +983,7 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType st
 	}
 
 	if resp.StatusCode == http.StatusForbidden && requiresCSRF(method) {
+		// #nosec G104 -- discarding body before retry; Close error is not actionable
 		resp.Body.Close()
 		refreshed, refreshErr := c.refreshCSRFToken(ctx)
 		if refreshErr != nil {
@@ -900,6 +998,7 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType st
 		}
 	}
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusNotFound {
+		// #nosec G104 -- discarding body before re-login; Close error is not actionable
 		resp.Body.Close()
 		if err := c.Login(ctx); err != nil {
 			return err
@@ -909,6 +1008,7 @@ func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType st
 			return err
 		}
 		if resp.StatusCode == http.StatusForbidden && requiresCSRF(method) {
+			// #nosec G104 -- discarding body before retry; Close error is not actionable
 			resp.Body.Close()
 			refreshed, refreshErr := c.refreshCSRFToken(ctx)
 			if refreshErr != nil {
@@ -1180,4 +1280,45 @@ func inboundToForm(in *Inbound) url.Values {
 		form.Set("nodeId", strconv.Itoa(*in.NodeID))
 	}
 	return form
+}
+
+// useNewClientAPI returns true if the v3.1.0+ /panel/api/clients/* surface
+// should be tried. On the first call it probes the panel to detect the
+// available API surface. Subsequent calls use the cached result.
+// The probe goes through doRequest so it benefits from auto re-login
+// on expired sessions (a raw HTTP GET would get 404 on unauthenticated
+// v3.1.0+ and incorrectly mark the API as old).
+func (c *Client) useNewClientAPI(ctx context.Context) bool {
+	c.newClientMu.Lock()
+	defer c.newClientMu.Unlock()
+	if c.newClientAPI != nil {
+		return *c.newClientAPI
+	}
+
+	var out json.RawMessage
+	err := c.doJSON(ctx, http.MethodGet, "panel/api/clients/list", nil, &out)
+	isNew := err == nil
+	c.newClientAPI = &isNew
+	if isNew {
+		tflog.Info(ctx, "detected 3x-ui v3.1.0+ client API surface")
+	} else {
+		tflog.Info(ctx, "detected 3x-ui v2.9.x/v3.0.x client API surface")
+	}
+	return isNew
+}
+
+func (c *Client) markLegacyClientAPI() {
+	v := false
+	c.newClientMu.Lock()
+	c.newClientAPI = &v
+	c.newClientMu.Unlock()
+}
+
+// isHTTPNotFound reports whether err originated from an HTTP 404 response.
+func isHTTPNotFound(err error) bool {
+	var httpErr *HTTPStatusError
+	if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
+		return true
+	}
+	return false
 }
