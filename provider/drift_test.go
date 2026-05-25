@@ -430,9 +430,16 @@ func upstreamXraySettingsPages(t *testing.T, dir string) []string {
 	}
 
 	vuePath := filepath.Join(dir, "frontend", "src", "pages", "xray", "XrayPage.vue")
-	data, err := os.ReadFile(vuePath)
+	tsxPath := filepath.Join(dir, "frontend", "src", "pages", "xray", "XrayPage.tsx")
+	pagePath := vuePath
+	data, err := os.ReadFile(pagePath)
 	if err != nil {
-		t.Fatalf("cannot read XrayPage.vue: %v", err)
+		// v3.1.0+ migrated from Vue to React (TSX)
+		pagePath = tsxPath
+		data, err = os.ReadFile(pagePath)
+		if err != nil {
+			t.Fatalf("cannot read XrayPage.vue or XrayPage.tsx: %v", err)
+		}
 	}
 	content := string(data)
 	componentPages := map[string]string{
@@ -676,7 +683,8 @@ func TestDriftInboundFields(t *testing.T) {
 
 	// Fields intentionally skipped (internal DB fields, not part of API contract).
 	skip := map[string]bool{
-		"-": true, // UserId uses json:"-"
+		"-":              true, // UserId uses json:"-"
+		"fallbackParent": true, // v3.1.0 frontend-only, not persisted
 	}
 
 	dir := latestSnapshotDir(t)
@@ -697,7 +705,7 @@ func TestDriftInboundFields(t *testing.T) {
 	upstreamSet := toSet(upstream)
 	checkMissing(t, upstream, providerFields, skip,
 		"upstream Inbound struct has json fields not in provider: %v")
-	checkRemoved(t, providerFields, upstreamSet, nil,
+	checkRemoved(t, providerFields, upstreamSet, map[string]bool{"allTime": true},
 		"provider Inbound struct has json fields not in upstream: %v")
 }
 

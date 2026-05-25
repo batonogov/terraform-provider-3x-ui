@@ -85,10 +85,11 @@ resource "threexui_inbound_client" "client_a" {
 
 ## Compatibilidad
 
-**Política de soporte:** el proveedor soporta oficialmente las dos últimas líneas menores de 3x-ui. Actualmente son **2.9.x** y **3.0.x** — cada parche publicado de ambas líneas se ejecuta en la matriz de aceptación en cada push a `main` y en cada pull request. Cuando se publique una nueva versión menor (p. ej. 3.1.0), la línea soportada más antigua se eliminará de la matriz y de esta tabla.
+**Política de soporte:** el proveedor soporta oficialmente tres líneas menores de 3x-ui: **2.9.x**, **3.0.x** y **3.1.x** — cada parche publicado de las tres líneas se ejecuta en la matriz de aceptación en cada push a `main` y en cada pull request.
 
 | Versión de 3x-ui | Estado |
 | --- | --- |
+| v3.1.0 | Probado |
 | v3.0.2 | Probado |
 | v3.0.1 | Probado |
 | v3.0.0 | Probado |
