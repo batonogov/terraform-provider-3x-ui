@@ -92,7 +92,7 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Computed:    true,
 				Description: "Upload traffic (bytes).",
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.UseStateForUnknown(),
+					trafficCounterModifier{},
 				},
 			},
 			"down": schema.Int64Attribute{
@@ -100,7 +100,7 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Computed:    true,
 				Description: "Download traffic (bytes).",
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.UseStateForUnknown(),
+					trafficCounterModifier{},
 				},
 			},
 			"total": schema.Int64Attribute{
@@ -113,7 +113,7 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Computed:    true,
 				Description: "All-time accumulated traffic (bytes).",
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.UseStateForUnknown(),
+					trafficCounterModifier{},
 				},
 			},
 			"remark": schema.StringAttribute{
@@ -146,7 +146,7 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Computed:    true,
 				Description: "Last traffic reset time in milliseconds since epoch.",
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.UseStateForUnknown(),
+					trafficCounterModifier{},
 				},
 			},
 			"listen": schema.StringAttribute{
