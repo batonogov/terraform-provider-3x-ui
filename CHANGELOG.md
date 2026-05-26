@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.6.0...v3.6.1) (2026-05-26)
+
+
+### Bug Fixes
+
+* prevent perpetual plan drift from API routing rule ([#204](https://github.com/batonogov/terraform-provider-threexui/issues/204)) ([8803665](https://github.com/batonogov/terraform-provider-threexui/commit/88036657117c59044d14422fda8874e0a101903e))
+
 ## [3.6.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.5.0...v3.6.0) (2026-05-25)
 
 
