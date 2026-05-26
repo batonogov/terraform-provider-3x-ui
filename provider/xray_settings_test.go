@@ -598,6 +598,41 @@ func TestBuildXrayRoutingJSON_APIRuleRoundtrip(t *testing.T) {
 	}
 }
 
+func TestBuildXrayRoutingJSON_OnlyAPIRuleNoDrift(t *testing.T) {
+	input := map[string]any{
+		"domain_strategy": "AsIs",
+		"rule": []any{
+			map[string]any{
+				"type":         "field",
+				"inbound_tag":  []any{"api"},
+				"outbound_tag": "api",
+			},
+		},
+	}
+	built := buildXrayRoutingJSON(input).(map[string]any)
+	rules := built["rules"].([]any)
+	if len(rules) != 1 {
+		t.Fatalf("expected 1 rule (api only), got %d", len(rules))
+	}
+	if rules[0].(map[string]any)["outboundTag"] != "api" {
+		t.Fatalf("expected api rule, got %v", rules[0])
+	}
+
+	flattened := flattenXrayRoutingToMap(built)
+	flatRules, _ := flattened["rule"].([]any)
+	if len(flatRules) != 0 {
+		t.Fatalf("expected 0 rules in state after flatten, got %d", len(flatRules))
+	}
+
+	// Second cycle: build from flattened (no user rules) → flatten → should still be empty
+	built2 := buildXrayRoutingJSON(flattened)
+	flattened2 := flattenXrayRoutingToMap(built2)
+	flatRules2, _ := flattened2["rule"].([]any)
+	if len(flatRules2) != 0 {
+		t.Fatalf("expected 0 rules after second roundtrip, got %d", len(flatRules2))
+	}
+}
+
 func TestFlattenWireguardOutSettings(t *testing.T) {
 	in := map[string]any{
 		"secretKey":      "test-key",
