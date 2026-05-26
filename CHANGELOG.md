@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.2](https://github.com/batonogov/terraform-provider-threexui/compare/v3.6.1...v3.6.2) (2026-05-26)
+
+
+### Bug Fixes
+
+* preserve empty tcp_settings block through expand/flatten cycle ([#210](https://github.com/batonogov/terraform-provider-threexui/issues/210)) ([3bd3328](https://github.com/batonogov/terraform-provider-threexui/commit/3bd332897a78f15e3c33608a722edb9de31de1d5))
+
 ## [3.6.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.6.0...v3.6.1) (2026-05-26)
 
 
