@@ -596,9 +596,7 @@ func expandStreamSettingsFromModel(m *InboundStreamSettingsModel) map[string]any
 		}
 	}
 	if m.TCPSettings != nil {
-		if ts := expandTCPSettingsFromModel(m.TCPSettings); len(ts) > 0 {
-			out["tcp_settings"] = []any{ts}
-		}
+		out["tcp_settings"] = []any{expandTCPSettingsFromModel(m.TCPSettings)}
 	}
 	if m.WSSettings != nil {
 		if ws := expandWSSettingsFromModel(m.WSSettings); len(ws) > 0 {
@@ -1084,16 +1082,12 @@ func flattenRealityInnerSettingsToObject(data map[string]any) types.Object {
 }
 
 func flattenTCPSettingsToModel(data map[string]any) *InboundTCPSettingsModel {
-	if len(data) == 0 {
-		return nil
-	}
 	m := &InboundTCPSettingsModel{}
 	if v, ok := data["accept_proxy_protocol"].(bool); ok {
 		m.AcceptProxyProtocol = types.BoolValue(v)
 	} else {
 		m.AcceptProxyProtocol = types.BoolNull()
 	}
-	// Flatten header: existing flattenTCPSettings returns header as []any{map[type:...]}
 	if v, ok := data["header"].([]any); ok && len(v) > 0 {
 		if h, ok := v[0].(map[string]any); ok {
 			if t, ok := h["type"].(string); ok {

@@ -31,10 +31,8 @@ func buildStreamSettingsJSON(item map[string]any) string {
 		}
 	}
 	if v, ok := item["tcp_settings"]; ok {
-		if list, ok := v.([]any); ok {
-			if ts := expandTCPSettings(list); ts != nil {
-				payload["tcpSettings"] = ts
-			}
+		if list, ok := v.([]any); ok && len(list) > 0 {
+			payload["tcpSettings"] = expandTCPSettings(list)
 		}
 	}
 	if v, ok := item["ws_settings"]; ok {
@@ -414,9 +412,6 @@ func expandTCPSettings(list []any) map[string]any {
 	if v, ok := item["header_type"].(string); ok && v != "" {
 		out["header"] = map[string]any{"type": v}
 	}
-	if len(out) == 0 {
-		return nil
-	}
 	return out
 }
 
@@ -439,9 +434,6 @@ func expandTCPHeader(list []any) map[string]any {
 }
 
 func flattenTCPSettings(in map[string]any) map[string]any {
-	if len(in) == 0 {
-		return nil
-	}
 	out := map[string]any{}
 	if v, ok := in["acceptProxyProtocol"].(bool); ok {
 		out["accept_proxy_protocol"] = v
@@ -450,9 +442,6 @@ func flattenTCPSettings(in map[string]any) map[string]any {
 		if h := flattenTCPHeader(v); h != nil {
 			out["header"] = []any{h}
 		}
-	}
-	if len(out) == 0 {
-		return nil
 	}
 	return out
 }

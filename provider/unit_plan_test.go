@@ -184,6 +184,38 @@ func TestBuildAndFlattenStreamSettings(t *testing.T) {
 	}
 }
 
+func TestEmptyTCPSettingsRoundtrip(t *testing.T) {
+	// Simulate user specifying tcp_settings {} (empty block).
+	item := map[string]any{
+		"network":      "tcp",
+		"security":     "reality",
+		"tcp_settings": []any{map[string]any{}},
+	}
+	streamJSON := buildStreamSettingsJSON(item)
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(streamJSON), &payload); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if payload["network"] != "tcp" {
+		t.Fatalf("expected network=tcp, got %v", payload["network"])
+	}
+	// tcpSettings must be present in the API payload (even if empty).
+	if _, ok := payload["tcpSettings"]; !ok {
+		t.Fatalf("expected tcpSettings in payload, got: %v", payload)
+	}
+
+	// Flatten the API response back — tcp_settings must survive.
+	flattened, err := flattenStreamSettings(streamJSON)
+	if err != nil {
+		t.Fatalf("flattenStreamSettings error: %v", err)
+	}
+	out := flattened[0].(map[string]any)
+	ts, ok := out["tcp_settings"].([]any)
+	if !ok || len(ts) == 0 {
+		t.Fatalf("expected tcp_settings block in flattened output, got: %#v", out)
+	}
+}
+
 func TestBuildAndFlattenSniffing(t *testing.T) {
 	item := map[string]any{
 		"enabled":       true,
