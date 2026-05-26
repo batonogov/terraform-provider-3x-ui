@@ -36,52 +36,38 @@ func buildStreamSettingsJSON(item map[string]any) string {
 		}
 	}
 	if v, ok := item["ws_settings"]; ok {
-		if list, ok := v.([]any); ok {
-			if ws := expandWSSettings(list); ws != nil {
-				payload["wsSettings"] = ws
-			}
+		if list, ok := v.([]any); ok && len(list) > 0 {
+			payload["wsSettings"] = expandWSSettings(list)
 		}
 	}
 	if v, ok := item["grpc_settings"]; ok {
-		if list, ok := v.([]any); ok {
-			if gs := expandGRPCSettings(list); gs != nil {
-				payload["grpcSettings"] = gs
-			}
+		if list, ok := v.([]any); ok && len(list) > 0 {
+			payload["grpcSettings"] = expandGRPCSettings(list)
 		}
 	}
 	if v, ok := item["httpupgrade_settings"]; ok {
-		if list, ok := v.([]any); ok {
-			if hu := expandHTTPUpgradeSettings(list); hu != nil {
-				payload["httpupgradeSettings"] = hu
-			}
+		if list, ok := v.([]any); ok && len(list) > 0 {
+			payload["httpupgradeSettings"] = expandHTTPUpgradeSettings(list)
 		}
 	}
 	if v, ok := item["xhttp_settings"]; ok {
-		if list, ok := v.([]any); ok {
-			if xh := expandXHTTPSettings(list); xh != nil {
-				payload["xhttpSettings"] = xh
-			}
+		if list, ok := v.([]any); ok && len(list) > 0 {
+			payload["xhttpSettings"] = expandXHTTPSettings(list)
 		}
 	}
 	if v, ok := item["kcp_settings"]; ok {
-		if list, ok := v.([]any); ok {
-			if kcp := expandKCPSettings(list); kcp != nil {
-				payload["kcpSettings"] = kcp
-			}
+		if list, ok := v.([]any); ok && len(list) > 0 {
+			payload["kcpSettings"] = expandKCPSettings(list)
 		}
 	}
 	if v, ok := item["hysteria_settings"]; ok {
-		if list, ok := v.([]any); ok {
-			if h := expandHysteriaStreamSettings(list); h != nil {
-				payload["hysteriaSettings"] = h
-			}
+		if list, ok := v.([]any); ok && len(list) > 0 {
+			payload["hysteriaSettings"] = expandHysteriaStreamSettings(list)
 		}
 	}
 	if v, ok := item["sockopt"]; ok {
-		if list, ok := v.([]any); ok {
-			if so := expandSockopt(list); so != nil {
-				payload["sockopt"] = so
-			}
+		if list, ok := v.([]any); ok && len(list) > 0 {
+			payload["sockopt"] = expandSockopt(list)
 		}
 	}
 
@@ -311,14 +297,11 @@ func expandRealityInnerSettings(item map[string]any) map[string]any {
 	if v, ok := item["mldsa65_verify"].(string); ok && v != "" {
 		out["mldsa65Verify"] = v
 	}
-	if len(out) == 0 {
-		return nil
-	}
 	return out
 }
 
 func flattenRealitySettings(in map[string]any) map[string]any {
-	if len(in) == 0 {
+	if in == nil {
 		return nil
 	}
 	out := map[string]any{}
@@ -357,16 +340,10 @@ func flattenRealitySettings(in map[string]any) map[string]any {
 			out["settings"] = s
 		}
 	}
-	if len(out) == 0 {
-		return nil
-	}
 	return out
 }
 
 func flattenRealityInnerSettings(in map[string]any) map[string]any {
-	if len(in) == 0 {
-		return nil
-	}
 	out := map[string]any{}
 	if v, ok := in["publicKey"].(string); ok {
 		out["public_key"] = v
@@ -382,9 +359,6 @@ func flattenRealityInnerSettings(in map[string]any) map[string]any {
 	}
 	if v, ok := in["mldsa65Verify"].(string); ok {
 		out["mldsa65_verify"] = v
-	}
-	if len(out) == 0 {
-		return nil
 	}
 	return out
 }
@@ -427,9 +401,6 @@ func expandTCPHeader(list []any) map[string]any {
 	if v, ok := item["type"].(string); ok && v != "" {
 		out["type"] = v
 	}
-	if len(out) == 0 {
-		return nil
-	}
 	return out
 }
 
@@ -447,15 +418,9 @@ func flattenTCPSettings(in map[string]any) map[string]any {
 }
 
 func flattenTCPHeader(in map[string]any) map[string]any {
-	if len(in) == 0 {
-		return nil
-	}
 	out := map[string]any{}
 	if v, ok := in["type"].(string); ok {
 		out["type"] = v
-	}
-	if len(out) == 0 {
-		return nil
 	}
 	return out
 }
@@ -479,25 +444,16 @@ func expandWSSettings(list []any) map[string]any {
 	if v, ok := item["headers"].(map[string]any); ok && len(v) > 0 {
 		out["headers"] = v
 	}
-	if len(out) == 0 {
-		return nil
-	}
 	return out
 }
 
 func flattenWSSettings(in map[string]any) map[string]any {
-	if len(in) == 0 {
-		return nil
-	}
 	out := map[string]any{}
 	if v, ok := in["path"].(string); ok {
 		out["path"] = v
 	}
 	if v, ok := in["headers"].(map[string]any); ok {
 		out["headers"] = v
-	}
-	if len(out) == 0 {
-		return nil
 	}
 	return out
 }
@@ -539,16 +495,10 @@ func expandGRPCSettings(list []any) map[string]any {
 			out["initial_windows_size"] = n
 		}
 	}
-	if len(out) == 0 {
-		return nil
-	}
 	return out
 }
 
 func flattenGRPCSettings(in map[string]any) map[string]any {
-	if len(in) == 0 {
-		return nil
-	}
 	out := map[string]any{}
 	if v, ok := in["serviceName"].(string); ok {
 		out["service_name"] = v
@@ -567,9 +517,6 @@ func flattenGRPCSettings(in map[string]any) map[string]any {
 	}
 	if v, ok := in["initial_windows_size"]; ok {
 		out["initial_windows_size"] = intValue(v)
-	}
-	if len(out) == 0 {
-		return nil
 	}
 	return out
 }
@@ -593,25 +540,16 @@ func expandHTTPUpgradeSettings(list []any) map[string]any {
 	if v, ok := item["host"].(string); ok && v != "" {
 		out["host"] = v
 	}
-	if len(out) == 0 {
-		return nil
-	}
 	return out
 }
 
 func flattenHTTPUpgradeSettings(in map[string]any) map[string]any {
-	if len(in) == 0 {
-		return nil
-	}
 	out := map[string]any{}
 	if v, ok := in["path"].(string); ok {
 		out["path"] = v
 	}
 	if v, ok := in["host"].(string); ok {
 		out["host"] = v
-	}
-	if len(out) == 0 {
-		return nil
 	}
 	return out
 }
@@ -661,16 +599,10 @@ func expandXHTTPSettings(list []any) map[string]any {
 	if v, ok := item["x_padding_method"].(string); ok && v != "" {
 		out["xPaddingMethod"] = v
 	}
-	if len(out) == 0 {
-		return nil
-	}
 	return out
 }
 
 func flattenXHTTPSettings(in map[string]any) map[string]any {
-	if len(in) == 0 {
-		return nil
-	}
 	out := map[string]any{}
 	if v, ok := in["path"].(string); ok {
 		out["path"] = v
@@ -701,9 +633,6 @@ func flattenXHTTPSettings(in map[string]any) map[string]any {
 	}
 	if v, ok := in["xPaddingMethod"].(string); ok {
 		out["x_padding_method"] = v
-	}
-	if len(out) == 0 {
-		return nil
 	}
 	return out
 }
@@ -754,16 +683,10 @@ func expandKCPSettings(list []any) map[string]any {
 	if v, ok := item["header_type"].(string); ok && v != "" {
 		out["header"] = map[string]any{"type": v}
 	}
-	if len(out) == 0 {
-		return nil
-	}
 	return out
 }
 
 func flattenKCPSettings(in map[string]any) map[string]any {
-	if len(in) == 0 {
-		return nil
-	}
 	out := map[string]any{}
 	if v, ok := in["mtu"]; ok {
 		out["mtu"] = intValue(v)
@@ -787,9 +710,6 @@ func flattenKCPSettings(in map[string]any) map[string]any {
 		if t, ok := v["type"].(string); ok {
 			out["header_type"] = t
 		}
-	}
-	if len(out) == 0 {
-		return nil
 	}
 	return out
 }
@@ -823,16 +743,10 @@ func expandHysteriaStreamSettings(list []any) map[string]any {
 			out["udpIdleTimeout"] = n
 		}
 	}
-	if len(out) == 0 {
-		return nil
-	}
 	return out
 }
 
 func flattenHysteriaStreamSettings(in map[string]any) map[string]any {
-	if len(in) == 0 {
-		return nil
-	}
 	out := map[string]any{}
 	if v, ok := in["protocol"].(string); ok {
 		out["protocol"] = v
@@ -845,9 +759,6 @@ func flattenHysteriaStreamSettings(in map[string]any) map[string]any {
 	}
 	if v, ok := in["udpIdleTimeout"]; ok {
 		out["udp_idle_timeout"] = intValue(v)
-	}
-	if len(out) == 0 {
-		return nil
 	}
 	return out
 }
@@ -887,16 +798,10 @@ func expandSockopt(list []any) map[string]any {
 	if v, ok := item["domain_strategy"].(string); ok && v != "" {
 		out["domainStrategy"] = v
 	}
-	if len(out) == 0 {
-		return nil
-	}
 	return out
 }
 
 func flattenSockopt(in map[string]any) map[string]any {
-	if len(in) == 0 {
-		return nil
-	}
 	out := map[string]any{}
 	if v, ok := in["mark"]; ok {
 		out["mark"] = intValue(v)
@@ -915,9 +820,6 @@ func flattenSockopt(in map[string]any) map[string]any {
 	}
 	if v, ok := in["domainStrategy"].(string); ok {
 		out["domain_strategy"] = v
-	}
-	if len(out) == 0 {
-		return nil
 	}
 	return out
 }
