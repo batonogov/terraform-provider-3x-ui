@@ -292,7 +292,13 @@ func buildXrayRoutingJSON(d map[string]any) any {
 	}
 	if v, ok := d["rule"]; ok {
 		if list, ok := v.([]any); ok {
-			payload["rules"] = expandRoutingRules(list)
+			rules := expandRoutingRules(list)
+			apiRule := map[string]any{
+				"type":        "field",
+				"inboundTag":  []string{"api"},
+				"outboundTag": "api",
+			}
+			payload["rules"] = append([]any{apiRule}, rules...)
 		}
 	}
 
@@ -304,6 +310,9 @@ func expandRoutingRules(list []any) []any {
 	for _, item := range list {
 		m, ok := item.(map[string]any)
 		if !ok {
+			continue
+		}
+		if isInternalAPIRoutingRule(m) {
 			continue
 		}
 		entry := map[string]any{}
@@ -444,11 +453,15 @@ func flattenRoutingRules(list []any) []any {
 }
 
 func isInternalAPIRoutingRule(m map[string]any) bool {
-	outboundTag, ok := m["outboundTag"].(string)
-	if !ok || outboundTag != "api" {
+	outboundTag, _ := m["outboundTag"].(string)
+	if outboundTag == "" {
+		outboundTag, _ = m["outbound_tag"].(string)
+	}
+	if outboundTag != "api" {
 		return false
 	}
-	return routingValueContainsString(m["inboundTag"], "api")
+	return routingValueContainsString(m["inboundTag"], "api") ||
+		routingValueContainsString(m["inbound_tag"], "api")
 }
 
 func routingValueContainsString(raw any, value string) bool {

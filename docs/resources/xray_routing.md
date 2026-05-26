@@ -32,7 +32,7 @@ resource "threexui_xray_routing" "config" {
 }
 ```
 
-> **Note:** 3x-ui v2.9.4+ manages the internal `api` inbound to `api` outbound routing rule automatically. The provider omits that internal rule from Terraform state to avoid drift.
+> **Note:** The internal routing rule (`inboundTag: ["api"]` → `outboundTag: "api"`) is managed automatically by the provider and must not be included in your configuration. The provider ensures this rule is always present at index 0 on write and omits it from Terraform state on read. On 3x-ui v2.9.4+ the server also preserves this rule via `EnsureStatsRouting`; on older versions the provider injects it to keep Xray stats functional.
 
 ## Argument Reference
 
