@@ -1063,6 +1063,7 @@ func flattenRealityInnerSettingsToObject(data map[string]any) types.Object {
 
 func flattenTCPSettingsToModel(data map[string]any) *InboundTCPSettingsModel {
 	m := &InboundTCPSettingsModel{}
+	// header arrives as []any{map["type":...]} from flattenTCPSettings.
 	if v, ok := data["accept_proxy_protocol"].(bool); ok {
 		m.AcceptProxyProtocol = types.BoolValue(v)
 	} else {

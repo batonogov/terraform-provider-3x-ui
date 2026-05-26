@@ -90,6 +90,7 @@ func flattenStreamSettings(stream string) ([]any, error) {
 		return nil, fmt.Errorf("failed to parse stream_settings JSON: %w", err)
 	}
 	out := map[string]any{}
+	network, _ := payload["network"].(string)
 	if v, ok := payload["network"].(string); ok {
 		out["network"] = v
 	}
@@ -105,42 +106,42 @@ func flattenStreamSettings(stream string) ([]any, error) {
 		}
 	}
 	if v, ok := payload["tcpSettings"].(map[string]any); ok {
-		if ts := flattenTCPSettings(v); ts != nil {
+		if ts := flattenTCPSettings(v); len(ts) > 0 || network == "tcp" {
 			out["tcp_settings"] = []any{ts}
 		}
 	}
 	if v, ok := payload["wsSettings"].(map[string]any); ok {
-		if ws := flattenWSSettings(v); ws != nil {
+		if ws := flattenWSSettings(v); len(ws) > 0 || network == "ws" {
 			out["ws_settings"] = []any{ws}
 		}
 	}
 	if v, ok := payload["grpcSettings"].(map[string]any); ok {
-		if gs := flattenGRPCSettings(v); gs != nil {
+		if gs := flattenGRPCSettings(v); len(gs) > 0 || network == "grpc" {
 			out["grpc_settings"] = []any{gs}
 		}
 	}
 	if v, ok := payload["httpupgradeSettings"].(map[string]any); ok {
-		if hu := flattenHTTPUpgradeSettings(v); hu != nil {
+		if hu := flattenHTTPUpgradeSettings(v); len(hu) > 0 || network == "httpupgrade" {
 			out["httpupgrade_settings"] = []any{hu}
 		}
 	}
 	if v, ok := payload["xhttpSettings"].(map[string]any); ok {
-		if xh := flattenXHTTPSettings(v); xh != nil {
+		if xh := flattenXHTTPSettings(v); len(xh) > 0 || network == "xhttp" {
 			out["xhttp_settings"] = []any{xh}
 		}
 	}
 	if v, ok := payload["kcpSettings"].(map[string]any); ok {
-		if kcp := flattenKCPSettings(v); kcp != nil {
+		if kcp := flattenKCPSettings(v); len(kcp) > 0 || network == "kcp" {
 			out["kcp_settings"] = []any{kcp}
 		}
 	}
 	if v, ok := payload["hysteriaSettings"].(map[string]any); ok {
-		if h := flattenHysteriaStreamSettings(v); h != nil {
+		if h := flattenHysteriaStreamSettings(v); len(h) > 0 || network == "hysteria2" {
 			out["hysteria_settings"] = []any{h}
 		}
 	}
 	if v, ok := payload["sockopt"].(map[string]any); ok {
-		if so := flattenSockopt(v); so != nil {
+		if so := flattenSockopt(v); len(so) > 0 {
 			out["sockopt"] = []any{so}
 		}
 	}
