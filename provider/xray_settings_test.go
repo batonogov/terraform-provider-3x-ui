@@ -514,6 +514,90 @@ func TestExpandRoutingRules(t *testing.T) {
 	}
 }
 
+func TestExpandRoutingRules_SkipsInternalAPIRule(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"type":         "field",
+			"inbound_tag":  []any{"api"},
+			"outbound_tag": "api",
+		},
+		map[string]any{
+			"type":         "field",
+			"ip":           []any{"geoip:private"},
+			"outbound_tag": "blocked",
+		},
+	}
+	result := expandRoutingRules(list)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 rule (api rule filtered), got %d", len(result))
+	}
+	if result[0].(map[string]any)["outboundTag"] != "blocked" {
+		t.Fatalf("expected blocked rule to remain, got %v", result[0])
+	}
+}
+
+func TestBuildXrayRoutingJSON_AlwaysIncludesAPIRule(t *testing.T) {
+	input := map[string]any{
+		"domain_strategy": "AsIs",
+		"rule": []any{
+			map[string]any{"type": "field", "ip": []any{"geoip:private"}, "outbound_tag": "blocked"},
+		},
+	}
+	result := buildXrayRoutingJSON(input).(map[string]any)
+	rules, ok := result["rules"].([]any)
+	if !ok || len(rules) != 2 {
+		t.Fatalf("expected 2 rules (api + user), got %v", result["rules"])
+	}
+	api := rules[0].(map[string]any)
+	if api["outboundTag"] != "api" {
+		t.Fatalf("expected first rule to be api rule, got %v", api)
+	}
+	if api["type"] != "field" {
+		t.Fatalf("expected api rule type field, got %v", api["type"])
+	}
+	tags, ok := api["inboundTag"].([]string)
+	if !ok || len(tags) != 1 || tags[0] != "api" {
+		t.Fatalf("expected inboundTag [api], got %v", api["inboundTag"])
+	}
+	user := rules[1].(map[string]any)
+	if user["outboundTag"] != "blocked" {
+		t.Fatalf("expected second rule to be user rule, got %v", user)
+	}
+}
+
+func TestBuildXrayRoutingJSON_APIRuleRoundtrip(t *testing.T) {
+	input := map[string]any{
+		"domain_strategy": "IPIfNonMatch",
+		"rule": []any{
+			map[string]any{"type": "field", "ip": []any{"geoip:private"}, "outbound_tag": "direct"},
+		},
+	}
+	built := buildXrayRoutingJSON(input)
+	flattened := flattenXrayRoutingToMap(built)
+
+	if flattened["domain_strategy"] != "IPIfNonMatch" {
+		t.Fatalf("expected IPIfNonMatch, got %v", flattened["domain_strategy"])
+	}
+	rules := flattened["rule"].([]any)
+	if len(rules) != 1 {
+		t.Fatalf("expected 1 user rule after flatten (api rule hidden), got %d", len(rules))
+	}
+	if rules[0].(map[string]any)["outbound_tag"] != "direct" {
+		t.Fatalf("expected direct, got %v", rules[0].(map[string]any)["outbound_tag"])
+	}
+
+	// Second build from flattened state should produce identical result
+	built2 := buildXrayRoutingJSON(flattened)
+	flattened2 := flattenXrayRoutingToMap(built2)
+	rules2 := flattened2["rule"].([]any)
+	if len(rules2) != 1 {
+		t.Fatalf("expected 1 user rule after second roundtrip, got %d", len(rules2))
+	}
+	if rules2[0].(map[string]any)["outbound_tag"] != "direct" {
+		t.Fatalf("expected direct after second roundtrip, got %v", rules2[0])
+	}
+}
+
 func TestFlattenWireguardOutSettings(t *testing.T) {
 	in := map[string]any{
 		"secretKey":      "test-key",
