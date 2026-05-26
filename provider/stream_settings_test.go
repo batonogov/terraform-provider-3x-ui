@@ -94,8 +94,8 @@ func TestFlattenRealitySettings_Nil(t *testing.T) {
 
 func TestFlattenRealitySettings_Empty(t *testing.T) {
 	result := flattenRealitySettings(map[string]any{})
-	if result != nil {
-		t.Fatalf("expected nil, got %v", result)
+	if len(result) != 0 {
+		t.Fatalf("expected empty map, got %v", result)
 	}
 }
 
@@ -201,8 +201,8 @@ func TestExpandRealityInnerSettings_PublicKeyOnly(t *testing.T) {
 
 func TestFlattenRealityInnerSettings_Empty(t *testing.T) {
 	result := flattenRealityInnerSettings(map[string]any{})
-	if result != nil {
-		t.Fatalf("expected nil, got %v", result)
+	if len(result) != 0 {
+		t.Fatalf("expected empty map, got %v", result)
 	}
 }
 

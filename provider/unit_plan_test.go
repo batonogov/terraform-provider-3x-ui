@@ -184,6 +184,83 @@ func TestBuildAndFlattenStreamSettings(t *testing.T) {
 	}
 }
 
+func TestEmptyTCPSettingsRoundtrip(t *testing.T) {
+	// Simulate user specifying tcp_settings {} (empty block).
+	item := map[string]any{
+		"network":      "tcp",
+		"security":     "reality",
+		"tcp_settings": []any{map[string]any{}},
+	}
+	streamJSON := buildStreamSettingsJSON(item)
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(streamJSON), &payload); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if payload["network"] != "tcp" {
+		t.Fatalf("expected network=tcp, got %v", payload["network"])
+	}
+	// tcpSettings must be present in the API payload (even if empty).
+	if _, ok := payload["tcpSettings"]; !ok {
+		t.Fatalf("expected tcpSettings in payload, got: %v", payload)
+	}
+
+	// Flatten the API response back — tcp_settings must survive.
+	flattened, err := flattenStreamSettings(streamJSON)
+	if err != nil {
+		t.Fatalf("flattenStreamSettings error: %v", err)
+	}
+	out := flattened[0].(map[string]any)
+	ts, ok := out["tcp_settings"].([]any)
+	if !ok || len(ts) == 0 {
+		t.Fatalf("expected tcp_settings block in flattened output, got: %#v", out)
+	}
+}
+
+func TestEmptyNetworkSettingsRoundtrip(t *testing.T) {
+	cases := []struct {
+		name    string
+		network string
+		tfKey   string
+		apiKey  string
+	}{
+		{"tcp", "tcp", "tcp_settings", "tcpSettings"},
+		{"ws", "ws", "ws_settings", "wsSettings"},
+		{"grpc", "grpc", "grpc_settings", "grpcSettings"},
+		{"httpupgrade", "httpupgrade", "httpupgrade_settings", "httpupgradeSettings"},
+		{"xhttp", "xhttp", "xhttp_settings", "xhttpSettings"},
+		{"kcp", "kcp", "kcp_settings", "kcpSettings"},
+		{"hysteria_stream", "hysteria2", "hysteria_settings", "hysteriaSettings"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			item := map[string]any{
+				"network":  tc.network,
+				"security": "none",
+				tc.tfKey:   []any{map[string]any{}},
+			}
+			streamJSON := buildStreamSettingsJSON(item)
+
+			var payload map[string]any
+			if err := json.Unmarshal([]byte(streamJSON), &payload); err != nil {
+				t.Fatalf("unmarshal error: %v", err)
+			}
+			if _, ok := payload[tc.apiKey]; !ok {
+				t.Fatalf("expected %s in API payload, got: %v", tc.apiKey, payload)
+			}
+
+			flattened, err := flattenStreamSettings(streamJSON)
+			if err != nil {
+				t.Fatalf("flattenStreamSettings error: %v", err)
+			}
+			out := flattened[0].(map[string]any)
+			v, ok := out[tc.tfKey].([]any)
+			if !ok || len(v) == 0 {
+				t.Fatalf("expected %s block in flattened output, got: %#v", tc.tfKey, out)
+			}
+		})
+	}
+}
+
 func TestBuildAndFlattenSniffing(t *testing.T) {
 	item := map[string]any{
 		"enabled":       true,

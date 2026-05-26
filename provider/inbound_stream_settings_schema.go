@@ -596,44 +596,28 @@ func expandStreamSettingsFromModel(m *InboundStreamSettingsModel) map[string]any
 		}
 	}
 	if m.TCPSettings != nil {
-		if ts := expandTCPSettingsFromModel(m.TCPSettings); len(ts) > 0 {
-			out["tcp_settings"] = []any{ts}
-		}
+		out["tcp_settings"] = []any{expandTCPSettingsFromModel(m.TCPSettings)}
 	}
 	if m.WSSettings != nil {
-		if ws := expandWSSettingsFromModel(m.WSSettings); len(ws) > 0 {
-			out["ws_settings"] = []any{ws}
-		}
+		out["ws_settings"] = []any{expandWSSettingsFromModel(m.WSSettings)}
 	}
 	if m.GRPCSettings != nil {
-		if gs := expandGRPCSettingsFromModel(m.GRPCSettings); len(gs) > 0 {
-			out["grpc_settings"] = []any{gs}
-		}
+		out["grpc_settings"] = []any{expandGRPCSettingsFromModel(m.GRPCSettings)}
 	}
 	if m.HTTPUpgradeSettings != nil {
-		if hu := expandHTTPUpgradeSettingsFromModel(m.HTTPUpgradeSettings); len(hu) > 0 {
-			out["httpupgrade_settings"] = []any{hu}
-		}
+		out["httpupgrade_settings"] = []any{expandHTTPUpgradeSettingsFromModel(m.HTTPUpgradeSettings)}
 	}
 	if m.XHTTPSettings != nil {
-		if xh := expandXHTTPSettingsFromModel(m.XHTTPSettings); len(xh) > 0 {
-			out["xhttp_settings"] = []any{xh}
-		}
+		out["xhttp_settings"] = []any{expandXHTTPSettingsFromModel(m.XHTTPSettings)}
 	}
 	if m.KCPSettings != nil {
-		if kcp := expandKCPSettingsFromModel(m.KCPSettings); len(kcp) > 0 {
-			out["kcp_settings"] = []any{kcp}
-		}
+		out["kcp_settings"] = []any{expandKCPSettingsFromModel(m.KCPSettings)}
 	}
 	if m.HysteriaSettings != nil {
-		if h := expandHysteriaStreamSettingsFromModel(m.HysteriaSettings); len(h) > 0 {
-			out["hysteria_settings"] = []any{h}
-		}
+		out["hysteria_settings"] = []any{expandHysteriaStreamSettingsFromModel(m.HysteriaSettings)}
 	}
 	if m.Sockopt != nil {
-		if so := expandSockoptFromModel(m.Sockopt); len(so) > 0 {
-			out["sockopt"] = []any{so}
-		}
+		out["sockopt"] = []any{expandSockoptFromModel(m.Sockopt)}
 	}
 
 	return out
@@ -904,9 +888,6 @@ func expandSockoptFromModel(m *InboundSockoptModel) map[string]any {
 // ---------------------------------------------------------------------------
 
 func flattenStreamSettingsToModel(data map[string]any) *InboundStreamSettingsModel {
-	if len(data) == 0 {
-		return nil
-	}
 	m := &InboundStreamSettingsModel{}
 
 	if v, ok := data["network"].(string); ok {
@@ -1016,9 +997,6 @@ func flattenExternalProxyToModel(list []any) []InboundExternalProxyModel {
 }
 
 func flattenRealitySettingsToModel(data map[string]any) *InboundRealitySettingsModel {
-	if len(data) == 0 {
-		return nil
-	}
 	m := &InboundRealitySettingsModel{}
 	if v, ok := data["show"].(bool); ok {
 		m.Show = types.BoolValue(v)
@@ -1084,16 +1062,13 @@ func flattenRealityInnerSettingsToObject(data map[string]any) types.Object {
 }
 
 func flattenTCPSettingsToModel(data map[string]any) *InboundTCPSettingsModel {
-	if len(data) == 0 {
-		return nil
-	}
 	m := &InboundTCPSettingsModel{}
+	// header arrives as []any{map["type":...]} from flattenTCPSettings.
 	if v, ok := data["accept_proxy_protocol"].(bool); ok {
 		m.AcceptProxyProtocol = types.BoolValue(v)
 	} else {
 		m.AcceptProxyProtocol = types.BoolNull()
 	}
-	// Flatten header: existing flattenTCPSettings returns header as []any{map[type:...]}
 	if v, ok := data["header"].([]any); ok && len(v) > 0 {
 		if h, ok := v[0].(map[string]any); ok {
 			if t, ok := h["type"].(string); ok {
@@ -1111,9 +1086,6 @@ func flattenTCPSettingsToModel(data map[string]any) *InboundTCPSettingsModel {
 }
 
 func flattenWSSettingsToModel(data map[string]any) *InboundWSSettingsModel {
-	if len(data) == 0 {
-		return nil
-	}
 	m := &InboundWSSettingsModel{}
 	if v, ok := data["path"].(string); ok && v != "" {
 		m.Path = types.StringValue(v)
@@ -1129,9 +1101,6 @@ func flattenWSSettingsToModel(data map[string]any) *InboundWSSettingsModel {
 }
 
 func flattenGRPCSettingsToModel(data map[string]any) *InboundGRPCSettingsModel {
-	if len(data) == 0 {
-		return nil
-	}
 	m := &InboundGRPCSettingsModel{}
 	if v, ok := data["service_name"].(string); ok && v != "" {
 		m.ServiceName = types.StringValue(v)
@@ -1167,9 +1136,6 @@ func flattenGRPCSettingsToModel(data map[string]any) *InboundGRPCSettingsModel {
 }
 
 func flattenHTTPUpgradeSettingsToModel(data map[string]any) *InboundHTTPUpgradeSettingsModel {
-	if len(data) == 0 {
-		return nil
-	}
 	m := &InboundHTTPUpgradeSettingsModel{}
 	if v, ok := data["path"].(string); ok && v != "" {
 		m.Path = types.StringValue(v)
@@ -1185,9 +1151,6 @@ func flattenHTTPUpgradeSettingsToModel(data map[string]any) *InboundHTTPUpgradeS
 }
 
 func flattenXHTTPSettingsToModel(data map[string]any) *InboundXHTTPSettingsModel {
-	if len(data) == 0 {
-		return nil
-	}
 	m := &InboundXHTTPSettingsModel{}
 	if v, ok := data["path"].(string); ok && v != "" {
 		m.Path = types.StringValue(v)
@@ -1243,9 +1206,6 @@ func flattenXHTTPSettingsToModel(data map[string]any) *InboundXHTTPSettingsModel
 }
 
 func flattenKCPSettingsToModel(data map[string]any) *InboundKCPSettingsModel {
-	if len(data) == 0 {
-		return nil
-	}
 	m := &InboundKCPSettingsModel{}
 	if v, ok := data["mtu"]; ok {
 		m.MTU = types.Int64Value(int64(intValue(v)))
@@ -1286,9 +1246,6 @@ func flattenKCPSettingsToModel(data map[string]any) *InboundKCPSettingsModel {
 }
 
 func flattenHysteriaStreamSettingsToModel(data map[string]any) *InboundHysteriaStreamSettingsModel {
-	if len(data) == 0 {
-		return nil
-	}
 	m := &InboundHysteriaStreamSettingsModel{}
 	if v, ok := data["protocol"].(string); ok {
 		m.Protocol = types.StringValue(v)
@@ -1314,9 +1271,6 @@ func flattenHysteriaStreamSettingsToModel(data map[string]any) *InboundHysteriaS
 }
 
 func flattenSockoptToModel(data map[string]any) *InboundSockoptModel {
-	if len(data) == 0 {
-		return nil
-	}
 	m := &InboundSockoptModel{}
 	if v, ok := data["mark"]; ok {
 		m.Mark = types.Int64Value(int64(intValue(v)))
