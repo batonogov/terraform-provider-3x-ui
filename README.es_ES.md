@@ -83,6 +83,14 @@ resource "threexui_inbound_client" "client_a" {
 }
 ```
 
+> **Usuarios de OpenTofu:** usen la dirección completa del registro:
+>
+> ```hcl
+> source = "registry.terraform.io/batonogov/threexui"
+> ```
+>
+> El provider no está disponible en el OpenTofu Registry ([motivo](https://github.com/opentofu/registry/issues/3632)).
+
 ## Compatibilidad
 
 **Política de soporte:** el proveedor soporta oficialmente tres líneas menores de 3x-ui: **2.9.x**, **3.0.x** y **3.1.x** — cada parche publicado de las tres líneas se ejecuta en la matriz de aceptación en cada push a `main` y en cada pull request.

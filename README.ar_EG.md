@@ -85,6 +85,18 @@ resource "threexui_inbound_client" "client_a" {
 }
 ```
 
+<div dir="rtl">
+
+> **لمستخدمي OpenTofu:** استخدموا العنوان الكامل للسجل:
+>
+> ```hcl
+> source = "registry.terraform.io/batonogov/threexui"
+> ```
+>
+> هذا الـprovider غير متوفر في OpenTofu Registry ([السبب](https://github.com/opentofu/registry/issues/3632)).
+
+</div>
+
 ## التوافق
 
 **سياسة الدعم:** الـ provider بيدعم رسميًا تلات سطور فرعية (minor) من 3x-ui: **2.9.x**، **3.0.x** و **3.1.x** — كل patch متنزّل من السطور دي بيتشغّل في matrix الـ acceptance في كل push على `main` و في كل pull request.

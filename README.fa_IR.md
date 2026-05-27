@@ -85,6 +85,18 @@ resource "threexui_inbound_client" "client_a" {
 }
 ```
 
+<div dir="rtl">
+
+> **برای کاربران OpenTofu:** آدرس کامل رجیستری را مشخص کنید:
+>
+> ```hcl
+> source = "registry.terraform.io/batonogov/threexui"
+> ```
+>
+> این provider در OpenTofu Registry منتشر نشده است ([دلیل](https://github.com/opentofu/registry/issues/3632)).
+
+</div>
+
 ## سازگاری
 
 **سیاست پشتیبانی:** این provider به‌طور رسمی از سه خط مینور 3x-ui پشتیبانی می‌کند: **2.9.x**، **3.0.x** و **3.1.x** — هر patch منتشرشده از هر سه خط در هر push به `main` و هر pull request توسط ماتریس acceptance اجرا می‌شود.
