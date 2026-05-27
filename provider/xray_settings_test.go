@@ -2173,3 +2173,75 @@ func TestAlignBasicsBlocksWithPlan_NilsNestedPolicyBlocks(t *testing.T) {
 		t.Fatal("expected policy.level to be nil")
 	}
 }
+
+func TestValidateNoAPIRoutingRules(t *testing.T) {
+	tests := []struct {
+		name    string
+		rules   []XrayRoutingRule
+		wantErr bool
+	}{
+		{
+			name:    "no rules",
+			rules:   []XrayRoutingRule{},
+			wantErr: false,
+		},
+		{
+			name: "normal rule",
+			rules: []XrayRoutingRule{
+				{
+					Type:        types.StringValue("field"),
+					OutboundTag: types.StringValue("blocked"),
+					InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("http")}),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "API routing rule",
+			rules: []XrayRoutingRule{
+				{
+					Type:        types.StringValue("field"),
+					OutboundTag: types.StringValue("api"),
+					InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("api")}),
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "API outbound with non-api inbound",
+			rules: []XrayRoutingRule{
+				{
+					Type:        types.StringValue("field"),
+					OutboundTag: types.StringValue("api"),
+					InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("something-else")}),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "API rule mixed with normal rules",
+			rules: []XrayRoutingRule{
+				{
+					Type:        types.StringValue("field"),
+					OutboundTag: types.StringValue("blocked"),
+					InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("http")}),
+				},
+				{
+					Type:        types.StringValue("field"),
+					OutboundTag: types.StringValue("api"),
+					InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("api")}),
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := validateNoAPIRoutingRules(tt.rules)
+			if (msg != "") != tt.wantErr {
+				t.Errorf("validateNoAPIRoutingRules() = %q, wantErr %v", msg, tt.wantErr)
+			}
+		})
+	}
+}
