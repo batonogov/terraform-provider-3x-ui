@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.6.4](https://github.com/batonogov/terraform-provider-threexui/compare/v3.6.3...v3.6.4) (2026-05-27)
+
+
+### Bug Fixes
+
+* (known after apply) noise in xray_routing and xray_outbounds ([#228](https://github.com/batonogov/terraform-provider-threexui/issues/228)) ([b33c4f1](https://github.com/batonogov/terraform-provider-threexui/commit/b33c4f14987cc33d5a600bc4e0cc9829e3cb9e5c))
+* blackhole_settings.response_type false diff on import ([#226](https://github.com/batonogov/terraform-provider-threexui/issues/226)) ([2e84dd0](https://github.com/batonogov/terraform-provider-threexui/commit/2e84dd0b30670ad4734decc4b093c8c70ee623f3)), closes [#218](https://github.com/batonogov/terraform-provider-threexui/issues/218)
+* reject API routing rules in threexui_xray_routing ([#221](https://github.com/batonogov/terraform-provider-threexui/issues/221)) ([8c88334](https://github.com/batonogov/terraform-provider-threexui/commit/8c88334f4f95afd8457ea9ee596beb8dc78b7ced))
+* retry transient errors in read-after-write for inbound/inbound_client ([#227](https://github.com/batonogov/terraform-provider-threexui/issues/227)) ([c95f7a1](https://github.com/batonogov/terraform-provider-threexui/commit/c95f7a1b96b4143e06e845c0bddab42166ad1c33))
+
 ## [3.6.3](https://github.com/batonogov/terraform-provider-threexui/compare/v3.6.2...v3.6.3) (2026-05-27)
 
 
