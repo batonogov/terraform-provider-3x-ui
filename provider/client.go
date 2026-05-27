@@ -1128,18 +1128,34 @@ func (c *Client) doJSONRetryable(ctx context.Context, method, relPath string, bo
 }
 
 // WithReadAfterWriteRetry polls fn until the row is visible (found=true) or
-// the budget is exhausted. It is distinct from withRetry: that one absorbs
-// transient HTTP 5xx, this one absorbs application-layer "success but the
-// row is not visible yet" gaps. Callers pass an opName for telemetry.
+// the budget is exhausted. It handles two transient conditions:
 //
-// fn returns (found, err). A non-nil err aborts immediately (no retry — if
-// the read itself failed, the panel is in worse shape than just slow).
-// found=false triggers a backoff and another attempt.
+//   - found=false: the write succeeded but SQLite hasn't made the row visible yet.
+//   - err is a transient 5xx: the panel is temporarily unavailable under load.
+//
+// Non-transient errors (4xx, auth failures, etc.) abort immediately.
 func (c *Client) WithReadAfterWriteRetry(ctx context.Context, opName string, fn func() (bool, error)) error {
 	for attempt := 0; attempt < readAfterWriteAttempts; attempt++ {
 		found, err := fn()
 		if err != nil {
-			return err
+			if _, retryable := transient5xxStatus(err); !retryable || attempt == readAfterWriteAttempts-1 {
+				return err
+			}
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
+			tflog.Warn(ctx, "retrying read-after-write (transient error)", map[string]any{
+				"operation":    opName,
+				"attempt":      attempt + 1,
+				"max_attempts": readAfterWriteAttempts,
+				"backoff":      readAfterWriteBackoff.String(),
+			})
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(readAfterWriteBackoff):
+			}
+			continue
 		}
 		if found {
 			return nil

@@ -1122,3 +1122,89 @@ func TestResolvePathWithBasePath(t *testing.T) {
 		t.Fatalf("unexpected path: %s", parsed.Path)
 	}
 }
+
+func TestWithReadAfterWriteRetry_RetriesTransient5xx(t *testing.T) {
+	client := newTestClient(t, "http://localhost")
+	var calls int
+
+	err := client.WithReadAfterWriteRetry(context.Background(), "test-op", func() (bool, error) {
+		calls++
+		if calls < 3 {
+			return false, &HTTPStatusError{StatusCode: 500, Body: "internal error"}
+		}
+		return true, nil
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if calls != 3 {
+		t.Fatalf("expected 3 calls, got %d", calls)
+	}
+}
+
+func TestWithReadAfterWriteRetry_AbortsOnNonTransientError(t *testing.T) {
+	client := newTestClient(t, "http://localhost")
+	var calls int
+
+	err := client.WithReadAfterWriteRetry(context.Background(), "test-op", func() (bool, error) {
+		calls++
+		return false, &HTTPStatusError{StatusCode: 401, Body: "unauthorized"}
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if calls != 1 {
+		t.Fatalf("expected 1 call, got %d", calls)
+	}
+}
+
+func TestWithReadAfterWriteRetry_RetriesNotFoundThenFound(t *testing.T) {
+	client := newTestClient(t, "http://localhost")
+	var calls int
+
+	err := client.WithReadAfterWriteRetry(context.Background(), "test-op", func() (bool, error) {
+		calls++
+		if calls < 2 {
+			return false, nil // row not visible yet
+		}
+		return true, nil
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if calls != 2 {
+		t.Fatalf("expected 2 calls, got %d", calls)
+	}
+}
+
+func TestWithReadAfterWriteRetry_ExhaustsBudget(t *testing.T) {
+	client := newTestClient(t, "http://localhost")
+	var calls int
+
+	err := client.WithReadAfterWriteRetry(context.Background(), "test-op", func() (bool, error) {
+		calls++
+		return false, nil // always not found
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if calls != readAfterWriteAttempts {
+		t.Fatalf("expected %d calls, got %d", readAfterWriteAttempts, calls)
+	}
+}
+
+func TestWithReadAfterWriteRetry_Transient5xxExhaustsBudget(t *testing.T) {
+	client := newTestClient(t, "http://localhost")
+	var calls int
+
+	err := client.WithReadAfterWriteRetry(context.Background(), "test-op", func() (bool, error) {
+		calls++
+		return false, &HTTPStatusError{StatusCode: 502, Body: "bad gateway"}
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if calls != readAfterWriteAttempts {
+		t.Fatalf("expected %d calls, got %d", readAfterWriteAttempts, calls)
+	}
+}
