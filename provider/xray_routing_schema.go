@@ -490,6 +490,9 @@ func validateNoAPIRoutingRules(rules []XrayRoutingRule) string {
 		if r.OutboundTag.ValueString() != "api" {
 			continue
 		}
+		if r.InboundTag.IsNull() || r.InboundTag.IsUnknown() {
+			continue
+		}
 		var tags []string
 		r.InboundTag.ElementsAs(context.Background(), &tags, false)
 		for _, tag := range tags {

@@ -2234,6 +2234,28 @@ func TestValidateNoAPIRoutingRules(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "API outbound with null inbound_tag",
+			rules: []XrayRoutingRule{
+				{
+					Type:        types.StringValue("field"),
+					OutboundTag: types.StringValue("api"),
+					InboundTag:  types.ListNull(types.StringType),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "API outbound with api mixed in inbound_tag",
+			rules: []XrayRoutingRule{
+				{
+					Type:        types.StringValue("field"),
+					OutboundTag: types.StringValue("api"),
+					InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("http"), types.StringValue("api")}),
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
