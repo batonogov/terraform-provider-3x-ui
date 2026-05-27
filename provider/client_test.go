@@ -1208,3 +1208,86 @@ func TestWithReadAfterWriteRetry_Transient5xxExhaustsBudget(t *testing.T) {
 		t.Fatalf("expected %d calls, got %d", readAfterWriteAttempts, calls)
 	}
 }
+
+func TestWithReadAfterWriteRetry_Transient5xxRespectsPreCancelledContext(t *testing.T) {
+	client := newTestClient(t, "http://localhost")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var calls int
+	err := client.WithReadAfterWriteRetry(ctx, "test-op", func() (bool, error) {
+		calls++
+		return false, &HTTPStatusError{StatusCode: 500, Body: "internal error"}
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if calls != 1 {
+		t.Fatalf("expected 1 call, got %d", calls)
+	}
+}
+
+func TestWithReadAfterWriteRetry_Transient5xxRespectsCtxCancelDuringBackoff(t *testing.T) {
+	client := newTestClient(t, "http://localhost")
+	ctx, cancel := context.WithCancel(context.Background())
+
+	var calls int
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- client.WithReadAfterWriteRetry(ctx, "test-op", func() (bool, error) {
+			calls++
+			return false, &HTTPStatusError{StatusCode: 500, Body: "internal error"}
+		})
+	}()
+
+	// Cancel during the first backoff (500ms).
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if err == nil {
+			t.Fatal("expected error")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for retry to return")
+	}
+}
+
+func TestWithReadAfterWriteRetry_NotFoundRespectsCancelledContext(t *testing.T) {
+	client := newTestClient(t, "http://localhost")
+	ctx, cancel := context.WithCancel(context.Background())
+
+	var calls int
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+
+	err := client.WithReadAfterWriteRetry(ctx, "test-op", func() (bool, error) {
+		calls++
+		return false, nil
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestWithReadAfterWriteRetry_Transient5xxOnLastAttemptReturnsErr(t *testing.T) {
+	client := newTestClient(t, "http://localhost")
+	var calls int
+
+	err := client.WithReadAfterWriteRetry(context.Background(), "test-op", func() (bool, error) {
+		calls++
+		if calls < readAfterWriteAttempts {
+			return false, nil
+		}
+		return false, &HTTPStatusError{StatusCode: 500, Body: "late 5xx"}
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if calls != readAfterWriteAttempts {
+		t.Fatalf("expected %d calls, got %d", readAfterWriteAttempts, calls)
+	}
+}
