@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -2171,5 +2172,123 @@ func TestAlignBasicsBlocksWithPlan_NilsNestedPolicyBlocks(t *testing.T) {
 	}
 	if state.Policy[0].Level != nil {
 		t.Fatal("expected policy.level to be nil")
+	}
+}
+
+func TestValidateNoAPIRoutingRules(t *testing.T) {
+	tests := []struct {
+		name    string
+		rules   []XrayRoutingRule
+		wantErr bool
+	}{
+		{
+			name:    "no rules",
+			rules:   []XrayRoutingRule{},
+			wantErr: false,
+		},
+		{
+			name: "normal rule",
+			rules: []XrayRoutingRule{
+				{
+					Type:        types.StringValue("field"),
+					OutboundTag: types.StringValue("blocked"),
+					InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("http")}),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "API routing rule",
+			rules: []XrayRoutingRule{
+				{
+					Type:        types.StringValue("field"),
+					OutboundTag: types.StringValue("api"),
+					InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("api")}),
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "API outbound with non-api inbound",
+			rules: []XrayRoutingRule{
+				{
+					Type:        types.StringValue("field"),
+					OutboundTag: types.StringValue("api"),
+					InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("something-else")}),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "API rule mixed with normal rules",
+			rules: []XrayRoutingRule{
+				{
+					Type:        types.StringValue("field"),
+					OutboundTag: types.StringValue("blocked"),
+					InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("http")}),
+				},
+				{
+					Type:        types.StringValue("field"),
+					OutboundTag: types.StringValue("api"),
+					InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("api")}),
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "API outbound with null inbound_tag",
+			rules: []XrayRoutingRule{
+				{
+					Type:        types.StringValue("field"),
+					OutboundTag: types.StringValue("api"),
+					InboundTag:  types.ListNull(types.StringType),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "API outbound with api mixed in inbound_tag",
+			rules: []XrayRoutingRule{
+				{
+					Type:        types.StringValue("field"),
+					OutboundTag: types.StringValue("api"),
+					InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("http"), types.StringValue("api")}),
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := validateNoAPIRoutingRules(tt.rules)
+			if (msg != "") != tt.wantErr {
+				t.Errorf("validateNoAPIRoutingRules() = %q, wantErr %v", msg, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestEnsureNoAPIRoutingRules(t *testing.T) {
+	var diags diag.Diagnostics
+	ensureNoAPIRoutingRules([]XrayRoutingRule{
+		{
+			OutboundTag: types.StringValue("api"),
+			InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("api")}),
+		},
+	}, &diags)
+	if !diags.HasError() {
+		t.Fatal("expected error diagnostic for API routing rule")
+	}
+
+	diags = nil
+	ensureNoAPIRoutingRules([]XrayRoutingRule{
+		{
+			OutboundTag: types.StringValue("blocked"),
+			InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("http")}),
+		},
+	}, &diags)
+	if diags.HasError() {
+		t.Fatalf("expected no error, got %v", diags)
 	}
 }

@@ -352,6 +352,11 @@ func (r *XrayRoutingResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
+	ensureNoAPIRoutingRules(plan.Rule, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	input := expandXrayRouting(&plan)
 	desired := buildXrayRoutingJSON(input)
 	xrayApplyTyped(ctx, desired, &resp.Diagnostics, r.client, xraySectionRouting)
@@ -379,6 +384,11 @@ func (r *XrayRoutingResource) Read(ctx context.Context, _ resource.ReadRequest, 
 func (r *XrayRoutingResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan XrayRoutingModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	ensureNoAPIRoutingRules(plan.Rule, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
