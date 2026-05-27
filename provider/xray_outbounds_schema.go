@@ -2473,6 +2473,9 @@ func flattenBlackholeSettings(in map[string]any) map[string]any {
 			out["response_type"] = t
 		}
 	}
+	if _, ok := out["response_type"]; !ok {
+		out["response_type"] = "none"
+	}
 	return out
 }
 

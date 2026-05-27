@@ -476,6 +476,52 @@ func TestFlattenXrayOutboundsToMap(t *testing.T) {
 	}
 }
 
+func TestFlattenBlackholeSettings_EmptyDefaultsToNone(t *testing.T) {
+	t.Parallel()
+	in := map[string]any{}
+	out := flattenBlackholeSettings(in)
+	if out["response_type"] != "none" {
+		t.Fatalf("expected response_type='none' for empty settings, got %v", out["response_type"])
+	}
+}
+
+func TestFlattenBlackholeSettings_ExplicitTypePreserved(t *testing.T) {
+	t.Parallel()
+	in := map[string]any{"response": map[string]any{"type": "http"}}
+	out := flattenBlackholeSettings(in)
+	if out["response_type"] != "http" {
+		t.Fatalf("expected response_type='http', got %v", out["response_type"])
+	}
+}
+
+func TestFlattenBlackholeSettings_ExplicitNonePreserved(t *testing.T) {
+	t.Parallel()
+	in := map[string]any{"response": map[string]any{"type": "none"}}
+	out := flattenBlackholeSettings(in)
+	if out["response_type"] != "none" {
+		t.Fatalf("expected response_type='none', got %v", out["response_type"])
+	}
+}
+
+func TestFlattenXrayOutboundsToMap_EmptyBlackholeSettings(t *testing.T) {
+	data := []any{
+		map[string]any{
+			"tag":      "blocked",
+			"protocol": "blackhole",
+			"settings": map[string]any{},
+		},
+	}
+	result := flattenXrayOutboundsToMap(data)
+	outbounds := result["outbound"].([]any)
+	if len(outbounds) != 1 {
+		t.Fatalf("expected 1 outbound, got %d", len(outbounds))
+	}
+	bh := outbounds[0].(map[string]any)["blackhole_settings"].([]any)[0].(map[string]any)
+	if bh["response_type"] != "none" {
+		t.Fatalf("expected response_type='none' for empty blackhole settings, got %v", bh["response_type"])
+	}
+}
+
 func TestExpandReverseEntries(t *testing.T) {
 	list := []any{
 		map[string]any{"tag": "b1", "domain": "test.com"},
