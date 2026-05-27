@@ -18,7 +18,9 @@ Registry: `batonogov/threexui`. All provider code lives in `provider/`.
 | `task fmt` | `gofmt -w provider/*.go` |
 | `task vet` | `go vet ./...` |
 | `task lint` | `golangci-lint run` |
+| `task test` | Unit + acceptance tests |
 | `task test:unit` | Unit tests (no Docker/Terraform needed) |
+| `task test:unit:coverage` | Unit tests with coverage (`coverage.out`) |
 | `task test:acc` | Acceptance tests (Docker lifecycle included) |
 | `task pre-commit` | fmt + vet + lint + build |
 
@@ -61,6 +63,11 @@ Four resources — `panel_general`, `panel_security`, `panel_telegram`,
 - Each is a singleton with ID `"settings"`.
 - Shared CRUD via `settingsApplyTyped` / `settingsReadTyped`.
 - Delete only clears TF state — does not reset panel settings.
+- `settingsMu` serializes read-modify-write (separate from `xrayTemplateMu`).
+- `settingsSecrets` on Client caches secret values from GET responses (3x-ui masks them)
+  so they can be replayed in subsequent PUT requests.
+- Changing `web_base_path` in `panel_general` triggers a panel restart and updates
+  the provider client's base path via `SetBasePath` + `WaitForReady`.
 
 ### Xray settings (two modes)
 
@@ -74,6 +81,12 @@ Six xray resources share `resource_xray_settings.go`. Each section has its own
 
 `xrayTemplateMu` serializes read-modify-write to prevent race conditions.
 
+### Xray version (`resource_xray_version.go`)
+
+Separate resource — singleton with ID `"xray_version"`. Calls `InstallXray` + polls
+`waitForXrayVersion` until the version matches. Delete is a no-op with a warning
+(removing from state does NOT revert the installed version).
+
 ### Panel user (write-only)
 
 `threexui_panel_user` — no read API exists. Read is a no-op, state is preserved
@@ -84,6 +97,8 @@ previous state.
 
 Cookie auth, auto re-login on 401/404, CSRF handling for 3x-ui v3.
 Supports bootstrap credentials for first-run panel setup.
+Provider attributes: `two_factor_code` (TOTP for 2FA login), `max_retries`
+(default 1, max 10), `request_timeout`.
 Three retry layers: 5xx on idempotent writes, read-after-write for SQLite
 visibility lag, rate-limit retry for `GetXrayVersions`.
 Client API auto-detection: probes `/panel/api/clients/list` to detect v3.1.0+
@@ -112,6 +127,8 @@ These are non-obvious constraints that have caused real bugs.
 | Subscription resource does **double apply** | Workaround: `sub_json_enable` not saved on first apply with `sub_enable` |
 | Policy levels: `{"0": {...}}` ↔ `[{id=0}]` | Xray JSON uses a map, TF uses a list |
 | DNS servers: string vs object | Address-only → string; with extra fields → object |
+| `xray_version` delete is a no-op | Removing from state does NOT revert the installed xray version |
+| `web_base_path` change triggers panel restart | Must also update provider `base_path`; code auto-updates client |
 
 **Always check 3x-ui source snapshots** (`3x-ui-<version>/`) before assuming API behavior.
 Key paths: `web/service/`, `web/controller/`, `web/entity/model/`, `xray/`.
@@ -149,6 +166,12 @@ Imperative mood, concise subjects.
   `ProtoV6ProviderFactories` (not `ProviderFactories`).
 - Version-aware skipping: `requireMinVersion(t, "vX.Y.Z")` for features from
   specific 3x-ui versions. Currently supported: **v2.9.x**, **v3.0.x**, and **v3.1.x**.
+- Flaky test quarantine: `skipOnFlakyVersions(t, ...)` / `skipIfFlaky(t)` with
+  `THREEXUI_SKIP_FLAKY` env var to skip known-broken upstream versions.
+- Protocol matrix test (`resource_inbound_matrix_test.go`): comprehensive
+  create/update/import round-trip for every protocol.
+- Destroy checks use `destroyVisibilityAttempts` (60 × 500 ms) to handle
+  SQLite visibility lag after delete.
 
 ### Supply chain
 
