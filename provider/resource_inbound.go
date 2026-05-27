@@ -265,9 +265,16 @@ func (r *InboundResource) Create(ctx context.Context, req resource.CreateRequest
 
 	// Re-read the inbound via GET to ensure consistent state (#131).
 	// The add endpoint may return incomplete data under SQLite pressure.
-	created, err = r.client.GetInbound(ctx, created.ID)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to read created inbound", err.Error())
+	// Retry on transient errors — the row may not be committed yet (#223).
+	if retryErr := r.client.WithReadAfterWriteRetry(ctx, fmt.Sprintf("read created inbound %d", created.ID), func() (bool, error) {
+		got, getErr := r.client.GetInbound(ctx, created.ID)
+		if getErr != nil {
+			return false, getErr
+		}
+		created = got
+		return true, nil
+	}); retryErr != nil {
+		resp.Diagnostics.AddError("Failed to read created inbound", retryErr.Error())
 		return
 	}
 
