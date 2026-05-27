@@ -83,6 +83,14 @@ resource "threexui_inbound_client" "client_a" {
 }
 ```
 
+> **Для пользователей OpenTofu:** указывайте полный адрес реестра:
+>
+> ```hcl
+> source = "registry.terraform.io/batonogov/threexui"
+> ```
+>
+> Провайдер не публикуется в OpenTofu Registry ([причины](https://github.com/opentofu/registry/issues/3632)).
+
 ## Совместимость
 
 **Политика поддержки:** провайдер официально поддерживает три минорные ветки 3x-ui: **2.9.x**, **3.0.x** и **3.1.x** — каждый выпущенный патч всех трёх веток гоняется в acceptance-матрице на каждом push в `main` и на каждом pull request.

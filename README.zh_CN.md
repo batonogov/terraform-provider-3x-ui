@@ -83,6 +83,14 @@ resource "threexui_inbound_client" "client_a" {
 }
 ```
 
+> **OpenTofu 用户：**请使用完整的 registry 地址：
+>
+> ```hcl
+> source = "registry.terraform.io/batonogov/threexui"
+> ```
+>
+> 本 provider 未发布到 OpenTofu Registry（[原因](https://github.com/opentofu/registry/issues/3632)）。
+
 ## 兼容性
 
 **支持策略:** 本 provider 正式支持三条 3x-ui 次要版本线: **2.9.x**、**3.0.x** 和 **3.1.x** —— 三条版本线下的每个已发布补丁版本都会在每次 push 到 `main` 和每个 pull request 时由 acceptance 矩阵覆盖。
