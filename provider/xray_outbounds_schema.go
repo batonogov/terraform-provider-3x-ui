@@ -5,6 +5,9 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -212,6 +215,9 @@ func xrayOutboundsSchema() schema.Schema {
 					Attributes: map[string]schema.Attribute{
 						"tag": schema.StringAttribute{
 							Optional: true, Computed: true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"protocol": schema.StringAttribute{
 							Required:    true,
@@ -219,6 +225,9 @@ func xrayOutboundsSchema() schema.Schema {
 						},
 						"send_through": schema.StringAttribute{
 							Optional: true, Computed: true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 					},
 					Blocks: map[string]schema.Block{
@@ -227,15 +236,27 @@ func xrayOutboundsSchema() schema.Schema {
 								Attributes: map[string]schema.Attribute{
 									"enabled": schema.BoolAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"concurrency": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"xudp_concurrency": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"xudp_proxy_udp443": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -245,15 +266,24 @@ func xrayOutboundsSchema() schema.Schema {
 								Attributes: map[string]schema.Attribute{
 									"domain_strategy": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"redirect": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"ips_blocked": schema.ListAttribute{
 										Optional:    true,
 										Computed:    true,
 										ElementType: types.StringType,
 										Description: "Deprecated legacy list of IPs/CIDRs to block (e.g. geoip:cn). Use final_rule on 3x-ui v2.9.4+.",
+										PlanModifiers: []planmodifier.List{
+											listplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 								Blocks: map[string]schema.Block{
@@ -262,12 +292,21 @@ func xrayOutboundsSchema() schema.Schema {
 											Attributes: map[string]schema.Attribute{
 												"packets": schema.StringAttribute{
 													Optional: true, Computed: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 												"length": schema.StringAttribute{
 													Optional: true, Computed: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 												"interval": schema.StringAttribute{
 													Optional: true, Computed: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 											},
 										},
@@ -277,12 +316,21 @@ func xrayOutboundsSchema() schema.Schema {
 											Attributes: map[string]schema.Attribute{
 												"type": schema.StringAttribute{
 													Optional: true, Computed: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 												"packet": schema.StringAttribute{
 													Optional: true, Computed: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 												"delay": schema.StringAttribute{
 													Optional: true, Computed: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 											},
 										},
@@ -292,20 +340,35 @@ func xrayOutboundsSchema() schema.Schema {
 											Attributes: map[string]schema.Attribute{
 												"action": schema.StringAttribute{
 													Optional: true, Computed: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 												"network": schema.StringAttribute{
 													Optional: true, Computed: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 												"port": schema.StringAttribute{
 													Optional: true, Computed: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 												"ip": schema.ListAttribute{
 													Optional:    true,
 													Computed:    true,
 													ElementType: types.StringType,
+													PlanModifiers: []planmodifier.List{
+														listplanmodifier.UseStateForUnknown(),
+													},
 												},
 												"block_delay": schema.StringAttribute{
 													Optional: true, Computed: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 											},
 										},
@@ -318,6 +381,9 @@ func xrayOutboundsSchema() schema.Schema {
 								Attributes: map[string]schema.Attribute{
 									"response_type": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -327,20 +393,35 @@ func xrayOutboundsSchema() schema.Schema {
 								Attributes: map[string]schema.Attribute{
 									"network": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"address": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"port": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"non_ip_query": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"block_types": schema.ListAttribute{
 										Optional:    true,
 										Computed:    true,
 										ElementType: types.Int64Type,
+										PlanModifiers: []planmodifier.List{
+											listplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -350,15 +431,27 @@ func xrayOutboundsSchema() schema.Schema {
 								Attributes: map[string]schema.Attribute{
 									"address": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"port": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"id": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"security": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -368,23 +461,41 @@ func xrayOutboundsSchema() schema.Schema {
 								Attributes: map[string]schema.Attribute{
 									"address": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"port": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"id": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"flow": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"encryption": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"reverse_tag": schema.StringAttribute{
 										Optional:    true,
 										Computed:    true,
 										Description: "VLESS reverse tag. Stored in 3x-ui as reverse.tag.",
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -394,12 +505,21 @@ func xrayOutboundsSchema() schema.Schema {
 								Attributes: map[string]schema.Attribute{
 									"address": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"port": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"password": schema.StringAttribute{
 										Optional: true, Computed: true, Sensitive: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -409,21 +529,39 @@ func xrayOutboundsSchema() schema.Schema {
 								Attributes: map[string]schema.Attribute{
 									"address": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"port": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"password": schema.StringAttribute{
 										Optional: true, Computed: true, Sensitive: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"method": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"uot": schema.BoolAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"uot_version": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -433,15 +571,27 @@ func xrayOutboundsSchema() schema.Schema {
 								Attributes: map[string]schema.Attribute{
 									"address": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"port": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"user": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"pass": schema.StringAttribute{
 										Optional: true, Computed: true, Sensitive: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -451,15 +601,27 @@ func xrayOutboundsSchema() schema.Schema {
 								Attributes: map[string]schema.Attribute{
 									"address": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"port": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"user": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"pass": schema.StringAttribute{
 										Optional: true, Computed: true, Sensitive: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -469,28 +631,49 @@ func xrayOutboundsSchema() schema.Schema {
 								Attributes: map[string]schema.Attribute{
 									"mtu": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"secret_key": schema.StringAttribute{
 										Optional: true, Computed: true, Sensitive: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"address": schema.ListAttribute{
 										Optional:    true,
 										Computed:    true,
 										ElementType: types.StringType,
+										PlanModifiers: []planmodifier.List{
+											listplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"workers": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"domain_strategy": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"reserved": schema.ListAttribute{
 										Optional:    true,
 										Computed:    true,
 										ElementType: types.Int64Type,
+										PlanModifiers: []planmodifier.List{
+											listplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"no_kernel_tun": schema.BoolAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 								Blocks: map[string]schema.Block{
@@ -499,20 +682,35 @@ func xrayOutboundsSchema() schema.Schema {
 											Attributes: map[string]schema.Attribute{
 												"public_key": schema.StringAttribute{
 													Optional: true, Computed: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 												"pre_shared_key": schema.StringAttribute{
 													Optional: true, Computed: true, Sensitive: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 												"allowed_ips": schema.ListAttribute{
 													Optional:    true,
 													Computed:    true,
 													ElementType: types.StringType,
+													PlanModifiers: []planmodifier.List{
+														listplanmodifier.UseStateForUnknown(),
+													},
 												},
 												"endpoint": schema.StringAttribute{
 													Optional: true, Computed: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 												"keep_alive": schema.Int64Attribute{
 													Optional: true, Computed: true,
+													PlanModifiers: []planmodifier.Int64{
+														int64planmodifier.UseStateForUnknown(),
+													},
 												},
 											},
 										},
@@ -525,12 +723,21 @@ func xrayOutboundsSchema() schema.Schema {
 								Attributes: map[string]schema.Attribute{
 									"address": schema.StringAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"port": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"version": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
