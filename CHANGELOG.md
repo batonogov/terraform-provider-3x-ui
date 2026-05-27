@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.3](https://github.com/batonogov/terraform-provider-threexui/compare/v3.6.2...v3.6.3) (2026-05-27)
+
+
+### Bug Fixes
+
+* prevent inconsistent result when xray_basics optional blocks omitted ([#212](https://github.com/batonogov/terraform-provider-threexui/issues/212)) ([a947e16](https://github.com/batonogov/terraform-provider-threexui/commit/a947e164ca0fc02fe7ed4d8e6b0a89122a79be3f)), closes [#208](https://github.com/batonogov/terraform-provider-threexui/issues/208)
+
 ## [3.6.2](https://github.com/batonogov/terraform-provider-threexui/compare/v3.6.1...v3.6.2) (2026-05-26)
 
 
