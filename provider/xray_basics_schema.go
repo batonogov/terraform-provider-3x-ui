@@ -7,6 +7,8 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -81,15 +83,27 @@ func xrayBasicsSchema() schema.Schema {
 					Attributes: map[string]schema.Attribute{
 						"loglevel": schema.StringAttribute{
 							Optional: true, Computed: true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"access": schema.StringAttribute{
 							Optional: true, Computed: true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"error": schema.StringAttribute{
 							Optional: true, Computed: true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"dns_log": schema.BoolAttribute{
 							Optional: true, Computed: true,
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 					},
 				},
@@ -102,15 +116,27 @@ func xrayBasicsSchema() schema.Schema {
 								Attributes: map[string]schema.Attribute{
 									"stats_inbound_downlink": schema.BoolAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"stats_inbound_uplink": schema.BoolAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"stats_outbound_downlink": schema.BoolAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"stats_outbound_uplink": schema.BoolAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -123,24 +149,45 @@ func xrayBasicsSchema() schema.Schema {
 									},
 									"handshake": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"conn_idle": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"uplink_only": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"downlink_only": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"stats_user_uplink": schema.BoolAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"stats_user_downlink": schema.BoolAttribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"buffer_size": schema.Int64Attribute{
 										Optional: true, Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -153,6 +200,9 @@ func xrayBasicsSchema() schema.Schema {
 					Attributes: map[string]schema.Attribute{
 						"tag": schema.StringAttribute{
 							Optional: true, Computed: true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"services": schema.ListAttribute{
 							Optional:    true,
@@ -168,6 +218,36 @@ func xrayBasicsSchema() schema.Schema {
 				},
 			},
 		},
+	}
+}
+
+// ---------------------------------------------------------------------------
+// alignBasicsBlocksWithPlan nils out blocks on the state that were not present
+// in the plan. This prevents the "was absent, but now present" inconsistency
+// error that Terraform raises when 3x-ui returns default values for omitted
+// optional blocks.
+// ---------------------------------------------------------------------------
+
+func alignBasicsBlocksWithPlan(state, plan *XrayBasicsModel) {
+	if len(plan.Policy) == 0 {
+		state.Policy = nil
+	} else {
+		planPol := plan.Policy[0]
+		if len(state.Policy) > 0 {
+			statePol := &state.Policy[0]
+			if len(planPol.System) == 0 {
+				statePol.System = nil
+			}
+			if len(planPol.Level) == 0 {
+				statePol.Level = nil
+			}
+		}
+	}
+	if len(plan.API) == 0 {
+		state.API = nil
+	}
+	if len(plan.Stats) == 0 {
+		state.Stats = nil
 	}
 }
 

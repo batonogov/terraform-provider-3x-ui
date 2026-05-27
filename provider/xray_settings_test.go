@@ -2065,3 +2065,111 @@ func TestFreedomIPsBlocked_NullHandling(t *testing.T) {
 		t.Fatalf("expected null ips_blocked when key is missing, got %v", flatFS.IPsBlocked)
 	}
 }
+
+func TestAlignBasicsBlocksWithPlan_NilsMissingBlocks(t *testing.T) {
+	state := &XrayBasicsModel{
+		ID: types.StringValue("xray_basics"),
+		Log: []XrayBasicsLog{{
+			Loglevel: types.StringValue("warning"),
+			DNSLog:   types.BoolValue(false),
+		}},
+		Policy: []XrayBasicsPolicy{{
+			System: []XrayBasicsPolicySystem{{
+				StatsInboundDownlink: types.BoolValue(false),
+			}},
+			Level: []XrayBasicsPolicyLevel{{
+				ID:           types.Int64Value(0),
+				Handshake:    types.Int64Value(4),
+				ConnIdle:     types.Int64Value(300),
+				UplinkOnly:   types.Int64Value(2),
+				DownlinkOnly: types.Int64Value(5),
+				BufferSize:   types.Int64Value(4),
+			}},
+		}},
+		API:   []XrayBasicsAPI{{Tag: types.StringValue("api")}},
+		Stats: []XrayBasicsStats{{}},
+	}
+
+	plan := &XrayBasicsModel{
+		ID: types.StringValue("xray_basics"),
+		Log: []XrayBasicsLog{{
+			Loglevel: types.StringValue("warning"),
+			DNSLog:   types.BoolValue(false),
+		}},
+	}
+
+	alignBasicsBlocksWithPlan(state, plan)
+
+	if state.Policy != nil {
+		t.Fatal("expected policy to be nil after alignment")
+	}
+	if state.API != nil {
+		t.Fatal("expected api to be nil after alignment")
+	}
+	if state.Stats != nil {
+		t.Fatal("expected stats to be nil after alignment")
+	}
+	if len(state.Log) != 1 {
+		t.Fatal("expected log to remain")
+	}
+}
+
+func TestAlignBasicsBlocksWithPlan_PreservesPresentBlocks(t *testing.T) {
+	state := &XrayBasicsModel{
+		ID:  types.StringValue("xray_basics"),
+		Log: []XrayBasicsLog{{Loglevel: types.StringValue("warning")}},
+		Policy: []XrayBasicsPolicy{{
+			System: []XrayBasicsPolicySystem{{StatsInboundDownlink: types.BoolValue(false)}},
+			Level:  []XrayBasicsPolicyLevel{{ID: types.Int64Value(0), Handshake: types.Int64Value(4)}},
+		}},
+		API:   []XrayBasicsAPI{{Tag: types.StringValue("api")}},
+		Stats: []XrayBasicsStats{{}},
+	}
+
+	plan := &XrayBasicsModel{
+		ID:     types.StringValue("xray_basics"),
+		Log:    []XrayBasicsLog{{Loglevel: types.StringValue("warning")}},
+		Policy: []XrayBasicsPolicy{{System: []XrayBasicsPolicySystem{{}}, Level: []XrayBasicsPolicyLevel{{ID: types.Int64Value(0)}}}},
+		API:    []XrayBasicsAPI{{Tag: types.StringValue("api")}},
+		Stats:  []XrayBasicsStats{{}},
+	}
+
+	alignBasicsBlocksWithPlan(state, plan)
+
+	if state.Policy == nil {
+		t.Fatal("expected policy to be preserved")
+	}
+	if state.API == nil {
+		t.Fatal("expected api to be preserved")
+	}
+	if state.Stats == nil {
+		t.Fatal("expected stats to be preserved")
+	}
+}
+
+func TestAlignBasicsBlocksWithPlan_NilsNestedPolicyBlocks(t *testing.T) {
+	state := &XrayBasicsModel{
+		ID: types.StringValue("xray_basics"),
+		Policy: []XrayBasicsPolicy{{
+			System: []XrayBasicsPolicySystem{{StatsInboundDownlink: types.BoolValue(false)}},
+			Level:  []XrayBasicsPolicyLevel{{ID: types.Int64Value(0), Handshake: types.Int64Value(4)}},
+		}},
+	}
+
+	plan := &XrayBasicsModel{
+		ID:     types.StringValue("xray_basics"),
+		Policy: []XrayBasicsPolicy{{}},
+	}
+
+	alignBasicsBlocksWithPlan(state, plan)
+
+	if len(state.Policy) == 0 {
+		t.Fatal("expected policy block to remain")
+	}
+	if state.Policy[0].System != nil {
+		t.Fatal("expected policy.system to be nil")
+	}
+	if state.Policy[0].Level != nil {
+		t.Fatal("expected policy.level to be nil")
+	}
+}

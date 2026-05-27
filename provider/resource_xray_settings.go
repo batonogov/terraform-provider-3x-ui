@@ -152,15 +152,28 @@ func (r *XrayBasicsResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 	state := flattenXrayBasics(flat)
+	alignBasicsBlocksWithPlan(state, &plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
-func (r *XrayBasicsResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *XrayBasicsResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var prior XrayBasicsModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	flat := xrayReadSection(ctx, &resp.Diagnostics, r.client, xraySectionBasics, flattenXrayBasicsToMap)
 	if flat == nil {
 		return
 	}
 	state := flattenXrayBasics(flat)
+	// Skip alignment during import (prior state has no blocks set).
+	if prior.ID.IsNull() || prior.ID.IsUnknown() {
+		resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+		return
+	}
+	alignBasicsBlocksWithPlan(state, &prior)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -183,6 +196,7 @@ func (r *XrayBasicsResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 	state := flattenXrayBasics(flat)
+	alignBasicsBlocksWithPlan(state, &plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
