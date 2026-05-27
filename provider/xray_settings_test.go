@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -2265,5 +2266,29 @@ func TestValidateNoAPIRoutingRules(t *testing.T) {
 				t.Errorf("validateNoAPIRoutingRules() = %q, wantErr %v", msg, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestEnsureNoAPIRoutingRules(t *testing.T) {
+	var diags diag.Diagnostics
+	ensureNoAPIRoutingRules([]XrayRoutingRule{
+		{
+			OutboundTag: types.StringValue("api"),
+			InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("api")}),
+		},
+	}, &diags)
+	if !diags.HasError() {
+		t.Fatal("expected error diagnostic for API routing rule")
+	}
+
+	diags = nil
+	ensureNoAPIRoutingRules([]XrayRoutingRule{
+		{
+			OutboundTag: types.StringValue("blocked"),
+			InboundTag:  types.ListValueMust(types.StringType, []attr.Value{types.StringValue("http")}),
+		},
+	}, &diags)
+	if diags.HasError() {
+		t.Fatalf("expected no error, got %v", diags)
 	}
 }

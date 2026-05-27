@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -502,4 +503,10 @@ func validateNoAPIRoutingRules(rules []XrayRoutingRule) string {
 		}
 	}
 	return ""
+}
+
+func ensureNoAPIRoutingRules(rules []XrayRoutingRule, diags *diag.Diagnostics) {
+	if msg := validateNoAPIRoutingRules(rules); msg != "" {
+		diags.AddError("Invalid routing rule", msg)
+	}
 }
