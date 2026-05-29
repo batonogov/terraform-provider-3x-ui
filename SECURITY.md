@@ -1,9 +1,10 @@
 # Security Policy
 
-## Supported Versions
+## Supported Versions (provider)
 
 | Version | Supported |
 | ------- | --------- |
+| 3.x     | Yes       |
 | 2.x     | Yes       |
 | < 2.0   | No        |
 
