@@ -1,6 +1,6 @@
 # Security Policy
 
-## Supported Versions
+## Supported Versions (provider)
 
 | Version | Supported |
 | ------- | --------- |
