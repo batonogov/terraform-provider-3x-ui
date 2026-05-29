@@ -102,19 +102,20 @@ resource "threexui_xray_version" "test" {
 // (drift detected) and that applying brings the version back to A.
 func TestAccXrayVersionDrift(t *testing.T) {
 	testAccPreCheck(t)
-	// v2.9.1 has a confirmed upstream bug: InstallXray accepts the request
-	// but the panel never picks up the new binary regardless of how many
-	// retries or how long we wait (verified across two full CI retries on
-	// PR #162). This is not a flake — it is a deterministic upstream defect
-	// that cannot be fixed at the provider level. Remove the gate once the
-	// upstream pickup is fixed. See #163.
+	// InstallXray accepts the request but the panel never picks up the new
+	// binary regardless of how many retries or how long we wait. This is a
+	// deterministic upstream defect that cannot be fixed at the provider level.
+	// Remove the gate once the upstream pickup is fixed.
 	//
-	// v3.0.0 and v3.0.1: InstallXray returns success but the panel
-	// intermittently fails to pick up the new binary within the poll budget.
-	// See #224.
+	// v2.9.1: verified across two full CI retries on PR #162. See #163.
+	// v2.9.2: same symptom — version unchanged after 3×20 polls (PR #229 CI).
+	// v2.9.3: intermittent — drift simulation succeeds but version reverts
+	// before Terraform's Read, causing "empty refresh plan" (PR #229 CI).
+	// v3.0.0, v3.0.1: panel intermittently fails to pick up the new binary
+	// within the poll budget. See #224.
 	skipOnFlakyVersions(t,
-		"InstallXray pickup is broken on this panel version (upstream bug #163)",
-		"v2.9.1", "v3.0.0", "v3.0.1")
+		"InstallXray pickup is broken or unreliable on this panel version",
+		"v2.9.1", "v2.9.2", "v2.9.3", "v3.0.0", "v3.0.1")
 	client, err := testAccClientFromEnv()
 	if err != nil {
 		t.Fatalf("client init: %s", err)
