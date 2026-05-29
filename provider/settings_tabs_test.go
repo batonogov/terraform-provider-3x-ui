@@ -257,6 +257,52 @@ func TestFlattenPanelGeneral(t *testing.T) {
 	}
 }
 
+func TestPanelProxyExpandFlatten(t *testing.T) {
+	t.Run("proxy set", func(t *testing.T) {
+		m := &PanelGeneralModel{
+			PanelProxy: types.StringValue("socks5://proxy:1080"),
+		}
+		expanded := expandPanelGeneral(m)
+		if expanded["panelProxy"] != "socks5://proxy:1080" {
+			t.Fatalf("expected panelProxy=socks5://proxy:1080, got %v", expanded["panelProxy"])
+		}
+	})
+
+	t.Run("proxy null", func(t *testing.T) {
+		m := &PanelGeneralModel{
+			PanelProxy: types.StringNull(),
+		}
+		expanded := expandPanelGeneral(m)
+		if _, ok := expanded["panelProxy"]; ok {
+			t.Fatalf("expected no panelProxy key, got %v", expanded["panelProxy"])
+		}
+	})
+
+	t.Run("flatten with value", func(t *testing.T) {
+		in := map[string]any{"panelProxy": "http://proxy:8080"}
+		m := flattenPanelGeneral(in)
+		if m.PanelProxy.ValueString() != "http://proxy:8080" {
+			t.Fatalf("expected http://proxy:8080, got %q", m.PanelProxy)
+		}
+	})
+
+	t.Run("flatten empty string", func(t *testing.T) {
+		in := map[string]any{"panelProxy": ""}
+		m := flattenPanelGeneral(in)
+		if !m.PanelProxy.IsNull() {
+			t.Fatalf("expected null for empty panelProxy, got %q", m.PanelProxy)
+		}
+	})
+
+	t.Run("flatten missing key", func(t *testing.T) {
+		in := map[string]any{}
+		m := flattenPanelGeneral(in)
+		if !m.PanelProxy.IsNull() {
+			t.Fatalf("expected null for missing panelProxy, got %q", m.PanelProxy)
+		}
+	})
+}
+
 func TestPreserveSettingSecret_ConfiguredEmptyObservedNonEmpty(t *testing.T) {
 	got := preserveSettingSecret(types.StringValue("existing-secret"), types.StringValue(""))
 	if got.ValueString() != "" {
