@@ -432,15 +432,6 @@ func upstreamStreamForms(t *testing.T, dir string) []string {
 				continue
 			}
 			seen["stream_"+strings.ReplaceAll(name, "-", "_")] = true
-			if name == "external-proxy" {
-				seen["external_proxy"] = true
-			}
-			if name == "finalmask" {
-				seen["stream_finalmask"] = true
-			}
-			if name == "sockopt" {
-				seen["stream_sockopt"] = true
-			}
 		}
 		return toSortedSlice(seen)
 	}
@@ -720,7 +711,6 @@ func TestDriftStreamSettingsForms(t *testing.T) {
 		"stream_sockopt":        true,
 		"stream_settings":       true, // main stream_settings container
 		"stream_finalmask":      true, // finalmask is part of xhttp settings
-		"external_proxy":        true, // external_proxy block
 		"stream_external_proxy": true, // TS schema name for external_proxy
 	}
 

@@ -96,7 +96,7 @@ func defaultSettingsForProtocol(protocol string) (map[string]any, error) { //nol
 		return nil, nil
 	case "shadowsocks":
 		return nil, nil
-	case "hysteria", "hysteria2":
+	case "hysteria", "hysteria2": // hysteria2 kept for reading v3.1.0 inbounds
 		return map[string]any{
 			"version": 2,
 		}, nil

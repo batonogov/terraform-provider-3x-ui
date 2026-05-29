@@ -79,6 +79,10 @@ resource "threexui_panel_general" "settings" {
 
 - `xray_outbound_test_url` (Optional, String) - URL used for testing outbound connectivity. Default is `https://www.google.com/generate_204`.
 
+### Proxy
+
+- `panel_proxy` (Optional, String) - HTTP/SOCKS5 proxy URL for the panel's own outbound requests (xray version checks, Telegram bot, outbound testing). Default is `""` (direct). Available on 3x-ui v3.2.0+.
+
 ## Attribute Reference
 
 All arguments are also exported as attributes.
