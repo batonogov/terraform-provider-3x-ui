@@ -442,8 +442,7 @@ func upstreamStreamForms(t *testing.T, dir string) []string {
 		jsPath = filepath.Join(dir, "web", "assets", "js", "model", "inbound.js")
 	}
 	if _, err := os.Stat(jsPath); err != nil {
-		// No legacy JS file — TS schemas already handled above.
-		return nil
+		t.Fatalf("no stream form source found in %s (neither TS schemas nor legacy inbound.js)", dir)
 	}
 	data, err := os.ReadFile(jsPath)
 	if err != nil {
