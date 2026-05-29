@@ -123,3 +123,45 @@ func TestInboundClientReverseTagExpandFlatten(t *testing.T) {
 		t.Fatalf("expected reverse-a, got %q", flattened.ReverseTag.ValueString())
 	}
 }
+
+func TestInboundClientGroupExpandFlatten(t *testing.T) {
+	t.Run("group set", func(t *testing.T) {
+		model := &InboundClientResourceModel{
+			InboundID: types.Int64Value(1),
+			ClientID:  types.StringValue("uuid"),
+			Email:     types.StringValue("user@test.com"),
+			Group:     types.StringValue("premium"),
+		}
+		expanded := expandInboundClientFromModel(model)
+		if expanded["group"] != "premium" {
+			t.Fatalf("expected group=premium, got %v", expanded["group"])
+		}
+		flattened := inboundClientToModel(1, "uuid", expanded)
+		if flattened.Group.ValueString() != "premium" {
+			t.Fatalf("expected premium, got %q", flattened.Group)
+		}
+	})
+
+	t.Run("group null", func(t *testing.T) {
+		model := &InboundClientResourceModel{
+			InboundID: types.Int64Value(1),
+			ClientID:  types.StringValue("uuid"),
+			Email:     types.StringValue("user@test.com"),
+			Group:     types.StringNull(),
+		}
+		expanded := expandInboundClientFromModel(model)
+		if _, ok := expanded["group"]; ok {
+			t.Fatalf("expected no group key, got %v", expanded["group"])
+		}
+	})
+
+	t.Run("group empty from API", func(t *testing.T) {
+		client := map[string]any{
+			"id": "uuid", "email": "user@test.com", "group": "",
+		}
+		flattened := inboundClientToModel(1, "uuid", client)
+		if !flattened.Group.IsNull() {
+			t.Fatalf("expected null for empty group, got %q", flattened.Group)
+		}
+	})
+}

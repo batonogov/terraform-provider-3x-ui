@@ -86,6 +86,7 @@ resource "threexui_inbound_client" "hysteria_user" {
 - `tg_id` (Optional, Number) - Telegram user ID for bot notifications.
 - `comment` (Optional, String) - Client description for administrative notes.
 - `reset` (Optional, Number) - Traffic reset period in days. `0` means never (default).
+- `group` (Optional, String) - Client group name. Available on 3x-ui v3.2.0+.
 
 ## Read-Only Attributes
 

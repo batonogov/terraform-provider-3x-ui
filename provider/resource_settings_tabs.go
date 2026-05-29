@@ -624,6 +624,7 @@ type PanelGeneralModel struct {
 	LDAPDefaultExpiryDays       types.Int64  `tfsdk:"ldap_default_expiry_days"`
 	LDAPDefaultLimitIP          types.Int64  `tfsdk:"ldap_default_limit_ip"`
 	XrayOutboundTestURL         types.String `tfsdk:"xray_outbound_test_url"`
+	PanelProxy                  types.String `tfsdk:"panel_proxy"`
 }
 
 func panelGeneralSchema() schema.Schema {
@@ -796,6 +797,12 @@ func panelGeneralSchema() schema.Schema {
 				Description:   "URL used for testing outbound connectivity (default: https://www.google.com/generate_204).",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
+			"panel_proxy": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "HTTP/SOCKS5 proxy URL for the panel's own outbound requests (xray version checks, Telegram bot, outbound testing). 3x-ui v3.2.0+.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
 		},
 	}
 }
@@ -912,6 +919,9 @@ func expandPanelGeneral(m *PanelGeneralModel) map[string]any {
 	}
 	if !m.LDAPDefaultLimitIP.IsNull() && !m.LDAPDefaultLimitIP.IsUnknown() {
 		payload["ldapDefaultLimitIP"] = int(m.LDAPDefaultLimitIP.ValueInt64())
+	}
+	if !m.PanelProxy.IsNull() && !m.PanelProxy.IsUnknown() {
+		payload["panelProxy"] = m.PanelProxy.ValueString()
 	}
 	return payload
 }
@@ -1030,6 +1040,9 @@ func flattenPanelGeneral(in map[string]any) *PanelGeneralModel {
 	}
 	if v, ok := in["ldapDefaultLimitIP"]; ok {
 		m.LDAPDefaultLimitIP = types.Int64Value(int64(intValue(v)))
+	}
+	if v, ok := in["panelProxy"]; ok {
+		m.PanelProxy = stringValueOrNull(stringValue(v))
 	}
 	return m
 }
