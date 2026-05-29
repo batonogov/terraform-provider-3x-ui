@@ -1,9 +1,8 @@
 {
-  "version": "3.0.2",
+  "version": "3.2.0",
   "protocols_go_model": [
     "http",
     "hysteria",
-    "hysteria2",
     "mixed",
     "shadowsocks",
     "trojan",
@@ -13,8 +12,8 @@
     "wireguard"
   ],
   "protocols_js": [
-    "http",
     "hysteria",
+    "http",
     "mixed",
     "shadowsocks",
     "trojan",
@@ -25,19 +24,19 @@
     "wireguard"
   ],
   "protocol_forms": [
-    "http",
     "hysteria",
+    "http",
     "mixed",
     "shadowsocks",
-    "tun",
     "trojan",
+    "tun",
     "tunnel",
     "vless",
     "vmess",
     "wireguard"
   ],
   "stream_forms": [
-    "external_proxy",
+    "stream_external_proxy",
     "stream_finalmask",
     "stream_grpc",
     "stream_httpupgrade",
@@ -78,11 +77,12 @@
     "enable",
     "expiryTime",
     "flow",
+    "group",
     "id",
     "limitIp",
     "password",
-    "reverse",
     "reset",
+    "reverse",
     "security",
     "subId",
     "tgId",
@@ -116,6 +116,7 @@
     "ldapUserFilter",
     "ldapVlessField",
     "pageSize",
+    "panelProxy",
     "remarkModel",
     "sessionMaxAge",
     "subAnnounce",

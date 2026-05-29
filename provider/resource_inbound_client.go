@@ -54,6 +54,7 @@ type InboundClientResourceModel struct {
 	SubID      types.String `tfsdk:"sub_id"`
 	Comment    types.String `tfsdk:"comment"`
 	Reset      types.Int64  `tfsdk:"reset"`
+	Group      types.String `tfsdk:"group"`
 }
 
 // ---------------------------------------------------------------------------
@@ -186,6 +187,14 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 				Default:  int64default.StaticInt64(0),
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
+				},
+			},
+			"group": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Client group name (3x-ui v3.2.0+).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 		},
@@ -500,6 +509,9 @@ func expandInboundClientFromModel(m *InboundClientResourceModel) map[string]any 
 	if !m.Reset.IsNull() && !m.Reset.IsUnknown() {
 		client["reset"] = int(m.Reset.ValueInt64())
 	}
+	if !m.Group.IsNull() && !m.Group.IsUnknown() {
+		client["group"] = m.Group.ValueString()
+	}
 	if !m.ClientID.IsNull() && !m.ClientID.IsUnknown() {
 		client["id"] = m.ClientID.ValueString()
 	}
@@ -526,6 +538,7 @@ func inboundClientToModel(inboundID int, clientID string, client map[string]any)
 		SubID:      types.StringValue(stringValue(client["subId"])),
 		Comment:    types.StringValue(stringValue(client["comment"])),
 		Reset:      types.Int64Value(int64(intValue(client["reset"]))),
+		Group:      stringValueOrNull(stringValue(client["group"])),
 	}
 }
 

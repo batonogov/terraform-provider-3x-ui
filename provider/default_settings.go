@@ -75,7 +75,7 @@ func setDefaultSettings(inbound *Inbound) error {
 
 func protocolUsesClients(protocol string) bool {
 	switch protocol {
-	case "vmess", "vless", "trojan", "shadowsocks", "hysteria", "hysteria2":
+	case "vmess", "vless", "trojan", "shadowsocks", "hysteria":
 		return true
 	default:
 		return false

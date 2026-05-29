@@ -326,9 +326,17 @@ func extractInboundJSProtocols(t *testing.T, jsPath string) []string {
 		start = strings.Index(content, "export const Protocols = {")
 	}
 	if start == -1 {
+		start = strings.Index(content, "export const Protocols = Object.freeze({")
+	}
+	if start == -1 {
 		t.Fatal("cannot find Protocols object in inbound model JS")
 	}
-	end := strings.Index(content[start:], "};")
+	// Object.freeze({...}); ends with });, plain objects end with };
+	sep := "};"
+	if strings.HasPrefix(content[start:], "export const Protocols = Object.freeze(") {
+		sep = "})"
+	}
+	end := strings.Index(content[start:], sep)
 	if end == -1 {
 		t.Fatal("cannot find end of Protocols object in inbound model JS")
 	}
@@ -348,6 +356,11 @@ func extractInboundJSProtocols(t *testing.T, jsPath string) []string {
 }
 
 func upstreamInboundJSPath(dir string) string {
+	// v3.2.0+: TypeScript migration moved the Protocols definition.
+	ts := filepath.Join(dir, "frontend", "src", "schemas", "primitives", "protocol.ts")
+	if _, err := os.Stat(ts); err == nil {
+		return ts
+	}
 	legacy := filepath.Join(dir, "web", "assets", "js", "model", "inbound.js")
 	if _, err := os.Stat(legacy); err == nil {
 		return legacy
@@ -365,6 +378,24 @@ func upstreamProtocolForms(t *testing.T, dir string) []string {
 				continue
 			}
 			upstream = append(upstream, strings.TrimSuffix(e.Name(), ".html"))
+		}
+		sort.Strings(upstream)
+		return upstream
+	}
+
+	// v3.2.0+: TypeScript schemas in frontend/src/schemas/protocols/inbound/
+	tsDir := filepath.Join(dir, "frontend", "src", "schemas", "protocols", "inbound")
+	if entries, err := os.ReadDir(tsDir); err == nil {
+		var upstream []string
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".ts") {
+				continue
+			}
+			name := strings.TrimSuffix(e.Name(), ".ts")
+			if name == "index" {
+				continue
+			}
+			upstream = append(upstream, name)
 		}
 		sort.Strings(upstream)
 		return upstream
@@ -388,7 +419,42 @@ func upstreamStreamForms(t *testing.T, dir string) []string {
 		return upstream
 	}
 
-	data, err := os.ReadFile(upstreamInboundJSPath(dir))
+	// v3.2.0+: TypeScript schemas in frontend/src/schemas/protocols/stream/
+	tsDir := filepath.Join(dir, "frontend", "src", "schemas", "protocols", "stream")
+	if entries, err := os.ReadDir(tsDir); err == nil {
+		seen := map[string]bool{"stream_settings": true}
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".ts") {
+				continue
+			}
+			name := strings.TrimSuffix(e.Name(), ".ts")
+			if name == "index" {
+				continue
+			}
+			seen["stream_"+strings.ReplaceAll(name, "-", "_")] = true
+			if name == "external-proxy" {
+				seen["external_proxy"] = true
+			}
+			if name == "finalmask" {
+				seen["stream_finalmask"] = true
+			}
+			if name == "sockopt" {
+				seen["stream_sockopt"] = true
+			}
+		}
+		return toSortedSlice(seen)
+	}
+
+	// Legacy: extract from inbound.js StreamSettings class.
+	jsPath := filepath.Join(dir, "frontend", "src", "models", "inbound.js")
+	if _, err := os.Stat(jsPath); err != nil {
+		jsPath = filepath.Join(dir, "web", "assets", "js", "model", "inbound.js")
+	}
+	if _, err := os.Stat(jsPath); err != nil {
+		// No legacy JS file — TS schemas already handled above.
+		return nil
+	}
+	data, err := os.ReadFile(jsPath)
 	if err != nil {
 		t.Fatalf("cannot read inbound model JS: %v", err)
 	}
@@ -505,12 +571,14 @@ func TestDriftInboundProtocols_GoModel(t *testing.T) {
 	// "vmess" and "mixed" have no per-protocol settings block (handled via default).
 	// "socks" is available via UI. "tun" is UI alias for tunnel/dokodemo-door.
 	// "dokodemo-door" is the xray-level name; upstream model.go only exposes "tunnel".
+	// "hysteria2" removed from upstream in v3.2.0; switch-case kept for reading v3.1.0 data.
 	providerExtras := map[string]bool{
 		"vmess":         true,
 		"mixed":         true,
 		"socks":         true,
 		"tun":           true,
 		"dokodemo-door": true,
+		"hysteria2":     true,
 	}
 	for k := range providerExtras {
 		providerHandled[k] = true
@@ -568,9 +636,8 @@ func TestDriftInboundProtocols_GoModel(t *testing.T) {
 
 func TestDriftInboundProtocols_JS(t *testing.T) {
 	providerHandled := providerProtocolsFromSwitch(t)
-	// "hysteria2" is in upstream model.go (since 2.9.3) but UI inbound.js
-	// stores Hysteria v1/v2 both as "hysteria" with a version field.
 	// "dokodemo-door" is the xray-level name; UI uses "tunnel".
+	// "hysteria2" removed from upstream in v3.2.0; switch-case kept for reading v3.1.0 data.
 	providerExtras := map[string]bool{
 		"vmess":         true,
 		"mixed":         true,
@@ -643,17 +710,18 @@ func TestDriftProtocolForms(t *testing.T) {
 
 func TestDriftStreamSettingsForms(t *testing.T) {
 	providerHandled := map[string]bool{
-		"stream_tcp":         true,
-		"stream_ws":          true,
-		"stream_grpc":        true,
-		"stream_httpupgrade": true,
-		"stream_xhttp":       true,
-		"stream_kcp":         true,
-		"stream_hysteria":    true,
-		"stream_sockopt":     true,
-		"stream_settings":    true, // main stream_settings container
-		"stream_finalmask":   true, // finalmask is part of xhttp settings
-		"external_proxy":     true, // external_proxy block
+		"stream_tcp":            true,
+		"stream_ws":             true,
+		"stream_grpc":           true,
+		"stream_httpupgrade":    true,
+		"stream_xhttp":          true,
+		"stream_kcp":            true,
+		"stream_hysteria":       true,
+		"stream_sockopt":        true,
+		"stream_settings":       true, // main stream_settings container
+		"stream_finalmask":      true, // finalmask is part of xhttp settings
+		"external_proxy":        true, // external_proxy block
+		"stream_external_proxy": true, // TS schema name for external_proxy
 	}
 
 	dir := latestSnapshotDir(t)
@@ -722,7 +790,7 @@ func TestDriftClientFields(t *testing.T) {
 		"auth": true, "email": true, "limitIp": true, "totalGB": true,
 		"expiryTime": true, "enable": true, "tgId": true, "subId": true,
 		"comment": true, "reset": true, "created_at": true, "updated_at": true,
-		"reverse": true,
+		"reverse": true, "group": true,
 	}
 
 	dir := latestSnapshotDir(t)
@@ -790,6 +858,8 @@ func TestDriftAllSettingFields(t *testing.T) {
 		"subJsonFragment": true, "subJsonNoises": true, "subJsonMux": true,
 		"subJsonRules": true, "subClashEnable": true, "subClashPath": true,
 		"subClashURI": true,
+		// v3.2.0
+		"panelProxy": true,
 	}
 
 	// Fields intentionally not managed by the provider.

@@ -160,7 +160,7 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"protocol": schema.StringAttribute{
 				Required:    true,
-				Description: "Protocol (vless, vmess, trojan, shadowsocks, http, socks, mixed, wireguard, tunnel, dokodemo-door, hysteria, hysteria2).",
+				Description: "Protocol (vless, vmess, trojan, shadowsocks, http, socks, mixed, wireguard, tunnel, dokodemo-door, hysteria).",
 			},
 			"tag": schema.StringAttribute{
 				Computed:    true,

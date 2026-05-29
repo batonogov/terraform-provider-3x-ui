@@ -66,7 +66,7 @@ func TestProtocolUsesClients(t *testing.T) {
 		{"trojan", true},
 		{"shadowsocks", true},
 		{"hysteria", true},
-		{"hysteria2", true},
+		{"hysteria2", false},
 		{"http", false},
 		{"mixed", false},
 		{"", false},
