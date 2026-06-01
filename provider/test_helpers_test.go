@@ -74,3 +74,41 @@ func contains(s, sub string) bool {
 	}
 	return false
 }
+
+func TestRequireBelowVersion(t *testing.T) {
+	t.Run("no env runs the test", func(t *testing.T) {
+		t.Setenv("THREEXUI_VERSION", "")
+		ft := &fakeT{}
+		requireBelowVersion(ft, "v3.2.0")
+		if ft.skipped {
+			t.Fatalf("should not skip when THREEXUI_VERSION is empty (msg=%q)", ft.skipMsg)
+		}
+	})
+
+	t.Run("version at max skips", func(t *testing.T) {
+		t.Setenv("THREEXUI_VERSION", "v3.2.0")
+		ft := &fakeT{}
+		requireBelowVersion(ft, "v3.2.0")
+		if !ft.skipped {
+			t.Fatal("should skip when version equals max")
+		}
+	})
+
+	t.Run("version above max skips", func(t *testing.T) {
+		t.Setenv("THREEXUI_VERSION", "v3.3.0")
+		ft := &fakeT{}
+		requireBelowVersion(ft, "v3.2.0")
+		if !ft.skipped {
+			t.Fatal("should skip when version above max")
+		}
+	})
+
+	t.Run("version below max runs the test", func(t *testing.T) {
+		t.Setenv("THREEXUI_VERSION", "v3.1.0")
+		ft := &fakeT{}
+		requireBelowVersion(ft, "v3.2.0")
+		if ft.skipped {
+			t.Fatalf("should not skip when version below max (msg=%q)", ft.skipMsg)
+		}
+	})
+}

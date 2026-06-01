@@ -9,7 +9,7 @@ import (
 
 // requireMinVersion skips the test if THREEXUI_VERSION is set and is older than min.
 // Both values must use "v" prefix (e.g. "v2.9.0").
-func requireMinVersion(t *testing.T, min string) {
+func requireMinVersion(t skipFatalHelper, min string) {
 	t.Helper()
 
 	v := os.Getenv("THREEXUI_VERSION")
@@ -22,11 +22,35 @@ func requireMinVersion(t *testing.T, min string) {
 	}
 
 	if !semver.IsValid(min) {
-		t.Fatalf("invalid min version %q", min)
+		t.Fatal("invalid min version " + min)
 	}
 
 	if semver.Compare(v, min) < 0 {
 		t.Skipf("requires 3x-ui >= %s, running %s", min, v)
+	}
+}
+
+// requireBelowVersion skips the test if THREEXUI_VERSION is set and is >= max.
+// Use for protocol features removed in a specific 3x-ui version.
+// Both values must use "v" prefix (e.g. "v3.2.0").
+func requireBelowVersion(t skipFatalHelper, max string) {
+	t.Helper()
+
+	v := os.Getenv("THREEXUI_VERSION")
+	if v == "" {
+		return // no version constraint, run the test
+	}
+
+	if !semver.IsValid(v) {
+		return // can't parse, don't skip
+	}
+
+	if !semver.IsValid(max) {
+		t.Fatal("invalid max version " + max)
+	}
+
+	if semver.Compare(v, max) >= 0 {
+		t.Skipf("removed in 3x-ui >= %s, running %s", max, v)
 	}
 }
 

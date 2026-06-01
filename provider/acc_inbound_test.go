@@ -179,6 +179,8 @@ resource "threexui_inbound" "wg" {
 // --- Dokodemo-door (tunnel) ---
 
 func TestAccInboundDokodemo(t *testing.T) {
+	requireBelowVersion(t, "v3.2.0") // dokodemo-door renamed to "tunnel" in v3.2.0
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),

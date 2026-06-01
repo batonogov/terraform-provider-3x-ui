@@ -160,7 +160,7 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"protocol": schema.StringAttribute{
 				Required:    true,
-				Description: "Protocol (vless, vmess, trojan, shadowsocks, http, socks, mixed, wireguard, tunnel, dokodemo-door, hysteria).",
+				Description: "Protocol (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria). socks and dokodemo-door are deprecated since 3x-ui v3.2.0 — use mixed and tunnel instead.",
 			},
 			"tag": schema.StringAttribute{
 				Computed:    true,
@@ -232,7 +232,11 @@ func (r *InboundResource) Create(ctx context.Context, req resource.CreateRequest
 
 	created, err := r.client.AddInbound(ctx, inbound)
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to create inbound", err.Error())
+		if hint := deprecatedProtocolHint(inbound.Protocol); hint != "" {
+			resp.Diagnostics.AddError("Failed to create inbound", err.Error()+"\n\n"+hint)
+		} else {
+			resp.Diagnostics.AddError("Failed to create inbound", err.Error())
+		}
 		return
 	}
 
@@ -391,7 +395,11 @@ func (r *InboundResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	_, err = r.client.UpdateInbound(ctx, inbound)
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to update inbound", err.Error())
+		if hint := deprecatedProtocolHint(inbound.Protocol); hint != "" {
+			resp.Diagnostics.AddError("Failed to update inbound", err.Error()+"\n\n"+hint)
+		} else {
+			resp.Diagnostics.AddError("Failed to update inbound", err.Error())
+		}
 		return
 	}
 
@@ -1118,5 +1126,18 @@ func isSubset(desired, actual any) bool {
 		return true
 	default:
 		return reflect.DeepEqual(desired, actual)
+	}
+}
+
+// deprecatedProtocolHint returns a user-facing hint when a protocol
+// was removed in 3x-ui v3.2.0.
+func deprecatedProtocolHint(protocol string) string {
+	switch protocol {
+	case "socks":
+		return `Protocol "socks" is not supported by 3x-ui v3.2.0+. Use protocol "mixed" instead.`
+	case "dokodemo-door":
+		return `Protocol "dokodemo-door" is not supported by 3x-ui v3.2.0+. Use protocol "tunnel" instead.`
+	default:
+		return ""
 	}
 }
