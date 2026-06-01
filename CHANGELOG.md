@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.7.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.6.4...v3.7.0) (2026-06-01)
+
+
+### Features
+
+* 3x-ui v3.2.0 compatibility ([#232](https://github.com/batonogov/terraform-provider-threexui/issues/232)) ([7b5c99c](https://github.com/batonogov/terraform-provider-threexui/commit/7b5c99cbf938de21bf4e6f9414db83c8e538ca3a))
+
+
+### Bug Fixes
+
+* quarantine v3.0.0/v3.0.1 in TestAccXrayVersionDrift ([#224](https://github.com/batonogov/terraform-provider-threexui/issues/224)) ([#229](https://github.com/batonogov/terraform-provider-threexui/issues/229)) ([9514532](https://github.com/batonogov/terraform-provider-threexui/commit/951453269eae7a1ef529c417074b953d03a5b93e))
+* skip socks/dokodemo-door tests on 3x-ui v3.2.0+ ([#235](https://github.com/batonogov/terraform-provider-threexui/issues/235)) ([b173a12](https://github.com/batonogov/terraform-provider-threexui/commit/b173a12240b4935e233b7f2bac481064b3d50488))
+
 ## [3.6.4](https://github.com/batonogov/terraform-provider-threexui/compare/v3.6.3...v3.6.4) (2026-05-27)
 
 
