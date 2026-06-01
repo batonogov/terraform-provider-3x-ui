@@ -43,10 +43,12 @@
 #
 # Xray settings are also singletons:
 #
-#   terraform import threexui_xray_basics.config settings
-#   terraform import threexui_xray_dns.config settings
-#   terraform import threexui_xray_routing.config settings
-#   terraform import threexui_xray_outbounds.config settings
+#   terraform import threexui_xray_basics.config xray_basics
+#   terraform import threexui_xray_dns.config xray_dns
+#   terraform import threexui_xray_routing.config xray_routing
+#   terraform import threexui_xray_balancers.config xray_balancers
+#   terraform import threexui_xray_reverse.config xray_reverse
+#   terraform import threexui_xray_outbounds.config xray_outbounds
 #
 # --------------------------------------------------------------------------
 
@@ -54,7 +56,7 @@ terraform {
   required_providers {
     threexui = {
       source  = "batonogov/threexui"
-      version = "~> 2.0"
+      version = "~> 3.0"
     }
   }
 }

@@ -25,4 +25,5 @@ This data source has no arguments.
 
 ## Attribute Reference
 
+- `id` (String) - Count of online clients.
 - `clients` (List of String) - List of online client emails.

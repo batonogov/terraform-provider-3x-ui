@@ -25,4 +25,5 @@ This data source has no arguments.
 
 ## Attribute Reference
 
+- `id` (String) - Length of the JSON payload in bytes.
 - `json` (String) - Server status as a JSON string.

@@ -28,4 +28,5 @@ This data source has no arguments.
 
 ## Attribute Reference
 
+- `id` (String) - Length of the JSON payload in bytes.
 - `json` (String, Sensitive) - The current Xray template configuration as a JSON string. Marked sensitive because the payload includes outbound credentials, client UUIDs, WireGuard `secretKey`, and Reality `privateKey`.

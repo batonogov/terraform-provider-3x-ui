@@ -85,7 +85,7 @@ func skipOnFlakyVersions(t skipFatalHelper, reason string, versions ...string) {
 	}
 }
 
-// needs sub-day quarantine (see AGENTS.md -> CI Flake Mitigation). Removing
+// needs sub-day quarantine (see CLAUDE.md -> Testing). Removing
 // it forces every quarantine to start with a Taskfile/CI plumbing change.
 //
 // skipIfFlaky quarantines a known-flaky test when THREEXUI_SKIP_FLAKY is

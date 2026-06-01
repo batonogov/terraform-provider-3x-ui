@@ -137,7 +137,7 @@ Full documentation is available on the [Terraform Registry](https://registry.ter
 
 | Resource | Description |
 | --- | --- |
-| `threexui_inbound` | Inbound proxy (vless, vmess, trojan, shadowsocks, http, socks, mixed, wireguard, dokodemo-door) |
+| `threexui_inbound` | Inbound proxy (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria; legacy socks/dokodemo-door before 3.2) |
 | `threexui_inbound_client` | Client within an inbound |
 | `threexui_panel_general` | General panel settings |
 | `threexui_panel_security` | Security settings (2FA) |

@@ -143,7 +143,7 @@ resource "threexui_inbound_client" "client_a" {
 
 | Resource | الوصف |
 | --- | --- |
-| `threexui_inbound` | inbound (vless, vmess, trojan, shadowsocks, http, socks, mixed, wireguard, dokodemo-door) |
+| `threexui_inbound` | inbound (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria؛ socks/dokodemo-door legacy قبل 3.2) |
 | `threexui_inbound_client` | عميل داخل inbound |
 | `threexui_panel_general` | إعدادات اللوحة العامة |
 | `threexui_panel_security` | إعدادات الأمان (2FA) |

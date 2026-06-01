@@ -131,7 +131,7 @@ These are non-obvious constraints that have caused real bugs.
 | `web_base_path` change triggers panel restart | Must also update provider `base_path`; code auto-updates client |
 
 **Always check 3x-ui source snapshots** (`3x-ui-<version>/`) before assuming API behavior.
-Key paths: `web/service/`, `web/controller/`, `web/entity/model/`, `xray/`.
+Key paths: `database/model/`, `web/service/`, `web/controller/`, `web/entity/`, `frontend/src/schemas/`, `xray/`.
 
 ---
 
@@ -165,7 +165,7 @@ Imperative mood, concise subjects.
 - Acceptance tests: `TestAccXxx`, `terraform-plugin-testing`,
   `ProtoV6ProviderFactories` (not `ProviderFactories`).
 - Version-aware skipping: `requireMinVersion(t, "vX.Y.Z")` for features from
-  specific 3x-ui versions. Currently supported: **v2.9.x**, **v3.0.x**, and **v3.1.x**.
+  specific 3x-ui versions. Currently supported: **v2.9.x**, **v3.0.x**, **v3.1.x**, and **v3.2.x**.
 - Flaky test quarantine: `skipOnFlakyVersions(t, ...)` / `skipIfFlaky(t)` with
   `THREEXUI_SKIP_FLAKY` env var to skip known-broken upstream versions.
 - Protocol matrix test (`resource_inbound_matrix_test.go`): comprehensive

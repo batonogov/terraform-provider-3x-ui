@@ -137,7 +137,7 @@ resource "threexui_inbound_client" "client_a" {
 
 | Resource | 说明 |
 | --- | --- |
-| `threexui_inbound` | inbound 代理(vless、vmess、trojan、shadowsocks、http、socks、mixed、wireguard、dokodemo-door) |
+| `threexui_inbound` | inbound 代理(vless、vmess、trojan、shadowsocks、http、mixed、wireguard、tunnel、hysteria；3.2 之前兼容 legacy socks/dokodemo-door) |
 | `threexui_inbound_client` | inbound 内的客户端 |
 | `threexui_panel_general` | 面板通用设置 |
 | `threexui_panel_security` | 安全设置(2FA) |
