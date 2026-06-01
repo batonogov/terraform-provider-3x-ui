@@ -28,4 +28,5 @@ This data source has no arguments.
 
 ## Attribute Reference
 
+- `id` (String) - Length of the JSON payload in bytes.
 - `json` (String, Sensitive) - All panel settings as a JSON string. Marked as sensitive because the payload contains Telegram bot tokens, LDAP passwords, 2FA secrets, and other panel credentials.

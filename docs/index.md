@@ -45,7 +45,7 @@ resource "threexui_inbound" "vless" {
 
 ## Authentication
 
-The provider authenticates to the 3x-ui panel using username and password. These can be provided directly in the provider configuration or via environment variables.
+The provider authenticates to the 3x-ui panel using username and password. These can be provided directly in the provider configuration, or indirectly through Terraform input variables such as `TF_VAR_threexui_username` and `TF_VAR_threexui_password`.
 
 For first-run bootstrap of a fresh panel, you can configure `bootstrap_username` and `bootstrap_password` in addition to the steady-state `username` and `password`. Use this together with `threexui_panel_user` to rotate the panel to the steady-state credentials during the same apply. On 3x-ui v2.9.x, failed logins can expose the submitted password in panel logs or Telegram login notifications, so the provider tries bootstrap credentials before the steady-state credentials. On 3x-ui v3.x, the provider tries steady-state credentials first and falls back to bootstrap credentials only if the panel rejects them. The provider does not silently try `admin`/`admin`; bootstrap credentials must be configured explicitly.
 

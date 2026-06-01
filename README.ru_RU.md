@@ -137,7 +137,7 @@ resource "threexui_inbound_client" "client_a" {
 
 | Ресурс | Описание |
 | --- | --- |
-| `threexui_inbound` | Инбаунд (vless, vmess, trojan, shadowsocks, http, socks, mixed, wireguard, dokodemo-door) |
+| `threexui_inbound` | Инбаунд (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria; legacy socks/dokodemo-door до 3.2) |
 | `threexui_inbound_client` | Клиент внутри инбаунда |
 | `threexui_panel_general` | Общие настройки панели |
 | `threexui_panel_security` | Безопасность (2FA) |

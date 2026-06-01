@@ -25,4 +25,5 @@ This data source has no arguments.
 
 ## Attribute Reference
 
+- `id` (String) - Count of available Xray versions.
 - `versions` (List of String) - Available Xray versions.

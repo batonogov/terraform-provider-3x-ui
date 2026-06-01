@@ -143,7 +143,7 @@ resource "threexui_inbound_client" "client_a" {
 
 | Resource | توضیح |
 | --- | --- |
-| `threexui_inbound` | اینباند (vless, vmess, trojan, shadowsocks, http, socks, mixed, wireguard, dokodemo-door) |
+| `threexui_inbound` | اینباند (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria؛ socks/dokodemo-door در نسخه‌های قبل از 3.2 به‌صورت legacy) |
 | `threexui_inbound_client` | کلاینت داخل اینباند |
 | `threexui_panel_general` | تنظیمات عمومی پنل |
 | `threexui_panel_security` | تنظیمات امنیت (2FA) |

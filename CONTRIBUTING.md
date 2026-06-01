@@ -69,7 +69,7 @@ This handles `docker compose up`, sets the required environment variables (`TF_A
 
 ## Project Structure
 
-All provider code lives in the `provider/` directory. See [AGENTS.md](AGENTS.md) for a detailed file-by-file breakdown.
+All provider code lives in the `provider/` directory. See [CLAUDE.md](CLAUDE.md) for project-specific implementation notes.
 
 Key patterns:
 
@@ -80,7 +80,7 @@ Key patterns:
 
 ## 3x-ui Source Snapshots
 
-The repository may contain `3x-ui-<version>/` directories (git-ignored) with 3x-ui source snapshots. These are used for diffing between versions when updating the provider to support a new 3x-ui release. See the "Updating 3x-ui Version" section in [AGENTS.md](AGENTS.md) for the full process.
+The repository may contain `3x-ui-<version>/` directories (git-ignored) with 3x-ui source snapshots. These are used for diffing between versions when updating the provider to support a new 3x-ui release. The drift tests in `provider/drift_test.go` automatically use the latest local snapshot unless `THREEXUI_SNAPSHOT_DIR` points to another checkout.
 
 ## Submitting Changes
 
