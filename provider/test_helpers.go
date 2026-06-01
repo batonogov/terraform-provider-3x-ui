@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
@@ -10,7 +9,7 @@ import (
 
 // requireMinVersion skips the test if THREEXUI_VERSION is set and is older than min.
 // Both values must use "v" prefix (e.g. "v2.9.0").
-func requireMinVersion(t *testing.T, min string) {
+func requireMinVersion(t skipFatalHelper, min string) {
 	t.Helper()
 
 	v := os.Getenv("THREEXUI_VERSION")
@@ -23,7 +22,7 @@ func requireMinVersion(t *testing.T, min string) {
 	}
 
 	if !semver.IsValid(min) {
-		t.Fatalf("invalid min version %q", min)
+		t.Fatal("invalid min version " + min)
 	}
 
 	if semver.Compare(v, min) < 0 {
@@ -47,7 +46,7 @@ func requireBelowVersion(t skipFatalHelper, max string) {
 	}
 
 	if !semver.IsValid(max) {
-		t.Fatal(fmt.Sprintf("invalid max version %q", max))
+		t.Fatal("invalid max version " + max)
 	}
 
 	if semver.Compare(v, max) >= 0 {
