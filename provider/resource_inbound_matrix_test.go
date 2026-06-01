@@ -29,6 +29,9 @@ type protocolMatrixEntry struct {
 	port int
 	// minVersion is the minimum 3x-ui version required (e.g. "v2.9.0"). Empty means all versions.
 	minVersion string
+	// maxVersion is the maximum 3x-ui version (exclusive). Empty means no upper bound.
+	// Use for protocols removed upstream (e.g. "v3.2.0" means not available on v3.2.0+).
+	maxVersion string
 	// createHCL returns the HCL for the initial create step.
 	createHCL func(port int) string
 	// updateHCL returns the HCL for the update step (must change at least one
@@ -74,6 +77,9 @@ func TestAccInboundProtocolMatrix(t *testing.T) {
 		t.Run(entry.protocol, func(t *testing.T) {
 			if entry.minVersion != "" {
 				requireMinVersion(t, entry.minVersion)
+			}
+			if entry.maxVersion != "" {
+				requireBelowVersion(t, entry.maxVersion)
 			}
 
 			inboundAddr := fmt.Sprintf("threexui_inbound.%s", entry.tfName)
@@ -527,9 +533,10 @@ resource "threexui_inbound" "mx_http" {
 
 func matrixSocks() protocolMatrixEntry {
 	return protocolMatrixEntry{
-		protocol: "socks",
-		tfName:   "mx_socks",
-		port:     26006,
+		protocol:   "socks",
+		tfName:     "mx_socks",
+		port:       26006,
+		maxVersion: "v3.2.0", // socks removed upstream; use "mixed" instead
 		createHCL: func(port int) string {
 			return fmt.Sprintf(`
 resource "threexui_inbound" "mx_socks" {
@@ -706,9 +713,10 @@ resource "threexui_inbound" "mx_wg" {
 
 func matrixDokodemo() protocolMatrixEntry {
 	return protocolMatrixEntry{
-		protocol: "dokodemo-door",
-		tfName:   "mx_dokodemo",
-		port:     26008,
+		protocol:   "dokodemo-door",
+		tfName:     "mx_dokodemo",
+		port:       26008,
+		maxVersion: "v3.2.0", // dokodemo-door renamed to "tunnel" upstream
 		createHCL: func(port int) string {
 			return fmt.Sprintf(`
 resource "threexui_inbound" "mx_dokodemo" {
