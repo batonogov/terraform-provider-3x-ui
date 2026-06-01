@@ -7,7 +7,7 @@ description: |-
 
 # threexui_inbound (Resource)
 
-Manages an inbound proxy in the 3x-ui panel. Supports protocols: vless, vmess, trojan, shadowsocks, http, socks, mixed, wireguard, tunnel, dokodemo-door, hysteria, and hysteria2.
+Manages an inbound proxy in the 3x-ui panel. Supports protocols: vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria, and hysteria2. Note: `socks` and `dokodemo-door` are deprecated since 3x-ui v3.2.0 — use `mixed` and `tunnel` instead.
 
 ## Example Usage
 
@@ -164,7 +164,7 @@ resource "threexui_inbound" "hysteria" {
 ### Top-level
 
 - `port` (Required, Number) - Port number for the inbound.
-- `protocol` (Required, String) - Protocol type (`vless`, `vmess`, `trojan`, `shadowsocks`, `http`, `socks`, `mixed`, `wireguard`, `tunnel`, `dokodemo-door`, `hysteria`, `hysteria2`).
+- `protocol` (Required, String) - Protocol type (`vless`, `vmess`, `trojan`, `shadowsocks`, `http`, `mixed`, `wireguard`, `tunnel`, `hysteria`, `hysteria2`). `socks` and `dokodemo-door` are deprecated since 3x-ui v3.2.0 — use `mixed` and `tunnel` instead.
 - `enable` (Optional, Boolean) - Whether the inbound is enabled. Default is `true`.
 - `remark` (Optional, String) - A label/name for the inbound.
 - `listen` (Optional, String) - Listen address.
