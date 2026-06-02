@@ -8,6 +8,10 @@ Terraform provider for the [3x-ui](https://github.com/MHSanaei/3x-ui) panel.
 Go with `terraform-plugin-framework`. Module: `github.com/batonogov/terraform-provider-threexui`.
 Registry: `batonogov/threexui`. All provider code lives in `provider/`.
 
+Provider config attributes: `endpoint`, `username`, `password`, `base_path`,
+`bootstrap_username`/`bootstrap_password` (first-run setup), `two_factor_code` (TOTP),
+`insecure_skip_verify`, `request_timeout`, `max_retries`.
+
 ---
 
 ## Commands
@@ -44,6 +48,7 @@ TF_ACC=1 THREEXUI_ENDPOINT=http://localhost:2053 \
 
 ### Three-layer conversion (inbound)
 
+`threexui_inbound` and `threexui_inbound_client` are the core resources.
 `settings`, `stream_settings`, `sniffing` are JSON strings in the 3x-ui API but typed
 blocks in the Terraform schema. Conversion flows through three layers:
 
@@ -71,8 +76,9 @@ Four resources — `panel_general`, `panel_security`, `panel_telegram`,
 
 ### Xray settings (two modes)
 
-Six xray resources share `resource_xray_settings.go`. Each section has its own
-`*_schema.go` file.
+Six xray resources share `resource_xray_settings.go`: `xray_basics`, `xray_dns`,
+`xray_routing`, `xray_balancers`, `xray_reverse`, `xray_outbounds`. Each section
+has its own `*_schema.go` file.
 
 | Mode | Resource | Behavior |
 | --- | --- | --- |
@@ -109,6 +115,13 @@ and falls back to old `/panel/api/inbounds/*` endpoints on older versions.
 3x-ui v3.1.0 returns `settings`, `streamSettings`, `sniffing` as nested JSON
 objects instead of escaped strings. Custom `UnmarshalJSON` on `Inbound`
 normalises both formats to plain strings — rest of the code is unaffected.
+
+### Data sources
+
+Seven data sources: `inbounds`, `server_status`, `xray_versions`, `xray_config`,
+`settings`, `online_clients`, `client_traffics`. All are read-only GET wrappers
+except `inbounds` which supports filtering by protocol/tag. JSON attrs that
+contain secrets (UUIDs, private keys) must be marked `Sensitive: true`.
 
 ---
 
@@ -165,7 +178,7 @@ Imperative mood, concise subjects.
 - Acceptance tests: `TestAccXxx`, `terraform-plugin-testing`,
   `ProtoV6ProviderFactories` (not `ProviderFactories`).
 - Version-aware skipping: `requireMinVersion(t, "vX.Y.Z")` for features from
-  specific 3x-ui versions. Currently supported: **v2.9.x**, **v3.0.x**, **v3.1.x**, and **v3.2.x**.
+  specific 3x-ui versions. Currently supported: **v2.9.x**, **v3.0.x**, **v3.1.x**, **v3.2.x** (up to v3.2.6).
 - Flaky test quarantine: `skipOnFlakyVersions(t, ...)` / `skipIfFlaky(t)` with
   `THREEXUI_SKIP_FLAKY` env var to skip known-broken upstream versions.
 - Protocol matrix test (`resource_inbound_matrix_test.go`): comprehensive
