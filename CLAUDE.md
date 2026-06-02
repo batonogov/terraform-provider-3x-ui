@@ -178,7 +178,7 @@ Imperative mood, concise subjects.
 - Acceptance tests: `TestAccXxx`, `terraform-plugin-testing`,
   `ProtoV6ProviderFactories` (not `ProviderFactories`).
 - Version-aware skipping: `requireMinVersion(t, "vX.Y.Z")` for features from
-  specific 3x-ui versions. Currently supported: **v2.9.x**, **v3.0.x**, **v3.1.x**, **v3.2.x** (up to v3.2.5).
+  specific 3x-ui versions. Currently supported: **v2.9.x**, **v3.0.x**, **v3.1.x**, **v3.2.x** (up to v3.2.6).
 - Flaky test quarantine: `skipOnFlakyVersions(t, ...)` / `skipIfFlaky(t)` with
   `THREEXUI_SKIP_FLAKY` env var to skip known-broken upstream versions.
 - Protocol matrix test (`resource_inbound_matrix_test.go`): comprehensive
