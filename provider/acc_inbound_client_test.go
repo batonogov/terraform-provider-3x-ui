@@ -19,6 +19,14 @@ resource "threexui_inbound" "client_host" {
   vless_settings {
     decryption = "none"
   }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
+  }
 }
 
 resource "threexui_inbound_client" "allfields" {
@@ -117,6 +125,14 @@ resource "threexui_inbound" "multi_host" {
   enable   = true
   vless_settings {
     decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
   }
 }
 
@@ -231,6 +247,14 @@ resource "threexui_inbound" "removal_host" {
   vless_settings {
     decryption = "none"
   }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
+  }
 }
 
 resource "threexui_inbound_client" "remove1" {
@@ -263,6 +287,14 @@ resource "threexui_inbound" "removal_host" {
   vless_settings {
     decryption = "none"
   }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
+  }
 }
 
 resource "threexui_inbound_client" "remove1" {
@@ -292,6 +324,14 @@ resource "threexui_inbound" "autouuid_host" {
   enable   = true
   vless_settings {
     decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
   }
 }
 
@@ -337,6 +377,14 @@ resource "threexui_inbound" "explicitid_host" {
   enable   = true
   vless_settings {
     decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
   }
 }
 
@@ -424,6 +472,14 @@ resource "threexui_inbound" "upd_host" {
   enable   = true
   vless_settings {
     decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
   }
 }
 

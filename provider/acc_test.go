@@ -421,6 +421,14 @@ resource "threexui_inbound" "test" {
   vless_settings {
     decryption = "none"
   }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
+  }
 }
 
 resource "threexui_inbound_client" "test" {
