@@ -195,10 +195,10 @@ resource "threexui_inbound" "mx_vless" {
   }
   stream_settings {
     network  = "tcp"
-    security = "none"
-    tcp_settings {
-      accept_proxy_protocol = false
-      header_type           = "none"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
     }
   }
   sniffing {
@@ -221,10 +221,11 @@ resource "threexui_inbound" "mx_vless" {
     decryption = "none"
   }
   stream_settings {
-    network  = "ws"
-    security = "none"
-    ws_settings {
-      path = "/vless-ws"
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "github.com:443"
+      server_names = ["github.com"]
     }
   }
   sniffing {
@@ -240,12 +241,16 @@ resource "threexui_inbound" "mx_vless" {
 			return []resource.TestCheckFunc{
 				resource.TestCheckResourceAttr(addr, "remark", "matrix-vless-create"),
 				resource.TestCheckResourceAttr(addr, "stream_settings.network", "tcp"),
+				resource.TestCheckResourceAttr(addr, "stream_settings.security", "reality"),
+				resource.TestCheckResourceAttr(addr, "stream_settings.reality_settings.target", "google.com:443"),
 			}
 		},
 		updateChecks: func(addr string) []resource.TestCheckFunc {
 			return []resource.TestCheckFunc{
 				resource.TestCheckResourceAttr(addr, "remark", "matrix-vless-updated"),
-				resource.TestCheckResourceAttr(addr, "stream_settings.network", "ws"),
+				resource.TestCheckResourceAttr(addr, "stream_settings.network", "tcp"),
+				resource.TestCheckResourceAttr(addr, "stream_settings.security", "reality"),
+				resource.TestCheckResourceAttr(addr, "stream_settings.reality_settings.target", "github.com:443"),
 			}
 		},
 		hasClient: true,
