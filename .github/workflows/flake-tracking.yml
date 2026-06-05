@@ -21,7 +21,7 @@ jobs:
         version: ["v2.9.0", "v2.9.1", "v2.9.2", "v2.9.3", "v2.9.4", "v3.0.0", "v3.0.1", "v3.0.2", "v3.1.0", "v3.2.0", "v3.2.5", "v3.2.6"]
     continue-on-error: true
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: go.mod
@@ -57,7 +57,7 @@ jobs:
     needs: [compat]
     if: always()
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: Generate report
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
