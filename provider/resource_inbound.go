@@ -160,7 +160,7 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"protocol": schema.StringAttribute{
 				Required:    true,
-				Description: "Protocol (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria). socks and dokodemo-door are deprecated since 3x-ui v3.2.0 — use mixed and tunnel instead.",
+				Description: "Protocol (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria). socks and dokodemo-door are deprecated since 3x-ui v3.2.0 — use mixed and tunnel instead. tun is an alias for tunnel available since 3x-ui v3.2.7.",
 			},
 			"tag": schema.StringAttribute{
 				Computed:    true,

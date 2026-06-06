@@ -177,7 +177,7 @@ jobs:
       fail-fast: false
       matrix:
         # KEEP IN SYNC: flake-tracking.yml matrix + report for-loop, README* tables
-        version: ["v2.9.0", "v2.9.1", "v2.9.2", "v2.9.3", "v2.9.4", "v3.0.0", "v3.0.1", "v3.0.2", "v3.1.0", "v3.2.0", "v3.2.5", "v3.2.6"]
+        version: ["v2.9.0", "v2.9.1", "v2.9.2", "v2.9.3", "v2.9.4", "v3.0.0", "v3.0.1", "v3.0.2", "v3.1.0", "v3.2.0", "v3.2.5", "v3.2.6", "v3.2.7", "v3.2.8"]
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 

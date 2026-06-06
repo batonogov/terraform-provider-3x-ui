@@ -846,14 +846,21 @@ func TestDriftAllSettingFields(t *testing.T) {
 		"subEmailInRemark": true, "subURI": true, "subJsonPath": true, "subJsonURI": true,
 		"subJsonFragment": true, "subJsonNoises": true, "subJsonMux": true,
 		"subJsonRules": true, "subClashEnable": true, "subClashPath": true,
-		"subClashURI": true,
+		"subClashURI": true, "subClashEnableRouting": true, "subClashRules": true,
+		"subJsonFinalMask": true,
 		// v3.2.0
 		"panelProxy": true,
 	}
 
 	// Fields intentionally not managed by the provider.
 	intentionallySkipped := map[string]bool{
-		// empty — extend this if upstream adds fields we deliberately skip
+		// Removed in 3x-ui v3.2.8 — kept in provider for backward compat.
+		"subJsonFragment": true,
+		"subJsonNoises":   true,
+		// Added in 3x-ui v3.2.8 — not present in v3.2.0 snapshot used by this test.
+		"subClashEnableRouting": true,
+		"subClashRules":         true,
+		"subJsonFinalMask":      true,
 	}
 
 	dir := latestSnapshotDir(t)

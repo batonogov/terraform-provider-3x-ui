@@ -178,7 +178,7 @@ Imperative mood, concise subjects.
 - Acceptance tests: `TestAccXxx`, `terraform-plugin-testing`,
   `ProtoV6ProviderFactories` (not `ProviderFactories`).
 - Version-aware skipping: `requireMinVersion(t, "vX.Y.Z")` for features from
-  specific 3x-ui versions. Currently supported: **v2.9.x**, **v3.0.x**, **v3.1.x**, **v3.2.x** (up to v3.2.6).
+  specific 3x-ui versions. Currently supported: **v2.9.x**, **v3.0.x**, **v3.1.x**, **v3.2.x** (up to v3.2.8).
 - Flaky test quarantine: `skipOnFlakyVersions(t, ...)` / `skipIfFlaky(t)` with
   `THREEXUI_SKIP_FLAKY` env var to skip known-broken upstream versions.
 - Protocol matrix test (`resource_inbound_matrix_test.go`): comprehensive
@@ -190,3 +190,16 @@ Imperative mood, concise subjects.
 
 All CI actions pinned to commit SHA (`@<sha> # vN`).
 Pre-commit hooks use `--freeze` format (`rev: <sha>  # frozen: <tag>`).
+
+### Adding a new 3x-ui version to CI
+
+When a new 3x-ui version is released, update these files:
+
+1. **`.github/workflows/ci.yml`** — add version to `matrix.version`
+2. **`.github/workflows/flake-tracking.yml`** — add version to `matrix.version` AND the report `for v in ...` loop
+3. **`docker-compose.yaml`** — update the default `${THREEXUI_VERSION:-vX.Y.Z}` to the latest
+4. **`README.md`** + all `README.<locale>.md` — add row to compatibility table
+5. **`CLAUDE.md`** — update the "up to vX.Y.Z" version reference
+6. **Source snapshot** — copy the 3x-ui source to `3x-ui-<version>/` (drift tests use the latest snapshot)
+7. **`provider/drift_test.go`** — if fields were added/removed from upstream structs, update `intentionallySkipped` and known-field maps
+8. **`docs/`** — if provider schema changed, update the corresponding resource/data-source doc

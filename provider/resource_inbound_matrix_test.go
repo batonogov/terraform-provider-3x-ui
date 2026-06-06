@@ -65,6 +65,7 @@ func protocolMatrix() []protocolMatrixEntry {
 		matrixWireguard(),
 		matrixDokodemo(),
 		matrixHysteria(),
+		matrixTun(),
 	}
 }
 
@@ -831,5 +832,61 @@ resource "threexui_inbound" "mx_hysteria" {
 		// Client creation for hysteria is tested by TestAccInboundClientHysteria.
 		// Skipped here to reduce SQLite pressure at the end of a long test run.
 		hasClient: false,
+	}
+}
+
+func matrixTun() protocolMatrixEntry {
+	return protocolMatrixEntry{
+		protocol:   "tun",
+		tfName:     "mx_tun",
+		port:       26010,
+		minVersion: "v3.2.7",
+		createHCL: func(port int) string {
+			return fmt.Sprintf(`
+resource "threexui_inbound" "mx_tun" {
+  port     = %d
+  protocol = "tun"
+  remark   = "matrix-tun-create"
+  enable   = true
+  dokodemo_settings {
+    address         = "127.0.0.1"
+    port            = 80
+    network         = "tcp"
+    follow_redirect = false
+  }
+}
+`, port)
+		},
+		updateHCL: func(port int) string {
+			return fmt.Sprintf(`
+resource "threexui_inbound" "mx_tun" {
+  port     = %d
+  protocol = "tun"
+  remark   = "matrix-tun-updated"
+  enable   = true
+  dokodemo_settings {
+    address         = "127.0.0.1"
+    port            = 443
+    network         = "tcp,udp"
+    follow_redirect = false
+  }
+}
+`, port)
+		},
+		createChecks: func(addr string) []resource.TestCheckFunc {
+			return []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr(addr, "remark", "matrix-tun-create"),
+				resource.TestCheckResourceAttr(addr, "protocol", "tun"),
+				resource.TestCheckResourceAttr(addr, "dokodemo_settings.network", "tcp"),
+			}
+		},
+		updateChecks: func(addr string) []resource.TestCheckFunc {
+			return []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr(addr, "remark", "matrix-tun-updated"),
+				resource.TestCheckResourceAttr(addr, "protocol", "tun"),
+				resource.TestCheckResourceAttr(addr, "dokodemo_settings.network", "tcp,udp"),
+				resource.TestCheckResourceAttr(addr, "dokodemo_settings.port", "443"),
+			}
+		},
 	}
 }

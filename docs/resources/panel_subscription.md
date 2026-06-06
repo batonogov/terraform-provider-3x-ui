@@ -78,9 +78,11 @@ resource "threexui_panel_subscription" "settings" {
 - `sub_json_fragment` (Optional, String) - JSON fragment settings. The expected format depends on the 3x-ui version:
   - **v2.9.2+:** only the fragment parameters object, e.g. `{"packets":"tlshello","length":"100-200","interval":"10-20","maxSplit":"300-400"}`.
   - **v2.9.1 and earlier:** full outbound object with `tag`, `protocol`, `settings`, and `streamSettings`.
+  - **Deprecated in 3x-ui v3.2.8** — replaced by `sub_clash_enable_routing`.
 - `sub_json_noises` (Optional, String) - JSON noise settings. The expected format depends on the 3x-ui version:
   - **v2.9.2+:** only the noises array, e.g. `[{"type":"rand","packet":"10-20","delay":"10-16","applyTo":"ip"}]`.
   - **v2.9.1 and earlier:** full outbound object with `tag`, `protocol`, `settings`, and `streamSettings`.
+  - **Deprecated in 3x-ui v3.2.8** — replaced by `sub_clash_rules`.
 - `sub_json_mux` (Optional, String) - JSON mux settings.
 - `sub_json_rules` (Optional, String) - JSON rules.
 
@@ -89,6 +91,9 @@ resource "threexui_panel_subscription" "settings" {
 - `sub_clash_enable` (Optional, Boolean) - Enable Clash/Mihomo subscription endpoint.
 - `sub_clash_path` (Optional, String) - Path for Clash/Mihomo subscription endpoint.
 - `sub_clash_uri` (Optional, String) - Clash/Mihomo subscription server URI.
+- `sub_clash_enable_routing` (Optional, Boolean) - Enable global routing rules for Clash/Mihomo subscriptions. Available since 3x-ui v3.2.8.
+- `sub_clash_rules` (Optional, String) - Clash/Mihomo global routing rules. Available since 3x-ui v3.2.8.
+- `sub_json_final_mask` (Optional, String) - JSON subscription global finalmask (tcp/udp masks and quicParams). Available since 3x-ui v3.2.8.
 
 ## Attribute Reference
 

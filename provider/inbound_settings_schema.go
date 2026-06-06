@@ -521,7 +521,7 @@ func expandSettingsFromModel(protocol string, m *InboundResourceModel) map[strin
 		return expandMixedInboundSettings(m.MixedSettings)
 	case "wireguard":
 		return expandWireguardInboundSettings(m.WireguardSettings)
-	case "dokodemo-door", "tunnel":
+	case "dokodemo-door", "tunnel", "tun":
 		return expandDokodemoInboundSettings(protocol, m.DokodemoSettings)
 	case "hysteria", "hysteria2":
 		return expandHysteriaInboundSettings(m.HysteriaSettings)
@@ -668,7 +668,7 @@ func expandDokodemoInboundSettings(protocol string, m *InboundDokodemoSettingsMo
 	if m == nil {
 		return nil
 	}
-	if protocol == "tunnel" {
+	if protocol == "tunnel" || protocol == "tun" {
 		return expandTunnelInboundSettings(m)
 	}
 	out := map[string]any{}
@@ -848,7 +848,7 @@ func flattenSettingsToModel(protocol string, data map[string]any, m *InboundReso
 		m.MixedSettings = flattenMixedInboundSettings(data)
 	case "wireguard":
 		m.WireguardSettings = flattenWireguardInboundSettings(data)
-	case "dokodemo-door", "tunnel":
+	case "dokodemo-door", "tunnel", "tun":
 		m.DokodemoSettings = flattenDokodemoInboundSettings(protocol, data)
 	case "hysteria", "hysteria2":
 		m.HysteriaSettings = flattenHysteriaInboundSettings(data)
@@ -1055,7 +1055,7 @@ func flattenDokodemoInboundSettings(protocol string, data map[string]any) *Inbou
 	} else {
 		m.Port = types.Int64Null()
 	}
-	if protocol == "tunnel" {
+	if protocol == "tunnel" || protocol == "tun" {
 		rewriteAddress, hasRewriteAddress := firstMapString(data, "rewrite_address", "address")
 		if hasRewriteAddress {
 			m.RewriteAddress = types.StringValue(rewriteAddress)
@@ -1093,7 +1093,7 @@ func flattenDokodemoInboundSettings(protocol string, data map[string]any) *Inbou
 	} else {
 		m.Network = types.StringNull()
 	}
-	if protocol == "tunnel" {
+	if protocol == "tunnel" || protocol == "tun" {
 		allowedNetwork, hasAllowedNetwork := firstMapString(data, "allowed_network", "network")
 		if hasAllowedNetwork {
 			m.AllowedNetwork = types.StringValue(allowedNetwork)

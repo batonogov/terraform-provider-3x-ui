@@ -218,35 +218,38 @@ func flattenPanelTelegram(in map[string]any) *PanelTelegramModel {
 // ---------------------------------------------------------------------------
 
 type PanelSubscriptionModel struct {
-	ID               types.String `tfsdk:"id"`
-	SubEnable        types.Bool   `tfsdk:"sub_enable"`
-	SubJsonEnable    types.Bool   `tfsdk:"sub_json_enable"`
-	SubTitle         types.String `tfsdk:"sub_title"`
-	SubSupportURL    types.String `tfsdk:"sub_support_url"`
-	SubProfileURL    types.String `tfsdk:"sub_profile_url"`
-	SubAnnounce      types.String `tfsdk:"sub_announce"`
-	SubEnableRouting types.Bool   `tfsdk:"sub_enable_routing"`
-	SubRoutingRules  types.String `tfsdk:"sub_routing_rules"`
-	SubListen        types.String `tfsdk:"sub_listen"`
-	SubPort          types.Int64  `tfsdk:"sub_port"`
-	SubPath          types.String `tfsdk:"sub_path"`
-	SubDomain        types.String `tfsdk:"sub_domain"`
-	SubCertFile      types.String `tfsdk:"sub_cert_file"`
-	SubKeyFile       types.String `tfsdk:"sub_key_file"`
-	SubUpdates       types.Int64  `tfsdk:"sub_updates"`
-	SubEncrypt       types.Bool   `tfsdk:"sub_encrypt"`
-	SubShowInfo      types.Bool   `tfsdk:"sub_show_info"`
-	SubEmailInRemark types.Bool   `tfsdk:"sub_email_in_remark"`
-	SubURI           types.String `tfsdk:"sub_uri"`
-	SubJsonPath      types.String `tfsdk:"sub_json_path"`
-	SubJsonURI       types.String `tfsdk:"sub_json_uri"`
-	SubJsonFragment  types.String `tfsdk:"sub_json_fragment"`
-	SubJsonNoises    types.String `tfsdk:"sub_json_noises"`
-	SubJsonMux       types.String `tfsdk:"sub_json_mux"`
-	SubJsonRules     types.String `tfsdk:"sub_json_rules"`
-	SubClashEnable   types.Bool   `tfsdk:"sub_clash_enable"`
-	SubClashPath     types.String `tfsdk:"sub_clash_path"`
-	SubClashURI      types.String `tfsdk:"sub_clash_uri"`
+	ID                    types.String `tfsdk:"id"`
+	SubEnable             types.Bool   `tfsdk:"sub_enable"`
+	SubJsonEnable         types.Bool   `tfsdk:"sub_json_enable"`
+	SubTitle              types.String `tfsdk:"sub_title"`
+	SubSupportURL         types.String `tfsdk:"sub_support_url"`
+	SubProfileURL         types.String `tfsdk:"sub_profile_url"`
+	SubAnnounce           types.String `tfsdk:"sub_announce"`
+	SubEnableRouting      types.Bool   `tfsdk:"sub_enable_routing"`
+	SubRoutingRules       types.String `tfsdk:"sub_routing_rules"`
+	SubListen             types.String `tfsdk:"sub_listen"`
+	SubPort               types.Int64  `tfsdk:"sub_port"`
+	SubPath               types.String `tfsdk:"sub_path"`
+	SubDomain             types.String `tfsdk:"sub_domain"`
+	SubCertFile           types.String `tfsdk:"sub_cert_file"`
+	SubKeyFile            types.String `tfsdk:"sub_key_file"`
+	SubUpdates            types.Int64  `tfsdk:"sub_updates"`
+	SubEncrypt            types.Bool   `tfsdk:"sub_encrypt"`
+	SubShowInfo           types.Bool   `tfsdk:"sub_show_info"`
+	SubEmailInRemark      types.Bool   `tfsdk:"sub_email_in_remark"`
+	SubURI                types.String `tfsdk:"sub_uri"`
+	SubJsonPath           types.String `tfsdk:"sub_json_path"`
+	SubJsonURI            types.String `tfsdk:"sub_json_uri"`
+	SubJsonFragment       types.String `tfsdk:"sub_json_fragment"`
+	SubJsonNoises         types.String `tfsdk:"sub_json_noises"`
+	SubJsonMux            types.String `tfsdk:"sub_json_mux"`
+	SubJsonRules          types.String `tfsdk:"sub_json_rules"`
+	SubClashEnable        types.Bool   `tfsdk:"sub_clash_enable"`
+	SubClashPath          types.String `tfsdk:"sub_clash_path"`
+	SubClashURI           types.String `tfsdk:"sub_clash_uri"`
+	SubClashEnableRouting types.Bool   `tfsdk:"sub_clash_enable_routing"`
+	SubClashRules         types.String `tfsdk:"sub_clash_rules"`
+	SubJsonFinalMask      types.String `tfsdk:"sub_json_final_mask"`
 }
 
 func panelSubscriptionSchema() schema.Schema {
@@ -355,7 +358,8 @@ func panelSubscriptionSchema() schema.Schema {
 				Description: "JSON fragment settings for subscription. " +
 					"**v2.9.2+:** only the fragment parameters object, e.g. " +
 					"`{\"packets\":\"tlshello\",\"length\":\"100-200\",\"interval\":\"10-20\"}`. " +
-					"**v2.9.1 and earlier:** full outbound object with tag, protocol, settings and streamSettings.",
+					"**v2.9.1 and earlier:** full outbound object with tag, protocol, settings and streamSettings. " +
+					"Deprecated in 3x-ui v3.2.8 — replaced by sub_clash_enable_routing.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"sub_json_noises": schema.StringAttribute{
@@ -363,7 +367,8 @@ func panelSubscriptionSchema() schema.Schema {
 				Description: "JSON noise settings for subscription. " +
 					"**v2.9.2+:** only the noises array, e.g. " +
 					"`[{\"type\":\"rand\",\"packet\":\"10-20\",\"delay\":\"10-16\"}]`. " +
-					"**v2.9.1 and earlier:** full outbound object with tag, protocol, settings and streamSettings.",
+					"**v2.9.1 and earlier:** full outbound object with tag, protocol, settings and streamSettings. " +
+					"Deprecated in 3x-ui v3.2.8 — replaced by sub_clash_rules.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"sub_json_mux": schema.StringAttribute{
@@ -390,6 +395,24 @@ func panelSubscriptionSchema() schema.Schema {
 				Optional:      true,
 				Computed:      true,
 				Description:   "Clash/Mihomo subscription server URI.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_clash_enable_routing": schema.BoolAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "Enable global routing rules for Clash/Mihomo subscriptions (3x-ui v3.2.8+).",
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"sub_clash_rules": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "Clash/Mihomo global routing rules (3x-ui v3.2.8+).",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_json_final_mask": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "JSON subscription global finalmask — tcp/udp masks and quicParams (3x-ui v3.2.8+).",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 		},
@@ -481,6 +504,15 @@ func expandPanelSubscription(m *PanelSubscriptionModel) map[string]any {
 	}
 	if !m.SubClashURI.IsNull() && !m.SubClashURI.IsUnknown() {
 		payload["subClashURI"] = m.SubClashURI.ValueString()
+	}
+	if !m.SubClashEnableRouting.IsNull() && !m.SubClashEnableRouting.IsUnknown() {
+		payload["subClashEnableRouting"] = m.SubClashEnableRouting.ValueBool()
+	}
+	if !m.SubClashRules.IsNull() && !m.SubClashRules.IsUnknown() {
+		payload["subClashRules"] = m.SubClashRules.ValueString()
+	}
+	if !m.SubJsonFinalMask.IsNull() && !m.SubJsonFinalMask.IsUnknown() {
+		payload["subJsonFinalMask"] = m.SubJsonFinalMask.ValueString()
 	}
 	return payload
 }
@@ -576,6 +608,15 @@ func flattenPanelSubscription(in map[string]any) *PanelSubscriptionModel {
 		m.SubClashURI = types.StringValue(stringValue(v))
 	} else {
 		m.SubClashURI = types.StringNull()
+	}
+	if v, ok := in["subClashEnableRouting"]; ok {
+		m.SubClashEnableRouting = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["subClashRules"]; ok {
+		m.SubClashRules = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subJsonFinalMask"]; ok {
+		m.SubJsonFinalMask = types.StringValue(stringValue(v))
 	}
 	return m
 }
