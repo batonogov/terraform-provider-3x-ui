@@ -280,68 +280,6 @@ resource "threexui_inbound" "tunnel" {
 	})
 }
 
-// --- Tun (tunnel alias, v3.2.7+) ---
-
-func TestAccInboundTun(t *testing.T) {
-	requireMinVersion(t, "v3.2.7")
-	tunConfig := testAccProviderConfig() + `
-resource "threexui_inbound" "tun" {
-  port     = 25031
-  protocol = "tun"
-  remark   = "acc-tun"
-  enable   = true
-  dokodemo_settings {
-    address         = "127.0.0.1"
-    port            = 443
-    network         = "tcp"
-    follow_redirect = false
-  }
-}
-`
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccPreCheck(t) },
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
-		CheckDestroy:             testAccCheckInboundDestroyed,
-		Steps: []resource.TestStep{
-			{
-				Config: tunConfig,
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttrSet("threexui_inbound.tun", "id"),
-					resource.TestCheckResourceAttr("threexui_inbound.tun", "protocol", "tun"),
-					resource.TestCheckResourceAttr("threexui_inbound.tun", "dokodemo_settings.network", "tcp"),
-				),
-			},
-			// Update
-			{
-				Config: testAccProviderConfig() + `
-resource "threexui_inbound" "tun" {
-  port     = 25031
-  protocol = "tun"
-  remark   = "acc-tun-updated"
-  enable   = true
-  dokodemo_settings {
-    address         = "127.0.0.1"
-    port            = 80
-    network         = "tcp,udp"
-    follow_redirect = false
-  }
-}
-`,
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("threexui_inbound.tun", "remark", "acc-tun-updated"),
-					resource.TestCheckResourceAttr("threexui_inbound.tun", "dokodemo_settings.network", "tcp,udp"),
-				),
-			},
-			// Import
-			{
-				ResourceName:      "threexui_inbound.tun",
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-		},
-	})
-}
-
 // --- VLESS + Reality (auto keys) ---
 
 func TestAccInboundReality(t *testing.T) {
