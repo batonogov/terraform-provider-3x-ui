@@ -22,6 +22,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -50,6 +51,7 @@ type InboundResourceModel struct {
 	Protocol             types.String `tfsdk:"protocol"`
 	Tag                  types.String `tfsdk:"tag"`
 	NodeID               types.Int64  `tfsdk:"node_id"`
+	RestartXray          types.Bool   `tfsdk:"restart_xray"`
 
 	// Per-protocol settings (typed blocks)
 	VlessSettings       *InboundVlessSettingsModel       `tfsdk:"vless_settings"`
@@ -178,6 +180,10 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					int64planmodifier.RequiresReplace(),
 				},
 			},
+			"restart_xray": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Restart Xray core after create, update, or delete operations. Default is false.",
+			},
 		},
 		Blocks: func() map[string]schema.Block {
 			blocks := inboundSettingsBlockSchemas()
@@ -289,6 +295,7 @@ func (r *InboundResource) Create(ctx context.Context, req resource.CreateRequest
 	// the "was absent, but now present" inconsistency error from Terraform.
 	alignBlocksWithPlan(state, &plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	r.maybeRestartXray(ctx, &plan)
 }
 
 func (r *InboundResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -432,6 +439,7 @@ func (r *InboundResource) Update(ctx context.Context, req resource.UpdateRequest
 		newState.Tag = plan.Tag
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
+	r.maybeRestartXray(ctx, &plan)
 }
 
 func (r *InboundResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -440,6 +448,7 @@ func (r *InboundResource) Delete(ctx context.Context, req resource.DeleteRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	r.maybeRestartXray(ctx, &state)
 
 	id, err := parseID(state.ID.ValueString())
 	if err != nil {
@@ -1126,6 +1135,16 @@ func isSubset(desired, actual any) bool {
 		return true
 	default:
 		return reflect.DeepEqual(desired, actual)
+	}
+}
+
+// maybeRestartXray restarts the Xray core if the resource's restart_xray
+// attribute is set to true.
+func (r *InboundResource) maybeRestartXray(ctx context.Context, plan *InboundResourceModel) {
+	if plan.RestartXray.ValueBool() {
+		if err := r.client.RestartXrayService(ctx); err != nil {
+			tflog.Warn(ctx, "restartXrayService failed", map[string]any{"error": err.Error()})
+		}
 	}
 }
 

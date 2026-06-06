@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var inboundClientMu sync.Mutex
@@ -37,24 +38,25 @@ var (
 // ---------------------------------------------------------------------------
 
 type InboundClientResourceModel struct {
-	ID         types.String `tfsdk:"id"`
-	InboundID  types.Int64  `tfsdk:"inbound_id"`
-	ClientID   types.String `tfsdk:"client_id"`
-	Email      types.String `tfsdk:"email"`
-	Security   types.String `tfsdk:"security"`
-	Password   types.String `tfsdk:"password"`
-	Flow       types.String `tfsdk:"flow"`
-	ReverseTag types.String `tfsdk:"reverse_tag"`
-	Auth       types.String `tfsdk:"auth"`
-	LimitIP    types.Int64  `tfsdk:"limit_ip"`
-	TotalGB    types.Int64  `tfsdk:"total_gb"`
-	ExpiryTime types.Int64  `tfsdk:"expiry_time"`
-	Enable     types.Bool   `tfsdk:"enable"`
-	TgID       types.Int64  `tfsdk:"tg_id"`
-	SubID      types.String `tfsdk:"sub_id"`
-	Comment    types.String `tfsdk:"comment"`
-	Reset      types.Int64  `tfsdk:"reset"`
-	Group      types.String `tfsdk:"group"`
+	ID          types.String `tfsdk:"id"`
+	InboundID   types.Int64  `tfsdk:"inbound_id"`
+	ClientID    types.String `tfsdk:"client_id"`
+	Email       types.String `tfsdk:"email"`
+	Security    types.String `tfsdk:"security"`
+	Password    types.String `tfsdk:"password"`
+	Flow        types.String `tfsdk:"flow"`
+	ReverseTag  types.String `tfsdk:"reverse_tag"`
+	Auth        types.String `tfsdk:"auth"`
+	LimitIP     types.Int64  `tfsdk:"limit_ip"`
+	TotalGB     types.Int64  `tfsdk:"total_gb"`
+	ExpiryTime  types.Int64  `tfsdk:"expiry_time"`
+	Enable      types.Bool   `tfsdk:"enable"`
+	TgID        types.Int64  `tfsdk:"tg_id"`
+	SubID       types.String `tfsdk:"sub_id"`
+	Comment     types.String `tfsdk:"comment"`
+	Reset       types.Int64  `tfsdk:"reset"`
+	Group       types.String `tfsdk:"group"`
+	RestartXray types.Bool   `tfsdk:"restart_xray"`
 }
 
 // ---------------------------------------------------------------------------
@@ -197,6 +199,10 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"restart_xray": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Restart Xray core after create, update, or delete operations. Default is false.",
+			},
 		},
 	}
 }
@@ -283,6 +289,7 @@ func (r *InboundClientResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	r.maybeRestartXrayClient(ctx, &plan)
 }
 
 func (r *InboundClientResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -353,6 +360,7 @@ func (r *InboundClientResource) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	r.maybeRestartXrayClient(ctx, &plan)
 }
 
 func (r *InboundClientResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -386,6 +394,16 @@ func (r *InboundClientResource) Delete(ctx context.Context, req resource.DeleteR
 	}
 
 	resp.State.RemoveResource(ctx)
+	r.maybeRestartXrayClient(ctx, &cur)
+}
+
+// maybeRestartXrayClient restarts the Xray core if restart_xray is true.
+func (r *InboundClientResource) maybeRestartXrayClient(ctx context.Context, m *InboundClientResourceModel) {
+	if m.RestartXray.ValueBool() {
+		if err := r.client.RestartXrayService(ctx); err != nil {
+			tflog.Warn(ctx, "restartXrayService failed", map[string]any{"error": err.Error()})
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------

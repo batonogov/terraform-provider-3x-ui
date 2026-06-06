@@ -87,6 +87,7 @@ resource "threexui_inbound_client" "hysteria_user" {
 - `comment` (Optional, String) - Client description for administrative notes.
 - `reset` (Optional, Number) - Traffic reset period in days. `0` means never (default).
 - `group` (Optional, String) - Client group name. Available on 3x-ui v3.2.0+.
+- `restart_xray` (Optional, Boolean) - Restart Xray core after create, update, or delete operations. Default is `false`.
 
 ## Read-Only Attributes
 

@@ -872,6 +872,11 @@ func (c *Client) RestartPanel(ctx context.Context) error {
 	return c.WaitForReady(ctx)
 }
 
+// RestartXrayService restarts the Xray core via the 3x-ui API.
+func (c *Client) RestartXrayService(ctx context.Context) error {
+	return c.doJSON(ctx, http.MethodPost, "panel/api/server/restartXrayService", nil, nil)
+}
+
 // WaitForReady polls the panel until it responds successfully or the context
 // is cancelled. The panel needs a few seconds to come back after a restart.
 func (c *Client) WaitForReady(ctx context.Context) error {
