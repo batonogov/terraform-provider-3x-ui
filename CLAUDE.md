@@ -202,4 +202,5 @@ When a new 3x-ui version is released, update these files:
 5. **`CLAUDE.md`** — update the "up to vX.Y.Z" version reference
 6. **Source snapshot** — copy the 3x-ui source to `3x-ui-<version>/` (drift tests use the latest snapshot)
 7. **`provider/drift_test.go`** — if fields were added/removed from upstream structs, update `intentionallySkipped` and known-field maps
-8. **`docs/`** — if provider schema changed, update the corresponding resource/data-source doc
+8. **`provider/testdata/upstream_contract.json`** — update `all_setting_fields`, `protocols_go_model`, `version` to match the latest 3x-ui release (used by drift tests when no local snapshot is present)
+9. **`docs/`** — if provider schema changed, update the corresponding resource/data-source doc
