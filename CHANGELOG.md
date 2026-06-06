@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.7.0...v3.7.1) (2026-06-05)
+
+
+### Bug Fixes
+
+* use Reality stream settings for VLESS client tests with flow ([#238](https://github.com/batonogov/terraform-provider-threexui/issues/238)) ([2b68ad4](https://github.com/batonogov/terraform-provider-threexui/commit/2b68ad44a61e5cb809a268db422ccd6e231dd7d8))
+
 ## [3.7.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.6.4...v3.7.0) (2026-06-01)
 
 
