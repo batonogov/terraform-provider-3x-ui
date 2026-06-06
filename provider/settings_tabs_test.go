@@ -397,11 +397,14 @@ func TestExpandPanelTelegram(t *testing.T) {
 
 func TestFlattenPanelSubscription_ClashFields(t *testing.T) {
 	in := map[string]any{
-		"subEnable":      true,
-		"subJsonEnable":  false,
-		"subClashEnable": true,
-		"subClashPath":   "/clash/",
-		"subClashURI":    "https://example.com/clash/",
+		"subEnable":             true,
+		"subJsonEnable":         false,
+		"subClashEnable":        true,
+		"subClashPath":          "/clash/",
+		"subClashURI":           "https://example.com/clash/",
+		"subClashEnableRouting": true,
+		"subClashRules":         "rule1,rule2",
+		"subJsonFinalMask":      `{"tcp":"mask1"}`,
 	}
 	m := flattenPanelSubscription(in)
 	if !m.SubClashEnable.ValueBool() {
@@ -412,6 +415,34 @@ func TestFlattenPanelSubscription_ClashFields(t *testing.T) {
 	}
 	if m.SubClashURI.ValueString() != "https://example.com/clash/" {
 		t.Fatalf("unexpected sub_clash_uri: %s", m.SubClashURI.ValueString())
+	}
+	if !m.SubClashEnableRouting.ValueBool() {
+		t.Fatalf("expected sub_clash_enable_routing true")
+	}
+	if m.SubClashRules.ValueString() != "rule1,rule2" {
+		t.Fatalf("unexpected sub_clash_rules: %s", m.SubClashRules.ValueString())
+	}
+	if m.SubJsonFinalMask.ValueString() != `{"tcp":"mask1"}` {
+		t.Fatalf("unexpected sub_json_final_mask: %s", m.SubJsonFinalMask.ValueString())
+	}
+}
+
+func TestExpandPanelSubscription_v328Fields(t *testing.T) {
+	m := &PanelSubscriptionModel{
+		SubEnable:             typeBoolValue(true),
+		SubClashEnableRouting: typeBoolValue(true),
+		SubClashRules:         typeStringValue("rule1,rule2"),
+		SubJsonFinalMask:      typeStringValue(`{"tcp":"mask1"}`),
+	}
+	result := expandPanelSubscription(m)
+	if result["subClashEnableRouting"] != true {
+		t.Fatalf("expected subClashEnableRouting true, got %v", result["subClashEnableRouting"])
+	}
+	if result["subClashRules"] != "rule1,rule2" {
+		t.Fatalf("unexpected subClashRules: %v", result["subClashRules"])
+	}
+	if result["subJsonFinalMask"] != `{"tcp":"mask1"}` {
+		t.Fatalf("unexpected subJsonFinalMask: %v", result["subJsonFinalMask"])
 	}
 }
 

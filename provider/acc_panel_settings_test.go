@@ -776,7 +776,10 @@ resource "threexui_panel_subscription" "test" {
   sub_support_url    = ""
   sub_title          = "acc-test-sub"
   sub_updates        = 12
-  sub_uri            = ""
+  sub_uri             = ""
+  sub_clash_enable_routing = null
+  sub_clash_rules          = null
+  sub_json_final_mask      = null
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
@@ -813,7 +816,10 @@ resource "threexui_panel_subscription" "test" {
   sub_support_url    = ""
   sub_title          = "acc-test-sub-updated"
   sub_updates        = 12
-  sub_uri            = ""
+  sub_uri             = ""
+  sub_clash_enable_routing = null
+  sub_clash_rules          = null
+  sub_json_final_mask      = null
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
@@ -857,7 +863,10 @@ resource "threexui_panel_subscription" "test" {
   sub_support_url    = ""
   sub_title          = "acc-test-sub-updated"
   sub_updates        = 12
-  sub_uri            = ""
+  sub_uri             = ""
+  sub_clash_enable_routing = null
+  sub_clash_rules          = null
+  sub_json_final_mask      = null
 }
 `,
 				PlanOnly:           true,
@@ -890,7 +899,10 @@ resource "threexui_panel_subscription" "test" {
   sub_support_url    = ""
   sub_title          = "acc-test-sub-updated"
   sub_updates        = 12
-  sub_uri            = ""
+  sub_uri             = ""
+  sub_clash_enable_routing = null
+  sub_clash_rules          = null
+  sub_json_final_mask      = null
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
@@ -1033,4 +1045,64 @@ func restorePanelGeneralAfterBasePathChange(ctx context.Context, client *Client,
 	}
 
 	return fmt.Errorf("%s", strings.Join(errs, "; "))
+}
+
+// TestAccPanelSubscription_v328 verifies that v3.2.8 subscription fields
+// (sub_clash_enable_routing, sub_clash_rules, sub_json_final_mask) round-trip
+// through the 3x-ui API. Skipped on versions below v3.2.8.
+func TestAccPanelSubscription_v328(t *testing.T) {
+	requireMinVersion(t, "v3.2.8")
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_subscription" "test" {
+  sub_enable              = true
+  sub_json_enable         = true
+  sub_path                = "/sub/"
+  sub_port                = 2096
+  sub_title               = "v328-test"
+  sub_clash_enable        = true
+  sub_clash_enable_routing = true
+  sub_clash_rules         = "DIRECT,REJECT"
+  sub_json_final_mask     = "{\"tcp\":\"mask\"}"
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_subscription.test", "id", "settings"),
+					resource.TestCheckResourceAttr("threexui_panel_subscription.test", "sub_clash_enable_routing", "true"),
+					resource.TestCheckResourceAttr("threexui_panel_subscription.test", "sub_clash_rules", "DIRECT,REJECT"),
+					resource.TestCheckResourceAttr("threexui_panel_subscription.test", "sub_json_final_mask", "{\"tcp\":\"mask\"}"),
+				),
+			},
+			// Update — disable routing, change rules
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_subscription" "test" {
+  sub_enable              = true
+  sub_json_enable         = true
+  sub_path                = "/sub/"
+  sub_port                = 2096
+  sub_title               = "v328-test-updated"
+  sub_clash_enable        = true
+  sub_clash_enable_routing = false
+  sub_clash_rules         = ""
+  sub_json_final_mask     = ""
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_subscription.test", "sub_clash_enable_routing", "false"),
+					resource.TestCheckResourceAttr("threexui_panel_subscription.test", "sub_clash_rules", ""),
+				),
+			},
+			// Import
+			{
+				ResourceName:      "threexui_panel_subscription.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
 }
