@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.8.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.7.1...v3.8.0) (2026-06-06)
+
+
+### Features
+
+* add 3x-ui v3.2.7 & v3.2.8 compatibility ([#241](https://github.com/batonogov/terraform-provider-threexui/issues/241)) ([7b1ab3c](https://github.com/batonogov/terraform-provider-threexui/commit/7b1ab3c9b0712235d6eff13ab4247a956f95a3d8))
+* add metrics block to xray_basics resource ([#243](https://github.com/batonogov/terraform-provider-threexui/issues/243)) ([cc00334](https://github.com/batonogov/terraform-provider-threexui/commit/cc00334ea42c5b88b961458ce59adc6507c03e87)), closes [#220](https://github.com/batonogov/terraform-provider-threexui/issues/220)
+
 ## [3.7.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.7.0...v3.7.1) (2026-06-05)
 
 
