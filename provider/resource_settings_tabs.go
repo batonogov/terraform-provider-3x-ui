@@ -586,9 +586,13 @@ func flattenPanelSubscription(in map[string]any) *PanelSubscriptionModel {
 	}
 	if v, ok := in["subJsonFragment"]; ok {
 		m.SubJsonFragment = types.StringValue(stringValue(v))
+	} else {
+		m.SubJsonFragment = types.StringValue("")
 	}
 	if v, ok := in["subJsonNoises"]; ok {
 		m.SubJsonNoises = types.StringValue(stringValue(v))
+	} else {
+		m.SubJsonNoises = types.StringValue("")
 	}
 	if v, ok := in["subJsonMux"]; ok {
 		m.SubJsonMux = types.StringValue(stringValue(v))
