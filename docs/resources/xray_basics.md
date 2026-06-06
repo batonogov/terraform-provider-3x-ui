@@ -48,6 +48,11 @@ resource "threexui_xray_basics" "config" {
   }
 
   stats {}
+
+  metrics {
+    tag    = "metrics_out"
+    listen = "127.0.0.1:11111"
+  }
 }
 ```
 
@@ -88,6 +93,11 @@ resource "threexui_xray_basics" "config" {
 ### stats (Block, Optional, Max: 1)
 
 Empty block. Presence enables Xray stats collection.
+
+### metrics (Block, Optional, Max: 1)
+
+- `tag` (String, Optional) - Tag for the metrics API. Defaults to `"metrics_out"`.
+- `listen` (String, Optional) - Listen address for the metrics API (e.g. `"127.0.0.1:11111"`).
 
 ## Attribute Reference
 

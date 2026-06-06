@@ -19,11 +19,12 @@ import (
 // ---------------------------------------------------------------------------
 
 type XrayBasicsModel struct {
-	ID     types.String       `tfsdk:"id"`
-	Log    []XrayBasicsLog    `tfsdk:"log"`
-	Policy []XrayBasicsPolicy `tfsdk:"policy"`
-	API    []XrayBasicsAPI    `tfsdk:"api"`
-	Stats  []XrayBasicsStats  `tfsdk:"stats"`
+	ID      types.String        `tfsdk:"id"`
+	Log     []XrayBasicsLog     `tfsdk:"log"`
+	Policy  []XrayBasicsPolicy  `tfsdk:"policy"`
+	API     []XrayBasicsAPI     `tfsdk:"api"`
+	Stats   []XrayBasicsStats   `tfsdk:"stats"`
+	Metrics []XrayBasicsMetrics `tfsdk:"metrics"`
 }
 
 type XrayBasicsLog struct {
@@ -62,6 +63,11 @@ type XrayBasicsAPI struct {
 }
 
 type XrayBasicsStats struct{}
+
+type XrayBasicsMetrics struct {
+	Tag    types.String `tfsdk:"tag"`
+	Listen types.String `tfsdk:"listen"`
+}
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -217,6 +223,24 @@ func xrayBasicsSchema() schema.Schema {
 					Attributes: map[string]schema.Attribute{},
 				},
 			},
+			"metrics": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"tag": schema.StringAttribute{
+							Optional: true, Computed: true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
+						},
+						"listen": schema.StringAttribute{
+							Optional: true, Computed: true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -248,6 +272,9 @@ func alignBasicsBlocksWithPlan(state, plan *XrayBasicsModel) {
 	}
 	if len(plan.Stats) == 0 {
 		state.Stats = nil
+	}
+	if len(plan.Metrics) == 0 {
+		state.Metrics = nil
 	}
 }
 
@@ -355,6 +382,18 @@ func expandXrayBasics(m *XrayBasicsModel) map[string]any {
 
 	if len(m.Stats) > 0 {
 		out["stats"] = map[string]any{}
+	}
+
+	if len(m.Metrics) > 0 {
+		metrics := m.Metrics[0]
+		metricsMap := map[string]any{}
+		if !metrics.Tag.IsNull() && !metrics.Tag.IsUnknown() {
+			metricsMap["tag"] = metrics.Tag.ValueString()
+		}
+		if !metrics.Listen.IsNull() && !metrics.Listen.IsUnknown() {
+			metricsMap["listen"] = metrics.Listen.ValueString()
+		}
+		out["metrics"] = metricsMap
 	}
 
 	return out
@@ -509,6 +548,23 @@ func flattenXrayBasics(data map[string]any) *XrayBasicsModel {
 		m.Stats = []XrayBasicsStats{{}}
 	}
 
+	if metricsRaw, ok := data["metrics"]; ok {
+		if metricsMap, ok := metricsRaw.(map[string]any); ok && len(metricsMap) > 0 {
+			metrics := XrayBasicsMetrics{}
+			if v, ok := metricsMap["tag"].(string); ok && v != "" {
+				metrics.Tag = types.StringValue(v)
+			} else {
+				metrics.Tag = types.StringNull()
+			}
+			if v, ok := metricsMap["listen"].(string); ok && v != "" {
+				metrics.Listen = types.StringValue(v)
+			} else {
+				metrics.Listen = types.StringNull()
+			}
+			m.Metrics = []XrayBasicsMetrics{metrics}
+		}
+	}
+
 	return m
 }
 
@@ -542,6 +598,13 @@ func buildXrayBasicsJSON(d map[string]any) any {
 	}
 	if _, ok := d["stats"]; ok {
 		payload["stats"] = map[string]any{}
+	}
+	if v, ok := d["metrics"]; ok {
+		if m, ok := v.(map[string]any); ok {
+			if metrics := expandBasicsMetrics(m); metrics != nil {
+				payload["metrics"] = metrics
+			}
+		}
 	}
 
 	return payload
@@ -696,6 +759,11 @@ func flattenXrayBasicsToMap(data any) map[string]any {
 	if _, ok := payload["stats"]; ok {
 		out["stats"] = map[string]any{}
 	}
+	if v, ok := payload["metrics"].(map[string]any); ok {
+		if metrics := flattenBasicsMetrics(v); metrics != nil {
+			out["metrics"] = metrics
+		}
+	}
 
 	return out
 }
@@ -848,6 +916,40 @@ func flattenBasicsAPI(in map[string]any) map[string]any {
 	}
 	if v, ok := in["services"].([]any); ok {
 		out["services"] = v
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func expandBasicsMetrics(item map[string]any) map[string]any {
+	if len(item) == 0 {
+		return nil
+	}
+	out := map[string]any{}
+	if v, ok := item["tag"].(string); ok && v != "" {
+		out["tag"] = v
+	}
+	if v, ok := item["listen"].(string); ok && v != "" {
+		out["listen"] = v
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func flattenBasicsMetrics(in map[string]any) map[string]any {
+	if len(in) == 0 {
+		return nil
+	}
+	out := map[string]any{}
+	if v, ok := in["tag"].(string); ok {
+		out["tag"] = v
+	}
+	if v, ok := in["listen"].(string); ok {
+		out["listen"] = v
 	}
 	if len(out) == 0 {
 		return nil
