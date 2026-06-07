@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.9.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.8.0...v3.9.0) (2026-06-07)
+
+
+### Features
+
+* add restart_xray attribute to inbound and inbound_client resources ([#244](https://github.com/batonogov/terraform-provider-threexui/issues/244)) ([08adeab](https://github.com/batonogov/terraform-provider-threexui/commit/08adeab62ddd8e98f58f33c1901b61d76cf86906)), closes [#214](https://github.com/batonogov/terraform-provider-threexui/issues/214)
+* implement import support for panel_user resource ([6d9ba23](https://github.com/batonogov/terraform-provider-threexui/commit/6d9ba23a1a9563ef85a6271bacdcede8e5d75cdd))
+* implement import support for panel_user resource ([5b819fb](https://github.com/batonogov/terraform-provider-threexui/commit/5b819fb4f4a50b78fde944abc6cae8cc9ffafec2)), closes [#247](https://github.com/batonogov/terraform-provider-threexui/issues/247)
+* support THREEXUI_* environment variables in provider configuration ([#255](https://github.com/batonogov/terraform-provider-threexui/issues/255)) ([0b19a68](https://github.com/batonogov/terraform-provider-threexui/commit/0b19a68d47b2668fcdc4cdbce82265eb010b00ee)), closes [#249](https://github.com/batonogov/terraform-provider-threexui/issues/249)
+
 ## [3.8.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.7.1...v3.8.0) (2026-06-06)
 
 
