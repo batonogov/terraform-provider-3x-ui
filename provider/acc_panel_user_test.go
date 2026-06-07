@@ -181,3 +181,30 @@ func restorePanelCredentials(ctx context.Context, currentUsername, currentPasswo
 	}
 	return fmt.Errorf("panel credentials are neither current %q nor target %q", currentUsername, targetUsername)
 }
+
+func TestAccPanelUserImport(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+	resource "threexui_panel_user" "test" {
+	  username = "admin"
+	  password = "admin"
+	}
+	`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_user.test", "id", "user"),
+					resource.TestCheckResourceAttr("threexui_panel_user.test", "username", "admin"),
+				),
+			},
+			{
+				ResourceName:            "threexui_panel_user.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"username", "password"},
+			},
+		},
+	})
+}

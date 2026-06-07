@@ -36,3 +36,5 @@ resource "threexui_panel_user" "admin" {
 ```shell
 terraform import threexui_panel_user.admin user
 ```
+
+~> **Note:** Because the panel has no API to read credentials, `username` and `password` are unknown after import. You must configure both attributes in your Terraform configuration and run `terraform apply` to synchronize the state. The next `terraform plan` after import will show changes for these attributes — this is expected.

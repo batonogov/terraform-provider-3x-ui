@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -12,8 +13,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &PanelUserResource{}
-	_ resource.ResourceWithConfigure = &PanelUserResource{}
+	_ resource.Resource                = &PanelUserResource{}
+	_ resource.ResourceWithConfigure   = &PanelUserResource{}
+	_ resource.ResourceWithImportState = &PanelUserResource{}
 )
 
 type PanelUserResource struct {
@@ -141,4 +143,8 @@ func (r *PanelUserResource) warnCredentialsChanged(diags *diag.Diagnostics) {
 		"Admin credentials changed",
 		"The panel admin credentials have been updated. Update the provider's username and password to match the new values, otherwise the provider will fail to authenticate on the next run.",
 	)
+}
+
+func (r *PanelUserResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
