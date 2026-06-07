@@ -5,8 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project
 
 Terraform provider for the [3x-ui](https://github.com/MHSanaei/3x-ui) panel.
-Go with `terraform-plugin-framework`. Module: `github.com/batonogov/terraform-provider-threexui`.
+Go (version pinned in [`go.mod`](go.mod)) with `terraform-plugin-framework`. Module: `github.com/batonogov/terraform-provider-threexui`.
 Registry: `batonogov/threexui`. All provider code lives in `provider/`.
+Releases are automated: conventional commits on `main` → Release Please PR → GoReleaser (GPG-signed) → Terraform Registry.
 
 Provider config attributes: `endpoint`, `username`, `password`, `base_path`,
 `bootstrap_username`/`bootstrap_password` (first-run setup), `two_factor_code` (TOTP),
@@ -185,6 +186,13 @@ Imperative mood, concise subjects.
   create/update/import round-trip for every protocol.
 - Destroy checks use `destroyVisibilityAttempts` (60 × 500 ms) to handle
   SQLite visibility lag after delete.
+
+### Pre-commit
+
+`pre-commit install` sets up hooks: `task fmt`, `task vet`, `task lint`, `task build`,
+`markdownlint-cli2` (markdown files), plus standard checks (trailing whitespace,
+end-of-file fixer, YAML/JSON validation, large files, merge conflicts).
+Run manually: `pre-commit run --all-files`.
 
 ### Supply chain
 
