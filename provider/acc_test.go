@@ -14,14 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-const (
-	envEndpoint           = "THREEXUI_ENDPOINT"
-	envBasePath           = "THREEXUI_BASE_PATH"
-	envUsername           = "THREEXUI_USERNAME"
-	envPassword           = "THREEXUI_PASSWORD"
-	envInsecureSkipVerify = "THREEXUI_INSECURE_SKIP_VERIFY"
-)
-
 func getenvDefault(name, fallback string) string {
 	if v := os.Getenv(name); v != "" {
 		return v
