@@ -634,6 +634,7 @@ func TestCorpusInboundToModel_VLESSFull(t *testing.T) {
 	}
 	if model == nil {
 		t.Fatal("expected non-nil model")
+		return
 	}
 	if model.Protocol.ValueString() != "vless" {
 		t.Fatalf("expected protocol vless, got %s", model.Protocol.ValueString())
@@ -678,6 +679,7 @@ func TestCorpusInboundToModel_DokodemoFull(t *testing.T) {
 	}
 	if model == nil {
 		t.Fatal("expected non-nil model")
+		return
 	}
 	if model.Protocol.ValueString() != "dokodemo-door" {
 		t.Fatalf("expected protocol dokodemo-door, got %s", model.Protocol.ValueString())
@@ -713,6 +715,7 @@ func TestCorpusInboundToModel_ShadowsocksFull(t *testing.T) {
 	}
 	if model == nil {
 		t.Fatal("expected non-nil model")
+		return
 	}
 	if model.ShadowsocksSettings == nil {
 		t.Fatal("expected ShadowsocksSettings to be populated")

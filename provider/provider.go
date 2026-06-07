@@ -3,6 +3,8 @@ package provider
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -44,6 +46,28 @@ const (
 	maxAllowedRetries = 10
 )
 
+const (
+	envEndpoint           = "THREEXUI_ENDPOINT"
+	envBasePath           = "THREEXUI_BASE_PATH"
+	envUsername           = "THREEXUI_USERNAME"
+	envPassword           = "THREEXUI_PASSWORD"
+	envInsecureSkipVerify = "THREEXUI_INSECURE_SKIP_VERIFY"
+	envRequestTimeout     = "THREEXUI_REQUEST_TIMEOUT"
+	envMaxRetries         = "THREEXUI_MAX_RETRIES"
+)
+
+// envString returns the first non-empty string: HCL value (if set), then
+// THREEXUI_* environment variable, then fallback.
+func envString(tfVal types.String, envKey, fallback string) string {
+	if !tfVal.IsNull() && !tfVal.IsUnknown() {
+		return tfVal.ValueString()
+	}
+	if v := os.Getenv(envKey); v != "" {
+		return v
+	}
+	return fallback
+}
+
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
 		return &ThreeXUIProvider{version: version}
@@ -59,21 +83,21 @@ func (p *ThreeXUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
-				Required:    true,
-				Description: "Base URL of the 3x-ui panel, e.g. http://localhost:2053.",
+				Optional:    true,
+				Description: "Base URL of the 3x-ui panel, e.g. http://localhost:2053. Can also be set via THREEXUI_ENDPOINT environment variable.",
 			},
 			"base_path": schema.StringAttribute{
 				Optional:    true,
-				Description: "Base path configured in 3x-ui (webBasePath). Default is '/'.",
+				Description: "Base path configured in 3x-ui (webBasePath). Default is '/'. Can also be set via THREEXUI_BASE_PATH environment variable.",
 			},
 			"username": schema.StringAttribute{
 				Optional:    true,
-				Description: "3x-ui username.",
+				Description: "3x-ui username. Default is admin. Can also be set via THREEXUI_USERNAME environment variable.",
 			},
 			"password": schema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
-				Description: "3x-ui password.",
+				Description: "3x-ui password. Default is admin. Can also be set via THREEXUI_PASSWORD environment variable.",
 			},
 			"bootstrap_username": schema.StringAttribute{
 				Optional:    true,
@@ -91,11 +115,11 @@ func (p *ThreeXUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 			},
 			"insecure_skip_verify": schema.BoolAttribute{
 				Optional:    true,
-				Description: "Skip TLS certificate verification (useful for self-signed certs).",
+				Description: "Skip TLS certificate verification (useful for self-signed certs). Can also be set via THREEXUI_INSECURE_SKIP_VERIFY environment variable.",
 			},
 			"request_timeout": schema.StringAttribute{
 				Optional:    true,
-				Description: "HTTP request timeout (e.g. 30s, 1m).",
+				Description: "HTTP request timeout (e.g. 30s, 1m). Can also be set via THREEXUI_REQUEST_TIMEOUT environment variable.",
 			},
 			"max_retries": schema.Int64Attribute{
 				Optional: true,
@@ -118,19 +142,15 @@ func (p *ThreeXUIProvider) Configure(ctx context.Context, req provider.Configure
 		return
 	}
 
-	endpoint := config.Endpoint.ValueString()
-	basePath := "/"
-	if !config.BasePath.IsNull() && !config.BasePath.IsUnknown() {
-		basePath = config.BasePath.ValueString()
+	endpoint := envString(config.Endpoint, envEndpoint, "")
+	if endpoint == "" {
+		resp.Diagnostics.AddError("Missing endpoint", "endpoint must be set in the provider configuration or via THREEXUI_ENDPOINT environment variable.")
+		return
 	}
-	username := "admin"
-	if !config.Username.IsNull() && !config.Username.IsUnknown() {
-		username = config.Username.ValueString()
-	}
-	password := "admin"
-	if !config.Password.IsNull() && !config.Password.IsUnknown() {
-		password = config.Password.ValueString()
-	}
+
+	basePath := envString(config.BasePath, envBasePath, "/")
+	username := envString(config.Username, envUsername, "admin")
+	password := envString(config.Password, envPassword, "admin")
 	bootstrapUsername := ""
 	bootstrapUsernameSet := false
 	if config.BootstrapUsername.IsUnknown() {
@@ -172,11 +192,16 @@ func (p *ThreeXUIProvider) Configure(ctx context.Context, req provider.Configure
 	insecureSkipVerify := false
 	if !config.InsecureSkipVerify.IsNull() && !config.InsecureSkipVerify.IsUnknown() {
 		insecureSkipVerify = config.InsecureSkipVerify.ValueBool()
+	} else if v := os.Getenv(envInsecureSkipVerify); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			resp.Diagnostics.AddError("Invalid THREEXUI_INSECURE_SKIP_VERIFY", fmt.Sprintf("must be true or false, got %q", v))
+			return
+		}
+		insecureSkipVerify = b
 	}
-	timeoutStr := "30s"
-	if !config.RequestTimeout.IsNull() && !config.RequestTimeout.IsUnknown() {
-		timeoutStr = config.RequestTimeout.ValueString()
-	}
+
+	timeoutStr := envString(config.RequestTimeout, envRequestTimeout, "30s")
 
 	timeout, err := time.ParseDuration(timeoutStr)
 	if err != nil {
@@ -195,6 +220,20 @@ func (p *ThreeXUIProvider) Configure(ctx context.Context, req provider.Configure
 			return
 		}
 		maxRetries = int(v)
+	} else if v := os.Getenv(envMaxRetries); v != "" {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			resp.Diagnostics.AddError("Invalid THREEXUI_MAX_RETRIES", fmt.Sprintf("must be an integer, got %q", v))
+			return
+		}
+		if n < 0 || n > maxAllowedRetries {
+			resp.Diagnostics.AddError(
+				"Invalid THREEXUI_MAX_RETRIES",
+				fmt.Sprintf("must be between 0 and %d, got %d", maxAllowedRetries, n),
+			)
+			return
+		}
+		maxRetries = int(n)
 	}
 
 	client, err := NewClient(ClientConfig{
