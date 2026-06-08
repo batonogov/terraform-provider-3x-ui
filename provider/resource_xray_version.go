@@ -174,8 +174,10 @@ func (r *XrayVersionResource) Update(ctx context.Context, req resource.UpdateReq
 // ErrXrayVersionUnknown. We treat that as "still restarting" and keep
 // polling rather than failing the apply (issue #157).
 func (r *XrayVersionResource) waitForXrayVersion(ctx context.Context, version string) (string, error) {
-	const maxAttempts = 60
+	const maxAttempts = 90
+	const retryInstallAfter = 30
 	var lastSeen string
+	var retried bool
 	for i := 0; i < maxAttempts; i++ {
 		current, err := r.client.GetCurrentXrayVersion(ctx)
 		if err == nil {
@@ -185,6 +187,15 @@ func (r *XrayVersionResource) waitForXrayVersion(ctx context.Context, version st
 			}
 		} else if !errors.Is(err, ErrXrayVersionUnknown) {
 			return "", err
+		}
+		// If the panel reports a stale version after retryInstallAfter polls,
+		// re-issue InstallXray once — the first install may not have taken
+		// effect (observed on 3x-ui v3.2.6–v3.2.7, see #262).
+		if i == retryInstallAfter && !retried && lastSeen != "" && lastSeen != version {
+			if installErr := r.client.InstallXray(ctx, version); installErr != nil {
+				return "", fmt.Errorf("re-issuing InstallXray(%s): %w", version, installErr)
+			}
+			retried = true
 		}
 		time.Sleep(time.Second)
 	}

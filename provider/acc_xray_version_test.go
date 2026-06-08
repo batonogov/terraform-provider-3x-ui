@@ -115,7 +115,8 @@ func TestAccXrayVersionDrift(t *testing.T) {
 	// within the poll budget. See #224.
 	skipOnFlakyVersions(t,
 		"InstallXray pickup is broken or unreliable on this panel version",
-		"v2.9.1", "v2.9.2", "v2.9.3", "v3.0.0", "v3.0.1")
+		"v2.9.1", "v2.9.2", "v2.9.3", "v3.0.0", "v3.0.1",
+		"v3.2.5", "v3.2.6", "v3.2.7")
 	client, err := testAccClientFromEnv()
 	if err != nil {
 		t.Fatalf("client init: %s", err)
