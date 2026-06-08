@@ -143,7 +143,8 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString("never"),
-				Description: "Traffic reset interval (e.g. 'never', 'day', 'week', 'month', 'year').",
+				Description: "Traffic reset interval (e.g. 'never', 'hourly', 'daily', 'weekly', 'monthly').",
+				Validators:  trafficResetValidators(),
 			},
 			"last_traffic_reset_time": schema.Int64Attribute{
 				Computed:    true,
@@ -159,10 +160,12 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"port": schema.Int64Attribute{
 				Required:    true,
 				Description: "Listen port.",
+				Validators:  portValidators(),
 			},
 			"protocol": schema.StringAttribute{
 				Required:    true,
 				Description: "Protocol (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria). socks and dokodemo-door are deprecated since 3x-ui v3.2.0 — use mixed and tunnel instead. tun is an alias for tunnel available since 3x-ui v3.2.7.",
+				Validators:  protocolValidators(),
 			},
 			"tag": schema.StringAttribute{
 				Computed:    true,
