@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.10.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.9.0...v3.10.0) (2026-06-08)
+
+
+### Features
+
+* add schema validators for provider config and core resources ([#258](https://github.com/batonogov/terraform-provider-threexui/issues/258)) ([5543e7c](https://github.com/batonogov/terraform-provider-threexui/commit/5543e7cc8a07117be401d9c5cd4d5fdf84b8d3bf))
+
+
+### Bug Fixes
+
+* increase waitForXrayVersion poll budget and retry install on stale version ([#263](https://github.com/batonogov/terraform-provider-threexui/issues/263)) ([fbd4480](https://github.com/batonogov/terraform-provider-threexui/commit/fbd448049c47d5f6ae5fc870353fe9c629d8c1ce)), closes [#262](https://github.com/batonogov/terraform-provider-threexui/issues/262)
+
 ## [3.9.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.8.0...v3.9.0) (2026-06-07)
 
 
