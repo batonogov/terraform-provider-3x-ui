@@ -29,7 +29,7 @@ Env vars: `THREEXUI_ENDPOINT`, `THREEXUI_USERNAME`, `THREEXUI_PASSWORD`,
 | `task test` | Unit + acceptance tests |
 | `task test:unit` | Unit tests (no Docker/Terraform needed) |
 | `task test:unit:coverage` | Unit tests with coverage (`coverage.out`) |
-| `task test:acc` | Acceptance tests (Docker lifecycle included, defaults to v3.2.0) |
+| `task test:acc` | Acceptance tests (Docker lifecycle included) |
 | `task pre-commit` | fmt + vet + lint + build |
 
 **Version-specific acc tests:**
