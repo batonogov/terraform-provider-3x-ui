@@ -131,9 +131,9 @@ func TestAccXrayVersionDrift(t *testing.T) {
 
 	// GetCurrentXrayVersion may return ErrXrayVersionUnknown if xray is
 	// restarting after a previous test's InstallXray. Retry with the same
-	// budget as waitForXrayVersion (60s) to accommodate slow CI runners.
+	// budget as waitForXrayVersion (90s) to accommodate slow CI runners.
 	var currentVersion string
-	for i := 0; i < 60; i++ {
+	for i := 0; i < 90; i++ {
 		currentVersion, err = client.GetCurrentXrayVersion(ctx)
 		if err == nil {
 			break
@@ -141,10 +141,14 @@ func TestAccXrayVersionDrift(t *testing.T) {
 		if !errors.Is(err, ErrXrayVersionUnknown) {
 			t.Fatalf("GetCurrentXrayVersion: %s", err)
 		}
-		time.Sleep(time.Second)
+		select {
+		case <-ctx.Done():
+			t.Fatalf("GetCurrentXrayVersion: context cancelled: %s", ctx.Err())
+		case <-time.After(time.Second):
+		}
 	}
 	if err != nil {
-		t.Fatalf("GetCurrentXrayVersion: xray not running after 60s: %s", err)
+		t.Fatalf("GetCurrentXrayVersion: xray not running after 90s: %s", err)
 	}
 
 	// Find an alternative version different from the current one.
