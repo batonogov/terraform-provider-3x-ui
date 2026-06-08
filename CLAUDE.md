@@ -12,6 +12,9 @@ Releases are automated: conventional commits on `main` → Release Please PR →
 Provider config attributes: `endpoint`, `username`, `password`, `base_path`,
 `bootstrap_username`/`bootstrap_password` (first-run setup), `two_factor_code` (TOTP),
 `insecure_skip_verify`, `request_timeout`, `max_retries`.
+Env vars: `THREEXUI_ENDPOINT`, `THREEXUI_USERNAME`, `THREEXUI_PASSWORD`,
+`THREEXUI_BASE_PATH`, `THREEXUI_INSECURE_SKIP_VERIFY`, `THREEXUI_REQUEST_TIMEOUT`,
+`THREEXUI_MAX_RETRIES`. Bootstrap and 2FA attributes have **no** env-var fallback.
 
 ---
 
@@ -196,6 +199,7 @@ Run manually: `pre-commit run --all-files`.
 
 ### Supply chain
 
+CI lint job also runs `govulncheck ./...` before fmt/vet/lint.
 All CI actions pinned to commit SHA (`@<sha> # vN`).
 Pre-commit hooks use `--freeze` format (`rev: <sha>  # frozen: <tag>`).
 
@@ -205,7 +209,8 @@ When a new 3x-ui version is released, update these files:
 
 1. **`.github/workflows/ci.yml`** — add version to `matrix.version`
 2. **`.github/workflows/flake-tracking.yml`** — add version to `matrix.version` AND the report `for v in ...` loop
-3. **`docker-compose.yaml`** — update the default `${THREEXUI_VERSION:-vX.Y.Z}` to the latest
+3. **`docker-compose.yaml`** — update the default `${THREEXUI_VERSION:-vX.Y.Z}` to the latest.
+   Also update `Taskfile.yml` defaults in `test:acc` and `test:acc:compat` to match.
 4. **`README.md`** + all `README.<locale>.md` — add row to compatibility table
 5. **`CLAUDE.md`** — update the "up to vX.Y.Z" version reference
 6. **Source snapshot** — copy the 3x-ui source to `3x-ui-<version>/` (drift tests use the latest snapshot)
