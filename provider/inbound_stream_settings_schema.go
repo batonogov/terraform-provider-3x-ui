@@ -134,6 +134,7 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 			"network": schema.StringAttribute{
 				Optional: true, Computed: true,
 				Description: "Transport network (tcp, ws, grpc, httpupgrade, xhttp, kcp).",
+				Validators:  networkValidators(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -141,6 +142,7 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 			"security": schema.StringAttribute{
 				Optional: true, Computed: true,
 				Description: "Security type (none, reality, tls).",
+				Validators:  securityValidators(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -282,6 +284,7 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 					"header_type": schema.StringAttribute{
 						Optional: true, Computed: true,
 						Description: "Header type (e.g. 'none', 'http').",
+						Validators:  tcpHeaderTypeValidators(),
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
 						},
@@ -377,6 +380,7 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 					},
 					"mode": schema.StringAttribute{
 						Optional: true, Computed: true,
+						Validators: xhttpModeValidators(),
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
 						},
@@ -483,6 +487,7 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 					"header_type": schema.StringAttribute{
 						Optional: true, Computed: true,
 						Description: "Header type (e.g. 'none', 'srtp', 'utp', 'wechat-video', 'dtls', 'wireguard').",
+						Validators:  kcpHeaderTypeValidators(),
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
 						},
@@ -555,12 +560,14 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 					},
 					"tproxy": schema.StringAttribute{
 						Optional: true, Computed: true,
+						Validators: tproxyValidators(),
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
 					"domain_strategy": schema.StringAttribute{
 						Optional: true, Computed: true,
+						Validators: domainStrategyValidators(),
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
 						},

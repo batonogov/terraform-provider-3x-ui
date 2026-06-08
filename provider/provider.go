@@ -85,10 +85,12 @@ func (p *ThreeXUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 			"endpoint": schema.StringAttribute{
 				Optional:    true,
 				Description: "Base URL of the 3x-ui panel, e.g. http://localhost:2053. Can also be set via THREEXUI_ENDPOINT environment variable.",
+				Validators:  endpointValidators(),
 			},
 			"base_path": schema.StringAttribute{
 				Optional:    true,
 				Description: "Base path configured in 3x-ui (webBasePath). Default is '/'. Can also be set via THREEXUI_BASE_PATH environment variable.",
+				Validators:  basePathValidators(),
 			},
 			"username": schema.StringAttribute{
 				Optional:    true,
@@ -120,9 +122,11 @@ func (p *ThreeXUIProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 			"request_timeout": schema.StringAttribute{
 				Optional:    true,
 				Description: "HTTP request timeout (e.g. 30s, 1m). Can also be set via THREEXUI_REQUEST_TIMEOUT environment variable.",
+				Validators:  requestTimeoutValidators(),
 			},
 			"max_retries": schema.Int64Attribute{
-				Optional: true,
+				Optional:   true,
+				Validators: maxRetriesValidators(),
 				Description: fmt.Sprintf(
 					"Maximum number of additional attempts on transient HTTP 5xx responses for idempotent write endpoints "+
 						"(UpdateInbound, UpdateInboundClient, UpdateSettings, UpdateXrayTemplate, SetXrayOutboundTestURL). "+
