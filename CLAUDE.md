@@ -205,15 +205,18 @@ Pre-commit hooks use `--freeze` format (`rev: <sha>  # frozen: <tag>`).
 
 ### Adding a new 3x-ui version to CI
 
-When a new 3x-ui version is released, update these files:
+`compat-versions.json` is the single source of truth for tested versions.
+CI and flake-tracking workflows read the matrix dynamically from this file.
+`scripts/sync-versions.sh check` validates that README tables, docker-compose,
+and Taskfile defaults are in sync.
 
-1. **`.github/workflows/ci.yml`** — add version to `matrix.version`
-2. **`.github/workflows/flake-tracking.yml`** — add version to `matrix.version` AND the report `for v in ...` loop
-3. **`docker-compose.yaml`** — update the default `${THREEXUI_VERSION:-vX.Y.Z}` to the latest.
-   Also update `Taskfile.yml` defaults in `test:acc` and `test:acc:compat` to match.
-4. **`README.md`** + all `README.<locale>.md` — add row to compatibility table
-5. **`CLAUDE.md`** — update the "up to vX.Y.Z" version reference
-6. **Source snapshot** — copy the 3x-ui source to `3x-ui-<version>/` (drift tests use the latest snapshot)
-7. **`provider/drift_test.go`** — if fields were added/removed from upstream structs, update `intentionallySkipped` and known-field maps
-8. **`provider/testdata/upstream_contract.json`** — update `all_setting_fields`, `protocols_go_model`, `version` to match the latest 3x-ui release (used by drift tests when no local snapshot is present)
-9. **`docs/`** — if provider schema changed, update the corresponding resource/data-source doc
+When a new 3x-ui version is released:
+
+1. **`compat-versions.json`** — add the new version to the `versions` array, update `default_version` if it's the latest patch
+2. **`scripts/sync-versions.sh fix`** — auto-updates README tables, docker-compose default, and Taskfile defaults
+3. **`scripts/sync-versions.sh check`** — verify all surfaces are in sync
+4. **Source snapshot** — copy the 3x-ui source to `3x-ui-<version>/` (drift tests use the latest snapshot)
+5. **`provider/drift_test.go`** — if fields were added/removed from upstream structs, update `intentionallySkipped` and known-field maps
+6. **`provider/testdata/upstream_contract.json`** — update `all_setting_fields`, `protocols_go_model`, `version` to match the latest 3x-ui release (used by drift tests when no local snapshot is present)
+7. **`docs/`** — if provider schema changed, update the corresponding resource/data-source doc
+8. **`CLAUDE.md`** — update the "up to vX.Y.Z" version reference if the minor line changed

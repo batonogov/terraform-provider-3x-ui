@@ -147,7 +147,7 @@ check_readme() {
       awk -v header="$header" -v block="$table_block" '
         BEGIN { found=0 }
         $0 == header { print block; found=1; next }
-        found && /^| ---/ { next }
+        found && /^\| ---/ { next }
         found && /^\| v/ { next }
         found && /^[^|]/ { found=0 }
         !found { print }
