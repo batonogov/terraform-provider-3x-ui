@@ -180,7 +180,7 @@ func TestProtocolValidators(t *testing.T) {
 
 func TestTrafficResetValidators(t *testing.T) {
 	v := trafficResetValidators()
-	valid := []string{"never", "day", "week", "month", "year"}
+	valid := []string{"never", "hourly", "daily", "weekly", "monthly"}
 	for _, val := range valid {
 		for _, vv := range v {
 			if testStringValidator(t, vv, val) {
@@ -189,7 +189,7 @@ func TestTrafficResetValidators(t *testing.T) {
 		}
 	}
 
-	invalid := []string{"daily", "hourly", "NEVER", ""}
+	invalid := []string{"day", "week", "month", "year", "NEVER", ""}
 	for _, val := range invalid {
 		for _, vv := range v {
 			if !testStringValidator(t, vv, val) {

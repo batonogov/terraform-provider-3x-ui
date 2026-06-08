@@ -143,7 +143,7 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString("never"),
-				Description: "Traffic reset interval (e.g. 'never', 'day', 'week', 'month', 'year').",
+				Description: "Traffic reset interval (e.g. 'never', 'hourly', 'daily', 'weekly', 'monthly').",
 				Validators:  trafficResetValidators(),
 			},
 			"last_traffic_reset_time": schema.Int64Attribute{

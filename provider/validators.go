@@ -74,7 +74,7 @@ func protocolValidators() []validator.String {
 // trafficResetValidators validates inbound traffic_reset enum values.
 func trafficResetValidators() []validator.String {
 	return []validator.String{
-		stringvalidator.OneOf("never", "day", "week", "month", "year"),
+		stringvalidator.OneOf("never", "hourly", "daily", "weekly", "monthly"),
 	}
 }
 
