@@ -212,10 +212,11 @@ func TestInboundResourceWaitForDeletion(t *testing.T) {
 		if err := res.waitForInboundDeletion(context.Background(), 1); err == nil {
 			t.Fatalf("expected error after exhausting attempts")
 		}
-		// destroyVisibilityAttempts changed; resource-side waitForInboundDeletion
-		// is intentionally separate (20×500ms = 10s) — see provider/resource_inbound.go.
-		if got := atomic.LoadInt32(&lists); got != 20 {
-			t.Fatalf("expected 20 list calls, got %d", got)
+		// waitForInboundDeletion uses client.ReadAfterWriteConfig() for its
+		// attempt budget. In tests this is the test-injected value (3).
+		expectedAttempts, _ := res.client.ReadAfterWriteConfig()
+		if got := atomic.LoadInt32(&lists); got != int32(expectedAttempts) {
+			t.Fatalf("expected %d list calls, got %d", expectedAttempts, got)
 		}
 	})
 
@@ -249,7 +250,10 @@ func TestInboundResourceWaitForDeletion(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		res := &InboundResource{client: newTestClient(t, srv.URL)}
+		client := newTestClient(t, srv.URL)
+		client.rawBackoff = 500 * time.Millisecond
+		client.rawAttempts = 20
+		res := &InboundResource{client: client}
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 		start := time.Now()
@@ -261,7 +265,7 @@ func TestInboundResourceWaitForDeletion(t *testing.T) {
 		if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 			t.Fatalf("expected context error, got %v", err)
 		}
-		// Full attempt budget is 6 × 500ms ≈ 3s. Cancellation must
+		// Full attempt budget is 20 x 500ms = 10s. Cancellation must
 		// short-circuit the backoff well before that.
 		if elapsed > 600*time.Millisecond {
 			t.Fatalf("backoff did not respect ctx cancel; elapsed=%v", elapsed)

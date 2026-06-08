@@ -53,27 +53,46 @@ type ClientConfig struct {
 	// 5xx for idempotent write endpoints. 0 disables retry entirely; 1 (the
 	// default applied by the provider) means up to one retry after a backoff.
 	MaxRetries int
+	// The fields below override production retry/backoff timings for tests.
+	// Zero means use the production default.
+	RetryBackoff           time.Duration // default: 500ms
+	ReadAfterWriteAttempts int           // default: 20
+	ReadAfterWriteBackoff  time.Duration // default: 500ms
+	VersionRetryAttempts   int           // default: 4
+	VersionRetryBackoff    time.Duration // default: 2s
 }
 
 type Client struct {
-	baseURL          *url.URL
-	basePath         string
-	username         string
-	password         string
-	twoFactor        string
-	httpClient       *http.Client
-	maxRetries       int
-	authMu           sync.Mutex
-	csrfToken        string
-	settingsSecretMu sync.Mutex
-	settingsSecrets  map[string]string
-	newClientMu      sync.Mutex
-	newClientAPI     *bool // nil=undetected, true=v3.1.0+ /panel/api/clients/*, false=old
+	baseURL                 *url.URL
+	basePath                string
+	username                string
+	password                string
+	twoFactor               string
+	httpClient              *http.Client
+	maxRetries              int
+	retryBackoff            time.Duration
+	rawAttempts             int
+	rawBackoff              time.Duration
+	versionRetryAttempts    int
+	versionRetryBaseBackoff time.Duration
+	authMu                  sync.Mutex
+	csrfToken               string
+	settingsSecretMu        sync.Mutex
+	settingsSecrets         map[string]string
+	newClientMu             sync.Mutex
+	newClientAPI            *bool // nil=undetected, true=v3.1.0+ /panel/api/clients/*, false=old
 }
 
 // SetBasePath updates the client's base path to match a new webBasePath.
 func (c *Client) SetBasePath(p string) {
 	c.basePath = normalizeBasePath(p)
+}
+
+// ReadAfterWriteConfig returns the read-after-write retry budget (attempts and
+// backoff) so callers like waitForInboundDeletion can align their own polling
+// loops with the same budget without hard-coding the constants.
+func (c *Client) ReadAfterWriteConfig() (attempts int, backoff time.Duration) {
+	return c.rawAttempts, c.rawBackoff
 }
 
 type apiResponse struct {
@@ -126,14 +145,40 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		maxRetries = 0
 	}
 
+	rb := cfg.RetryBackoff
+	if rb == 0 {
+		rb = defaultRetryBackoff
+	}
+	ra := cfg.ReadAfterWriteAttempts
+	if ra == 0 {
+		ra = readAfterWriteAttempts
+	}
+	raBackoff := cfg.ReadAfterWriteBackoff
+	if raBackoff == 0 {
+		raBackoff = readAfterWriteBackoff
+	}
+	vAttempts := cfg.VersionRetryAttempts
+	if vAttempts == 0 {
+		vAttempts = versionRetryAttempts
+	}
+	vBackoff := cfg.VersionRetryBackoff
+	if vBackoff == 0 {
+		vBackoff = versionRetryBaseBackoff
+	}
+
 	return &Client{
-		baseURL:    baseURL,
-		basePath:   basePath,
-		username:   cfg.Username,
-		password:   cfg.Password,
-		twoFactor:  cfg.TwoFactorCode,
-		httpClient: client,
-		maxRetries: maxRetries,
+		baseURL:                 baseURL,
+		basePath:                basePath,
+		username:                cfg.Username,
+		password:                cfg.Password,
+		twoFactor:               cfg.TwoFactorCode,
+		httpClient:              client,
+		maxRetries:              maxRetries,
+		retryBackoff:            rb,
+		rawAttempts:             ra,
+		rawBackoff:              raBackoff,
+		versionRetryAttempts:    vAttempts,
+		versionRetryBaseBackoff: vBackoff,
 	}, nil
 }
 
@@ -659,8 +704,8 @@ func isUpstreamRateLimitError(err error) bool {
 func (c *Client) GetXrayVersions(ctx context.Context) ([]string, error) {
 	var out []string
 	var lastErr error
-	backoff := versionRetryBaseBackoff
-	for attempt := 0; attempt <= versionRetryAttempts; attempt++ {
+	backoff := c.versionRetryBaseBackoff
+	for attempt := 0; attempt <= c.versionRetryAttempts; attempt++ {
 		err := c.doJSON(ctx, http.MethodGet, "panel/api/server/getXrayVersion", nil, &out)
 		if err == nil {
 			return out, nil
@@ -669,7 +714,7 @@ func (c *Client) GetXrayVersions(ctx context.Context) ([]string, error) {
 		if !isUpstreamRateLimitError(err) {
 			return nil, err
 		}
-		if attempt == versionRetryAttempts {
+		if attempt == c.versionRetryAttempts {
 			break
 		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
@@ -677,7 +722,7 @@ func (c *Client) GetXrayVersions(ctx context.Context) ([]string, error) {
 		}
 		tflog.Warn(ctx, "retrying getXrayVersion after upstream rate limit", map[string]any{
 			"attempt":      attempt + 1,
-			"max_attempts": versionRetryAttempts,
+			"max_attempts": c.versionRetryAttempts,
 			"backoff":      backoff.String(),
 		})
 		select {
@@ -687,7 +732,7 @@ func (c *Client) GetXrayVersions(ctx context.Context) ([]string, error) {
 			backoff *= 2
 		}
 	}
-	return nil, fmt.Errorf("getXrayVersion: upstream rate limit persisted after %d retries: %w", versionRetryAttempts, lastErr)
+	return nil, fmt.Errorf("getXrayVersion: upstream rate limit persisted after %d retries: %w", c.versionRetryAttempts, lastErr)
 }
 
 // ErrXrayVersionUnknown is returned when the 3x-ui API reports the Xray
@@ -1109,12 +1154,12 @@ func (c *Client) withRetry(ctx context.Context, op string, fn func() error) erro
 			"attempt":      attempt + 1,
 			"max_attempts": c.maxRetries,
 			"status_code":  statusCode,
-			"backoff":      defaultRetryBackoff.String(),
+			"backoff":      c.retryBackoff.String(),
 		})
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(defaultRetryBackoff):
+		case <-time.After(c.retryBackoff):
 		}
 	}
 	return err
@@ -1140,10 +1185,10 @@ func (c *Client) doJSONRetryable(ctx context.Context, method, relPath string, bo
 //
 // Non-transient errors (4xx, auth failures, etc.) abort immediately.
 func (c *Client) WithReadAfterWriteRetry(ctx context.Context, opName string, fn func() (bool, error)) error {
-	for attempt := 0; attempt < readAfterWriteAttempts; attempt++ {
+	for attempt := 0; attempt < c.rawAttempts; attempt++ {
 		found, err := fn()
 		if err != nil {
-			if _, retryable := transient5xxStatus(err); !retryable || attempt == readAfterWriteAttempts-1 {
+			if _, retryable := transient5xxStatus(err); !retryable || attempt == c.rawAttempts-1 {
 				return err
 			}
 			if ctxErr := ctx.Err(); ctxErr != nil {
@@ -1152,20 +1197,20 @@ func (c *Client) WithReadAfterWriteRetry(ctx context.Context, opName string, fn 
 			tflog.Warn(ctx, "retrying read-after-write (transient error)", map[string]any{
 				"operation":    opName,
 				"attempt":      attempt + 1,
-				"max_attempts": readAfterWriteAttempts,
-				"backoff":      readAfterWriteBackoff.String(),
+				"max_attempts": c.rawAttempts,
+				"backoff":      c.rawBackoff.String(),
 			})
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(readAfterWriteBackoff):
+			case <-time.After(c.rawBackoff):
 			}
 			continue
 		}
 		if found {
 			return nil
 		}
-		if attempt == readAfterWriteAttempts-1 {
+		if attempt == c.rawAttempts-1 {
 			break
 		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
@@ -1174,16 +1219,16 @@ func (c *Client) WithReadAfterWriteRetry(ctx context.Context, opName string, fn 
 		tflog.Warn(ctx, "retrying read-after-write", map[string]any{
 			"operation":    opName,
 			"attempt":      attempt + 1,
-			"max_attempts": readAfterWriteAttempts,
-			"backoff":      readAfterWriteBackoff.String(),
+			"max_attempts": c.rawAttempts,
+			"backoff":      c.rawBackoff.String(),
 		})
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(readAfterWriteBackoff):
+		case <-time.After(c.rawBackoff):
 		}
 	}
-	return fmt.Errorf("%s: row not visible after %d attempts (%s total)", opName, readAfterWriteAttempts, readAfterWriteBackoff*time.Duration(readAfterWriteAttempts-1))
+	return fmt.Errorf("%s: row not visible after %d attempts (%s total)", opName, c.rawAttempts, c.rawBackoff*time.Duration(c.rawAttempts-1))
 }
 
 func (c *Client) doRequestOnce(ctx context.Context, method, endpoint, contentType string, body []byte) (*http.Response, error) {
