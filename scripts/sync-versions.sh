@@ -24,11 +24,11 @@ fi
 # Extract versions from the single source of truth
 # ---------------------------------------------------------------------------
 VERSIONS_JSON=$(jq -c '[.versions[] | select(.supported == true) | .version]' "$COMPAT")
-readarray -t VERSIONS < <(echo "$VERSIONS_JSON" | jq -r '.[]')
+IFS=$'\n' read -r -d '' -a VERSIONS < <(echo "$VERSIONS_JSON" | jq -r '.[]' && printf '\0')
 DEFAULT_VERSION=$(jq -r '.default_version' "$COMPAT")
 
 # Build the sorted (newest-first) array for README tables.
-readarray -t VERSIONS_DESC < <(echo "$VERSIONS_JSON" | jq -r 'reverse | .[]')
+IFS=$'\n' read -r -d '' -a VERSIONS_DESC < <(echo "$VERSIONS_JSON" | jq -r 'reverse | .[]' && printf '\0')
 
 echo "Source: $COMPAT"
 echo "Versions (${#VERSIONS[@]}): ${VERSIONS[*]}"
@@ -38,115 +38,67 @@ echo ""
 DRIFT=0
 
 # ---------------------------------------------------------------------------
-# Helper: extract a JSON array of version strings from a CI matrix line
-# like: version: ["v2.9.0", "v3.0.0"]
-# ---------------------------------------------------------------------------
-extract_matrix_versions() {
-  local file="$1"
-  # Grab all version: [...] lines and extract the versions
-  grep -oP 'version:\s*\[\K[^\]]+' "$file" | tr -d '"' | tr -d "'" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sort
-}
-
-# ---------------------------------------------------------------------------
-# 1. CI matrix (ci.yml)
+# 1. CI (ci.yml) — matrix is now dynamic from compat-versions.json,
+#    so we only verify the prepare-matrix job references the file correctly.
 # ---------------------------------------------------------------------------
 check_ci() {
   local file="$ROOT/.github/workflows/ci.yml"
-  local ci_versions
-  ci_versions=$(extract_matrix_versions "$file")
-  local source_versions
-  source_versions=$(printf '%s\n' "${VERSIONS[@]}" | sort)
-
-  if [ "$ci_versions" = "$source_versions" ]; then
-    echo "ci.yml: OK"
+  if grep -q 'compat-versions.json' "$file"; then
+    echo "ci.yml: OK (dynamic matrix from compat-versions.json)"
   else
-    echo "ci.yml: DRIFT DETECTED"
-    diff <(echo "$ci_versions") <(echo "$source_versions") || true
+    echo "ci.yml: DRIFT — no reference to compat-versions.json in dynamic matrix"
     DRIFT=1
-
-    if [ "$MODE" = "fix" ]; then
-      local new_matrix
-      new_matrix=$(echo "$VERSIONS_JSON" | jq -r '"[\"" + (join("\", \"")) + "\"]"')
-      # Replace the version: [...] line in the matrix section
-      sed -i.bak -E "s|version: \[.*\]|version: $new_matrix|" "$file" && rm -f "$file.bak"
-      echo "  -> Fixed ci.yml"
-    fi
   fi
 }
 
 # ---------------------------------------------------------------------------
-# 2. Flake-tracking matrix and report for-loop
+# 2. Flake-tracking (flake-tracking.yml) — same dynamic approach.
 # ---------------------------------------------------------------------------
 check_flake() {
   local file="$ROOT/.github/workflows/flake-tracking.yml"
-  local flake_versions
-  flake_versions=$(extract_matrix_versions "$file")
-  local source_versions
-  source_versions=$(printf '%s\n' "${VERSIONS[@]}" | sort)
-
-  if [ "$flake_versions" = "$source_versions" ]; then
-    echo "flake-tracking.yml matrix: OK"
+  if grep -q 'compat-versions.json' "$file"; then
+    echo "flake-tracking.yml: OK (dynamic matrix from compat-versions.json)"
   else
-    echo "flake-tracking.yml matrix: DRIFT DETECTED"
-    diff <(echo "$flake_versions") <(echo "$source_versions") || true
+    echo "flake-tracking.yml: DRIFT — no reference to compat-versions.json in dynamic matrix"
     DRIFT=1
-
-    if [ "$MODE" = "fix" ]; then
-      local new_matrix
-      new_matrix=$(echo "$VERSIONS_JSON" | jq -r '"[\"" + (join("\", \"")) + "\"]"')
-      sed -i.bak -E "s|version: \[.*\]|version: $new_matrix|" "$file" && rm -f "$file.bak"
-      echo "  -> Fixed flake-tracking.yml matrix"
-    fi
-  fi
-
-  # Check the for-loop in the report section
-  local for_loop_versions
-  for_loop_versions=$(grep -oP 'for v in \K.*(?=; do)' "$file" | tr ' ' '\n' | sort)
-  if [ "$for_loop_versions" = "$source_versions" ]; then
-    echo "flake-tracking.yml report for-loop: OK"
-  else
-    echo "flake-tracking.yml report for-loop: DRIFT DETECTED"
-    diff <(echo "$for_loop_versions") <(echo "$source_versions") || true
-    DRIFT=1
-
-    if [ "$MODE" = "fix" ]; then
-      local new_loop
-      new_loop=$(printf '%s' "${VERSIONS[@]}")
-      sed -i.bak -E "s|for v in .*; do|for v in $new_loop; do|" "$file" && rm -f "$file.bak"
-      echo "  -> Fixed flake-tracking.yml report for-loop"
-    fi
   fi
 }
 
 # ---------------------------------------------------------------------------
 # 3. README compatibility tables (6 locales)
 # ---------------------------------------------------------------------------
-# Status label per locale
-declare -A STATUS_LABEL=(
-  ["README.md"]="Tested"
-  ["README.ru_RU.md"]="Тестируется"
-  ["README.es_ES.md"]="Probado"
-  ["README.fa_IR.md"]="تست‌شده"
-  ["README.ar_EG.md"]="تم اختباره"
-  ["README.zh_CN.md"]="已测试"
-)
+get_status_label() {
+  case "$1" in
+    README.md) echo "Tested" ;;
+    README.ru_RU.md) echo "Тестируется" ;;
+    README.es_ES.md) echo "Probado" ;;
+    README.fa_IR.md) echo "تست‌شده" ;;
+    README.ar_EG.md) echo "تم اختباره" ;;
+    README.zh_CN.md) echo "已测试" ;;
+    *) echo "" ;;
+  esac
+}
 
-# Header row per locale
-declare -A HEADER_LINE=(
-  ["README.md"]='| 3x-ui version | Status |'
-  ["README.ru_RU.md"]='| Версия 3x-ui | Статус |'
-  ["README.es_ES.md"]='| Versión de 3x-ui | Estado |'
-  ["README.fa_IR.md"]='| نسخهٔ 3x-ui | وضعیت |'
-  ["README.ar_EG.md"]='| إصدار 3x-ui | الحالة |'
-  ["README.zh_CN.md"]='| 3x-ui 版本 | 状态 |'
-)
+get_header_line() {
+  case "$1" in
+    README.md) echo '| 3x-ui version | Status |' ;;
+    README.ru_RU.md) echo '| Версия 3x-ui | Статус |' ;;
+    README.es_ES.md) echo '| Versión de 3x-ui | Estado |' ;;
+    README.fa_IR.md) echo '| نسخهٔ 3x-ui | وضعیت |' ;;
+    README.ar_EG.md) echo '| إصدار 3x-ui | الحالة |' ;;
+    README.zh_CN.md) echo '| 3x-ui 版本 | 状态 |' ;;
+    *) echo "" ;;
+  esac
+}
 
 check_readme() {
   local file="$1"
   local basename
   basename=$(basename "$file")
-  local status="${STATUS_LABEL[$basename]}"
-  local header="${HEADER_LINE[$basename]}"
+  local status
+  status=$(get_status_label "$basename")
+  local header
+  header=$(get_header_line "$basename")
 
   if [ -z "$status" ]; then
     echo "$basename: SKIP (unknown locale)"
@@ -159,9 +111,14 @@ check_readme() {
     expected+="| $v | $status |"$'\n'
   done
 
-  # Extract the current table rows between header and the next blank/section line
+  # Extract the current table rows after the matching header line
   local actual
-  actual=$(awk "/^\\| ---/,,/^[^|]$/ {print}" "$file" | grep '^| v' | sort)
+  actual=$(awk -v hdr="$header" '
+    $0 == hdr {found=1; next}
+    found && /^\| ---/ {next}
+    found && /^\| v/ {print}
+    found && /^[^|]/ {exit}
+  ' "$file" | sort)
 
   local expected_sorted
   expected_sorted=$(echo "$expected" | grep '^| v' | sort)
@@ -206,7 +163,7 @@ check_readme() {
 check_docker_compose() {
   local file="$ROOT/docker-compose.yaml"
   local current
-  current=$(grep -oP 'THREEXUI_VERSION:-\K[^}]+' "$file")
+  current=$(sed -n 's/.*THREEXUI_VERSION:-\([^}]*\).*/\1/p' "$file")
 
   if [ "$current" = "$DEFAULT_VERSION" ]; then
     echo "docker-compose.yaml: OK"
@@ -227,7 +184,7 @@ check_docker_compose() {
 check_taskfile() {
   local file="$ROOT/Taskfile.yml"
   local current
-  current=$(grep "default \"v" "$file" | head -1 | grep -oP 'default "\K[^"]+')
+  current=$(grep 'default "v' "$file" | head -1 | sed 's/.*default "\([^"]*\)".*/\1/')
 
   if [ "$current" = "$DEFAULT_VERSION" ]; then
     echo "Taskfile.yml: OK"
