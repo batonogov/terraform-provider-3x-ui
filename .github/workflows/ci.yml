@@ -13,6 +13,7 @@ on:
       - .github/workflows/ci.yml
       - .github/workflows/docs.yml
       - CHANGELOG.md
+      - compat-versions.json
   push:
     branches: [main]
     paths:
@@ -25,6 +26,7 @@ on:
       - .github/workflows/ci.yml
       - .github/workflows/docs.yml
       - CHANGELOG.md
+      - compat-versions.json
 
 # Cancel superseded runs on the same PR/branch — avoids wasting minutes
 # and burning the GHCR pull quota on stale commits when force-pushing.
@@ -48,6 +50,15 @@ permissions:
 # the compat matrix (issue #161).
 
 jobs:
+  validate-versions:
+    name: Validate compat-versions.json
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: Check version surfaces are in sync
+        run: scripts/sync-versions.sh check
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -165,10 +176,23 @@ jobs:
           path: 3xui-container.log
           retention-days: 7
 
+  acceptance-matrix-prepare:
+    name: Prepare compat matrix
+    runs-on: ubuntu-latest
+    needs: [lint, validate-versions]
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - id: set
+        run: |
+          MATRIX=$(jq -c '[.versions[] | select(.supported == true) | .version]' compat-versions.json)
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
   acceptance-matrix:
     name: Compat (${{ matrix.version }})
     runs-on: ubuntu-latest
-    needs: [lint]
+    needs: [lint, acceptance-matrix-prepare]
     # Must cover (timeout_minutes × max_attempts) of the retry wrapper
     # below, plus a few minutes of setup. Otherwise the job-level cap
     # kills the second attempt mid-flight.
@@ -176,8 +200,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # KEEP IN SYNC: flake-tracking.yml matrix + report for-loop, README* tables
-        version: ["v2.9.0", "v2.9.1", "v2.9.2", "v2.9.3", "v2.9.4", "v3.0.0", "v3.0.1", "v3.0.2", "v3.1.0", "v3.2.0", "v3.2.5", "v3.2.6", "v3.2.7", "v3.2.8"]
+        # Source of truth: compat-versions.json (validated by validate-versions job)
+        version: ${{ fromJson(needs.acceptance-matrix-prepare.outputs.matrix) }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 

@@ -15,9 +15,14 @@ The provider officially supports four 3x-ui minor lines: **2.9.x**, **3.0.x**, *
 
 ## Compatibility table
 
+<!-- sync-versions:begin -->
 | 3x-ui version | Status | Notes |
 | --- | --- | --- |
-| v3.2.0 | Tested | Latest supported v3.2.x release. `socks` and `dokodemo-door` are no longer available upstream; use `mixed` and `tunnel`. |
+| v3.2.8 | Tested | Latest supported v3.2.x release. |
+| v3.2.7 | Tested | |
+| v3.2.6 | Tested | |
+| v3.2.5 | Tested | |
+| v3.2.0 | Tested | `socks` and `dokodemo-door` are no longer available upstream; use `mixed` and `tunnel`. |
 | v3.1.0 | Tested | New client API surface; the provider detects it automatically. |
 | v3.0.2 | Tested | Latest v3.0.x patch. CSRF-protected API. |
 | v3.0.1 | Tested | CSRF-protected API. |
@@ -27,6 +32,7 @@ The provider officially supports four 3x-ui minor lines: **2.9.x**, **3.0.x**, *
 | v2.9.2 | Tested | |
 | v2.9.1 | Tested | `InstallXray` API skips execution (upstream bug, see [Known issues](#known-issues)). |
 | v2.9.0 | Tested | Mixed protocol, WireGuard MTU list, sniffing exclusions (see [Breaking changes](#breaking-changes)). |
+<!-- sync-versions:end -->
 
 Older lines (2.8.x and earlier) are no longer tested. The provider may still work, but compatibility is not guaranteed.
 
@@ -104,13 +110,13 @@ The provider communicates with whatever 3x-ui version is running on your host. T
 
 ```bash
 # Set the 3x-ui image tag
-export THREEXUI_VERSION=v3.2.0
+export THREEXUI_VERSION=v3.2.8
 
 # Start the container
 docker compose up -d
 ```
 
-In `docker-compose.yaml`, the image tag is parameterized via `${THREEXUI_VERSION:-v3.2.0}`, so omitting the variable defaults to the latest tested version.
+In `docker-compose.yaml`, the image tag is parameterized via `${THREEXUI_VERSION:-v3.2.8}`, so omitting the variable defaults to the latest tested version.
 
 For the Terraform provider itself, use the latest release from the [Terraform Registry](https://registry.terraform.io/providers/batonogov/threexui). The single provider binary supports all 3x-ui versions listed in the compatibility table above.
 
