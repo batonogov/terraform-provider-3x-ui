@@ -331,7 +331,8 @@ func TestTproxyValidators(t *testing.T) {
 
 func TestDomainStrategyValidators(t *testing.T) {
 	v := domainStrategyValidators()
-	valid := []string{"AsIs", "IPIfNonMatch", "IPOnDemand"}
+	valid := []string{"AsIs", "UseIP", "UseIPv6v4", "UseIPv6", "UseIPv4v6", "UseIPv4",
+		"ForceIP", "ForceIPv6v4", "ForceIPv6", "ForceIPv4v6", "ForceIPv4"}
 	for _, val := range valid {
 		for _, vv := range v {
 			if testStringValidator(t, vv, val) {
@@ -340,7 +341,7 @@ func TestDomainStrategyValidators(t *testing.T) {
 		}
 	}
 
-	invalid := []string{"asis", "ipifnonmatch", ""}
+	invalid := []string{"asis", "IPIfNonMatch", "IPOnDemand", ""}
 	for _, val := range invalid {
 		for _, vv := range v {
 			if !testStringValidator(t, vv, val) {

@@ -133,7 +133,7 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 		Attributes: map[string]schema.Attribute{
 			"network": schema.StringAttribute{
 				Optional: true, Computed: true,
-				Description: "Transport network (tcp, ws, grpc, httpupgrade, xhttp, kcp).",
+				Description: "Transport network (tcp, ws, grpc, httpupgrade, xhttp, kcp, hysteria).",
 				Validators:  networkValidators(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),

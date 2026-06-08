@@ -127,7 +127,10 @@ func tproxyValidators() []validator.String {
 // domainStrategyValidators validates sockopt domain_strategy enum values.
 func domainStrategyValidators() []validator.String {
 	return []validator.String{
-		stringvalidator.OneOf("AsIs", "IPIfNonMatch", "IPOnDemand"),
+		stringvalidator.OneOf(
+			"AsIs", "UseIP", "UseIPv6v4", "UseIPv6", "UseIPv4v6", "UseIPv4",
+			"ForceIP", "ForceIPv6v4", "ForceIPv6", "ForceIPv4v6", "ForceIPv4",
+		),
 	}
 }
 
