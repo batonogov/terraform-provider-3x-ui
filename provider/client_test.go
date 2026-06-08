@@ -40,13 +40,18 @@ func newTestClient(t *testing.T, endpoint string) *Client {
 func newTestClientWithRetries(t *testing.T, endpoint string, maxRetries int) *Client {
 	t.Helper()
 	c, err := NewClient(ClientConfig{
-		Endpoint:           endpoint,
-		BasePath:           "/",
-		Username:           "admin",
-		Password:           "admin",
-		InsecureSkipVerify: true,
-		Timeout:            2 * time.Second,
-		MaxRetries:         maxRetries,
+		Endpoint:               endpoint,
+		BasePath:               "/",
+		Username:               "admin",
+		Password:               "admin",
+		InsecureSkipVerify:     true,
+		Timeout:                2 * time.Second,
+		MaxRetries:             maxRetries,
+		RetryBackoff:           1 * time.Millisecond,
+		ReadAfterWriteAttempts: 3,
+		ReadAfterWriteBackoff:  1 * time.Millisecond,
+		VersionRetryAttempts:   2,
+		VersionRetryBackoff:    1 * time.Millisecond,
 	})
 	if err != nil {
 		t.Fatalf("NewClient error: %v", err)
@@ -668,21 +673,22 @@ func TestUpdateUserDoesNotRetryOn5xx(t *testing.T) {
 }
 
 func TestUpdateInboundRetryRespectsCtxCancel(t *testing.T) {
-	// Context cancellation during the 500ms backoff must short-circuit the
-	// retry, not block the caller.
+	// Context cancellation during the backoff must short-circuit the retry,
+	// not block the caller.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "transient", http.StatusInternalServerError)
 	}))
 	defer srv.Close()
 
-	client := newTestClient(t, srv.URL)
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	client := newTestClientWithRetries(t, srv.URL, 1)
+	client.retryBackoff = 50 * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
 	defer cancel()
 	start := time.Now()
 	if _, err := client.UpdateInbound(ctx, &Inbound{ID: 1}); err == nil {
 		t.Fatalf("expected ctx error")
 	}
-	if elapsed := time.Since(start); elapsed > 400*time.Millisecond {
+	if elapsed := time.Since(start); elapsed > 40*time.Millisecond {
 		t.Fatalf("backoff did not respect ctx cancel; elapsed=%v", elapsed)
 	}
 }
@@ -1052,8 +1058,8 @@ func TestGetXrayVersionsRetriesExhausted(t *testing.T) {
 		t.Fatal("expected error after retries exhausted")
 	}
 	// 1 initial + versionRetryAttempts retries
-	if got := atomic.LoadInt32(&calls); got != int32(1+versionRetryAttempts) {
-		t.Fatalf("expected %d calls, got %d", 1+versionRetryAttempts, got)
+	if got := atomic.LoadInt32(&calls); got != int32(1+client.versionRetryAttempts) {
+		t.Fatalf("expected %d calls, got %d", 1+client.versionRetryAttempts, got)
 	}
 }
 
@@ -1090,6 +1096,7 @@ func TestGetXrayVersionsRateLimitRetryRespectsCtxCancel(t *testing.T) {
 	defer srv.Close()
 
 	client := newTestClient(t, srv.URL)
+	client.versionRetryBaseBackoff = 500 * time.Millisecond
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
@@ -1098,7 +1105,7 @@ func TestGetXrayVersionsRateLimitRetryRespectsCtxCancel(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	// Context should cancel during the first or second backoff (~2-4s without cancel),
+	// Context should cancel during the first or second backoff,
 	// so elapsed must be well under the full retry window.
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Fatalf("backoff did not respect ctx cancel; elapsed=%v", elapsed)
@@ -1188,8 +1195,8 @@ func TestWithReadAfterWriteRetry_ExhaustsBudget(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if calls != readAfterWriteAttempts {
-		t.Fatalf("expected %d calls, got %d", readAfterWriteAttempts, calls)
+	if calls != client.rawAttempts {
+		t.Fatalf("expected %d calls, got %d", client.rawAttempts, calls)
 	}
 }
 
@@ -1204,8 +1211,8 @@ func TestWithReadAfterWriteRetry_Transient5xxExhaustsBudget(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if calls != readAfterWriteAttempts {
-		t.Fatalf("expected %d calls, got %d", readAfterWriteAttempts, calls)
+	if calls != client.rawAttempts {
+		t.Fatalf("expected %d calls, got %d", client.rawAttempts, calls)
 	}
 }
 
@@ -1229,6 +1236,7 @@ func TestWithReadAfterWriteRetry_Transient5xxRespectsPreCancelledContext(t *test
 
 func TestWithReadAfterWriteRetry_Transient5xxRespectsCtxCancelDuringBackoff(t *testing.T) {
 	client := newTestClient(t, "http://localhost")
+	client.rawBackoff = 500 * time.Millisecond
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var calls int
@@ -1256,6 +1264,7 @@ func TestWithReadAfterWriteRetry_Transient5xxRespectsCtxCancelDuringBackoff(t *t
 
 func TestWithReadAfterWriteRetry_NotFoundRespectsCancelledContext(t *testing.T) {
 	client := newTestClient(t, "http://localhost")
+	client.rawBackoff = 500 * time.Millisecond
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var calls int
@@ -1279,7 +1288,7 @@ func TestWithReadAfterWriteRetry_Transient5xxOnLastAttemptReturnsErr(t *testing.
 
 	err := client.WithReadAfterWriteRetry(context.Background(), "test-op", func() (bool, error) {
 		calls++
-		if calls < readAfterWriteAttempts {
+		if calls < client.rawAttempts {
 			return false, nil
 		}
 		return false, &HTTPStatusError{StatusCode: 500, Body: "late 5xx"}
@@ -1287,7 +1296,7 @@ func TestWithReadAfterWriteRetry_Transient5xxOnLastAttemptReturnsErr(t *testing.
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if calls != readAfterWriteAttempts {
-		t.Fatalf("expected %d calls, got %d", readAfterWriteAttempts, calls)
+	if calls != client.rawAttempts {
+		t.Fatalf("expected %d calls, got %d", client.rawAttempts, calls)
 	}
 }
