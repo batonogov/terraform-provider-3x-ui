@@ -10,15 +10,31 @@ permissions:
   issues: write
 
 jobs:
+  prepare-matrix:
+    name: Prepare compat matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+      versions: ${{ steps.set.outputs.versions }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - id: set
+        run: |
+          MATRIX=$(jq -c '[.versions[] | select(.supported == true) | .version]' compat-versions.json)
+          VERSIONS=$(jq -r '[.versions[] | select(.supported == true) | .version] | join(" ")' compat-versions.json)
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "versions=$VERSIONS" >> "$GITHUB_OUTPUT"
+
   compat:
     name: Compat (${{ matrix.version }})
     runs-on: ubuntu-latest
+    needs: [prepare-matrix]
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        # KEEP IN SYNC: ci.yml matrix, report for-loop below, README* tables
-        version: ["v2.9.0", "v2.9.1", "v2.9.2", "v2.9.3", "v2.9.4", "v3.0.0", "v3.0.1", "v3.0.2", "v3.1.0", "v3.2.0", "v3.2.5", "v3.2.6", "v3.2.7", "v3.2.8"]
+        # Source of truth: compat-versions.json (via prepare-matrix job)
+        version: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
     continue-on-error: true
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -54,19 +70,19 @@ jobs:
   report:
     name: Report
     runs-on: ubuntu-latest
-    needs: [compat]
+    needs: [prepare-matrix, compat]
     if: always()
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: Generate report
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSIONS: ${{ needs.prepare-matrix.outputs.versions }}
         run: |
           WEEK=$(date -u +%Y-%m-%d)
           # Collect results from the matrix jobs
           RESULTS=""
-          # KEEP IN SYNC: ci.yml matrix, flake-tracking matrix above, README* tables
-          for v in v2.9.0 v2.9.1 v2.9.2 v2.9.3 v2.9.4 v3.0.0 v3.0.1 v3.0.2 v3.1.0 v3.2.0 v3.2.5 v3.2.6 v3.2.7 v3.2.8; do
+          for v in $VERSIONS; do
             JOB_ID=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" --jq ".jobs[] | select(.name == \"Compat ($v)\") | .id")
             if [ -n "$JOB_ID" ]; then
               CONCLUSION=$(gh api "repos/${{ github.repository }}/actions/jobs/$JOB_ID" --jq '.conclusion')
