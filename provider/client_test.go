@@ -654,6 +654,11 @@ func TestUpdateUserDoesNotRetryOn5xx(t *testing.T) {
 	// unsafe and would diverge provider state from the panel.
 	var calls int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Probe from useSettingsAPI: return 404 → legacy paths.
+		if r.URL.Path == "/panel/api/setting/all" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		if r.URL.Path != "/panel/setting/updateUser" {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -762,6 +767,11 @@ func TestUpdateSettingsRetriesTransient5xx(t *testing.T) {
 	// exercises the JSON encoding/content-type branch.
 	var calls int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Probe from useSettingsAPI: return 404 → legacy paths.
+		if r.URL.Path == "/panel/api/setting/all" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		if r.URL.Path != "/panel/setting/update" {
 			w.WriteHeader(http.StatusNotFound)
 			return

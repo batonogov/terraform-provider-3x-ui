@@ -143,6 +143,12 @@ func dsHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write(okResponse(nil))
 		return
 	}
+	// Probe from useSettingsAPI: return 404 so the client falls back to
+	// legacy /panel/setting/* paths (pre-v3.3.0 behaviour).
+	if r.URL.Path == "/panel/api/setting/all" {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -730,6 +736,11 @@ func TestClientGetXrayConfig(t *testing.T) {
 
 func TestClientGetSettings(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Probe from useSettingsAPI: return 404 → legacy paths.
+		if r.URL.Path == "/panel/api/setting/all" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		if r.URL.Path != "/panel/setting/all" {
 			w.WriteHeader(http.StatusNotFound)
 			return

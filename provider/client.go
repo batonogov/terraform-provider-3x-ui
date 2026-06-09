@@ -81,6 +81,8 @@ type Client struct {
 	settingsSecrets         map[string]string
 	newClientMu             sync.Mutex
 	newClientAPI            *bool // nil=undetected, true=v3.1.0+ /panel/api/clients/*, false=old
+	settingsAPIMu           sync.Mutex
+	settingsUnderAPI        *bool // nil=undetected, true=v3.3.0+ /panel/api/setting/*, false=old /panel/setting/*
 }
 
 // SetBasePath updates the client's base path to match a new webBasePath.
@@ -876,7 +878,7 @@ func (c *Client) UpdateUser(ctx context.Context, oldUsername, oldPassword, newUs
 		"newUsername": newUsername,
 		"newPassword": newPassword,
 	}
-	if err := c.doJSON(ctx, http.MethodPost, "panel/setting/updateUser", payload, nil); err != nil {
+	if err := c.doJSON(ctx, http.MethodPost, c.settingPath(ctx, "updateUser"), payload, nil); err != nil {
 		return err
 	}
 	c.username = newUsername
@@ -886,7 +888,7 @@ func (c *Client) UpdateUser(ctx context.Context, oldUsername, oldPassword, newUs
 
 func (c *Client) GetSettings(ctx context.Context) (map[string]any, error) {
 	var out map[string]any
-	if err := c.doForm(ctx, http.MethodPost, "panel/setting/all", url.Values{}, &out); err != nil {
+	if err := c.doForm(ctx, http.MethodPost, c.settingPath(ctx, "all"), url.Values{}, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -896,13 +898,13 @@ func (c *Client) UpdateSettings(ctx context.Context, settings map[string]any) er
 	if settings == nil {
 		return errors.New("settings payload is required")
 	}
-	return c.doJSONRetryable(ctx, http.MethodPost, "panel/setting/update", settings, nil)
+	return c.doJSONRetryable(ctx, http.MethodPost, c.settingPath(ctx, "update"), settings, nil)
 }
 
 // SendRestart sends the restart request but does not wait for readiness.
 func (c *Client) SendRestart(ctx context.Context) error {
 	// The panel may close the connection mid-response, so ignore EOF.
-	err := c.doForm(ctx, http.MethodPost, "panel/setting/restartPanel", url.Values{}, nil)
+	err := c.doForm(ctx, http.MethodPost, c.settingPath(ctx, "restartPanel"), url.Values{}, nil)
 	if err != nil && err.Error() == "EOF" {
 		return nil
 	}
@@ -948,7 +950,7 @@ func (c *Client) WaitForReady(ctx context.Context) error {
 
 func (c *Client) GetXrayTemplate(ctx context.Context) (map[string]any, error) {
 	var raw string
-	if err := c.doForm(ctx, http.MethodPost, "panel/xray", url.Values{}, &raw); err != nil {
+	if err := c.doForm(ctx, http.MethodPost, c.xraySettingPath(ctx, ""), url.Values{}, &raw); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(raw) == "" {
@@ -990,12 +992,12 @@ func (c *Client) UpdateXrayTemplate(ctx context.Context, settings map[string]any
 	if testURL != "" {
 		form.Set("outboundTestUrl", testURL)
 	}
-	return c.doFormRetryable(ctx, http.MethodPost, "panel/xray/update", form, nil)
+	return c.doFormRetryable(ctx, http.MethodPost, c.xraySettingPath(ctx, "update"), form, nil)
 }
 
 func (c *Client) GetXrayOutboundTestURL(ctx context.Context) (string, error) {
 	var raw string
-	if err := c.doForm(ctx, http.MethodPost, "panel/xray", url.Values{}, &raw); err != nil {
+	if err := c.doForm(ctx, http.MethodPost, c.xraySettingPath(ctx, ""), url.Values{}, &raw); err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(raw) == "" {
@@ -1023,7 +1025,7 @@ func (c *Client) SetXrayOutboundTestURL(ctx context.Context, testURL string) err
 	form := url.Values{}
 	form.Set("xraySetting", string(payload))
 	form.Set("outboundTestUrl", testURL)
-	return c.doFormRetryable(ctx, http.MethodPost, "panel/xray/update", form, nil)
+	return c.doFormRetryable(ctx, http.MethodPost, c.xraySettingPath(ctx, "update"), form, nil)
 }
 
 func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType string, body []byte, out any) error {
@@ -1378,6 +1380,50 @@ func (c *Client) markLegacyClientAPI() {
 	c.newClientMu.Lock()
 	c.newClientAPI = &v
 	c.newClientMu.Unlock()
+}
+
+// useSettingsAPI returns true if the v3.3.0+ /panel/api/setting/* surface
+// should be used. On the first call it probes the panel to detect the
+// available API surface. Subsequent calls use the cached result.
+func (c *Client) useSettingsAPI(ctx context.Context) bool {
+	c.settingsAPIMu.Lock()
+	defer c.settingsAPIMu.Unlock()
+	if c.settingsUnderAPI != nil {
+		return *c.settingsUnderAPI
+	}
+
+	var out json.RawMessage
+	err := c.doJSON(ctx, http.MethodPost, "panel/api/setting/all", nil, &out)
+	isNew := err == nil
+	c.settingsUnderAPI = &isNew
+	if isNew {
+		tflog.Info(ctx, "detected 3x-ui v3.3.0+ settings API surface (/panel/api/setting/*)")
+	} else {
+		tflog.Info(ctx, "detected 3x-ui v3.2.x settings API surface (/panel/setting/*)")
+	}
+	return isNew
+}
+
+// settingPath returns the correct API path for a settings endpoint based on
+// the detected 3x-ui version.
+func (c *Client) settingPath(ctx context.Context, suffix string) string {
+	if c.useSettingsAPI(ctx) {
+		return "panel/api/setting/" + suffix
+	}
+	return "panel/setting/" + suffix
+}
+
+// xraySettingPath returns the correct API path for an xray settings endpoint
+// based on the detected 3x-ui version.
+func (c *Client) xraySettingPath(ctx context.Context, suffix string) string {
+	prefix := "panel/xray"
+	if c.useSettingsAPI(ctx) {
+		prefix = "panel/api/xray"
+	}
+	if suffix == "" {
+		return prefix
+	}
+	return prefix + "/" + suffix
 }
 
 // isHTTPNotFound reports whether err originated from an HTTP 404 response.
