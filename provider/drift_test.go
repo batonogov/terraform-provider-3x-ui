@@ -614,7 +614,10 @@ func TestDriftInboundProtocols_GoModel(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	checkMissing(t, upstream, providerHandled, nil,
+	upstreamSkipped := map[string]bool{
+		"mtproto": true, // managed mtg sidecar, not an xray inbound protocol
+	}
+	checkMissing(t, upstream, providerHandled, upstreamSkipped,
 		"upstream model.go has protocols not handled by provider: %v")
 	checkRemoved(t, providerHandled, upstreamSet, providerExtras,
 		"provider handles protocols no longer in upstream model.go: %v")
@@ -651,7 +654,10 @@ func TestDriftInboundProtocols_JS(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	checkMissing(t, upstream, providerHandled, nil,
+	upstreamSkipped := map[string]bool{
+		"mtproto": true, // managed mtg sidecar, not an xray inbound protocol
+	}
+	checkMissing(t, upstream, providerHandled, upstreamSkipped,
 		"upstream inbound.js Protocols has entries not handled by provider: %v")
 	checkRemoved(t, providerHandled, upstreamSet, providerExtras,
 		"provider handles protocols not in upstream inbound.js: %v")
@@ -688,7 +694,10 @@ func TestDriftProtocolForms(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	checkMissing(t, upstream, providerBlocks, nil,
+	upstreamSkipped := map[string]bool{
+		"mtproto": true, // managed mtg sidecar, not an xray inbound protocol
+	}
+	checkMissing(t, upstream, providerBlocks, upstreamSkipped,
 		"upstream protocol form files not handled by provider: %v")
 	checkRemoved(t, providerBlocks, upstreamSet, providerExtras,
 		"provider has settings blocks for protocols without upstream forms: %v")
@@ -742,6 +751,9 @@ func TestDriftInboundFields(t *testing.T) {
 	skip := map[string]bool{
 		"-":              true, // UserId uses json:"-"
 		"fallbackParent": true, // v3.1.0 frontend-only, not persisted
+		"masterId":       true, // internal node field, not managed by provider
+		"originNodeGuid": true, // multi-hop node attribution, not managed by provider
+		"path":           true, // internal node routing, not managed by provider
 	}
 
 	dir := latestSnapshotDir(t)
@@ -857,10 +869,9 @@ func TestDriftAllSettingFields(t *testing.T) {
 		// Removed in 3x-ui v3.2.8 — kept in provider for backward compat.
 		"subJsonFragment": true,
 		"subJsonNoises":   true,
-		// Added in 3x-ui v3.2.8 — not present in v3.2.0 snapshot used by this test.
-		"subClashEnableRouting": true,
-		"subClashRules":         true,
-		"subJsonFinalMask":      true,
+		// Added in 3x-ui v3.3.0 — not yet managed by the provider.
+		"subThemeDir":        true,
+		"warpUpdateInterval": true,
 	}
 
 	dir := latestSnapshotDir(t)

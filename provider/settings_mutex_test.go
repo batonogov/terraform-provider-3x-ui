@@ -36,6 +36,9 @@ func TestSettingsMu_NoConcurrentReadModifyWrite(t *testing.T) {
 		case "/login":
 			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
 			w.Write(okResponse(nil))
+		case "/panel/api/setting/all":
+			// Probe from useSettingsAPI: return 404 → legacy paths.
+			w.WriteHeader(http.StatusNotFound)
 		case "/panel/setting/all":
 			mu.Lock()
 			snapshot := make(map[string]any, len(state))
@@ -119,6 +122,9 @@ func TestApplyPanelGeneralPreservesCachedRedactedSettingSecrets(t *testing.T) {
 		case "/login":
 			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
 			w.Write(okResponse(nil))
+		case "/panel/api/setting/all":
+			// Probe from useSettingsAPI: return 404 → legacy paths.
+			w.WriteHeader(http.StatusNotFound)
 		case "/panel/setting/all":
 			w.Write(okResponse(state))
 		case "/panel/setting/update":
@@ -172,6 +178,9 @@ func TestSettingsApplyTypedAllowsExplicitSecretClear(t *testing.T) {
 		case "/login":
 			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
 			w.Write(okResponse(nil))
+		case "/panel/api/setting/all":
+			// Probe from useSettingsAPI: return 404 → legacy paths.
+			w.WriteHeader(http.StatusNotFound)
 		case "/panel/setting/all":
 			w.Write(okResponse(state))
 		case "/panel/setting/update":
@@ -224,6 +233,10 @@ func TestXrayTemplateMu_NoConcurrentReadModifyWrite(t *testing.T) {
 		case "/login":
 			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
 			w.Write(okResponse(nil))
+		case "/panel/api/setting/all":
+			// Probe from useSettingsAPI: return 404 so the client
+			// falls back to legacy /panel/xray/* paths.
+			w.WriteHeader(http.StatusNotFound)
 		case "/panel/xray":
 			mu.Lock()
 			snapshot := make(map[string]any, len(xrayState))
