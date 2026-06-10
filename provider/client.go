@@ -889,6 +889,10 @@ func (c *Client) UpdateUser(ctx context.Context, oldUsername, oldPassword, newUs
 func (c *Client) GetSettings(ctx context.Context) (map[string]any, error) {
 	var out map[string]any
 	if err := c.doForm(ctx, http.MethodPost, c.settingPath(ctx, "all"), url.Values{}, &out); err != nil {
+		if isHTTPNotFound(err) && c.useSettingsAPI(ctx) {
+			c.markLegacySettingsAPI()
+			return c.GetSettings(ctx)
+		}
 		return nil, err
 	}
 	return out, nil
@@ -1393,15 +1397,22 @@ func (c *Client) useSettingsAPI(ctx context.Context) bool {
 	}
 
 	var out json.RawMessage
-	err := c.doJSON(ctx, http.MethodPost, "panel/api/setting/all", nil, &out)
+	err := c.doForm(ctx, http.MethodPost, "panel/api/setting/all", url.Values{}, &out)
 	isNew := err == nil
 	c.settingsUnderAPI = &isNew
 	if isNew {
 		tflog.Info(ctx, "detected 3x-ui v3.3.0+ settings API surface (/panel/api/setting/*)")
 	} else {
-		tflog.Info(ctx, "detected 3x-ui v3.2.x settings API surface (/panel/setting/*)")
+		tflog.Info(ctx, "detected pre-v3.3.0 settings API surface (/panel/setting/*)")
 	}
 	return isNew
+}
+
+func (c *Client) markLegacySettingsAPI() {
+	v := false
+	c.settingsAPIMu.Lock()
+	c.settingsUnderAPI = &v
+	c.settingsAPIMu.Unlock()
 }
 
 // settingPath returns the correct API path for a settings endpoint based on
