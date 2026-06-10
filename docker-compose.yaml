@@ -12,6 +12,10 @@ services:
       #   XUI_DB_DSN=postgres://xui:xui@postgres:5432/xui?sslmode=disable
       XUI_DB_TYPE: "${XUI_DB_TYPE:-}"
       XUI_DB_DSN: "${XUI_DB_DSN:-}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
     tty: true
     restart: unless-stopped
     # `/` returns 200 (login page) once the gin router is up — earlier

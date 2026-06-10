@@ -216,9 +216,9 @@ jobs:
           retry_on: error
           command: task test:acc:postgres
 
-      - name: Capture 3x-ui container logs
+      - name: Capture container logs
         if: failure()
-        run: docker compose logs 3xui > 3xui-container.log 2>&1
+        run: docker compose --profile postgres logs > 3xui-container.log 2>&1
 
       - name: Upload container logs
         if: failure()
