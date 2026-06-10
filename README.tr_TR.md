@@ -93,7 +93,7 @@ resource "threexui_inbound_client" "client_a" {
 
 ## Uyumluluk
 
-**Destek politikası:** provider resmi olarak üç 3x-ui minör hattını destekler: **v3.1.x**, **v3.2.x** ve **v3.3.x** — üç hattın tamamındaki her yayımlanan yama, `main`'e yapılan her push'ta ve her pull request'te acceptance matrisi tarafından sınanır.
+**Destek politikası:** provider resmi olarak üç 3x-ui minör hattını destekler: **v3.1.x**, **v3.2.x** ve **v3.3.x** — üç hattın tamamındaki her yayımlanan yama, `main`'e yapılan her push'ta ve her pull request'te acceptance test matrisi tarafından sınanır.
 
 | 3x-ui sürümü | Durum |
 | --- | --- |
@@ -105,7 +105,7 @@ resource "threexui_inbound_client" "client_a" {
 | v3.2.0 | Test edildi |
 | v3.1.0 | Test edildi |
 
-Daha yeni protokol özellikleri `requireMinVersion` ile korunur ve eski sürümlerde otomatik olarak atlanır, bu nedenle provider sürüm başına ayrı dallar olmadan tüm matriste sorunsuz çalışır.
+Daha yeni protokol özellikleri `requireMinVersion` ile korunur ve eski sürümlerde otomatik olarak atlanır, bu nedenle provider sürüm başına ayrı dallar olmadan tüm sürümlerde sorunsuz çalışır.
 
 ## Örnekler
 
@@ -120,7 +120,7 @@ Daha yeni protokol özellikleri `requireMinVersion` ile korunur ve eski sürüml
 
 ## Kılavuzlar
 
-Yaygın operasyonel senaryolar için depo içi adım adım kılavuzlar:
+Yaygın operasyonel senaryolar için repo içindeki adım adım kılavuzlar:
 
 - [Kod olarak yedekleme](docs/guides/backup-as-code.md) — tam panel durumunuzu git'te saklayın, saniyeler içinde geri yükleyin.
 - [3x-ui'ı sunucular arasında taşıma](docs/guides/server-migration.md) — tüm paneli yeni bir VPS'e hiçbir şeyi yeniden yazmadan taşıyın.
