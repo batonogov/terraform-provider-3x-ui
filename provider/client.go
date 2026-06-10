@@ -890,7 +890,7 @@ func (c *Client) GetSettings(ctx context.Context) (map[string]any, error) {
 	var out map[string]any
 	if err := c.doForm(ctx, http.MethodPost, c.settingPath(ctx, "all"), url.Values{}, &out); err != nil {
 		if isHTTPNotFound(err) && c.useSettingsAPI(ctx) {
-			c.markLegacySettingsAPI()
+			c.markLegacySettingsAPI(ctx)
 			return c.GetSettings(ctx)
 		}
 		return nil, err
@@ -1408,11 +1408,12 @@ func (c *Client) useSettingsAPI(ctx context.Context) bool {
 	return isNew
 }
 
-func (c *Client) markLegacySettingsAPI() {
+func (c *Client) markLegacySettingsAPI(ctx context.Context) {
 	v := false
 	c.settingsAPIMu.Lock()
 	c.settingsUnderAPI = &v
 	c.settingsAPIMu.Unlock()
+	tflog.Warn(ctx, "settings API returned 404, falling back to pre-v3.3.0 API surface (/panel/setting/*)")
 }
 
 // settingPath returns the correct API path for a settings endpoint based on
