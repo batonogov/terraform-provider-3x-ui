@@ -1310,3 +1310,157 @@ func TestWithReadAfterWriteRetry_Transient5xxOnLastAttemptReturnsErr(t *testing.
 		t.Fatalf("expected %d calls, got %d", client.rawAttempts, calls)
 	}
 }
+
+// -------------------------------------------------------------------------
+// Settings API fallback: v3.3.0+ 404 → legacy /panel/setting/*
+// -------------------------------------------------------------------------
+
+func TestGetSettingsFallsBackOn404(t *testing.T) {
+	var legacyCalls int32
+	newAPIGot404 := int32(0)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/panel/api/setting/all":
+			if atomic.CompareAndSwapInt32(&newAPIGot404, 0, 1) {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			w.Write(okResponse(map[string]any{"webPort": 2053}))
+		case "/panel/setting/all":
+			atomic.AddInt32(&legacyCalls, 1)
+			w.Write(okResponse(map[string]any{"webPort": 2053}))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	// Force v3.3.0+ detection.
+	client.settingsAPIMu.Lock()
+	v := true
+	client.settingsUnderAPI = &v
+	client.settingsAPIMu.Unlock()
+
+	result, err := client.GetSettings(context.Background())
+	if err != nil {
+		t.Fatalf("GetSettings failed: %v", err)
+	}
+	if result["webPort"] == nil {
+		t.Fatal("expected webPort in result")
+	}
+	if got := atomic.LoadInt32(&legacyCalls); got != 1 {
+		t.Fatalf("expected 1 legacy call, got %d", got)
+	}
+}
+
+func TestUpdateSettingsFallsBackOn404(t *testing.T) {
+	var newAPICalls, legacyCalls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/panel/api/setting/update":
+			atomic.AddInt32(&newAPICalls, 1)
+			w.WriteHeader(http.StatusNotFound)
+		case "/panel/setting/update":
+			atomic.AddInt32(&legacyCalls, 1)
+			w.Write(okResponse(nil))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	client.settingsAPIMu.Lock()
+	v := true
+	client.settingsUnderAPI = &v
+	client.settingsAPIMu.Unlock()
+
+	if err := client.UpdateSettings(context.Background(), map[string]any{"webPort": 2053}); err != nil {
+		t.Fatalf("UpdateSettings failed: %v", err)
+	}
+	if got := atomic.LoadInt32(&newAPICalls); got != 1 {
+		t.Fatalf("expected 1 new API call, got %d", got)
+	}
+	if got := atomic.LoadInt32(&legacyCalls); got != 1 {
+		t.Fatalf("expected 1 legacy call, got %d", got)
+	}
+}
+
+func TestSendRestartFallsBackOn404(t *testing.T) {
+	var newAPICalls, legacyCalls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/panel/api/setting/restartPanel":
+			atomic.AddInt32(&newAPICalls, 1)
+			w.WriteHeader(http.StatusNotFound)
+		case "/panel/setting/restartPanel":
+			atomic.AddInt32(&legacyCalls, 1)
+			w.Write(okResponse(nil))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	client.settingsAPIMu.Lock()
+	v := true
+	client.settingsUnderAPI = &v
+	client.settingsAPIMu.Unlock()
+
+	if err := client.SendRestart(context.Background()); err != nil {
+		t.Fatalf("SendRestart failed: %v", err)
+	}
+	if got := atomic.LoadInt32(&newAPICalls); got != 1 {
+		t.Fatalf("expected 1 new API call, got %d", got)
+	}
+	if got := atomic.LoadInt32(&legacyCalls); got != 1 {
+		t.Fatalf("expected 1 legacy call, got %d", got)
+	}
+}
+
+func TestFallbackDoesNotTriggerOnNon404(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	client.settingsAPIMu.Lock()
+	v := true
+	client.settingsUnderAPI = &v
+	client.settingsAPIMu.Unlock()
+
+	err := client.UpdateSettings(context.Background(), map[string]any{"webPort": 2053})
+	if err == nil {
+		t.Fatal("expected error from 500 response")
+	}
+}
+
+func TestFallbackDoesNotTriggerWhenAlreadyLegacy(t *testing.T) {
+	var legacyCalls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/panel/setting/update":
+			atomic.AddInt32(&legacyCalls, 1)
+			w.Write(okResponse(nil))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	client.settingsAPIMu.Lock()
+	v := false
+	client.settingsUnderAPI = &v
+	client.settingsAPIMu.Unlock()
+
+	if err := client.UpdateSettings(context.Background(), map[string]any{"webPort": 2053}); err != nil {
+		t.Fatalf("UpdateSettings failed: %v", err)
+	}
+	if got := atomic.LoadInt32(&legacyCalls); got != 1 {
+		t.Fatalf("expected 1 legacy call, got %d", got)
+	}
+}
