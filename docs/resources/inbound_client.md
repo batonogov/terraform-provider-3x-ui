@@ -88,15 +88,14 @@ resource "threexui_inbound_client" "hysteria_user" {
 - `reset` (Optional, Number) - Traffic reset period in days. `0` means never (default).
 - `group` (Optional, String) - Client group name. Available on 3x-ui v3.2.0+.
 - `restart_xray` (Optional, Boolean) - Restart Xray core after create, update, or delete operations. Default is `false`.
+- `sub_id` (Optional, String) - Subscription ID used for subscription URLs. Auto-generated if not provided. Set this to preserve existing subscription links when restoring from backup.
 
 ## Read-Only Attributes
-
-- `sub_id` (String) - Auto-generated subscription ID used for subscription URLs.
 
 ## Usage: Subscription URLs
 
 When the panel subscription service is enabled (`threexui_panel_subscription`),
-each client receives an auto-generated `sub_id`. Use it to build subscription
+each client receives a `sub_id`. Use it to build subscription
 URLs that clients can import into v2rayN, Hiddify, Streisand, or any compatible app:
 
 ```hcl

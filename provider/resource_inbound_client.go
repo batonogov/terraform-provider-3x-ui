@@ -171,6 +171,7 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 				},
 			},
 			"sub_id": schema.StringAttribute{
+				Optional: true,
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),

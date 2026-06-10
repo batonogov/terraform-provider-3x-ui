@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-// --- All fields: email, flow, limit_ip, total_gb, expiry_time, enable, tg_id, comment, reset (sub_id is Computed) ---
+// --- All fields: email, flow, limit_ip, total_gb, expiry_time, enable, tg_id, comment, reset (sub_id is Optional+Computed) ---
 
 func TestAccInboundClientAllFields(t *testing.T) {
 	config := testAccProviderConfig() + `
@@ -406,6 +406,59 @@ resource "threexui_inbound_client" "explicitid" {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_inbound_client.explicitid", "client_id", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
 					resource.TestCheckResourceAttr("threexui_inbound_client.explicitid", "email", "explicitid@test.com"),
+				),
+			},
+			// Idempotency
+			{
+				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+// --- Client with explicit sub_id (disaster recovery) ---
+
+func TestAccInboundClientExplicitSubID(t *testing.T) {
+	config := testAccProviderConfig() + `
+	resource "threexui_inbound" "subid_host" {
+	  port     = 25109
+	  protocol = "vless"
+	  remark   = "acc-subid-host"
+	  enable   = true
+	  vless_settings {
+	    decryption = "none"
+	  }
+	  stream_settings {
+	    network  = "tcp"
+	    security = "reality"
+	    reality_settings {
+	      target       = "google.com:443"
+	      server_names = ["google.com"]
+	    }
+	  }
+	}
+
+	resource "threexui_inbound_client" "subid" {
+	  inbound_id = threexui_inbound.subid_host.id
+	  email      = "subid@test.com"
+	  sub_id     = "eh12gmmy6dj87kkw"
+	  enable     = true
+	  flow       = "xtls-rprx-vision"
+	}
+	`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound_client.subid", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound_client.subid", "email", "subid@test.com"),
+					resource.TestCheckResourceAttr("threexui_inbound_client.subid", "sub_id", "eh12gmmy6dj87kkw"),
 				),
 			},
 			// Idempotency
