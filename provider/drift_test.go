@@ -751,9 +751,7 @@ func TestDriftInboundFields(t *testing.T) {
 	skip := map[string]bool{
 		"-":              true, // UserId uses json:"-"
 		"fallbackParent": true, // v3.1.0 frontend-only, not persisted
-		"masterId":       true, // internal node field, not managed by provider
 		"originNodeGuid": true, // multi-hop node attribution, not managed by provider
-		"path":           true, // internal node routing, not managed by provider
 	}
 
 	dir := latestSnapshotDir(t)

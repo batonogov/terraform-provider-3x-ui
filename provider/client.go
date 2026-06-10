@@ -878,7 +878,10 @@ func (c *Client) UpdateUser(ctx context.Context, oldUsername, oldPassword, newUs
 		"newUsername": newUsername,
 		"newPassword": newPassword,
 	}
-	if err := c.doJSON(ctx, http.MethodPost, c.settingPath(ctx, "updateUser"), payload, nil); err != nil {
+	err := c.withSettingsFallback(ctx, func() error {
+		return c.doJSON(ctx, http.MethodPost, c.settingPath(ctx, "updateUser"), payload, nil)
+	})
+	if err != nil {
 		return err
 	}
 	c.username = newUsername
@@ -888,27 +891,40 @@ func (c *Client) UpdateUser(ctx context.Context, oldUsername, oldPassword, newUs
 
 func (c *Client) GetSettings(ctx context.Context) (map[string]any, error) {
 	var out map[string]any
-	if err := c.doForm(ctx, http.MethodPost, c.settingPath(ctx, "all"), url.Values{}, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
+	err := c.withSettingsFallback(ctx, func() error {
+		return c.doForm(ctx, http.MethodPost, c.settingPath(ctx, "all"), url.Values{}, &out)
+	})
+	return out, err
 }
 
 func (c *Client) UpdateSettings(ctx context.Context, settings map[string]any) error {
 	if settings == nil {
 		return errors.New("settings payload is required")
 	}
-	return c.doJSONRetryable(ctx, http.MethodPost, c.settingPath(ctx, "update"), settings, nil)
+	return c.withSettingsFallback(ctx, func() error {
+		return c.doJSONRetryable(ctx, http.MethodPost, c.settingPath(ctx, "update"), settings, nil)
+	})
 }
 
 // SendRestart sends the restart request but does not wait for readiness.
 func (c *Client) SendRestart(ctx context.Context) error {
 	// The panel may close the connection mid-response, so ignore EOF.
-	err := c.doForm(ctx, http.MethodPost, c.settingPath(ctx, "restartPanel"), url.Values{}, nil)
-	if err != nil && err.Error() == "EOF" {
+	var firstErr error
+	err := c.withSettingsFallback(ctx, func() error {
+		e := c.doForm(ctx, http.MethodPost, c.settingPath(ctx, "restartPanel"), url.Values{}, nil)
+		if e != nil && e.Error() == "EOF" {
+			firstErr = e
+			return nil
+		}
+		return e
+	})
+	if err != nil {
+		return err
+	}
+	if firstErr != nil {
 		return nil
 	}
-	return err
+	return nil
 }
 
 // RestartPanel sends a restart and waits for the panel to become ready.
@@ -950,7 +966,10 @@ func (c *Client) WaitForReady(ctx context.Context) error {
 
 func (c *Client) GetXrayTemplate(ctx context.Context) (map[string]any, error) {
 	var raw string
-	if err := c.doForm(ctx, http.MethodPost, c.xraySettingPath(ctx, ""), url.Values{}, &raw); err != nil {
+	err := c.withSettingsFallback(ctx, func() error {
+		return c.doForm(ctx, http.MethodPost, c.xraySettingPath(ctx, ""), url.Values{}, &raw)
+	})
+	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(raw) == "" {
@@ -992,12 +1011,17 @@ func (c *Client) UpdateXrayTemplate(ctx context.Context, settings map[string]any
 	if testURL != "" {
 		form.Set("outboundTestUrl", testURL)
 	}
-	return c.doFormRetryable(ctx, http.MethodPost, c.xraySettingPath(ctx, "update"), form, nil)
+	return c.withSettingsFallback(ctx, func() error {
+		return c.doFormRetryable(ctx, http.MethodPost, c.xraySettingPath(ctx, "update"), form, nil)
+	})
 }
 
 func (c *Client) GetXrayOutboundTestURL(ctx context.Context) (string, error) {
 	var raw string
-	if err := c.doForm(ctx, http.MethodPost, c.xraySettingPath(ctx, ""), url.Values{}, &raw); err != nil {
+	err := c.withSettingsFallback(ctx, func() error {
+		return c.doForm(ctx, http.MethodPost, c.xraySettingPath(ctx, ""), url.Values{}, &raw)
+	})
+	if err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(raw) == "" {
@@ -1025,7 +1049,9 @@ func (c *Client) SetXrayOutboundTestURL(ctx context.Context, testURL string) err
 	form := url.Values{}
 	form.Set("xraySetting", string(payload))
 	form.Set("outboundTestUrl", testURL)
-	return c.doFormRetryable(ctx, http.MethodPost, c.xraySettingPath(ctx, "update"), form, nil)
+	return c.withSettingsFallback(ctx, func() error {
+		return c.doFormRetryable(ctx, http.MethodPost, c.xraySettingPath(ctx, "update"), form, nil)
+	})
 }
 
 func (c *Client) doRequest(ctx context.Context, method, endpoint, contentType string, body []byte, out any) error {
@@ -1393,15 +1419,34 @@ func (c *Client) useSettingsAPI(ctx context.Context) bool {
 	}
 
 	var out json.RawMessage
-	err := c.doJSON(ctx, http.MethodPost, "panel/api/setting/all", nil, &out)
+	err := c.doForm(ctx, http.MethodPost, "panel/api/setting/all", url.Values{}, &out)
 	isNew := err == nil
 	c.settingsUnderAPI = &isNew
 	if isNew {
 		tflog.Info(ctx, "detected 3x-ui v3.3.0+ settings API surface (/panel/api/setting/*)")
 	} else {
-		tflog.Info(ctx, "detected 3x-ui v3.2.x settings API surface (/panel/setting/*)")
+		tflog.Info(ctx, "detected pre-v3.3.0 settings API surface (/panel/setting/*)")
 	}
 	return isNew
+}
+
+func (c *Client) markLegacySettingsAPI(ctx context.Context) {
+	v := false
+	c.settingsAPIMu.Lock()
+	c.settingsUnderAPI = &v
+	c.settingsAPIMu.Unlock()
+	tflog.Warn(ctx, "settings API returned 404, falling back to pre-v3.3.0 API surface (/panel/setting/*)")
+}
+
+// withSettingsFallback executes fn. If the v3.3.0+ API was detected but the
+// request returns 404, it marks the API as legacy and retries once.
+func (c *Client) withSettingsFallback(ctx context.Context, fn func() error) error {
+	err := fn()
+	if err == nil || !isHTTPNotFound(err) || !c.useSettingsAPI(ctx) {
+		return err
+	}
+	c.markLegacySettingsAPI(ctx)
+	return fn()
 }
 
 // settingPath returns the correct API path for a settings endpoint based on
