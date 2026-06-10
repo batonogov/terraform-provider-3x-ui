@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.11.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.11.0...v3.11.1) (2026-06-10)
+
+
+### Bug Fixes
+
+* use form-encoded probe for settings API and add 404 fallback ([#266](https://github.com/batonogov/terraform-provider-threexui/issues/266)) ([3108990](https://github.com/batonogov/terraform-provider-threexui/commit/31089903479f1c7decc737a13b5807d233b2f4f9))
+
 ## [3.11.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.10.0...v3.11.0) (2026-06-09)
 
 
