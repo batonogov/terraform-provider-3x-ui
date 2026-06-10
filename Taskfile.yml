@@ -69,6 +69,29 @@ tasks:
         THREEXUI_VERSION={{.THREEXUI_VERSION}}
         go test ./provider -run TestAcc -count=1 -timeout 600s -v
 
+  test:acc:postgres:
+    desc: Запустить acceptance-тесты с PostgreSQL бэкендом
+    vars:
+      TERRAFORM_PATH:
+        sh: which terraform
+      THREEXUI_VERSION: '{{.THREEXUI_VERSION | default "v3.3.0"}}'
+    cmds:
+      - docker compose down -v 2>/dev/null || true
+      - XUI_DB_TYPE=postgres XUI_DB_DSN=postgres://xui:xui@postgres:5432/xui?sslmode=disable docker compose --profile postgres up --detach --wait --quiet-pull
+      - defer: docker compose --profile postgres down -v
+      - task: _wait-for-xray
+      - task: _warm-xray-version-cache
+      - >-
+        TF_ACC=1
+        TF_ACC_TERRAFORM_PATH={{.TERRAFORM_PATH}}
+        TF_ACC_PROVIDER_NAMESPACE=batonogov
+        TF_ACC_PROVIDER_HOST=registry.terraform.io
+        THREEXUI_ENDPOINT=http://localhost:2053
+        THREEXUI_USERNAME=admin
+        THREEXUI_PASSWORD=admin
+        THREEXUI_VERSION={{.THREEXUI_VERSION}}
+        go test ./provider -run TestAcc -count=1 -timeout 600s -v
+
   _wait-for-xray:
     desc: Дождаться готовности xray-подсистемы внутри 3x-ui (внутренняя задача)
     silent: true
