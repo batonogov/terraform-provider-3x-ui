@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-// --- All fields: email, flow, limit_ip, total_gb, expiry_time, enable, tg_id, comment, reset (sub_id is Computed) ---
+// --- All fields: email, flow, limit_ip, total_gb, expiry_time, enable, tg_id, comment, reset (sub_id is Optional+Computed) ---
 
 func TestAccInboundClientAllFields(t *testing.T) {
 	config := testAccProviderConfig() + `
@@ -411,6 +411,140 @@ resource "threexui_inbound_client" "explicitid" {
 			// Idempotency
 			{
 				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+// --- Client with explicit sub_id (disaster recovery) ---
+
+func TestAccInboundClientExplicitSubID(t *testing.T) {
+	config := testAccProviderConfig() + `
+	resource "threexui_inbound" "subid_host" {
+	  port     = 25109
+	  protocol = "vless"
+	  remark   = "acc-subid-host"
+	  enable   = true
+	  vless_settings {
+	    decryption = "none"
+	  }
+	  stream_settings {
+	    network  = "tcp"
+	    security = "reality"
+	    reality_settings {
+	      target       = "google.com:443"
+	      server_names = ["google.com"]
+	    }
+	  }
+	}
+
+	resource "threexui_inbound_client" "subid" {
+	  inbound_id = threexui_inbound.subid_host.id
+	  email      = "subid@test.com"
+	  sub_id     = "eh12gmmy6dj87kkw"
+	  enable     = true
+	  flow       = "xtls-rprx-vision"
+	}
+	`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound_client.subid", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound_client.subid", "email", "subid@test.com"),
+					resource.TestCheckResourceAttr("threexui_inbound_client.subid", "sub_id", "eh12gmmy6dj87kkw"),
+				),
+			},
+			// Idempotency
+			{
+				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+			// Import preserves sub_id
+			{
+				ResourceName:            "threexui_inbound_client.subid",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"password"},
+			},
+		},
+	})
+}
+
+// --- Update sub_id: auto-generated → explicit (disaster recovery) ---
+
+func TestAccInboundClientSubIDUpdate(t *testing.T) {
+	hostConfig := `
+	resource "threexui_inbound" "subid_upd_host" {
+	  port     = 25110
+	  protocol = "vless"
+	  remark   = "acc-subid-upd-host"
+	  enable   = true
+	  vless_settings {
+	    decryption = "none"
+	  }
+	  stream_settings {
+	    network  = "tcp"
+	    security = "reality"
+	    reality_settings {
+	      target       = "google.com:443"
+	      server_names = ["google.com"]
+	    }
+	  }
+	}
+	`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
+		Steps: []resource.TestStep{
+			// Step 1: create without sub_id — auto-generated
+			{
+				Config: testAccProviderConfig() + hostConfig + `
+				resource "threexui_inbound_client" "subid_upd" {
+				  inbound_id = threexui_inbound.subid_upd_host.id
+				  email      = "subid-upd@test.com"
+				  enable     = true
+				  flow       = "xtls-rprx-vision"
+				}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound_client.subid_upd", "sub_id"),
+				),
+			},
+			// Step 2: update to explicit sub_id
+			{
+				Config: testAccProviderConfig() + hostConfig + `
+				resource "threexui_inbound_client" "subid_upd" {
+				  inbound_id = threexui_inbound.subid_upd_host.id
+				  email      = "subid-upd@test.com"
+				  sub_id     = "updated123subid456"
+				  enable     = true
+				  flow       = "xtls-rprx-vision"
+				}
+				`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound_client.subid_upd", "sub_id", "updated123subid456"),
+				),
+			},
+			// Step 3: idempotency after update
+			{
+				Config: testAccProviderConfig() + hostConfig + `
+				resource "threexui_inbound_client" "subid_upd" {
+				  inbound_id = threexui_inbound.subid_upd_host.id
+				  email      = "subid-upd@test.com"
+				  sub_id     = "updated123subid456"
+				  enable     = true
+				  flow       = "xtls-rprx-vision"
+				}
+				`,
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
 			},
