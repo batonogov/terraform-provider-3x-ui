@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.12.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.11.1...v3.12.0) (2026-06-11)
+
+
+### Features
+
+* add acceptance tests with PostgreSQL backend ([#269](https://github.com/batonogov/terraform-provider-threexui/issues/269)) ([e7496c1](https://github.com/batonogov/terraform-provider-threexui/commit/e7496c194c316ba415a9363a929bb26c72975073))
+
+
+### Bug Fixes
+
+* make sub_id Optional+Computed for disaster recovery ([#272](https://github.com/batonogov/terraform-provider-threexui/issues/272)) ([8f74f01](https://github.com/batonogov/terraform-provider-threexui/commit/8f74f016496b7f9820df05d88cd10218a870c1f4))
+
 ## [3.11.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.11.0...v3.11.1) (2026-06-10)
 
 
