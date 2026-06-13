@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
 // --- Panel General: page_size, remark_model, time_location, update, idempotency ---
@@ -1102,6 +1104,88 @@ resource "threexui_panel_subscription" "test" {
 				ResourceName:      "threexui_panel_subscription.test",
 				ImportState:       true,
 				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestAccPanelSecurityWriteOnly(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.11.0"))),
+		},
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_security" "test" {
+  two_factor_enable           = false
+  two_factor_token_wo         = "test-token-value"
+  two_factor_token_wo_version = 1
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_security.test", "id", "settings"),
+					resource.TestCheckResourceAttr("threexui_panel_security.test", "two_factor_enable", "false"),
+				),
+			},
+			// Restore defaults
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_security" "test" {
+  two_factor_enable = false
+  two_factor_token  = ""
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_security.test", "id", "settings"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccPanelTelegramWriteOnly(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.11.0"))),
+		},
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_telegram" "test" {
+  tg_bot_enable           = false
+  tg_bot_token_wo         = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+  tg_bot_token_wo_version = 1
+  tg_bot_chat_id          = ""
+  tg_lang                 = "en"
+  tg_run_time             = "@daily"
+  tg_bot_backup           = false
+  tg_bot_login_notify     = true
+  tg_cpu                  = 80
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_telegram.test", "id", "settings"),
+					resource.TestCheckResourceAttr("threexui_panel_telegram.test", "tg_bot_enable", "false"),
+				),
+			},
+			// Restore defaults
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_telegram" "test" {
+  tg_bot_enable       = false
+  tg_bot_token        = ""
+  tg_bot_chat_id      = ""
+  tg_lang             = "en"
+  tg_run_time         = "@daily"
+  tg_bot_backup       = false
+  tg_bot_login_notify = true
+  tg_cpu              = 80
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_telegram.test", "id", "settings"),
+				),
 			},
 		},
 	})
