@@ -62,7 +62,7 @@ func (r *PanelUserResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Sensitive:   true,
 				Description: "The desired admin password.",
 				Validators: []validator.String{
-					stringvalidator.PreferWriteOnlyAttribute(path.MatchRelative().AtParent().AtName("password_wo")),
+					stringvalidator.PreferWriteOnlyAttribute(path.MatchRoot("password_wo")),
 				},
 			},
 			"password_wo": schema.StringAttribute{
@@ -126,7 +126,9 @@ func (r *PanelUserResource) Create(ctx context.Context, req resource.CreateReque
 	r.warnCredentialsChanged(&resp.Diagnostics)
 
 	plan.ID = types.StringValue("user")
-	plan.Password = types.StringNull()
+	if !config.PasswordWO.IsNull() {
+		plan.Password = types.StringNull()
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -156,7 +158,7 @@ func (r *PanelUserResource) Update(ctx context.Context, req resource.UpdateReque
 	newPassword := resolvePanelUserPasswordUpdate(plan, state, config)
 
 	oldUsername := state.Username.ValueString()
-	oldPassword := resolvePanelUserPasswordFromState(state)
+	oldPassword := state.Password.ValueString()
 
 	if err := r.client.UpdateUser(ctx, oldUsername, oldPassword, newUsername, newPassword); err != nil {
 		resp.Diagnostics.AddError("Failed to update user", err.Error())
@@ -166,7 +168,9 @@ func (r *PanelUserResource) Update(ctx context.Context, req resource.UpdateReque
 	r.warnCredentialsChanged(&resp.Diagnostics)
 
 	plan.ID = types.StringValue("user")
-	plan.Password = types.StringNull()
+	if !config.PasswordWO.IsNull() {
+		plan.Password = types.StringNull()
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -203,11 +207,4 @@ func resolvePanelUserPasswordUpdate(plan, state, config PanelUserModel) string {
 		return plan.Password.ValueString()
 	}
 	return state.Password.ValueString()
-}
-
-func resolvePanelUserPasswordFromState(state PanelUserModel) string {
-	if !state.Password.IsNull() {
-		return state.Password.ValueString()
-	}
-	return ""
 }

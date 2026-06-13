@@ -23,11 +23,11 @@ import (
 // ---------------------------------------------------------------------------
 
 type PanelSecurityModel struct {
-	ID                  types.String `tfsdk:"id"`
-	TwoFactorEnable     types.Bool   `tfsdk:"two_factor_enable"`
-	TwoFactorToken      types.String `tfsdk:"two_factor_token"`
-	TwoFactorTokenWO    types.String `tfsdk:"two_factor_token_wo"`
-	TwoFactorTokenWOVer types.Int64  `tfsdk:"two_factor_token_wo_version"`
+	ID                      types.String `tfsdk:"id"`
+	TwoFactorEnable         types.Bool   `tfsdk:"two_factor_enable"`
+	TwoFactorToken          types.String `tfsdk:"two_factor_token"`
+	TwoFactorTokenWO        types.String `tfsdk:"two_factor_token_wo"`
+	TwoFactorTokenWOVersion types.Int64  `tfsdk:"two_factor_token_wo_version"`
 }
 
 func panelSecuritySchema() schema.Schema {
@@ -1442,7 +1442,7 @@ func (r *PanelGeneralResource) Update(ctx context.Context, req resource.UpdateRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	resolveGeneralLDAPPasswordWOUpdate(&plan, config)
+	resolveGeneralLDAPPasswordWOUpdate(&plan, priorState, config)
 
 	r.applyPanelGeneral(ctx, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
@@ -1477,8 +1477,14 @@ func resolveGeneralLDAPPasswordWO(plan *PanelGeneralModel, config PanelGeneralMo
 	}
 }
 
-func resolveGeneralLDAPPasswordWOUpdate(plan *PanelGeneralModel, config PanelGeneralModel) {
-	if !config.LDAPPasswordWO.IsNull() {
+func resolveGeneralLDAPPasswordWOUpdate(plan *PanelGeneralModel, state PanelGeneralModel, config PanelGeneralModel) {
+	if config.LDAPPasswordWO.IsNull() {
+		return
+	}
+	if !plan.LDAPPasswordWOVersion.IsNull() && !state.LDAPPasswordWOVersion.IsNull() &&
+		plan.LDAPPasswordWOVersion.ValueInt64() != state.LDAPPasswordWOVersion.ValueInt64() {
+		plan.LDAPPassword = config.LDAPPasswordWO
+	} else if state.LDAPPasswordWOVersion.IsNull() && !plan.LDAPPasswordWOVersion.IsNull() {
 		plan.LDAPPassword = config.LDAPPasswordWO
 	}
 }
@@ -1653,7 +1659,7 @@ func (r *PanelSecurityResource) Update(ctx context.Context, req resource.UpdateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	resolveSecurityTokenWOUpdate(&plan, config)
+	resolveSecurityTokenWOUpdate(&plan, priorState, config)
 
 	r.warnIfTwoFactor(&plan, &resp.Diagnostics)
 
@@ -1693,8 +1699,14 @@ func resolveSecurityTokenWO(plan *PanelSecurityModel, config PanelSecurityModel)
 	}
 }
 
-func resolveSecurityTokenWOUpdate(plan *PanelSecurityModel, config PanelSecurityModel) {
-	if !config.TwoFactorTokenWO.IsNull() {
+func resolveSecurityTokenWOUpdate(plan *PanelSecurityModel, state PanelSecurityModel, config PanelSecurityModel) {
+	if config.TwoFactorTokenWO.IsNull() {
+		return
+	}
+	if !plan.TwoFactorTokenWOVersion.IsNull() && !state.TwoFactorTokenWOVersion.IsNull() &&
+		plan.TwoFactorTokenWOVersion.ValueInt64() != state.TwoFactorTokenWOVersion.ValueInt64() {
+		plan.TwoFactorToken = config.TwoFactorTokenWO
+	} else if state.TwoFactorTokenWOVersion.IsNull() && !plan.TwoFactorTokenWOVersion.IsNull() {
 		plan.TwoFactorToken = config.TwoFactorTokenWO
 	}
 }
@@ -1811,7 +1823,7 @@ func (r *PanelTelegramResource) Update(ctx context.Context, req resource.UpdateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	resolveTelegramTokenWOUpdate(&plan, config)
+	resolveTelegramTokenWOUpdate(&plan, priorState, config)
 
 	desired := expandPanelTelegram(&plan)
 	settingsApplyTyped(ctx, desired, &resp.Diagnostics, r.client)
@@ -1835,8 +1847,14 @@ func resolveTelegramTokenWO(plan *PanelTelegramModel, config PanelTelegramModel)
 	}
 }
 
-func resolveTelegramTokenWOUpdate(plan *PanelTelegramModel, config PanelTelegramModel) {
-	if !config.TgBotTokenWO.IsNull() {
+func resolveTelegramTokenWOUpdate(plan *PanelTelegramModel, state PanelTelegramModel, config PanelTelegramModel) {
+	if config.TgBotTokenWO.IsNull() {
+		return
+	}
+	if !plan.TgBotTokenWOVersion.IsNull() && !state.TgBotTokenWOVersion.IsNull() &&
+		plan.TgBotTokenWOVersion.ValueInt64() != state.TgBotTokenWOVersion.ValueInt64() {
+		plan.TgBotToken = config.TgBotTokenWO
+	} else if state.TgBotTokenWOVersion.IsNull() && !plan.TgBotTokenWOVersion.IsNull() {
 		plan.TgBotToken = config.TgBotTokenWO
 	}
 }
