@@ -92,17 +92,19 @@ func flattenPanelSecurity(in map[string]any) *PanelSecurityModel {
 // ---------------------------------------------------------------------------
 
 type PanelTelegramModel struct {
-	ID               types.String `tfsdk:"id"`
-	TgBotEnable      types.Bool   `tfsdk:"tg_bot_enable"`
-	TgBotToken       types.String `tfsdk:"tg_bot_token"`
-	TgBotProxy       types.String `tfsdk:"tg_bot_proxy"`
-	TgBotAPIServer   types.String `tfsdk:"tg_bot_api_server"`
-	TgBotChatID      types.String `tfsdk:"tg_bot_chat_id"`
-	TgLang           types.String `tfsdk:"tg_lang"`
-	TgRunTime        types.String `tfsdk:"tg_run_time"`
-	TgBotBackup      types.Bool   `tfsdk:"tg_bot_backup"`
-	TgBotLoginNotify types.Bool   `tfsdk:"tg_bot_login_notify"`
-	TgCPU            types.Int64  `tfsdk:"tg_cpu"`
+	ID                  types.String `tfsdk:"id"`
+	TgBotEnable         types.Bool   `tfsdk:"tg_bot_enable"`
+	TgBotToken          types.String `tfsdk:"tg_bot_token"`
+	TgBotTokenWO        types.String `tfsdk:"tg_bot_token_wo"`
+	TgBotTokenWOVersion types.Int64  `tfsdk:"tg_bot_token_wo_version"`
+	TgBotProxy          types.String `tfsdk:"tg_bot_proxy"`
+	TgBotAPIServer      types.String `tfsdk:"tg_bot_api_server"`
+	TgBotChatID         types.String `tfsdk:"tg_bot_chat_id"`
+	TgLang              types.String `tfsdk:"tg_lang"`
+	TgRunTime           types.String `tfsdk:"tg_run_time"`
+	TgBotBackup         types.Bool   `tfsdk:"tg_bot_backup"`
+	TgBotLoginNotify    types.Bool   `tfsdk:"tg_bot_login_notify"`
+	TgCPU               types.Int64  `tfsdk:"tg_cpu"`
 }
 
 func panelTelegramSchema() schema.Schema {
@@ -121,6 +123,16 @@ func panelTelegramSchema() schema.Schema {
 			"tg_bot_token": schema.StringAttribute{
 				Optional: true, Computed: true, Sensitive: true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Validators: []validator.String{
+					stringvalidator.PreferWriteOnlyAttribute(path.MatchRoot("tg_bot_token_wo")),
+				},
+			},
+			"tg_bot_token_wo": schema.StringAttribute{
+				Optional:  true,
+				WriteOnly: true,
+			},
+			"tg_bot_token_wo_version": schema.Int64Attribute{
+				Optional: true,
 			},
 			"tg_bot_proxy": schema.StringAttribute{
 				Optional: true, Computed: true,
@@ -163,7 +175,9 @@ func expandPanelTelegram(m *PanelTelegramModel) map[string]any {
 	if !m.TgBotEnable.IsNull() && !m.TgBotEnable.IsUnknown() {
 		payload["tgBotEnable"] = m.TgBotEnable.ValueBool()
 	}
-	if !m.TgBotToken.IsNull() && !m.TgBotToken.IsUnknown() {
+	if !m.TgBotTokenWO.IsNull() && !m.TgBotTokenWO.IsUnknown() {
+		payload["tgBotToken"] = m.TgBotTokenWO.ValueString()
+	} else if !m.TgBotToken.IsNull() && !m.TgBotToken.IsUnknown() {
 		payload["tgBotToken"] = m.TgBotToken.ValueString()
 	}
 	if !m.TgBotProxy.IsNull() && !m.TgBotProxy.IsUnknown() {
@@ -1693,6 +1707,13 @@ func (r *PanelTelegramResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 
+	var config PanelTelegramModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resolveTelegramTokenWO(&plan, config)
+
 	desired := expandPanelTelegram(&plan)
 	settingsApplyTyped(ctx, desired, &resp.Diagnostics, r.client)
 	if resp.Diagnostics.HasError() {
@@ -1733,6 +1754,19 @@ func (r *PanelTelegramResource) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 
+	var priorState PanelTelegramModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &priorState)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var config PanelTelegramModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resolveTelegramTokenWOUpdate(&plan, config)
+
 	desired := expandPanelTelegram(&plan)
 	settingsApplyTyped(ctx, desired, &resp.Diagnostics, r.client)
 	if resp.Diagnostics.HasError() {
@@ -1747,6 +1781,18 @@ func (r *PanelTelegramResource) Update(ctx context.Context, req resource.UpdateR
 	preservePanelTelegramSecrets(state, &plan)
 	r.client.rememberConfiguredSettingSecrets(expandPanelTelegram(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func resolveTelegramTokenWO(plan *PanelTelegramModel, config PanelTelegramModel) {
+	if !config.TgBotTokenWO.IsNull() {
+		plan.TgBotToken = config.TgBotTokenWO
+	}
+}
+
+func resolveTelegramTokenWOUpdate(plan *PanelTelegramModel, config PanelTelegramModel) {
+	if !config.TgBotTokenWO.IsNull() {
+		plan.TgBotToken = config.TgBotTokenWO
+	}
 }
 
 func (r *PanelTelegramResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
