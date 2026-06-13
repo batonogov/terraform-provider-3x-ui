@@ -5,13 +5,16 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -20,9 +23,11 @@ import (
 // ---------------------------------------------------------------------------
 
 type PanelSecurityModel struct {
-	ID              types.String `tfsdk:"id"`
-	TwoFactorEnable types.Bool   `tfsdk:"two_factor_enable"`
-	TwoFactorToken  types.String `tfsdk:"two_factor_token"`
+	ID                  types.String `tfsdk:"id"`
+	TwoFactorEnable     types.Bool   `tfsdk:"two_factor_enable"`
+	TwoFactorToken      types.String `tfsdk:"two_factor_token"`
+	TwoFactorTokenWO    types.String `tfsdk:"two_factor_token_wo"`
+	TwoFactorTokenWOVer types.Int64  `tfsdk:"two_factor_token_wo_version"`
 }
 
 func panelSecuritySchema() schema.Schema {
@@ -41,6 +46,16 @@ func panelSecuritySchema() schema.Schema {
 			"two_factor_token": schema.StringAttribute{
 				Optional: true, Computed: true, Sensitive: true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Validators: []validator.String{
+					stringvalidator.PreferWriteOnlyAttribute(path.MatchRoot("two_factor_token_wo")),
+				},
+			},
+			"two_factor_token_wo": schema.StringAttribute{
+				Optional:  true,
+				WriteOnly: true,
+			},
+			"two_factor_token_wo_version": schema.Int64Attribute{
+				Optional: true,
 			},
 		},
 	}
@@ -51,7 +66,9 @@ func expandPanelSecurity(m *PanelSecurityModel) map[string]any {
 	if !m.TwoFactorEnable.IsNull() && !m.TwoFactorEnable.IsUnknown() {
 		payload["twoFactorEnable"] = m.TwoFactorEnable.ValueBool()
 	}
-	if !m.TwoFactorToken.IsNull() && !m.TwoFactorToken.IsUnknown() {
+	if !m.TwoFactorTokenWO.IsNull() && !m.TwoFactorTokenWO.IsUnknown() {
+		payload["twoFactorToken"] = m.TwoFactorTokenWO.ValueString()
+	} else if !m.TwoFactorToken.IsNull() && !m.TwoFactorToken.IsUnknown() {
 		payload["twoFactorToken"] = m.TwoFactorToken.ValueString()
 	}
 	return payload
@@ -1516,6 +1533,13 @@ func (r *PanelSecurityResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 
+	var config PanelSecurityModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resolveSecurityTokenWO(&plan, config)
+
 	r.warnIfTwoFactor(&plan, &resp.Diagnostics)
 
 	desired := expandPanelSecurity(&plan)
@@ -1558,6 +1582,19 @@ func (r *PanelSecurityResource) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 
+	var priorState PanelSecurityModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &priorState)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var config PanelSecurityModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resolveSecurityTokenWOUpdate(&plan, config)
+
 	r.warnIfTwoFactor(&plan, &resp.Diagnostics)
 
 	desired := expandPanelSecurity(&plan)
@@ -1588,6 +1625,18 @@ func (r *PanelSecurityResource) ImportState(ctx context.Context, _ resource.Impo
 	state := flattenPanelSecurity(settings)
 	r.client.rememberConfiguredSettingSecrets(expandPanelSecurity(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func resolveSecurityTokenWO(plan *PanelSecurityModel, config PanelSecurityModel) {
+	if !config.TwoFactorTokenWO.IsNull() {
+		plan.TwoFactorToken = config.TwoFactorTokenWO
+	}
+}
+
+func resolveSecurityTokenWOUpdate(plan *PanelSecurityModel, config PanelSecurityModel) {
+	if !config.TwoFactorTokenWO.IsNull() {
+		plan.TwoFactorToken = config.TwoFactorTokenWO
+	}
 }
 
 func (r *PanelSecurityResource) warnIfTwoFactor(plan *PanelSecurityModel, diags *diag.Diagnostics) {
