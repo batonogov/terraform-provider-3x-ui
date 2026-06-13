@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
 // TestAccPanelUser verifies the resource lifecycle (create, update, idempotency)
@@ -204,6 +206,79 @@ func TestAccPanelUserImport(t *testing.T) {
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"username", "password"},
+			},
+		},
+	})
+}
+
+func TestAccPanelUserWriteOnly(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.11.0"))),
+		},
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			// Create with password_wo
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_user" "test" {
+  username            = "admin"
+  password_wo         = "admin"
+  password_wo_version = 1
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_user.test", "id", "user"),
+					resource.TestCheckResourceAttr("threexui_panel_user.test", "username", "admin"),
+				),
+			},
+			// Idempotency with write-only
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_user" "test" {
+  username            = "admin"
+  password_wo         = "admin"
+  password_wo_version = 1
+}`,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+func TestAccPanelUserWriteOnlyUpdate(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.11.0"))),
+		},
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			// Create with password_wo
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_user" "test" {
+  username            = "admin"
+  password_wo         = "admin"
+  password_wo_version = 1
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_user.test", "id", "user"),
+				),
+			},
+			// Update via version trigger
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_user" "test" {
+  username            = "admin"
+  password_wo         = "admin"
+  password_wo_version = 2
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_user.test", "id", "user"),
+					resource.TestCheckResourceAttr("threexui_panel_user.test", "password_wo_version", "2"),
+				),
 			},
 		},
 	})
