@@ -685,6 +685,8 @@ type PanelGeneralModel struct {
 	LDAPUseTLS                  types.Bool   `tfsdk:"ldap_use_tls"`
 	LDAPBindDN                  types.String `tfsdk:"ldap_bind_dn"`
 	LDAPPassword                types.String `tfsdk:"ldap_password"`
+	LDAPPasswordWO              types.String `tfsdk:"ldap_password_wo"`
+	LDAPPasswordWOVersion       types.Int64  `tfsdk:"ldap_password_wo_version"`
 	LDAPBaseDN                  types.String `tfsdk:"ldap_base_dn"`
 	LDAPUserFilter              types.String `tfsdk:"ldap_user_filter"`
 	LDAPUserAttr                types.String `tfsdk:"ldap_user_attr"`
@@ -810,6 +812,16 @@ func panelGeneralSchema() schema.Schema {
 			"ldap_password": schema.StringAttribute{
 				Optional: true, Computed: true, Sensitive: true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Validators: []validator.String{
+					stringvalidator.PreferWriteOnlyAttribute(path.MatchRoot("ldap_password_wo")),
+				},
+			},
+			"ldap_password_wo": schema.StringAttribute{
+				Optional:  true,
+				WriteOnly: true,
+			},
+			"ldap_password_wo_version": schema.Int64Attribute{
+				Optional: true,
 			},
 			"ldap_base_dn": schema.StringAttribute{
 				Optional: true, Computed: true,
@@ -951,7 +963,9 @@ func expandPanelGeneral(m *PanelGeneralModel) map[string]any {
 	if !m.LDAPBindDN.IsNull() && !m.LDAPBindDN.IsUnknown() {
 		payload["ldapBindDN"] = m.LDAPBindDN.ValueString()
 	}
-	if !m.LDAPPassword.IsNull() && !m.LDAPPassword.IsUnknown() {
+	if !m.LDAPPasswordWO.IsNull() && !m.LDAPPasswordWO.IsUnknown() {
+		payload["ldapPassword"] = m.LDAPPasswordWO.ValueString()
+	} else if !m.LDAPPassword.IsNull() && !m.LDAPPassword.IsUnknown() {
 		payload["ldapPassword"] = m.LDAPPassword.ValueString()
 	}
 	if !m.LDAPBaseDN.IsNull() && !m.LDAPBaseDN.IsUnknown() {
@@ -1373,6 +1387,13 @@ func (r *PanelGeneralResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
+	var config PanelGeneralModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resolveGeneralLDAPPasswordWO(&plan, config)
+
 	r.applyPanelGeneral(ctx, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
@@ -1410,6 +1431,19 @@ func (r *PanelGeneralResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
+	var priorState PanelGeneralModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &priorState)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var config PanelGeneralModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resolveGeneralLDAPPasswordWOUpdate(&plan, config)
+
 	r.applyPanelGeneral(ctx, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
@@ -1435,6 +1469,18 @@ func (r *PanelGeneralResource) ImportState(ctx context.Context, _ resource.Impor
 	}
 	r.client.rememberConfiguredSettingSecrets(expandPanelGeneral(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func resolveGeneralLDAPPasswordWO(plan *PanelGeneralModel, config PanelGeneralModel) {
+	if !config.LDAPPasswordWO.IsNull() {
+		plan.LDAPPassword = config.LDAPPasswordWO
+	}
+}
+
+func resolveGeneralLDAPPasswordWOUpdate(plan *PanelGeneralModel, config PanelGeneralModel) {
+	if !config.LDAPPasswordWO.IsNull() {
+		plan.LDAPPassword = config.LDAPPasswordWO
+	}
 }
 
 func (r *PanelGeneralResource) applyPanelGeneral(ctx context.Context, plan *PanelGeneralModel, diags *diag.Diagnostics) {
