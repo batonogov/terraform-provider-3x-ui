@@ -675,7 +675,6 @@ func modifyPlanWOVersion[T any](
 	resp *resource.ModifyPlanResponse,
 	woVersion func(T) types.Int64,
 	setPlain func(*T, types.String),
-	plain func(T) types.String,
 ) {
 	if req.Plan.Raw.IsNull() {
 		return
@@ -695,10 +694,7 @@ func modifyPlanWOVersion[T any](
 		return
 	}
 
-	current := plain(plan)
-	if current.IsNull() || current.IsUnknown() {
-		setPlain(&plan, types.StringUnknown())
-	}
+	setPlain(&plan, types.StringUnknown())
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
 
@@ -1544,7 +1540,6 @@ func (r *PanelGeneralResource) ModifyPlan(ctx context.Context, req resource.Modi
 		ctx, req, resp,
 		func(m PanelGeneralModel) types.Int64 { return m.LDAPPasswordWOVersion },
 		func(m *PanelGeneralModel, v types.String) { m.LDAPPassword = v },
-		func(m PanelGeneralModel) types.String { return m.LDAPPassword },
 	)
 }
 
@@ -1775,7 +1770,6 @@ func (r *PanelSecurityResource) ModifyPlan(ctx context.Context, req resource.Mod
 		ctx, req, resp,
 		func(m PanelSecurityModel) types.Int64 { return m.TwoFactorTokenWOVersion },
 		func(m *PanelSecurityModel, v types.String) { m.TwoFactorToken = v },
-		func(m PanelSecurityModel) types.String { return m.TwoFactorToken },
 	)
 }
 
@@ -1965,7 +1959,6 @@ func (r *PanelTelegramResource) ModifyPlan(ctx context.Context, req resource.Mod
 		ctx, req, resp,
 		func(m PanelTelegramModel) types.Int64 { return m.TgBotTokenWOVersion },
 		func(m *PanelTelegramModel, v types.String) { m.TgBotToken = v },
-		func(m PanelTelegramModel) types.String { return m.TgBotToken },
 	)
 }
 
