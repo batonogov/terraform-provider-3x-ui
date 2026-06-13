@@ -56,6 +56,9 @@ func panelSecuritySchema() schema.Schema {
 			},
 			"two_factor_token_wo_version": schema.Int64Attribute{
 				Optional: true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
@@ -133,6 +136,9 @@ func panelTelegramSchema() schema.Schema {
 			},
 			"tg_bot_token_wo_version": schema.Int64Attribute{
 				Optional: true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"tg_bot_proxy": schema.StringAttribute{
 				Optional: true, Computed: true,
@@ -822,6 +828,9 @@ func panelGeneralSchema() schema.Schema {
 			},
 			"ldap_password_wo_version": schema.Int64Attribute{
 				Optional: true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"ldap_base_dn": schema.StringAttribute{
 				Optional: true, Computed: true,
