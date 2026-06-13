@@ -662,6 +662,59 @@ func flattenPanelSubscription(in map[string]any) *PanelSubscriptionModel {
 	return m
 }
 
+// modifyPlanWOVersion marks the plain secret attribute as Unknown during plan
+// when the *_wo_version trigger changes (or is set for the first time). This
+// tells Terraform to accept a new sensitive value from Apply instead of
+// rejecting it as "inconsistent values for sensitive" — the prior-state value
+// is otherwise carried forward by UseStateForUnknown and blocks the update.
+//
+// On no-op plans (version unchanged, no _wo in config) it does nothing.
+func modifyPlanWOVersion[T any](
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+	woVersion func(T) types.Int64,
+	setPlain func(*T, types.String),
+	plain func(T) types.String,
+) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var plan, state T
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !woVersionTriggered(woVersion(plan), woVersion(state)) {
+		return
+	}
+
+	current := plain(plan)
+	if current.IsNull() || current.IsUnknown() {
+		setPlain(&plan, types.StringUnknown())
+	}
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}
+
+// woVersionTriggered reports whether the *_wo_version value represents a
+// change relative to the prior state: the values differ, or the prior state
+// has none while the plan introduces one.
+func woVersionTriggered(plan, state types.Int64) bool {
+	if plan.IsNull() || plan.IsUnknown() {
+		return false
+	}
+	if state.IsNull() || state.IsUnknown() {
+		return true
+	}
+	return plan.ValueInt64() != state.ValueInt64()
+}
+
 // ---------------------------------------------------------------------------
 // Panel General model, schema, expand/flatten
 // ---------------------------------------------------------------------------
@@ -1354,6 +1407,7 @@ var (
 	_ resource.Resource                = &PanelGeneralResource{}
 	_ resource.ResourceWithConfigure   = &PanelGeneralResource{}
 	_ resource.ResourceWithImportState = &PanelGeneralResource{}
+	_ resource.ResourceWithModifyPlan  = &PanelGeneralResource{}
 )
 
 type PanelGeneralResource struct {
@@ -1485,6 +1539,15 @@ func (r *PanelGeneralResource) Delete(ctx context.Context, _ resource.DeleteRequ
 	resp.State.RemoveResource(ctx)
 }
 
+func (r *PanelGeneralResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	modifyPlanWOVersion(
+		ctx, req, resp,
+		func(m PanelGeneralModel) types.Int64 { return m.LDAPPasswordWOVersion },
+		func(m *PanelGeneralModel, v types.String) { m.LDAPPassword = v },
+		func(m PanelGeneralModel) types.String { return m.LDAPPassword },
+	)
+}
+
 func (r *PanelGeneralResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	state := r.readPanelGeneralState(ctx, &resp.Diagnostics)
 	if state == nil {
@@ -1585,6 +1648,7 @@ var (
 	_ resource.Resource                = &PanelSecurityResource{}
 	_ resource.ResourceWithConfigure   = &PanelSecurityResource{}
 	_ resource.ResourceWithImportState = &PanelSecurityResource{}
+	_ resource.ResourceWithModifyPlan  = &PanelSecurityResource{}
 )
 
 type PanelSecurityResource struct {
@@ -1706,6 +1770,15 @@ func (r *PanelSecurityResource) Delete(ctx context.Context, _ resource.DeleteReq
 	resp.State.RemoveResource(ctx)
 }
 
+func (r *PanelSecurityResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	modifyPlanWOVersion(
+		ctx, req, resp,
+		func(m PanelSecurityModel) types.Int64 { return m.TwoFactorTokenWOVersion },
+		func(m *PanelSecurityModel, v types.String) { m.TwoFactorToken = v },
+		func(m PanelSecurityModel) types.String { return m.TwoFactorToken },
+	)
+}
+
 func (r *PanelSecurityResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
 	if settings == nil {
@@ -1751,6 +1824,7 @@ var (
 	_ resource.Resource                = &PanelTelegramResource{}
 	_ resource.ResourceWithConfigure   = &PanelTelegramResource{}
 	_ resource.ResourceWithImportState = &PanelTelegramResource{}
+	_ resource.ResourceWithModifyPlan  = &PanelTelegramResource{}
 )
 
 type PanelTelegramResource struct {
@@ -1884,6 +1958,15 @@ func resolveTelegramTokenWOUpdate(plan *PanelTelegramModel, state PanelTelegramM
 
 func (r *PanelTelegramResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
 	resp.State.RemoveResource(ctx)
+}
+
+func (r *PanelTelegramResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	modifyPlanWOVersion(
+		ctx, req, resp,
+		func(m PanelTelegramModel) types.Int64 { return m.TgBotTokenWOVersion },
+		func(m *PanelTelegramModel, v types.String) { m.TgBotToken = v },
+		func(m PanelTelegramModel) types.String { return m.TgBotToken },
+	)
 }
 
 func (r *PanelTelegramResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
