@@ -78,6 +78,25 @@ Four resources — `panel_general`, `panel_security`, `panel_telegram`,
 - Changing `web_base_path` in `panel_general` triggers a panel restart and updates
   the provider client's base path via `SetBasePath` + `WaitForReady`.
 
+### Write-only secret attributes (Terraform 1.11+)
+
+Four singleton secrets have write-only (`_wo`) alternatives following the AWS/Azure pattern.
+Each secret gets three attributes: old `Sensitive` attr + `WriteOnly` attr + `_wo_version` trigger.
+
+| Resource | Old attr | Write-only | Version trigger |
+| --- | --- | --- | --- |
+| `panel_user` | `password` | `password_wo` | `password_wo_version` |
+| `panel_security` | `two_factor_token` | `two_factor_token_wo` | `two_factor_token_wo_version` |
+| `panel_telegram` | `tg_bot_token` | `tg_bot_token_wo` | `tg_bot_token_wo_version` |
+| `panel_general` | `ldap_password` | `ldap_password_wo` | `ldap_password_wo_version` |
+
+- `PreferWriteOnlyAttribute` validator warns on TF >= 1.11 when using old attr.
+- Write-only values read from `req.Config` (not plan/state — framework nulls them).
+- For settings resources, `resolveXxxWO` copies `_wo` value into the old model field
+  before `expand*()` so the existing expand/flatten pipeline is unchanged.
+- Version trigger: `resolveXxxWOUpdate` only sends the `_wo` value when version
+  changes (or on first use when state has no version yet).
+
 ### Xray settings (two modes)
 
 Six xray resources share `resource_xray_settings.go`: `xray_basics`, `xray_dns`,
@@ -97,11 +116,17 @@ Separate resource — singleton with ID `"xray_version"`. Calls `InstallXray` + 
 `waitForXrayVersion` until the version matches. Delete is a no-op with a warning
 (removing from state does NOT revert the installed version).
 
-### Panel user (write-only)
+### Panel user (write-only password)
 
 `threexui_panel_user` — no read API exists. Read is a no-op, state is preserved
 from plan. Create uses provider credentials as old credentials; Update uses
-previous state.
+previous state credentials, falling back to provider credentials when state
+password is empty (e.g. after using `password_wo`).
+
+`password` is Optional with `AtLeastOneOf("password", "password_wo")` validation.
+When `password_wo` is used, `password` is set to null in state so the secret
+is not persisted. Update falls back to provider credentials as old credentials
+in this case.
 
 ### HTTP client (`client.go`)
 
@@ -146,6 +171,8 @@ These are non-obvious constraints that have caused real bugs.
 | DNS servers: string vs object | Address-only → string; with extra fields → object |
 | `xray_version` delete is a no-op | Removing from state does NOT revert the installed xray version |
 | `web_base_path` change triggers panel restart | Must also update provider `base_path`; code auto-updates client |
+| Write-only attrs: read from `req.Config`, not plan | Framework nulls `_wo` values in plan/state; must use config to get the actual value |
+| `password_wo` nulls state password | Update falls back to provider credentials as old password when state is empty |
 
 **Always check 3x-ui source snapshots** (`3x-ui-<version>/`) before assuming API behavior.
 Key paths: `database/model/`, `web/service/`, `web/controller/`, `web/entity/`, `frontend/src/schemas/`, `xray/`.
