@@ -1311,11 +1311,19 @@ func preserveSettingSecret(observed, configured types.String) types.String {
 	return observed
 }
 
+func preserveWOVersion(observed, configured types.Int64) types.Int64 {
+	if observed.IsNull() || observed.IsUnknown() {
+		return configured
+	}
+	return observed
+}
+
 func preservePanelGeneralSecrets(state, configured *PanelGeneralModel) {
 	if state == nil || configured == nil {
 		return
 	}
 	state.LDAPPassword = preserveSettingSecret(state.LDAPPassword, configured.LDAPPassword)
+	state.LDAPPasswordWOVersion = preserveWOVersion(state.LDAPPasswordWOVersion, configured.LDAPPasswordWOVersion)
 }
 
 func preservePanelSecuritySecrets(state, configured *PanelSecurityModel) {
@@ -1323,6 +1331,7 @@ func preservePanelSecuritySecrets(state, configured *PanelSecurityModel) {
 		return
 	}
 	state.TwoFactorToken = preserveSettingSecret(state.TwoFactorToken, configured.TwoFactorToken)
+	state.TwoFactorTokenWOVersion = preserveWOVersion(state.TwoFactorTokenWOVersion, configured.TwoFactorTokenWOVersion)
 }
 
 func preservePanelTelegramSecrets(state, configured *PanelTelegramModel) {
@@ -1330,6 +1339,7 @@ func preservePanelTelegramSecrets(state, configured *PanelTelegramModel) {
 		return
 	}
 	state.TgBotToken = preserveSettingSecret(state.TgBotToken, configured.TgBotToken)
+	state.TgBotTokenWOVersion = preserveWOVersion(state.TgBotTokenWOVersion, configured.TgBotTokenWOVersion)
 }
 
 // ---------------------------------------------------------------------------
