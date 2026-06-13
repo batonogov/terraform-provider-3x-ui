@@ -3,19 +3,24 @@ package provider
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var (
-	_ resource.Resource                = &PanelUserResource{}
-	_ resource.ResourceWithConfigure   = &PanelUserResource{}
-	_ resource.ResourceWithImportState = &PanelUserResource{}
+	_ resource.Resource                     = &PanelUserResource{}
+	_ resource.ResourceWithConfigure        = &PanelUserResource{}
+	_ resource.ResourceWithImportState      = &PanelUserResource{}
+	_ resource.ResourceWithConfigValidators = &PanelUserResource{}
 )
 
 type PanelUserResource struct {
@@ -23,9 +28,11 @@ type PanelUserResource struct {
 }
 
 type PanelUserModel struct {
-	ID       types.String `tfsdk:"id"`
-	Username types.String `tfsdk:"username"`
-	Password types.String `tfsdk:"password"`
+	ID                types.String `tfsdk:"id"`
+	Username          types.String `tfsdk:"username"`
+	Password          types.String `tfsdk:"password"`
+	PasswordWO        types.String `tfsdk:"password_wo"`
+	PasswordWOVersion types.Int64  `tfsdk:"password_wo_version"`
 }
 
 func NewPanelUserResource() resource.Resource {
@@ -51,11 +58,32 @@ func (r *PanelUserResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Description: "The desired admin username.",
 			},
 			"password": schema.StringAttribute{
-				Required:    true,
+				Optional:    true,
 				Sensitive:   true,
 				Description: "The desired admin password.",
+				Validators: []validator.String{
+					stringvalidator.PreferWriteOnlyAttribute(path.MatchRelative().AtParent().AtName("password_wo")),
+				},
+			},
+			"password_wo": schema.StringAttribute{
+				Optional:    true,
+				WriteOnly:   true,
+				Description: "Write-only version of password.",
+			},
+			"password_wo_version": schema.Int64Attribute{
+				Optional:    true,
+				Description: "Increment this to trigger a password update when using password_wo.",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 		},
+	}
+}
+
+func (r *PanelUserResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		resourcevalidator.AtLeastOneOf(path.MatchRoot("password"), path.MatchRoot("password_wo")),
 	}
 }
 
@@ -78,10 +106,15 @@ func (r *PanelUserResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	newUsername := plan.Username.ValueString()
-	newPassword := plan.Password.ValueString()
+	var config PanelUserModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	// Use the provider's current credentials as old credentials.
+	newUsername := plan.Username.ValueString()
+	newPassword := resolvePanelUserPassword(plan, config)
+
 	oldUsername := r.client.username
 	oldPassword := r.client.password
 
@@ -93,11 +126,11 @@ func (r *PanelUserResource) Create(ctx context.Context, req resource.CreateReque
 	r.warnCredentialsChanged(&resp.Diagnostics)
 
 	plan.ID = types.StringValue("user")
+	plan.Password = types.StringNull()
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *PanelUserResource) Read(_ context.Context, _ resource.ReadRequest, _ *resource.ReadResponse) {
-	// No API to read user credentials; state is preserved as-is.
 }
 
 func (r *PanelUserResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -113,12 +146,17 @@ func (r *PanelUserResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	newUsername := plan.Username.ValueString()
-	newPassword := plan.Password.ValueString()
+	var config PanelUserModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	// Use the previous state credentials as old credentials.
+	newUsername := plan.Username.ValueString()
+	newPassword := resolvePanelUserPasswordUpdate(plan, state, config)
+
 	oldUsername := state.Username.ValueString()
-	oldPassword := state.Password.ValueString()
+	oldPassword := resolvePanelUserPasswordFromState(state)
 
 	if err := r.client.UpdateUser(ctx, oldUsername, oldPassword, newUsername, newPassword); err != nil {
 		resp.Diagnostics.AddError("Failed to update user", err.Error())
@@ -128,6 +166,7 @@ func (r *PanelUserResource) Update(ctx context.Context, req resource.UpdateReque
 	r.warnCredentialsChanged(&resp.Diagnostics)
 
 	plan.ID = types.StringValue("user")
+	plan.Password = types.StringNull()
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -147,4 +186,28 @@ func (r *PanelUserResource) warnCredentialsChanged(diags *diag.Diagnostics) {
 
 func (r *PanelUserResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func resolvePanelUserPassword(plan, config PanelUserModel) string {
+	if !config.PasswordWO.IsNull() {
+		return config.PasswordWO.ValueString()
+	}
+	return plan.Password.ValueString()
+}
+
+func resolvePanelUserPasswordUpdate(plan, state, config PanelUserModel) string {
+	if !config.PasswordWO.IsNull() {
+		return config.PasswordWO.ValueString()
+	}
+	if !plan.Password.IsNull() {
+		return plan.Password.ValueString()
+	}
+	return state.Password.ValueString()
+}
+
+func resolvePanelUserPasswordFromState(state PanelUserModel) string {
+	if !state.Password.IsNull() {
+		return state.Password.ValueString()
+	}
+	return ""
 }
