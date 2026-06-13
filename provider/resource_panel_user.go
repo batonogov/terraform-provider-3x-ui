@@ -159,6 +159,10 @@ func (r *PanelUserResource) Update(ctx context.Context, req resource.UpdateReque
 
 	oldUsername := state.Username.ValueString()
 	oldPassword := state.Password.ValueString()
+	if oldPassword == "" {
+		oldUsername = r.client.username
+		oldPassword = r.client.password
+	}
 
 	if err := r.client.UpdateUser(ctx, oldUsername, oldPassword, newUsername, newPassword); err != nil {
 		resp.Diagnostics.AddError("Failed to update user", err.Error())
