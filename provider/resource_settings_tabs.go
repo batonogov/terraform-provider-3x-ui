@@ -1311,6 +1311,10 @@ func preserveSettingSecret(observed, configured types.String) types.String {
 	return observed
 }
 
+// preserveWOVersion carries the *_wo_version trigger into state during Apply.
+// UseStateForUnknown on the schema handles the Plan phase; this handles Apply,
+// where flatten* (which has no _wo_version field) would otherwise overwrite
+// the planned value with null.
 func preserveWOVersion(observed, configured types.Int64) types.Int64 {
 	if observed.IsNull() || observed.IsUnknown() {
 		return configured

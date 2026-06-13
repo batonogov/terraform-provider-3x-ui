@@ -1127,7 +1127,20 @@ resource "threexui_panel_security" "test" {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_panel_security.test", "id", "settings"),
 					resource.TestCheckResourceAttr("threexui_panel_security.test", "two_factor_enable", "false"),
+					resource.TestCheckResourceAttr("threexui_panel_security.test", "two_factor_token_wo_version", "1"),
 				),
+			},
+			// Idempotency: re-applying the same _wo config must produce an empty plan.
+			// Verifies that mergeSettingsForUpdate replays the cached secret via
+			// preserveCachedSettingSecrets when expand omits the field.
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_security" "test" {
+  two_factor_enable           = false
+  two_factor_token_wo         = "test-token-value"
+  two_factor_token_wo_version = 1
+}`,
+				PlanOnly: true,
 			},
 			// Restore defaults
 			{
@@ -1138,6 +1151,75 @@ resource "threexui_panel_security" "test" {
 }`,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_panel_security.test", "id", "settings"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccPanelSecurityWriteOnlyUpdate(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.11.0"))),
+		},
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_security" "test" {
+  two_factor_enable           = false
+  two_factor_token_wo         = "token-v1"
+  two_factor_token_wo_version = 1
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_security.test", "two_factor_token_wo_version", "1"),
+				),
+			},
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_security" "test" {
+  two_factor_enable           = false
+  two_factor_token_wo         = "token-v2"
+  two_factor_token_wo_version = 2
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_security.test", "two_factor_token_wo_version", "2"),
+				),
+			},
+		},
+	})
+}
+
+// TestAccPanelSecurityWriteOnlyMigration verifies switching from the plain
+// attribute to _wo: existing configs that migrate must continue to work.
+func TestAccPanelSecurityWriteOnlyMigration(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.11.0"))),
+		},
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_security" "test" {
+  two_factor_enable = false
+  two_factor_token  = "plain-token"
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_security.test", "two_factor_token", "plain-token"),
+				),
+			},
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_security" "test" {
+  two_factor_enable           = false
+  two_factor_token_wo         = "wo-token"
+  two_factor_token_wo_version = 1
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_security.test", "two_factor_token_wo_version", "1"),
 				),
 			},
 		},
@@ -1168,7 +1250,24 @@ resource "threexui_panel_telegram" "test" {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_panel_telegram.test", "id", "settings"),
 					resource.TestCheckResourceAttr("threexui_panel_telegram.test", "tg_bot_enable", "false"),
+					resource.TestCheckResourceAttr("threexui_panel_telegram.test", "tg_bot_token_wo_version", "1"),
 				),
+			},
+			// Idempotency: re-applying the same _wo config must produce an empty plan.
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_telegram" "test" {
+  tg_bot_enable           = false
+  tg_bot_token_wo         = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+  tg_bot_token_wo_version = 1
+  tg_bot_chat_id          = ""
+  tg_lang                 = "en"
+  tg_run_time             = "@daily"
+  tg_bot_backup           = false
+  tg_bot_login_notify     = true
+  tg_cpu                  = 80
+}`,
+				PlanOnly: true,
 			},
 			// Restore defaults
 			{

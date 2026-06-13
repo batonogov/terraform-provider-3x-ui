@@ -133,6 +133,7 @@ func (r *PanelUserResource) Create(ctx context.Context, req resource.CreateReque
 }
 
 func (r *PanelUserResource) Read(_ context.Context, _ resource.ReadRequest, _ *resource.ReadResponse) {
+	// No API to read user credentials; state is preserved as-is.
 }
 
 func (r *PanelUserResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
