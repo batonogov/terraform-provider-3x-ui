@@ -32,6 +32,13 @@ Env vars: `THREEXUI_ENDPOINT`, `THREEXUI_USERNAME`, `THREEXUI_PASSWORD`,
 | `task test:acc` | Acceptance tests (Docker lifecycle included) |
 | `task pre-commit` | fmt + vet + lint + build |
 
+**Watch CI status for a PR:**
+
+```bash
+gh pr checks <PR>          # one-shot
+gh pr checks <PR> --watch  # live
+```
+
 **Version-specific acc tests:**
 
 ```bash
@@ -43,6 +50,7 @@ THREEXUI_VERSION=v3.1.0 task test:acc:compat
 ```bash
 TF_ACC=1 THREEXUI_ENDPOINT=http://localhost:2053 \
   THREEXUI_USERNAME=admin THREEXUI_PASSWORD=admin \
+  THREEXUI_VERSION=v3.3.0 \
   go test ./provider -run TestAccInboundVLESS -count=1 -timeout 600s -v
 ```
 
@@ -124,17 +132,13 @@ Separate resource — singleton with ID `"xray_version"`. Calls `InstallXray` + 
 `waitForXrayVersion` until the version matches. Delete is a no-op with a warning
 (removing from state does NOT revert the installed version).
 
-### Panel user (write-only password)
+### Panel user (`resource_panel_user.go`)
 
 `threexui_panel_user` — no read API exists. Read is a no-op, state is preserved
 from plan. Create uses provider credentials as old credentials; Update uses
-previous state credentials, falling back to provider credentials when state
-password is empty (e.g. after using `password_wo`).
-
-`password` is Optional with `AtLeastOneOf("password", "password_wo")` validation.
-When `password_wo` is used, `password` is set to null in state so the secret
-is not persisted. Update falls back to provider credentials as old credentials
-in this case.
+prior state credentials (falls back to provider credentials when state
+password is empty, e.g. after using `password_wo`). See Write-only section
+above for the `password` / `password_wo` lifecycle.
 
 ### HTTP client (`client.go`)
 
@@ -179,8 +183,7 @@ These are non-obvious constraints that have caused real bugs.
 | DNS servers: string vs object | Address-only → string; with extra fields → object |
 | `xray_version` delete is a no-op | Removing from state does NOT revert the installed xray version |
 | `web_base_path` change triggers panel restart | Must also update provider `base_path`; code auto-updates client |
-| Write-only attrs: read from `req.Config`, not plan | Framework nulls `_wo` values in plan/state; must use config to get the actual value |
-| `password_wo` nulls state password | Update falls back to provider credentials as old password when state is empty |
+| Write-only attrs quirks | See "Write-only secret attributes" section above — read `_wo` from `req.Config`; ModifyPlan marks plain `Unknown` on version change; `panel_user` nulls state password instead |
 
 **Always check 3x-ui source snapshots** (`3x-ui-<version>/`) before assuming API behavior.
 Key paths: `database/model/`, `web/service/`, `web/controller/`, `web/entity/`, `frontend/src/schemas/`, `xray/`.
