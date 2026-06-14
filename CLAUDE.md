@@ -78,7 +78,7 @@ Four resources — `panel_general`, `panel_security`, `panel_telegram`,
 - Changing `web_base_path` in `panel_general` triggers a panel restart and updates
   the provider client's base path via `SetBasePath` + `WaitForReady`.
 
-### Write-only secret attributes (Terraform 1.11+)
+### Write-only secret attributes (Terraform 1.11+ / OpenTofu 1.11+)
 
 Four singleton secrets have write-only (`_wo`) alternatives following the AWS/Azure pattern.
 Each secret gets three attributes: old `Sensitive` attr + `WriteOnly` attr + `_wo_version` trigger.

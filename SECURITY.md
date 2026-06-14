@@ -52,12 +52,12 @@ Terraform state stores **all** sensitive values in plaintext, regardless of the 
 - **Avoid committing `terraform.tfstate`** or `*.tfstate.backup` to git — they are in the default `.gitignore`, but worth verifying.
 - **Rotate the panel password** if a state file is exposed; the provider stores the credentials it was given.
 
-## Write-Only Arguments (Terraform 1.11+)
+## Write-Only Arguments (Terraform 1.11+ / OpenTofu 1.11+)
 
-Starting with provider v3.13.0, resources that manage secrets offer write-only (`_wo`) attribute alternatives. Write-only values are sent to the 3x-ui panel but **never stored** in Terraform plan or state artifacts.
+Starting with provider v3.13.0, resources that manage secrets offer write-only (`_wo`) attribute alternatives. Write-only values are sent to the 3x-ui panel but **never stored** in Terraform plan or state artifacts. Requires Terraform ≥ 1.11 or OpenTofu ≥ 1.11; on earlier versions, `_wo` attributes fall back to plain `Sensitive` behaviour and the secret is persisted in state.
 
 | Resource | Write-only attribute | Version trigger |
-|---|---|---|
+| --- | --- | --- |
 | `threexui_panel_user` | `password_wo` | `password_wo_version` |
 | `threexui_panel_security` | `two_factor_token_wo` | `two_factor_token_wo_version` |
 | `threexui_panel_telegram` | `tg_bot_token_wo` | `tg_bot_token_wo_version` |
@@ -67,7 +67,7 @@ Starting with provider v3.13.0, resources that manage secrets offer write-only (
 
 - Set `<field>_wo` to the secret value and `<field>_wo_version` to an integer.
 - To update the secret, increment `<field>_wo_version` — Terraform detects the change and re-sends the `_wo` value.
-- The plain `<field>` attribute remains for backward compatibility. Using it on Terraform 1.11+ produces a warning suggesting migration to `_wo`.
+- The plain `<field>` attribute remains for backward compatibility. Using it on Terraform 1.11+ / OpenTofu 1.11+ produces a warning suggesting migration to `_wo`.
 
 ### Trade-offs
 

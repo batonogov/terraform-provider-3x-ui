@@ -22,7 +22,7 @@ resource "threexui_panel_user" "admin" {
 }
 ```
 
-### Write-Only Password (Terraform 1.11+)
+### Write-Only Password (Terraform 1.11+ / OpenTofu 1.11+)
 
 ```hcl
 resource "threexui_panel_user" "admin" {
@@ -35,8 +35,8 @@ resource "threexui_panel_user" "admin" {
 ## Argument Reference
 
 - `username` (Required, String) - The desired admin username.
-- `password` (Optional, String, Sensitive) - The desired admin password. Prefer `password_wo` on Terraform 1.11+.
-- `password_wo` (Optional, String, WriteOnly) - Write-only version of `password`. Not persisted in state. Terraform 1.11+.
+- `password` (Optional, String, Sensitive) - The desired admin password. Prefer `password_wo` on Terraform 1.11+ / OpenTofu 1.11+.
+- `password_wo` (Optional, String, WriteOnly) - Write-only version of `password`. Not persisted in state. Terraform 1.11+ / OpenTofu 1.11+.
 - `password_wo_version` (Optional, Number) - Increment to trigger re-send of `password_wo`. Must be set together with `password_wo`.
 
 ## Attribute Reference
