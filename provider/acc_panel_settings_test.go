@@ -1290,6 +1290,49 @@ resource "threexui_panel_telegram" "test" {
 	})
 }
 
+func testAccPanelGeneralConfigWO(password string, version int) string {
+	return fmt.Sprintf(`
+resource "threexui_panel_general" "test" {
+  date_picker                    = "gregorian"
+  expire_diff                    = 0
+  external_traffic_inform_enable = false
+  external_traffic_inform_uri    = ""
+  ldap_auto_create               = false
+  ldap_auto_delete               = false
+  ldap_base_dn                   = "dc=example,dc=com"
+  ldap_bind_dn                   = "cn=admin,dc=example,dc=com"
+  ldap_default_expiry_days       = 0
+  ldap_default_limit_ip          = 0
+  ldap_default_total_gb          = 0
+  ldap_enable                    = true
+  ldap_flag_field                = ""
+  ldap_host                      = "ldap.example.com"
+  ldap_inbound_tags              = ""
+  ldap_invert_flag               = false
+  ldap_password_wo               = %q
+  ldap_password_wo_version       = %d
+  ldap_port                      = 636
+  ldap_sync_cron                 = "@every 1m"
+  ldap_truthy_values             = "true,1,yes,on"
+  ldap_use_tls                   = true
+  ldap_user_attr                 = "mail"
+  ldap_user_filter               = "(objectClass=person)"
+  ldap_vless_field               = "vless_enabled"
+  page_size                      = 25
+  remark_model                   = "-ieo"
+  session_max_age                = 360
+  time_location                  = "Local"
+  traffic_diff                   = 0
+  web_base_path                  = "/"
+  web_cert_file                  = ""
+  web_domain                     = ""
+  web_key_file                   = ""
+  web_listen                     = ""
+  web_port                       = 2053
+  xray_outbound_test_url         = "https://www.google.com/generate_204"
+}`, password, version)
+}
+
 func TestAccPanelGeneralWriteOnly(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
@@ -1299,46 +1342,7 @@ func TestAccPanelGeneralWriteOnly(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccProviderConfig() + `
-resource "threexui_panel_general" "test" {
-  date_picker                    = "gregorian"
-  expire_diff                    = 0
-  external_traffic_inform_enable = false
-  external_traffic_inform_uri    = ""
-  ldap_auto_create               = false
-  ldap_auto_delete               = false
-  ldap_base_dn                   = "dc=example,dc=com"
-  ldap_bind_dn                   = "cn=admin,dc=example,dc=com"
-  ldap_default_expiry_days       = 0
-  ldap_default_limit_ip          = 0
-  ldap_default_total_gb          = 0
-  ldap_enable                    = true
-  ldap_flag_field                = ""
-  ldap_host                      = "ldap.example.com"
-  ldap_inbound_tags              = ""
-  ldap_invert_flag               = false
-  ldap_password_wo               = "ldappass-wo"
-  ldap_password_wo_version       = 1
-  ldap_port                      = 636
-  ldap_sync_cron                 = "@every 1m"
-  ldap_truthy_values             = "true,1,yes,on"
-  ldap_use_tls                   = true
-  ldap_user_attr                 = "mail"
-  ldap_user_filter               = "(objectClass=person)"
-  ldap_vless_field               = "vless_enabled"
-  page_size                      = 25
-  remark_model                   = "-ieo"
-  session_max_age                = 360
-  time_location                  = "Local"
-  traffic_diff                   = 0
-  web_base_path                  = "/"
-  web_cert_file                  = ""
-  web_domain                     = ""
-  web_key_file                   = ""
-  web_listen                     = ""
-  web_port                       = 2053
-  xray_outbound_test_url         = "https://www.google.com/generate_204"
-}`,
+				Config: testAccProviderConfig() + testAccPanelGeneralConfigWO("ldappass-wo", 1),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_panel_general.test", "id", "settings"),
 					resource.TestCheckResourceAttr("threexui_panel_general.test", "ldap_enable", "true"),
@@ -1347,46 +1351,7 @@ resource "threexui_panel_general" "test" {
 			},
 			// Idempotency: re-applying the same _wo config must produce an empty plan.
 			{
-				Config: testAccProviderConfig() + `
-resource "threexui_panel_general" "test" {
-  date_picker                    = "gregorian"
-  expire_diff                    = 0
-  external_traffic_inform_enable = false
-  external_traffic_inform_uri    = ""
-  ldap_auto_create               = false
-  ldap_auto_delete               = false
-  ldap_base_dn                   = "dc=example,dc=com"
-  ldap_bind_dn                   = "cn=admin,dc=example,dc=com"
-  ldap_default_expiry_days       = 0
-  ldap_default_limit_ip          = 0
-  ldap_default_total_gb          = 0
-  ldap_enable                    = true
-  ldap_flag_field                = ""
-  ldap_host                      = "ldap.example.com"
-  ldap_inbound_tags              = ""
-  ldap_invert_flag               = false
-  ldap_password_wo               = "ldappass-wo"
-  ldap_password_wo_version       = 1
-  ldap_port                      = 636
-  ldap_sync_cron                 = "@every 1m"
-  ldap_truthy_values             = "true,1,yes,on"
-  ldap_use_tls                   = true
-  ldap_user_attr                 = "mail"
-  ldap_user_filter               = "(objectClass=person)"
-  ldap_vless_field               = "vless_enabled"
-  page_size                      = 25
-  remark_model                   = "-ieo"
-  session_max_age                = 360
-  time_location                  = "Local"
-  traffic_diff                   = 0
-  web_base_path                  = "/"
-  web_cert_file                  = ""
-  web_domain                     = ""
-  web_key_file                   = ""
-  web_listen                     = ""
-  web_port                       = 2053
-  xray_outbound_test_url         = "https://www.google.com/generate_204"
-}`,
+				Config:   testAccProviderConfig() + testAccPanelGeneralConfigWO("ldappass-wo", 1),
 				PlanOnly: true,
 			},
 		},
