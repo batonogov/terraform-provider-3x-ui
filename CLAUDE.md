@@ -32,6 +32,13 @@ Env vars: `THREEXUI_ENDPOINT`, `THREEXUI_USERNAME`, `THREEXUI_PASSWORD`,
 | `task test:acc` | Acceptance tests (Docker lifecycle included) |
 | `task pre-commit` | fmt + vet + lint + build |
 
+**Watch CI status for a PR:**
+
+```bash
+gh pr checks <PR>          # one-shot
+gh pr checks <PR> --watch  # live
+```
+
 **Version-specific acc tests:**
 
 ```bash
@@ -43,6 +50,7 @@ THREEXUI_VERSION=v3.1.0 task test:acc:compat
 ```bash
 TF_ACC=1 THREEXUI_ENDPOINT=http://localhost:2053 \
   THREEXUI_USERNAME=admin THREEXUI_PASSWORD=admin \
+  THREEXUI_VERSION=v3.3.0 \
   go test ./provider -run TestAccInboundVLESS -count=1 -timeout 600s -v
 ```
 
@@ -78,6 +86,33 @@ Four resources — `panel_general`, `panel_security`, `panel_telegram`,
 - Changing `web_base_path` in `panel_general` triggers a panel restart and updates
   the provider client's base path via `SetBasePath` + `WaitForReady`.
 
+### Write-only secret attributes (Terraform 1.11+ / OpenTofu 1.11+)
+
+Four singleton secrets have write-only (`_wo`) alternatives following the AWS/Azure pattern.
+Each secret gets three attributes: old `Sensitive` attr + `WriteOnly` attr + `_wo_version` trigger.
+
+| Resource | Old attr | Write-only | Version trigger |
+| --- | --- | --- | --- |
+| `panel_user` | `password` | `password_wo` | `password_wo_version` |
+| `panel_security` | `two_factor_token` | `two_factor_token_wo` | `two_factor_token_wo_version` |
+| `panel_telegram` | `tg_bot_token` | `tg_bot_token_wo` | `tg_bot_token_wo_version` |
+| `panel_general` | `ldap_password` | `ldap_password_wo` | `ldap_password_wo_version` |
+
+- `PreferWriteOnlyAttribute` validator warns on TF >= 1.11 when using old attr.
+- `int64validator.AlsoRequires` enforces that `*_wo_version` can only be set with `*_wo`.
+- Write-only values read from `req.Config` (not plan/state — framework nulls them).
+- Two resolution strategies:
+  - **panel_user**: `password` is nulled in state when `password_wo` is used. Update
+    falls back to provider credentials when state password is empty. No ModifyPlan
+    needed because state has no prior password to conflict with.
+  - **settings (security/telegram/general)**: `resolveXxxWO` copies `_wo` value into
+    the old model field before `expand*()`. ModifyPlan marks the plain attr as Unknown
+    on `woVersionTriggered` so Terraform accepts a new sensitive value from Apply.
+    Needed because flatten reads the masked value back, which would otherwise be
+    rejected as "inconsistent values for sensitive".
+- Version trigger: `resolveXxxWOUpdate` only sends the `_wo` value when
+  `woVersionTriggered(plan, state)` (version changes, or first use when state has none).
+
 ### Xray settings (two modes)
 
 Six xray resources share `resource_xray_settings.go`: `xray_basics`, `xray_dns`,
@@ -97,11 +132,13 @@ Separate resource — singleton with ID `"xray_version"`. Calls `InstallXray` + 
 `waitForXrayVersion` until the version matches. Delete is a no-op with a warning
 (removing from state does NOT revert the installed version).
 
-### Panel user (write-only)
+### Panel user (`resource_panel_user.go`)
 
 `threexui_panel_user` — no read API exists. Read is a no-op, state is preserved
 from plan. Create uses provider credentials as old credentials; Update uses
-previous state.
+prior state credentials (falls back to provider credentials when state
+password is empty, e.g. after using `password_wo`). See Write-only section
+above for the `password` / `password_wo` lifecycle.
 
 ### HTTP client (`client.go`)
 
@@ -146,6 +183,7 @@ These are non-obvious constraints that have caused real bugs.
 | DNS servers: string vs object | Address-only → string; with extra fields → object |
 | `xray_version` delete is a no-op | Removing from state does NOT revert the installed xray version |
 | `web_base_path` change triggers panel restart | Must also update provider `base_path`; code auto-updates client |
+| Write-only attrs quirks | See "Write-only secret attributes" section above — read `_wo` from `req.Config`; ModifyPlan marks plain `Unknown` on version change; `panel_user` nulls state password instead |
 
 **Always check 3x-ui source snapshots** (`3x-ui-<version>/`) before assuming API behavior.
 Key paths: `database/model/`, `web/service/`, `web/controller/`, `web/entity/`, `frontend/src/schemas/`, `xray/`.

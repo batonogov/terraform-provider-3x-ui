@@ -60,6 +60,8 @@ resource "threexui_panel_general" "settings" {
 - `ldap_use_tls` (Optional, Boolean) - Use TLS for LDAP. Default is `false`.
 - `ldap_bind_dn` (Optional, String) - Bind DN. Default is `""`.
 - `ldap_password` (Optional, String, Sensitive) - Bind password. Default is `""`.
+- `ldap_password_wo` (Optional, String, WriteOnly) - Write-only version of `ldap_password`. Not persisted in state. Terraform 1.11+ / OpenTofu 1.11+.
+- `ldap_password_wo_version` (Optional, Number) - Increment to trigger re-send of `ldap_password_wo`. Must be set together with `ldap_password_wo`.
 - `ldap_base_dn` (Optional, String) - Base DN. Default is `""`.
 - `ldap_user_filter` (Optional, String) - User filter. Default is `(objectClass=person)`.
 - `ldap_user_attr` (Optional, String) - User attribute. Default is `mail`.

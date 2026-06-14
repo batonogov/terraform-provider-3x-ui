@@ -25,6 +25,8 @@ resource "threexui_panel_security" "settings" {
 
 - `two_factor_enable` (Optional, Boolean) - Enable two-factor authentication.
 - `two_factor_token` (Optional, String, Sensitive) - Two-factor authentication token/secret.
+- `two_factor_token_wo` (Optional, String, WriteOnly) - Write-only version of `two_factor_token`. Not persisted in state. Terraform 1.11+ / OpenTofu 1.11+.
+- `two_factor_token_wo_version` (Optional, Number) - Increment to trigger re-send of `two_factor_token_wo`. Must be set together with `two_factor_token_wo`.
 
 ## Attribute Reference
 

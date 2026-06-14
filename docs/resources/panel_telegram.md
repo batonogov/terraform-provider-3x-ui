@@ -29,6 +29,8 @@ resource "threexui_panel_telegram" "settings" {
 
 - `tg_bot_enable` (Optional, Boolean) - Enable Telegram bot.
 - `tg_bot_token` (Optional, String, Sensitive) - Telegram bot token.
+- `tg_bot_token_wo` (Optional, String, WriteOnly) - Write-only version of `tg_bot_token`. Not persisted in state. Terraform 1.11+ / OpenTofu 1.11+.
+- `tg_bot_token_wo_version` (Optional, Number) - Increment to trigger re-send of `tg_bot_token_wo`. Must be set together with `tg_bot_token_wo`.
 - `tg_bot_proxy` (Optional, String) - Proxy for Telegram bot.
 - `tg_bot_api_server` (Optional, String) - Custom Telegram API server URL.
 - `tg_bot_chat_id` (Optional, String) - Telegram chat ID for notifications.
