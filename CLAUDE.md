@@ -91,11 +91,19 @@ Each secret gets three attributes: old `Sensitive` attr + `WriteOnly` attr + `_w
 | `panel_general` | `ldap_password` | `ldap_password_wo` | `ldap_password_wo_version` |
 
 - `PreferWriteOnlyAttribute` validator warns on TF >= 1.11 when using old attr.
+- `int64validator.AlsoRequires` enforces that `*_wo_version` can only be set with `*_wo`.
 - Write-only values read from `req.Config` (not plan/state — framework nulls them).
-- For settings resources, `resolveXxxWO` copies `_wo` value into the old model field
-  before `expand*()` so the existing expand/flatten pipeline is unchanged.
-- Version trigger: `resolveXxxWOUpdate` only sends the `_wo` value when version
-  changes (or on first use when state has no version yet).
+- Two resolution strategies:
+  - **panel_user**: `password` is nulled in state when `password_wo` is used. Update
+    falls back to provider credentials when state password is empty. No ModifyPlan
+    needed because state has no prior password to conflict with.
+  - **settings (security/telegram/general)**: `resolveXxxWO` copies `_wo` value into
+    the old model field before `expand*()`. ModifyPlan marks the plain attr as Unknown
+    on `woVersionTriggered` so Terraform accepts a new sensitive value from Apply.
+    Needed because flatten reads the masked value back, which would otherwise be
+    rejected as "inconsistent values for sensitive".
+- Version trigger: `resolveXxxWOUpdate` only sends the `_wo` value when
+  `woVersionTriggered(plan, state)` (version changes, or first use when state has none).
 
 ### Xray settings (two modes)
 

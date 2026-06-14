@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -58,6 +59,9 @@ func panelSecuritySchema() schema.Schema {
 				Optional: true,
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.Int64{
+					int64validator.AlsoRequires(path.MatchRoot("two_factor_token_wo")),
 				},
 			},
 		},
@@ -138,6 +142,9 @@ func panelTelegramSchema() schema.Schema {
 				Optional: true,
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.Int64{
+					int64validator.AlsoRequires(path.MatchRoot("tg_bot_token_wo")),
 				},
 			},
 			"tg_bot_proxy": schema.StringAttribute{
@@ -880,6 +887,9 @@ func panelGeneralSchema() schema.Schema {
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
 				},
+				Validators: []validator.Int64{
+					int64validator.AlsoRequires(path.MatchRoot("ldap_password_wo")),
+				},
 			},
 			"ldap_base_dn": schema.StringAttribute{
 				Optional: true, Computed: true,
@@ -1562,10 +1572,7 @@ func resolveGeneralLDAPPasswordWOUpdate(plan *PanelGeneralModel, state PanelGene
 	if config.LDAPPasswordWO.IsNull() {
 		return
 	}
-	if !plan.LDAPPasswordWOVersion.IsNull() && !state.LDAPPasswordWOVersion.IsNull() &&
-		plan.LDAPPasswordWOVersion.ValueInt64() != state.LDAPPasswordWOVersion.ValueInt64() {
-		plan.LDAPPassword = config.LDAPPasswordWO
-	} else if state.LDAPPasswordWOVersion.IsNull() && !plan.LDAPPasswordWOVersion.IsNull() {
+	if woVersionTriggered(plan.LDAPPasswordWOVersion, state.LDAPPasswordWOVersion) {
 		plan.LDAPPassword = config.LDAPPasswordWO
 	}
 }
@@ -1793,10 +1800,7 @@ func resolveSecurityTokenWOUpdate(plan *PanelSecurityModel, state PanelSecurityM
 	if config.TwoFactorTokenWO.IsNull() {
 		return
 	}
-	if !plan.TwoFactorTokenWOVersion.IsNull() && !state.TwoFactorTokenWOVersion.IsNull() &&
-		plan.TwoFactorTokenWOVersion.ValueInt64() != state.TwoFactorTokenWOVersion.ValueInt64() {
-		plan.TwoFactorToken = config.TwoFactorTokenWO
-	} else if state.TwoFactorTokenWOVersion.IsNull() && !plan.TwoFactorTokenWOVersion.IsNull() {
+	if woVersionTriggered(plan.TwoFactorTokenWOVersion, state.TwoFactorTokenWOVersion) {
 		plan.TwoFactorToken = config.TwoFactorTokenWO
 	}
 }
@@ -1942,10 +1946,7 @@ func resolveTelegramTokenWOUpdate(plan *PanelTelegramModel, state PanelTelegramM
 	if config.TgBotTokenWO.IsNull() {
 		return
 	}
-	if !plan.TgBotTokenWOVersion.IsNull() && !state.TgBotTokenWOVersion.IsNull() &&
-		plan.TgBotTokenWOVersion.ValueInt64() != state.TgBotTokenWOVersion.ValueInt64() {
-		plan.TgBotToken = config.TgBotTokenWO
-	} else if state.TgBotTokenWOVersion.IsNull() && !plan.TgBotTokenWOVersion.IsNull() {
+	if woVersionTriggered(plan.TgBotTokenWOVersion, state.TgBotTokenWOVersion) {
 		plan.TgBotToken = config.TgBotTokenWO
 	}
 }

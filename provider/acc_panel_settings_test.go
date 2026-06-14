@@ -1289,3 +1289,199 @@ resource "threexui_panel_telegram" "test" {
 		},
 	})
 }
+
+func TestAccPanelGeneralWriteOnly(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.11.0"))),
+		},
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_general" "test" {
+  date_picker                    = "gregorian"
+  expire_diff                    = 0
+  external_traffic_inform_enable = false
+  external_traffic_inform_uri    = ""
+  ldap_auto_create               = false
+  ldap_auto_delete               = false
+  ldap_base_dn                   = "dc=example,dc=com"
+  ldap_bind_dn                   = "cn=admin,dc=example,dc=com"
+  ldap_default_expiry_days       = 0
+  ldap_default_limit_ip          = 0
+  ldap_default_total_gb          = 0
+  ldap_enable                    = true
+  ldap_flag_field                = ""
+  ldap_host                      = "ldap.example.com"
+  ldap_inbound_tags              = ""
+  ldap_invert_flag               = false
+  ldap_password_wo               = "ldappass-wo"
+  ldap_password_wo_version       = 1
+  ldap_port                      = 636
+  ldap_sync_cron                 = "@every 1m"
+  ldap_truthy_values             = "true,1,yes,on"
+  ldap_use_tls                   = true
+  ldap_user_attr                 = "mail"
+  ldap_user_filter               = "(objectClass=person)"
+  ldap_vless_field               = "vless_enabled"
+  page_size                      = 25
+  remark_model                   = "-ieo"
+  session_max_age                = 360
+  time_location                  = "Local"
+  traffic_diff                   = 0
+  web_base_path                  = "/"
+  web_cert_file                  = ""
+  web_domain                     = ""
+  web_key_file                   = ""
+  web_listen                     = ""
+  web_port                       = 2053
+  xray_outbound_test_url         = "https://www.google.com/generate_204"
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_general.test", "id", "settings"),
+					resource.TestCheckResourceAttr("threexui_panel_general.test", "ldap_enable", "true"),
+					resource.TestCheckResourceAttr("threexui_panel_general.test", "ldap_password_wo_version", "1"),
+				),
+			},
+			// Idempotency: re-applying the same _wo config must produce an empty plan.
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_general" "test" {
+  date_picker                    = "gregorian"
+  expire_diff                    = 0
+  external_traffic_inform_enable = false
+  external_traffic_inform_uri    = ""
+  ldap_auto_create               = false
+  ldap_auto_delete               = false
+  ldap_base_dn                   = "dc=example,dc=com"
+  ldap_bind_dn                   = "cn=admin,dc=example,dc=com"
+  ldap_default_expiry_days       = 0
+  ldap_default_limit_ip          = 0
+  ldap_default_total_gb          = 0
+  ldap_enable                    = true
+  ldap_flag_field                = ""
+  ldap_host                      = "ldap.example.com"
+  ldap_inbound_tags              = ""
+  ldap_invert_flag               = false
+  ldap_password_wo               = "ldappass-wo"
+  ldap_password_wo_version       = 1
+  ldap_port                      = 636
+  ldap_sync_cron                 = "@every 1m"
+  ldap_truthy_values             = "true,1,yes,on"
+  ldap_use_tls                   = true
+  ldap_user_attr                 = "mail"
+  ldap_user_filter               = "(objectClass=person)"
+  ldap_vless_field               = "vless_enabled"
+  page_size                      = 25
+  remark_model                   = "-ieo"
+  session_max_age                = 360
+  time_location                  = "Local"
+  traffic_diff                   = 0
+  web_base_path                  = "/"
+  web_cert_file                  = ""
+  web_domain                     = ""
+  web_key_file                   = ""
+  web_listen                     = ""
+  web_port                       = 2053
+  xray_outbound_test_url         = "https://www.google.com/generate_204"
+}`,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccPanelTelegramWriteOnlyUpdate(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.11.0"))),
+		},
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_telegram" "test" {
+  tg_bot_enable           = false
+  tg_bot_token_wo         = "111:token-v1"
+  tg_bot_token_wo_version = 1
+  tg_bot_chat_id          = ""
+  tg_lang                 = "en"
+  tg_run_time             = "@daily"
+  tg_bot_backup           = false
+  tg_bot_login_notify     = true
+  tg_cpu                  = 80
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_telegram.test", "tg_bot_token_wo_version", "1"),
+				),
+			},
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_telegram" "test" {
+  tg_bot_enable           = false
+  tg_bot_token_wo         = "222:token-v2"
+  tg_bot_token_wo_version = 2
+  tg_bot_chat_id          = ""
+  tg_lang                 = "en"
+  tg_run_time             = "@daily"
+  tg_bot_backup           = false
+  tg_bot_login_notify     = true
+  tg_cpu                  = 80
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_telegram.test", "tg_bot_token_wo_version", "2"),
+				),
+			},
+		},
+	})
+}
+
+// TestAccPanelTelegramWriteOnlyMigration verifies switching from the plain
+// tg_bot_token to tg_bot_token_wo.
+func TestAccPanelTelegramWriteOnlyMigration(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.11.0"))),
+		},
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_telegram" "test" {
+  tg_bot_enable       = false
+  tg_bot_token        = "plain-token"
+  tg_bot_chat_id      = ""
+  tg_lang             = "en"
+  tg_run_time         = "@daily"
+  tg_bot_backup       = false
+  tg_bot_login_notify = true
+  tg_cpu              = 80
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_telegram.test", "tg_bot_token", "plain-token"),
+				),
+			},
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_telegram" "test" {
+  tg_bot_enable           = false
+  tg_bot_token_wo         = "wo-token"
+  tg_bot_token_wo_version = 1
+  tg_bot_chat_id          = ""
+  tg_lang                 = "en"
+  tg_run_time             = "@daily"
+  tg_bot_backup           = false
+  tg_bot_login_notify     = true
+  tg_cpu                  = 80
+}`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_telegram.test", "tg_bot_token_wo_version", "1"),
+				),
+			},
+		},
+	})
+}

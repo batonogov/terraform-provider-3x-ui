@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -76,6 +77,9 @@ func (r *PanelUserResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
 				},
+				Validators: []validator.Int64{
+					int64validator.AlsoRequires(path.MatchRoot("password_wo")),
+				},
 			},
 		},
 	}
@@ -115,6 +119,7 @@ func (r *PanelUserResource) Create(ctx context.Context, req resource.CreateReque
 	newUsername := plan.Username.ValueString()
 	newPassword := resolvePanelUserPassword(plan, config)
 
+	// Create: provider credentials are the only "previous" credentials available.
 	oldUsername := r.client.username
 	oldPassword := r.client.password
 
@@ -158,6 +163,8 @@ func (r *PanelUserResource) Update(ctx context.Context, req resource.UpdateReque
 	newUsername := plan.Username.ValueString()
 	newPassword := resolvePanelUserPasswordUpdate(plan, state, config)
 
+	// Update: prior state credentials; fall back to provider credentials when
+	// state password was nulled (resource was created via password_wo).
 	oldUsername := state.Username.ValueString()
 	oldPassword := state.Password.ValueString()
 	if oldPassword == "" {
