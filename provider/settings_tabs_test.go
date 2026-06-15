@@ -3,8 +3,45 @@ package provider
 import (
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+// TestPanelGeneralSchemaAttributeShape asserts that the v3.2.0/v3.3.1 panel
+// egress attributes exist with the expected Optional+Computed shape. It also
+// exercises panelGeneralSchema() so the schema literal counts towards unit
+// coverage (otherwise every panel_* attribute reads as uncovered by Codecov
+// because no unit test instantiates the resource Schema()).
+func TestPanelGeneralSchemaAttributeShape(t *testing.T) {
+	s := panelGeneralSchema()
+	requireStringAttr := func(name string) {
+		t.Helper()
+		attr, ok := s.Attributes[name]
+		if !ok {
+			t.Fatalf("attribute %q missing on panel_general schema", name)
+		}
+		str, ok := attr.(schema.StringAttribute)
+		if !ok {
+			t.Fatalf("attribute %q is not a StringAttribute", name)
+		}
+		if !str.Optional {
+			t.Errorf("attribute %q must be Optional", name)
+		}
+		if !str.Computed {
+			t.Errorf("attribute %q must be Computed", name)
+		}
+	}
+
+	// Sanity-check that a well-known string attribute is present (confirms
+	// the schema loaded, not just the two egress attrs).
+	requireStringAttr("web_domain")
+
+	// v3.2.0–v3.3.0 proxy URL (kept for backward compat).
+	requireStringAttr("panel_proxy")
+
+	// v3.3.1 outbound egress bridge (Xray outbound / balancer tag).
+	requireStringAttr("panel_outbound")
+}
 
 func TestPanelSettingsNeedRestart_ChangedKey(t *testing.T) {
 	existing := map[string]any{"webPort": float64(2053)}
@@ -289,8 +326,8 @@ func TestPanelProxyExpandFlatten(t *testing.T) {
 	t.Run("flatten empty string", func(t *testing.T) {
 		in := map[string]any{"panelProxy": ""}
 		m := flattenPanelGeneral(in)
-		if !m.PanelProxy.IsNull() {
-			t.Fatalf("expected null for empty panelProxy, got %q", m.PanelProxy)
+		if m.PanelProxy.ValueString() != "" {
+			t.Fatalf("expected empty string for empty panelProxy, got %q", m.PanelProxy)
 		}
 	})
 
@@ -299,6 +336,52 @@ func TestPanelProxyExpandFlatten(t *testing.T) {
 		m := flattenPanelGeneral(in)
 		if !m.PanelProxy.IsNull() {
 			t.Fatalf("expected null for missing panelProxy, got %q", m.PanelProxy)
+		}
+	})
+}
+
+func TestPanelOutboundExpandFlatten(t *testing.T) {
+	t.Run("outbound set", func(t *testing.T) {
+		m := &PanelGeneralModel{
+			PanelOutbound: types.StringValue("proxy-out"),
+		}
+		expanded := expandPanelGeneral(m)
+		if expanded["panelOutbound"] != "proxy-out" {
+			t.Fatalf("expected panelOutbound=proxy-out, got %v", expanded["panelOutbound"])
+		}
+	})
+
+	t.Run("outbound null", func(t *testing.T) {
+		m := &PanelGeneralModel{
+			PanelOutbound: types.StringNull(),
+		}
+		expanded := expandPanelGeneral(m)
+		if _, ok := expanded["panelOutbound"]; ok {
+			t.Fatalf("expected no panelOutbound key, got %v", expanded["panelOutbound"])
+		}
+	})
+
+	t.Run("flatten with value", func(t *testing.T) {
+		in := map[string]any{"panelOutbound": "proxy-out"}
+		m := flattenPanelGeneral(in)
+		if m.PanelOutbound.ValueString() != "proxy-out" {
+			t.Fatalf("expected proxy-out, got %q", m.PanelOutbound)
+		}
+	})
+
+	t.Run("flatten empty string", func(t *testing.T) {
+		in := map[string]any{"panelOutbound": ""}
+		m := flattenPanelGeneral(in)
+		if m.PanelOutbound.ValueString() != "" {
+			t.Fatalf("expected empty string for empty panelOutbound, got %q", m.PanelOutbound)
+		}
+	})
+
+	t.Run("flatten missing key", func(t *testing.T) {
+		in := map[string]any{}
+		m := flattenPanelGeneral(in)
+		if !m.PanelOutbound.IsNull() {
+			t.Fatalf("expected null for missing panelOutbound, got %q", m.PanelOutbound)
 		}
 	})
 }

@@ -765,6 +765,7 @@ type PanelGeneralModel struct {
 	LDAPDefaultLimitIP          types.Int64  `tfsdk:"ldap_default_limit_ip"`
 	XrayOutboundTestURL         types.String `tfsdk:"xray_outbound_test_url"`
 	PanelProxy                  types.String `tfsdk:"panel_proxy"`
+	PanelOutbound               types.String `tfsdk:"panel_outbound"`
 }
 
 func panelGeneralSchema() schema.Schema {
@@ -954,9 +955,18 @@ func panelGeneralSchema() schema.Schema {
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"panel_proxy": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+				Description: "HTTP/SOCKS5 proxy URL for the panel's own outbound requests (xray version " +
+					"checks, Telegram bot, outbound testing). Available on 3x-ui v3.2.0 through v3.3.0; " +
+					"superseded by panel_outbound (outbound egress bridge) on v3.3.1+. " +
+					"Ignored by v3.3.1+ panels.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"panel_outbound": schema.StringAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "HTTP/SOCKS5 proxy URL for the panel's own outbound requests (xray version checks, Telegram bot, outbound testing). 3x-ui v3.2.0+.",
+				Description:   "Xray outbound tag (or balancer tag) used for the panel's own outbound HTTP (update checks/downloads, Telegram, geo updates, outbound-subscription fetches). Available on 3x-ui v3.3.1+. Ignored by older panels; use panel_proxy on v3.2.0 through v3.3.0.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 		},
@@ -1081,6 +1091,9 @@ func expandPanelGeneral(m *PanelGeneralModel) map[string]any {
 	if !m.PanelProxy.IsNull() && !m.PanelProxy.IsUnknown() {
 		payload["panelProxy"] = m.PanelProxy.ValueString()
 	}
+	if !m.PanelOutbound.IsNull() && !m.PanelOutbound.IsUnknown() {
+		payload["panelOutbound"] = m.PanelOutbound.ValueString()
+	}
 	return payload
 }
 
@@ -1200,7 +1213,10 @@ func flattenPanelGeneral(in map[string]any) *PanelGeneralModel {
 		m.LDAPDefaultLimitIP = types.Int64Value(int64(intValue(v)))
 	}
 	if v, ok := in["panelProxy"]; ok {
-		m.PanelProxy = stringValueOrNull(stringValue(v))
+		m.PanelProxy = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["panelOutbound"]; ok {
+		m.PanelOutbound = types.StringValue(stringValue(v))
 	}
 	return m
 }
