@@ -11,6 +11,47 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
+// waitForXrayVersion polls GetCurrentXrayVersion until it returns a real
+// version (not "Unknown"), retrying on ErrXrayVersionUnknown. Covers two
+// races that surface as "xray version is unknown":
+//
+//   - cold start: the _wait-for-xray Taskfile gate (issue #280) now waits
+//     for xray.version != "Unknown" before tests run, so this rarely fires
+//     on start.
+//   - mid-test restart: on slow CI runners (PostgreSQL + v3.3.1) xray can
+//     crash/restart between the start gate and the test's first version
+//     probe — e.g. ~2.5 min after "ready" in the failing PostgreSQL run on
+//     PR #281 — briefly reporting version="Unknown" again. A single
+//     GetCurrentXrayVersion call hits this window and fails the whole test.
+//
+// Budget mirrors the previous inline loop in TestAccXrayVersionDrift
+// (90 attempts × 1s). Non-Unknown errors are fatal after a rate-limit skip.
+func waitForXrayVersion(t *testing.T, ctx context.Context, client *Client) string {
+	t.Helper()
+	const maxAttempts = 90
+	var (
+		version string
+		err     error
+	)
+	for i := 0; i < maxAttempts; i++ {
+		version, err = client.GetCurrentXrayVersion(ctx)
+		if err == nil {
+			return version
+		}
+		if !errors.Is(err, ErrXrayVersionUnknown) {
+			skipOnUpstreamRateLimit(t, err)
+			t.Fatalf("GetCurrentXrayVersion: %s", err)
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("GetCurrentXrayVersion: context cancelled: %s", ctx.Err())
+		case <-time.After(time.Second):
+		}
+	}
+	t.Fatalf("GetCurrentXrayVersion: xray not running after %ds: %s", maxAttempts, err)
+	return ""
+}
+
 func TestAccXrayVersion(t *testing.T) {
 	testAccPreCheck(t)
 	client, err := testAccClientFromEnv()
@@ -20,11 +61,7 @@ func TestAccXrayVersion(t *testing.T) {
 	ctx := context.Background()
 
 	// Verify GetCurrentXrayVersion returns a v-prefixed string.
-	currentVersion, err := client.GetCurrentXrayVersion(ctx)
-	if err != nil {
-		skipOnUpstreamRateLimit(t, err)
-		t.Fatalf("GetCurrentXrayVersion: %s", err)
-	}
+	currentVersion := waitForXrayVersion(t, ctx, client)
 	if currentVersion == "" {
 		t.Fatal("GetCurrentXrayVersion returned empty string")
 	}
@@ -59,11 +96,7 @@ func TestAccXrayVersionResource(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	currentVersion, err := client.GetCurrentXrayVersion(ctx)
-	if err != nil {
-		skipOnUpstreamRateLimit(t, err)
-		t.Fatalf("GetCurrentXrayVersion: %s", err)
-	}
+	currentVersion := waitForXrayVersion(t, ctx, client)
 
 	// Pre-flight: try installing the current version. If it fails
 	// (e.g. Docker can't reach GitHub), skip the test.
@@ -134,26 +167,10 @@ func TestAccXrayVersionDrift(t *testing.T) {
 	}
 
 	// GetCurrentXrayVersion may return ErrXrayVersionUnknown if xray is
-	// restarting after a previous test's InstallXray. Retry with the same
-	// budget as waitForXrayVersion (90s) to accommodate slow CI runners.
-	var currentVersion string
-	for i := 0; i < 90; i++ {
-		currentVersion, err = client.GetCurrentXrayVersion(ctx)
-		if err == nil {
-			break
-		}
-		if !errors.Is(err, ErrXrayVersionUnknown) {
-			t.Fatalf("GetCurrentXrayVersion: %s", err)
-		}
-		select {
-		case <-ctx.Done():
-			t.Fatalf("GetCurrentXrayVersion: context cancelled: %s", ctx.Err())
-		case <-time.After(time.Second):
-		}
-	}
-	if err != nil {
-		t.Fatalf("GetCurrentXrayVersion: xray not running after 90s: %s", err)
-	}
+	// restarting after a previous test's InstallXray or due to a mid-test
+	// restart on slow CI runners. waitForXrayVersion retries with a 90s
+	// budget (issue #280).
+	currentVersion := waitForXrayVersion(t, ctx, client)
 
 	// Find an alternative version different from the current one.
 	var altVersion string
