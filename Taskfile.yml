@@ -101,10 +101,18 @@ tasks:
       # этого момента GetCurrentXrayVersion возвращает "Unknown", что роняет
       # тесты вроде XrayVersionDrift ложным ErrXrayVersionUnknown (issue #161).
       #
-      # Пробуем /panel/api/server/status и проверяем xray.state == "running"
-      # (или version != "Unknown"). Этот эндпоинт не ходит во внешние сервисы,
-      # в отличие от getXrayVersion (тот дёргает GitHub API за списком релизов
-      # и упирается в анонимный rate limit на шаренном runner IP — issue #161).
+      # В v3.3.1 process.Start() выставляет state="running" сразу после
+      # cmd.Start(), а версию проставляет refreshVersion() отдельным вызовом
+      # `xray -version` чуть позже — между ними возникает гонка, и проверка
+      # только state="running" пропускает тесты в момент, когда version ещё
+      # "Unknown" (issue #280).
+      #
+      # Пробуем /panel/api/server/status и ждём одновременно:
+      #   - xray.state == "running" И
+      #   - xray.version задана и не "Unknown"
+      # Этот эндпоинт не ходит во внешние сервисы, в отличие от getXrayVersion
+      # (тот дёргает GitHub API за списком релизов и упирается в анонимный
+      # rate limit на шаренном runner IP — issue #161).
       - |
         cookie=$(mktemp)
         trap 'rm -f "$cookie"' EXIT
@@ -122,12 +130,16 @@ tasks:
           fi
           body=$(curl -fsS -b "$cookie" \
             "http://localhost:2053/panel/api/server/status" 2>/dev/null || true)
-          # Успех: success:true и `"xray":{...,"state":"running",...}`.
-          # Якорим state по xray-блоку, а не голым `"state":"running"` —
-          # иначе будущие поля state в других секциях ответа дадут ложно
-          # успешное срабатывание.
+          # Успех: success:true, xray.state == "running" И version задана
+          # и не равна "Unknown". Все три поля якорим по xray-блоку
+          # (`"xray":\{[^}]*...`), а не голыми `"state":"running"`/
+          # `"version":"..."` — иначе поля в других секциях ответа дадут
+          # ложное срабатывание. POSIX-only (без grep -P / PCRE), чтобы
+          # работало и на ubuntu CI, и на macOS локально (issue #280).
           if printf '%s' "$body" | grep -q '"success":true' \
-             && printf '%s' "$body" | grep -Eq '"xray":\{[^}]*"state":"running"'; then
+             && printf '%s' "$body" | grep -Eq '"xray":\{[^}]*"state":"running"' \
+             && printf '%s' "$body" | grep -Eq '"xray":\{[^}]*"version":"[^"]+"' \
+             && ! printf '%s' "$body" | grep -Eq '"xray":\{[^}]*"version":"Unknown"'; then
             echo "xray subsystem ready after ${i}s"
             exit 0
           fi
