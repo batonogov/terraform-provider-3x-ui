@@ -184,6 +184,9 @@ These are non-obvious constraints that have caused real bugs.
 | `xray_version` delete is a no-op | Removing from state does NOT revert the installed xray version |
 | `web_base_path` change triggers panel restart | Must also update provider `base_path`; code auto-updates client |
 | Write-only attrs quirks | See "Write-only secret attributes" section above — read `_wo` from `req.Config`; ModifyPlan marks plain `Unknown` on version change; `panel_user` nulls state password instead |
+| xray-settings acc-tests restart xray-core | `TestAccXrayBasics`/`DNS`/`Routing`/`Balancers`/`Reverse`/`Outbounds` each apply a new config = xray restart; `version` becomes `"Unknown"` for ~30-90s after. Use `waitForXrayVersion(t, ctx, client)` poll-loop in any acc-test probing version after them (#280) |
+| `GetXrayVersions` hits GitHub anonymously | 3x-ui's `getXrayVersion` handler has no `Authorization`; 60 req/h/IP on shared runners. Use `skipOnUpstreamRateLimit(t, err)` / `testAccSkipOnXrayVersionsRateLimit(t)` to skip, not fail (#279) |
+| PostgreSQL runner is slower than SQLite | Timing-sensitive flakes (xray restart windows, InstallXray pickup) surface on the `test:acc:postgres` job but not on `test:acc`. A green SQLite run does NOT prove PostgreSQL is green |
 
 **Always check 3x-ui source snapshots** (`3x-ui-<version>/`) before assuming API behavior.
 Key paths: `database/model/`, `web/service/`, `web/controller/`, `web/entity/`, `frontend/src/schemas/`, `xray/`.
@@ -223,6 +226,15 @@ Imperative mood, concise subjects.
   specific 3x-ui versions. Currently supported: **v3.1.x**, **v3.2.x**, **v3.3.x** (up to v3.3.1).
 - Flaky test quarantine: `skipOnFlakyVersions(t, ...)` / `skipIfFlaky(t)` with
   `THREEXUI_SKIP_FLAKY` env var to skip known-broken upstream versions.
+- Xray-version acc-tests use `waitForXrayVersion(t, ctx, client)` (90×1s retry on
+  `ErrXrayVersionUnknown`) — covers both the cold-start race (handled by the
+  `_wait-for-xray` Taskfile gate) and mid-test restarts after `TestAccXray*` settings
+  tests. **Do not** call `client.GetCurrentXrayVersion()` directly in acc-tests (#280).
+- Any acc-test exercising `GetXrayVersions` (directly or via `threexui_xray_versions`
+  data source / `xray_version` resource) must pre-flight with
+  `testAccSkipOnXrayVersionsRateLimit(t)`, or wrap the error with
+  `skipOnUpstreamRateLimit(t, err)`. Rate limit is an environment issue, skip —
+  don't fail (#279).
 - Protocol matrix test (`resource_inbound_matrix_test.go`): comprehensive
   create/update/import round-trip for every protocol.
 - Destroy checks use `destroyVisibilityAttempts` (60 × 500 ms) to handle
