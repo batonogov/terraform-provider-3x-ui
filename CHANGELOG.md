@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.13.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.12.0...v3.13.0) (2026-06-15)
+
+
+### Features
+
+* add 3x-ui v3.3.1 support ([#278](https://github.com/batonogov/terraform-provider-threexui/issues/278)) ([b9c47d8](https://github.com/batonogov/terraform-provider-threexui/commit/b9c47d8fef40443eba9511e8ba6823c78a630f05))
+* add write-only secret arguments for Terraform 1.11+ ([#275](https://github.com/batonogov/terraform-provider-threexui/issues/275)) ([8eaa9e1](https://github.com/batonogov/terraform-provider-threexui/commit/8eaa9e10ae6990a64408c42de6dc7b1b8ed44c55))
+
 ## [3.12.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.11.1...v3.12.0) (2026-06-11)
 
 
