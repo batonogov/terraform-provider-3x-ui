@@ -882,7 +882,8 @@ func TestDriftAllSettingFields(t *testing.T) {
 		"subClashURI": true, "subClashEnableRouting": true, "subClashRules": true,
 		"subJsonFinalMask": true,
 		// v3.2.0
-		"panelProxy": true,
+		"panelProxy":    true,
+		"panelOutbound": true,
 	}
 
 	// Fields intentionally not managed by the provider.
@@ -894,10 +895,9 @@ func TestDriftAllSettingFields(t *testing.T) {
 		"subThemeDir":        true,
 		"warpUpdateInterval": true,
 		// v3.3.1 renamed panelProxy → panelOutbound (outbound egress bridge).
-		// The provider still sends panelProxy for backward compat with older
-		// panels; panelOutbound is not yet wired up.
-		"panelProxy":    true,
-		"panelOutbound": true,
+		// The provider keeps panelProxy for backward compat with v3.2.0–v3.3.0
+		// panels even though v3.3.1's AllSetting struct dropped it.
+		"panelProxy": true,
 	}
 
 	dir := latestSnapshotDir(t)

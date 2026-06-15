@@ -303,6 +303,52 @@ func TestPanelProxyExpandFlatten(t *testing.T) {
 	})
 }
 
+func TestPanelOutboundExpandFlatten(t *testing.T) {
+	t.Run("outbound set", func(t *testing.T) {
+		m := &PanelGeneralModel{
+			PanelOutbound: types.StringValue("proxy-out"),
+		}
+		expanded := expandPanelGeneral(m)
+		if expanded["panelOutbound"] != "proxy-out" {
+			t.Fatalf("expected panelOutbound=proxy-out, got %v", expanded["panelOutbound"])
+		}
+	})
+
+	t.Run("outbound null", func(t *testing.T) {
+		m := &PanelGeneralModel{
+			PanelOutbound: types.StringNull(),
+		}
+		expanded := expandPanelGeneral(m)
+		if _, ok := expanded["panelOutbound"]; ok {
+			t.Fatalf("expected no panelOutbound key, got %v", expanded["panelOutbound"])
+		}
+	})
+
+	t.Run("flatten with value", func(t *testing.T) {
+		in := map[string]any{"panelOutbound": "proxy-out"}
+		m := flattenPanelGeneral(in)
+		if m.PanelOutbound.ValueString() != "proxy-out" {
+			t.Fatalf("expected proxy-out, got %q", m.PanelOutbound)
+		}
+	})
+
+	t.Run("flatten empty string", func(t *testing.T) {
+		in := map[string]any{"panelOutbound": ""}
+		m := flattenPanelGeneral(in)
+		if !m.PanelOutbound.IsNull() {
+			t.Fatalf("expected null for empty panelOutbound, got %q", m.PanelOutbound)
+		}
+	})
+
+	t.Run("flatten missing key", func(t *testing.T) {
+		in := map[string]any{}
+		m := flattenPanelGeneral(in)
+		if !m.PanelOutbound.IsNull() {
+			t.Fatalf("expected null for missing panelOutbound, got %q", m.PanelOutbound)
+		}
+	})
+}
+
 func TestPreserveSettingSecret_ConfiguredEmptyObservedNonEmpty(t *testing.T) {
 	got := preserveSettingSecret(types.StringValue("existing-secret"), types.StringValue(""))
 	if got.ValueString() != "" {

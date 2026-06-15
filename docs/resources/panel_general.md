@@ -83,7 +83,8 @@ resource "threexui_panel_general" "settings" {
 
 ### Proxy
 
-- `panel_proxy` (Optional, String) - HTTP/SOCKS5 proxy URL for the panel's own outbound requests (xray version checks, Telegram bot, outbound testing). Default is `""` (direct). Available on 3x-ui v3.2.0+.
+- `panel_proxy` (Optional, String, Deprecated) - HTTP/SOCKS5 proxy URL for the panel's own outbound requests (xray version checks, Telegram bot, outbound testing). Default is `""` (direct). Available on 3x-ui v3.2.0 through v3.3.0. **Deprecated:** superseded by `panel_outbound` on 3x-ui v3.3.1+; ignored by v3.3.1+ panels. Use `panel_outbound` for new configurations.
+- `panel_outbound` (Optional, String) - Xray outbound tag (or balancer tag) used for the panel's own outbound HTTP (update checks/downloads, Telegram, geo updates, outbound-subscription fetches). Default is `""` (direct egress). Available on 3x-ui v3.3.1+. Ignored by older panels; use `panel_proxy` on 3x-ui v3.2.0 through v3.3.0.
 
 ## Attribute Reference
 

@@ -1450,3 +1450,45 @@ resource "threexui_panel_telegram" "test" {
 		},
 	})
 }
+
+// TestAccPanelGeneralOutbound verifies the panel_outbound attribute
+// (Xray outbound egress bridge) introduced in 3x-ui v3.3.1.
+func TestAccPanelGeneralOutbound(t *testing.T) {
+	requireMinVersion(t, "v3.3.1")
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_general" "test" {
+  panel_outbound = "test-egress"
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_general.test", "id", "settings"),
+					resource.TestCheckResourceAttr("threexui_panel_general.test", "panel_outbound", "test-egress"),
+				),
+			},
+			// Update — clear the outbound tag.
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_general" "test" {
+  panel_outbound = ""
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_general.test", "panel_outbound", ""),
+				),
+			},
+			// ImportState
+			{
+				ResourceName:            "threexui_panel_general.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateId:           "settings",
+				ImportStateVerifyIgnore: []string{"ldap_password"},
+			},
+		},
+	})
+}
