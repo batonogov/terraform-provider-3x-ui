@@ -135,6 +135,24 @@ func findSnapshotDirs(root string) []string {
 	return dirs
 }
 
+// upstreamGoPath resolves a Go-package source path inside a 3x-ui snapshot.
+// 3x-ui v3.3.1 moved the Go packages (config, database, web, xray, ...) under
+// internal/. Try the internal/ layout first, then fall back to the legacy root
+// layout so older snapshots keep working.
+func upstreamGoPath(dir string, parts ...string) string {
+	rel := filepath.Join(parts...)
+	if p := filepath.Join(dir, "internal", rel); pathExists(p) {
+		return p
+	}
+	return filepath.Join(dir, rel)
+}
+
+// pathExists reports whether a file or directory exists at p.
+func pathExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
+}
+
 // latestSnapshotDir returns the path to the latest 3x-ui-<version> directory.
 // It checks the THREEXUI_SNAPSHOT_DIR env var first, then the repo root.
 // Returns "" if no snapshots are found.
@@ -370,7 +388,7 @@ func upstreamInboundJSPath(dir string) string {
 
 func upstreamProtocolForms(t *testing.T, dir string) []string {
 	t.Helper()
-	formDir := filepath.Join(dir, "web", "html", "form", "protocol")
+	formDir := upstreamGoPath(dir, "web", "html", "form", "protocol")
 	if entries, err := os.ReadDir(formDir); err == nil {
 		var upstream []string
 		for _, e := range entries {
@@ -406,7 +424,7 @@ func upstreamProtocolForms(t *testing.T, dir string) []string {
 
 func upstreamStreamForms(t *testing.T, dir string) []string {
 	t.Helper()
-	streamDir := filepath.Join(dir, "web", "html", "form", "stream")
+	streamDir := upstreamGoPath(dir, "web", "html", "form", "stream")
 	if entries, err := os.ReadDir(streamDir); err == nil {
 		var upstream []string
 		for _, e := range entries {
@@ -472,7 +490,7 @@ func upstreamStreamForms(t *testing.T, dir string) []string {
 
 func upstreamXraySettingsPages(t *testing.T, dir string) []string {
 	t.Helper()
-	xrayDir := filepath.Join(dir, "web", "html", "settings", "xray")
+	xrayDir := upstreamGoPath(dir, "web", "html", "settings", "xray")
 	if entries, err := os.ReadDir(xrayDir); err == nil {
 		var upstream []string
 		for _, e := range entries {
@@ -579,7 +597,7 @@ func TestDriftInboundProtocols_GoModel(t *testing.T) {
 
 	if dir != "" {
 		// Parse upstream model.go for protocol constants.
-		modelPath := filepath.Join(dir, "database", "model", "model.go")
+		modelPath := upstreamGoPath(dir, "database", "model", "model.go")
 		data, err := os.ReadFile(modelPath)
 		if err != nil {
 			t.Fatalf("cannot read model.go: %v", err)
@@ -752,13 +770,18 @@ func TestDriftInboundFields(t *testing.T) {
 		"-":              true, // UserId uses json:"-"
 		"fallbackParent": true, // v3.1.0 frontend-only, not persisted
 		"originNodeGuid": true, // multi-hop node attribution, not managed by provider
+		// v3.3.1 additions — subscription link sort order and per-inbound
+		// share-address strategy (node-sync); not yet managed by the provider.
+		"subSortIndex":      true,
+		"shareAddrStrategy": true,
+		"shareAddr":         true,
 	}
 
 	dir := latestSnapshotDir(t)
 	var upstream []string
 
 	if dir != "" {
-		modelPath := filepath.Join(dir, "database", "model", "model.go")
+		modelPath := upstreamGoPath(dir, "database", "model", "model.go")
 		data, err := os.ReadFile(modelPath)
 		if err != nil {
 			t.Fatalf("cannot read model.go: %v", err)
@@ -796,7 +819,7 @@ func TestDriftClientFields(t *testing.T) {
 	var upstream []string
 
 	if dir != "" {
-		modelPath := filepath.Join(dir, "database", "model", "model.go")
+		modelPath := upstreamGoPath(dir, "database", "model", "model.go")
 		data, err := os.ReadFile(modelPath)
 		if err != nil {
 			t.Fatalf("cannot read model.go: %v", err)
@@ -870,13 +893,18 @@ func TestDriftAllSettingFields(t *testing.T) {
 		// Added in 3x-ui v3.3.0 — not yet managed by the provider.
 		"subThemeDir":        true,
 		"warpUpdateInterval": true,
+		// v3.3.1 renamed panelProxy → panelOutbound (outbound egress bridge).
+		// The provider still sends panelProxy for backward compat with older
+		// panels; panelOutbound is not yet wired up.
+		"panelProxy":    true,
+		"panelOutbound": true,
 	}
 
 	dir := latestSnapshotDir(t)
 	var upstream []string
 
 	if dir != "" {
-		entityPath := filepath.Join(dir, "web", "entity", "entity.go")
+		entityPath := upstreamGoPath(dir, "web", "entity", "entity.go")
 		data, err := os.ReadFile(entityPath)
 		if err != nil {
 			t.Fatalf("cannot read entity.go: %v", err)

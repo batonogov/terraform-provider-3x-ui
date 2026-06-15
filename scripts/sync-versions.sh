@@ -65,7 +65,7 @@ check_flake() {
 }
 
 # ---------------------------------------------------------------------------
-# 3. README compatibility tables (6 locales)
+# 3. README compatibility tables (7 locales)
 # ---------------------------------------------------------------------------
 get_status_label() {
   case "$1" in
@@ -75,6 +75,7 @@ get_status_label() {
     README.fa_IR.md) echo "تست‌شده" ;;
     README.ar_EG.md) echo "تم اختباره" ;;
     README.zh_CN.md) echo "已测试" ;;
+    README.tr_TR.md) echo "Test edildi" ;;
     *) echo "" ;;
   esac
 }
@@ -87,6 +88,7 @@ get_header_line() {
     README.fa_IR.md) echo '| نسخهٔ 3x-ui | وضعیت |' ;;
     README.ar_EG.md) echo '| إصدار 3x-ui | الحالة |' ;;
     README.zh_CN.md) echo '| 3x-ui 版本 | 状态 |' ;;
+    README.tr_TR.md) echo '| 3x-ui sürümü | Durum |' ;;
     *) echo "" ;;
   esac
 }
@@ -144,12 +146,15 @@ check_readme() {
       # Use a temp file approach for BSD sed compatibility
       local tmp
       tmp=$(mktemp)
-      awk -v header="$header" -v block="$table_block" '
-        BEGIN { found=0 }
+      # Pass the multi-line block via the environment (ENVIRON) rather than
+      # -v: BWK/one-true-awk rejects literal newlines in -v values with
+      # "newline in string". ENVIRON handles embedded newlines portably.
+      BLOCK="$table_block" awk -v header="$header" '
+        BEGIN { block = ENVIRON["BLOCK"] }
         $0 == header { print block; found=1; next }
         found && /^\| ---/ { next }
         found && /^\| v/ { next }
-        found && /^[^|]/ { found=0 }
+        found && !/^\|/ { found=0 }
         !found { print }
       ' "$file" > "$tmp" && mv "$tmp" "$file"
       echo "  -> Fixed $basename"
@@ -212,6 +217,7 @@ check_readme "$ROOT/README.es_ES.md"
 check_readme "$ROOT/README.fa_IR.md"
 check_readme "$ROOT/README.ar_EG.md"
 check_readme "$ROOT/README.zh_CN.md"
+check_readme "$ROOT/README.tr_TR.md"
 check_docker_compose
 check_taskfile
 
