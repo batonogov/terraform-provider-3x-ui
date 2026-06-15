@@ -90,6 +90,14 @@ jobs:
       - run: task lint
       - run: task build
 
+      # The github-cache proxy (issue #285) is a separate Go module under
+      # ci/github-cache/, so the provider's vet/lint/govulncheck do not cover
+      # it. Verify it compiles and its routing unit test passes. stdlib-only,
+      # so no govulncheck surface.
+      - name: Vet + test github-cache module
+        working-directory: ci/github-cache
+        run: go vet ./... && go test ./...
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest

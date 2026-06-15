@@ -3,10 +3,29 @@ services:
     image: ghcr.io/mhsanaei/3x-ui:${THREEXUI_VERSION:-v3.3.1}
     ports:
       - "2053:2053" # HTTP panel
+    # Route the panel's outbound GitHub traffic (the xray-version release list
+    # at api.github.com and the xray binary downloads at github.com) through
+    # the local github-cache so acceptance tests are offline and deterministic
+    # (issue #285). The panel's HTTP client honors HTTPS_PROXY whenever
+    # panel_outbound is unset — the default in tests — because
+    # internal/util/netproxy.NewHTTPClient returns a plain *http.Client (no
+    # custom Transport) for an empty proxy URL, so Go falls back to
+    # http.DefaultTransport, i.e. ProxyFromEnvironment. No provider or upstream
+    # changes are needed.
+    #
+    # CAVEAT: once panel_outbound is set (v3.3.1 egress bridge), the socks5
+    # branch in NewHTTPClient takes over and HTTPS_PROXY is ignored. The
+    # panel_outbound acceptance test (TestAccPanelGeneralOutbound) does NOT
+    # trigger GitHub downloads, so the two features do not conflict — but if a
+    # test ever needs GitHub while panel_outbound is active, the cache will be
+    # bypassed.
     environment:
       XRAY_VMESS_AEAD_FORCED: "false"
       XUI_ENABLE_FAIL2BAN: "true"
-      GITHUB_TOKEN: "${GITHUB_TOKEN:-}"
+      HTTPS_PROXY: "http://github-cache:3128"
+      # Keep panel↔self, panel↔postgres and provider↔panel traffic direct.
+      # The proxy only intercepts the panel's own outbound HTTPS to GitHub.
+      NO_PROXY: "localhost,127.0.0.1,postgres,github-cache"
       # Set both to activate PostgreSQL (via --profile postgres):
       #   XUI_DB_TYPE=postgres
       #   XUI_DB_DSN=postgres://xui:xui@postgres:5432/xui?sslmode=disable
@@ -16,6 +35,26 @@ services:
       postgres:
         condition: service_healthy
         required: false
+      github-cache:
+        condition: service_healthy
+    volumes:
+      # Read-only copy of the github-cache MITM CA. The wrapper below appends
+      # it to the system root bundle and points Go at the result via
+      # SSL_CERT_FILE, so the panel trusts the cache's api.github.com /
+      # github.com leaf certs WITHOUT losing the real system roots.
+      - github-cache-ca:/github-cache-ca:ro
+    # The image's ENTRYPOINT (/app/DockerEntrypoint.sh) does fail2ban setup
+    # then `exec /app/x-ui` and ignores its CMD args, so we cannot inject a
+    # pre-start step via `command`. Instead we wrap the entrypoint: build the
+    # combined CA bundle first, export SSL_CERT_FILE, then hand off to the
+    # original entrypoint (which execs x-ui, keeping it PID 1 for signals).
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        cat /etc/ssl/certs/ca-certificates.crt /github-cache-ca/ca.crt > /tmp/github-cache-ca-bundle.crt
+        export SSL_CERT_FILE=/tmp/github-cache-ca-bundle.crt
+        exec /app/DockerEntrypoint.sh
     tty: true
     restart: unless-stopped
     # `/` returns 200 (login page) once the gin router is up — earlier
@@ -29,6 +68,24 @@ services:
       timeout: 3s
       retries: 15
       start_period: 5s
+
+  # Local MITM proxy that serves vendored GitHub fixtures (release list +
+  # xray-core zips) so xray-version acceptance tests never touch the public
+  # internet. See ci/github-cache/README.md and issue #285.
+  github-cache:
+    build:
+      context: ./ci/github-cache
+    # The CA is generated at runtime (entrypoint.sh) into the shared volume,
+    # so the 3x-ui container trusts whatever CA this run produced.
+    volumes:
+      - github-cache-ca:/ca
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3128/healthz || exit 1"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+      start_period: 3s
+    restart: unless-stopped
 
   postgres:
     image: postgres:16-alpine
@@ -44,3 +101,6 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
+
+volumes:
+  github-cache-ca:

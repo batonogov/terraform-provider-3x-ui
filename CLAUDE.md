@@ -157,6 +157,29 @@ and falls back to old `/panel/api/inbounds/*` endpoints on older versions.
 objects instead of escaped strings. Custom `UnmarshalJSON` on `Inbound`
 normalises both formats to plain strings — rest of the code is unaffected.
 
+### github-cache (offline GitHub for xray-version tests)
+
+`ci/github-cache/` is a local MITM forward proxy (`docker-compose.yaml`, issue #285)
+that makes the xray-version acceptance tests (`TestAccXrayVersion`,
+`TestAccXrayVersionResource`, `TestAccXrayVersionDrift`) fully offline and
+deterministic. The panel's outbound HTTPS to `api.github.com` and `github.com`
+is routed through the proxy via `HTTPS_PROXY` (honoured because
+`netproxy.NewHTTPClient` returns a plain client when `panel_outbound` is unset).
+
+- The proxy MITMs the two GitHub hosts with a CA generated at runtime and
+  trusted by the `3xui` container via `SSL_CERT_FILE`; it serves vendored
+  fixtures from `ci/github-cache/fixtures/` (release list + per-version
+  `Xray-linux-64.zip`). Unknown GitHub paths 404 (fail loud).
+- Non-GitHub hosts (`ident.me`, `ipify`, …) are **transparently tunnelled**
+  (passthrough) so the panel's unrelated outbound traffic is unaffected.
+- Only **amd64** zips are committed (CI = `ubuntu-latest`); arm64 is opt-in via
+  `ARCHES="linux-64 linux-arm64-v8a" scripts/fetch-xray-fixtures.sh`.
+- When a new 3x-ui image bundles a different Xray-core build, add the version
+  to `VERSIONS` in `scripts/fetch-xray-fixtures.sh` and re-run it.
+- The proxy is a separate Go module (`ci/github-cache/go.mod`) — CI-only,
+  never shipped. Its correctness is guaranteed by the Docker build (compile)
+  plus `go test ./...` in that module.
+
 ### Data sources
 
 Seven data sources: `inbounds`, `server_status`, `xray_versions`, `xray_config`,
@@ -184,8 +207,8 @@ These are non-obvious constraints that have caused real bugs.
 | `xray_version` delete is a no-op | Removing from state does NOT revert the installed xray version |
 | `web_base_path` change triggers panel restart | Must also update provider `base_path`; code auto-updates client |
 | Write-only attrs quirks | See "Write-only secret attributes" section above — read `_wo` from `req.Config`; ModifyPlan marks plain `Unknown` on version change; `panel_user` nulls state password instead |
-| xray-settings acc-tests restart xray-core | `TestAccXrayBasics`/`DNS`/`Routing`/`Balancers`/`Reverse`/`Outbounds` each apply a new config = xray restart; `version` becomes `"Unknown"` for ~30-90s after. Use `waitForXrayVersion(t, ctx, client)` poll-loop in any acc-test probing version after them (#280) |
-| `GetXrayVersions` hits GitHub anonymously | 3x-ui's `getXrayVersion` handler has no `Authorization`; 60 req/h/IP on shared runners. Use `skipOnUpstreamRateLimit(t, err)` / `testAccSkipOnXrayVersionsRateLimit(t)` to skip, not fail (#279) |
+| xray-settings acc-tests restart xray-core | `TestAccXrayBasics`/`DNS`/`Routing`/`Balancers`/`Reverse`/`Outbounds` each apply a new config = xray restart; `version` becomes `"Unknown"` for ~30-90s after. Use `waitForXrayVersion(t, ctx, client)` poll-loop in any acc-test probing version after them (#280) — the github-cache does NOT fix restart races |
+| `GetXrayVersions` / `InstallXray` reach GitHub | Served offline by the **github-cache** proxy (`docker-compose.yaml`, issue #285). `skipOnUpstreamRateLimit(t, err)` / `testAccSkipOnXrayVersionsRateLimit(t)` remain as a defense for when the cache is bypassed (e.g. `panel_outbound` active) |
 | PostgreSQL runner is slower than SQLite | Timing-sensitive flakes (xray restart windows, InstallXray pickup) surface on the `test:acc:postgres` job but not on `test:acc`. A green SQLite run does NOT prove PostgreSQL is green |
 
 **Always check 3x-ui source snapshots** (`3x-ui-<version>/`) before assuming API behavior.
