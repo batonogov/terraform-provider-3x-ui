@@ -32,9 +32,17 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 readonly FIXTURES="${REPO_ROOT}/ci/github-cache/fixtures"
 
-VERSIONS="${VERSIONS:-26.4.25 26.5.9 26.6.1}"
-# Only linux-64 (amd64) is needed — CI runs on ubuntu-latest (amd64). Apple
-# Silicon devs running the install/drift tests locally can add the arm64 slug:
+VERSIONS="${VERSIONS:-26.6.1 26.5.9 26.4.25}"
+# IMPORTANT: keep this newest-first to mirror the order GitHub's releases API
+# returns (and that 3x-ui's GetXrayVersions forwards). TestAccXrayVersionDrift
+# picks the first version != current as its drift target, so the order here
+# decides whether the test exercises an upgrade or a downgrade — and some
+# 3x-ui panels (e.g. v3.2.0) misbehave on an xray *downgrade* (restart window
+# exceeds the 90s poll budget). Newest-first makes the cache faithful to the
+# real API and keeps the drift test on the same upgrade path it had before
+# the cache. Only linux-64 (amd64) is needed — CI runs on ubuntu-latest
+# (amd64). Apple Silicon devs running the install/drift tests locally can add
+# the arm64 slug:
 #   ARCHES="linux-64 linux-arm64-v8a" scripts/fetch-xray-fixtures.sh
 ARCHES="${ARCHES:-linux-64}"
 
