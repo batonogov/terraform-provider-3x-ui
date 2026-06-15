@@ -50,7 +50,7 @@ THREEXUI_VERSION=v3.1.0 task test:acc:compat
 ```bash
 TF_ACC=1 THREEXUI_ENDPOINT=http://localhost:2053 \
   THREEXUI_USERNAME=admin THREEXUI_PASSWORD=admin \
-  THREEXUI_VERSION=v3.3.0 \
+  THREEXUI_VERSION=v3.3.1 \
   go test ./provider -run TestAccInboundVLESS -count=1 -timeout 600s -v
 ```
 
@@ -207,7 +207,7 @@ Imperative mood, concise subjects.
 
 ### Documentation
 
-- **README** is localized in **6 languages** (en, ru, fa, ar, zh, es). When changing
+- **README** is localized in **7 languages** (en, ru, fa, ar, zh, es, tr). When changing
   `README.md`, update all `README.<locale>.md` files in the same PR. Persian/Arabic
   wrap body in `<div dir="rtl">`.
 - **SECURITY.md** tracks sensitive fields — add a row when adding resources that
@@ -220,7 +220,7 @@ Imperative mood, concise subjects.
 - Acceptance tests: `TestAccXxx`, `terraform-plugin-testing`,
   `ProtoV6ProviderFactories` (not `ProviderFactories`).
 - Version-aware skipping: `requireMinVersion(t, "vX.Y.Z")` for features from
-  specific 3x-ui versions. Currently supported: **v3.1.x**, **v3.2.x**, **v3.3.x** (up to v3.3.0).
+  specific 3x-ui versions. Currently supported: **v3.1.x**, **v3.2.x**, **v3.3.x** (up to v3.3.1).
 - Flaky test quarantine: `skipOnFlakyVersions(t, ...)` / `skipIfFlaky(t)` with
   `THREEXUI_SKIP_FLAKY` env var to skip known-broken upstream versions.
 - Protocol matrix test (`resource_inbound_matrix_test.go`): comprehensive

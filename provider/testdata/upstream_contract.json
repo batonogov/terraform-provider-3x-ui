@@ -1,5 +1,5 @@
 {
-  "version": "3.3.0",
+  "version": "3.3.1",
   "protocols_go_model": [
     "http",
     "hysteria",
@@ -67,8 +67,11 @@
     "protocol",
     "remark",
     "settings",
+    "shareAddr",
+    "shareAddrStrategy",
     "sniffing",
     "streamSettings",
+    "subSortIndex",
     "tag",
     "total",
     "trafficReset",
@@ -120,7 +123,7 @@
     "ldapUserFilter",
     "ldapVlessField",
     "pageSize",
-    "panelProxy",
+    "panelOutbound",
     "remarkModel",
     "restartXrayOnClientDisable",
     "sessionMaxAge",

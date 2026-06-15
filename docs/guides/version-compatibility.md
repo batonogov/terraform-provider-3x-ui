@@ -11,30 +11,24 @@ The 3x-ui panel evolves quickly, and some releases introduce breaking API change
 
 ## Support policy
 
-The provider officially supports four 3x-ui minor lines: **2.9.x**, **3.0.x**, **3.1.x**, and **3.2.x**. Every released patch in those lines is exercised by the acceptance matrix on each push to `main` and every pull request.
+The provider officially supports three 3x-ui minor lines: **3.1.x**, **3.2.x**, and **3.3.x**. Every released patch in those lines is exercised by the acceptance matrix on each push to `main` and every pull request. Older lines (2.9.x, 3.0.x and earlier) were dropped from the test matrix in provider v3.4.0.
 
 ## Compatibility table
 
 <!-- sync-versions:begin -->
 | 3x-ui version | Status | Notes |
 | --- | --- | --- |
+| v3.3.1 | Tested | Latest supported v3.3.x release. Live config apply, outbound egress bridge replaces `panel_proxy`, internal `internal/` layout. |
+| v3.3.0 | Tested | `subThemeDir`, `warpUpdateInterval` added; node-sync surface. |
 | v3.2.8 | Tested | Latest supported v3.2.x release. |
 | v3.2.7 | Tested | |
 | v3.2.6 | Tested | |
 | v3.2.5 | Tested | |
-| v3.2.0 | Tested | `socks` and `dokodemo-door` are no longer available upstream; use `mixed` and `tunnel`. |
+| v3.2.0 | Tested | `mixed`/`tunnel` replace legacy `socks`/`dokodemo-door`; client `group` and panel `panel_proxy` are available. |
 | v3.1.0 | Tested | New client API surface; the provider detects it automatically. |
-| v3.0.2 | Tested | Latest v3.0.x patch. CSRF-protected API. |
-| v3.0.1 | Tested | CSRF-protected API. |
-| v3.0.0 | Tested | CSRF tokens introduced (see [Breaking changes](#breaking-changes)). Multi-node surface, API token endpoint. |
-| v2.9.4 | Tested | Latest v2.9.x patch. Outbound `final_rule` and `reverse_tag` fields. |
-| v2.9.3 | Tested | |
-| v2.9.2 | Tested | |
-| v2.9.1 | Tested | `InstallXray` API skips execution (upstream bug, see [Known issues](#known-issues)). |
-| v2.9.0 | Tested | Mixed protocol, WireGuard MTU list, sniffing exclusions (see [Breaking changes](#breaking-changes)). |
 <!-- sync-versions:end -->
 
-Older lines (2.8.x and earlier) are no longer tested. The provider may still work, but compatibility is not guaranteed.
+Older lines (3.0.x, 2.9.x and earlier) are no longer tested. The provider may still work, but compatibility is not guaranteed.
 
 ## Known issues
 
@@ -101,8 +95,10 @@ Current version gates:
 - **v3.0.2+**: tunnel `rewrite_address`, `rewrite_port`, and `allowed_network`; default trusted proxy CIDRs; subscription email-in-remark default.
 - **v3.1.0+**: new client API surface; the provider detects and uses it automatically.
 - **v3.2.0+**: `mixed`/`tunnel` replace legacy `socks`/`dokodemo-door`; client `group` and panel `panel_proxy` are available.
+- **v3.3.0+**: `subThemeDir` and `warpUpdateInterval` settings; node-sync multi-node surface.
+- **v3.3.1+**: inbound `subSortIndex`, `shareAddr`/`shareAddrStrategy`; `panelProxy` renamed to `panelOutbound` (outbound egress bridge).
 
-Tests without `requireMinVersion` run on all supported versions (v2.9.0+).
+Tests without `requireMinVersion` run on all supported versions (v3.1.0+).
 
 ## Selecting a 3x-ui version
 
@@ -110,13 +106,13 @@ The provider communicates with whatever 3x-ui version is running on your host. T
 
 ```bash
 # Set the 3x-ui image tag
-export THREEXUI_VERSION=v3.2.8
+export THREEXUI_VERSION=v3.3.1
 
 # Start the container
 docker compose up -d
 ```
 
-In `docker-compose.yaml`, the image tag is parameterized via `${THREEXUI_VERSION:-v3.2.8}`, so omitting the variable defaults to the latest tested version.
+In `docker-compose.yaml`, the image tag is parameterized via `${THREEXUI_VERSION:-v3.3.1}`, so omitting the variable defaults to the latest tested version.
 
 For the Terraform provider itself, use the latest release from the [Terraform Registry](https://registry.terraform.io/providers/batonogov/threexui). The single provider binary supports all 3x-ui versions listed in the compatibility table above.
 
