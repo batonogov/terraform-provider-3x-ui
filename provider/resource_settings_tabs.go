@@ -1213,10 +1213,10 @@ func flattenPanelGeneral(in map[string]any) *PanelGeneralModel {
 		m.LDAPDefaultLimitIP = types.Int64Value(int64(intValue(v)))
 	}
 	if v, ok := in["panelProxy"]; ok {
-		m.PanelProxy = stringValueOrNull(stringValue(v))
+		m.PanelProxy = types.StringValue(stringValue(v))
 	}
 	if v, ok := in["panelOutbound"]; ok {
-		m.PanelOutbound = stringValueOrNull(stringValue(v))
+		m.PanelOutbound = types.StringValue(stringValue(v))
 	}
 	return m
 }

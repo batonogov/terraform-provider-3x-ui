@@ -289,8 +289,8 @@ func TestPanelProxyExpandFlatten(t *testing.T) {
 	t.Run("flatten empty string", func(t *testing.T) {
 		in := map[string]any{"panelProxy": ""}
 		m := flattenPanelGeneral(in)
-		if !m.PanelProxy.IsNull() {
-			t.Fatalf("expected null for empty panelProxy, got %q", m.PanelProxy)
+		if m.PanelProxy.ValueString() != "" {
+			t.Fatalf("expected empty string for empty panelProxy, got %q", m.PanelProxy)
 		}
 	})
 
@@ -335,8 +335,8 @@ func TestPanelOutboundExpandFlatten(t *testing.T) {
 	t.Run("flatten empty string", func(t *testing.T) {
 		in := map[string]any{"panelOutbound": ""}
 		m := flattenPanelGeneral(in)
-		if !m.PanelOutbound.IsNull() {
-			t.Fatalf("expected null for empty panelOutbound, got %q", m.PanelOutbound)
+		if m.PanelOutbound.ValueString() != "" {
+			t.Fatalf("expected empty string for empty panelOutbound, got %q", m.PanelOutbound)
 		}
 	})
 
