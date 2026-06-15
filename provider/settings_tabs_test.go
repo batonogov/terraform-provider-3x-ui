@@ -3,8 +3,45 @@ package provider
 import (
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+// TestPanelGeneralSchemaAttributeShape asserts that the v3.2.0/v3.3.1 panel
+// egress attributes exist with the expected Optional+Computed shape. It also
+// exercises panelGeneralSchema() so the schema literal counts towards unit
+// coverage (otherwise every panel_* attribute reads as uncovered by Codecov
+// because no unit test instantiates the resource Schema()).
+func TestPanelGeneralSchemaAttributeShape(t *testing.T) {
+	s := panelGeneralSchema()
+	requireStringAttr := func(name string) {
+		t.Helper()
+		attr, ok := s.Attributes[name]
+		if !ok {
+			t.Fatalf("attribute %q missing on panel_general schema", name)
+		}
+		str, ok := attr.(schema.StringAttribute)
+		if !ok {
+			t.Fatalf("attribute %q is not a StringAttribute", name)
+		}
+		if !str.Optional {
+			t.Errorf("attribute %q must be Optional", name)
+		}
+		if !str.Computed {
+			t.Errorf("attribute %q must be Computed", name)
+		}
+	}
+
+	// Sanity-check that a well-known string attribute is present (confirms
+	// the schema loaded, not just the two egress attrs).
+	requireStringAttr("web_domain")
+
+	// v3.2.0–v3.3.0 proxy URL (kept for backward compat).
+	requireStringAttr("panel_proxy")
+
+	// v3.3.1 outbound egress bridge (Xray outbound / balancer tag).
+	requireStringAttr("panel_outbound")
+}
 
 func TestPanelSettingsNeedRestart_ChangedKey(t *testing.T) {
 	existing := map[string]any{"webPort": float64(2053)}
