@@ -36,6 +36,35 @@ func testAccPreCheck(t *testing.T) {
 	}
 }
 
+// skipOnUpstreamRateLimit converts an upstream GitHub API rate-limit error
+// from the 3x-ui panel into a test skip rather than a failure. The panel's
+// getXrayVersion handler hits api.github.com anonymously (no Authorization),
+// so on shared CI runner IPs the 60 req/h budget is quickly exhausted. Rate
+// limiting is an environment issue, not a provider regression (issue #279).
+func skipOnUpstreamRateLimit(t *testing.T, err error) {
+	t.Helper()
+	if err != nil && isUpstreamRateLimitError(err) {
+		t.Skipf("skipping: upstream GitHub API rate limit: %s", err)
+	}
+}
+
+// testAccSkipOnXrayVersionsRateLimit pre-flights the panel's internal GitHub
+// API call before a Terraform-driven test that exercises the
+// threexui_xray_versions data source (or the xray_version resource). Without
+// this, a rate-limited apply would surface as a Terraform plan/apply error
+// and fail the CI run; pre-flighting turns it into a clean skip (issue #279).
+func testAccSkipOnXrayVersionsRateLimit(t *testing.T) {
+	t.Helper()
+	client, err := testAccClientFromEnv()
+	if err != nil {
+		// Let the test itself surface the init error.
+		return
+	}
+	if _, err := client.GetXrayVersions(context.Background()); err != nil {
+		skipOnUpstreamRateLimit(t, err)
+	}
+}
+
 func testAccProviderConfig() string {
 	endpoint := os.Getenv(envEndpoint)
 	basePath := os.Getenv(envBasePath)
@@ -343,6 +372,11 @@ func TestAccInboundClientBasic(t *testing.T) {
 }
 
 func TestAccDataSources(t *testing.T) {
+	testAccPreCheck(t)
+	// Pre-flight: the composite includes threexui_xray_versions, which calls
+	// the panel's getXrayVersion handler (anonymous GitHub API). Skip on rate
+	// limit so a shared runner IP doesn't fail the whole composite (issue #279).
+	testAccSkipOnXrayVersionsRateLimit(t)
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),

@@ -58,6 +58,10 @@ func TestAccDataSourceServerStatus(t *testing.T) {
 }
 
 func TestAccDataSourceXrayVersions(t *testing.T) {
+	testAccPreCheck(t)
+	// Pre-flight: this data source calls the panel's getXrayVersion handler,
+	// which hits api.github.com anonymously. Skip on rate limit (issue #279).
+	testAccSkipOnXrayVersionsRateLimit(t)
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),

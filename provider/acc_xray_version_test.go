@@ -22,6 +22,7 @@ func TestAccXrayVersion(t *testing.T) {
 	// Verify GetCurrentXrayVersion returns a v-prefixed string.
 	currentVersion, err := client.GetCurrentXrayVersion(ctx)
 	if err != nil {
+		skipOnUpstreamRateLimit(t, err)
 		t.Fatalf("GetCurrentXrayVersion: %s", err)
 	}
 	if currentVersion == "" {
@@ -35,6 +36,7 @@ func TestAccXrayVersion(t *testing.T) {
 	// Verify GetXrayVersions returns a non-empty list with v-prefixed versions.
 	versions, err := client.GetXrayVersions(ctx)
 	if err != nil {
+		skipOnUpstreamRateLimit(t, err)
 		t.Fatalf("GetXrayVersions: %s", err)
 	}
 	if len(versions) == 0 {
@@ -59,6 +61,7 @@ func TestAccXrayVersionResource(t *testing.T) {
 
 	currentVersion, err := client.GetCurrentXrayVersion(ctx)
 	if err != nil {
+		skipOnUpstreamRateLimit(t, err)
 		t.Fatalf("GetCurrentXrayVersion: %s", err)
 	}
 
@@ -126,6 +129,7 @@ func TestAccXrayVersionDrift(t *testing.T) {
 	// Get available versions; we need at least two distinct ones.
 	versions, err := client.GetXrayVersions(ctx)
 	if err != nil {
+		skipOnUpstreamRateLimit(t, err)
 		t.Fatalf("GetXrayVersions: %s", err)
 	}
 
