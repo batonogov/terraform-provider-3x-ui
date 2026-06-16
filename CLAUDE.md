@@ -183,6 +183,7 @@ These are non-obvious constraints that have caused real bugs.
 | DNS servers: string vs object | Address-only → string; with extra fields → object |
 | `xray_version` delete is a no-op | Removing from state does NOT revert the installed xray version |
 | `web_base_path` change triggers panel restart | Must also update provider `base_path`; code auto-updates client |
+| `panel_outbound` vs `panel_proxy` is version-specific | 3x-ui v3.3.1 renamed `panelProxy`→`panelOutbound` and changed semantics: `panel_outbound` takes an Xray outbound/balancer tag; `panel_proxy` (HTTP/SOCKS5 URL) is kept for v3.2.0–v3.3.0 and is `Deprecated`. Both coexist safely — gin ignores the unknown field per version |
 | Write-only attrs quirks | See "Write-only secret attributes" section above — read `_wo` from `req.Config`; ModifyPlan marks plain `Unknown` on version change; `panel_user` nulls state password instead |
 | xray-settings acc-tests restart xray-core | `TestAccXrayBasics`/`DNS`/`Routing`/`Balancers`/`Reverse`/`Outbounds` each apply a new config = xray restart; `version` becomes `"Unknown"` for ~30-90s after. Use `waitForXrayVersion(t, ctx, client)` poll-loop in any acc-test probing version after them (#280) |
 | `GetXrayVersions` hits GitHub anonymously | 3x-ui's `getXrayVersion` handler has no `Authorization`; 60 req/h/IP on shared runners. Use `skipOnUpstreamRateLimit(t, err)` / `testAccSkipOnXrayVersionsRateLimit(t)` to skip, not fail (#279) |
@@ -216,6 +217,11 @@ Imperative mood, concise subjects.
 - **SECURITY.md** tracks sensitive fields — add a row when adding resources that
   handle secrets.
 - **`docs/guides/`** for operational walkthroughs needing more than an `examples/` folder.
+- **`context7.json`** (repo root) controls how [Context7](https://context7.com) indexes
+  this project. It excludes the `3x-ui-<version>/` source snapshots (~1900 upstream
+  files that would otherwise drown the provider's own API in search results), `CHANGELOG.md`,
+  and build/cache artefacts, and exposes `rules` for coding agents. Update `excludeFolders`
+  whenever a new snapshot is added (see "Adding a new 3x-ui version to CI").
 
 ### Testing
 
@@ -270,3 +276,4 @@ When a new 3x-ui version is released:
 6. **`provider/testdata/upstream_contract.json`** — update `all_setting_fields`, `protocols_go_model`, `version` to match the latest 3x-ui release (used by drift tests when no local snapshot is present)
 7. **`docs/`** — if provider schema changed, update the corresponding resource/data-source doc
 8. **`CLAUDE.md`** — update the "up to vX.Y.Z" version reference if the minor line changed
+9. **`context7.json`** — add the new `3x-ui-<version>/` snapshot folder to `excludeFolders` so Context7 does not index the upstream source copy
