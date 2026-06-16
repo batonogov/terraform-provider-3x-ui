@@ -261,21 +261,41 @@ func (p *proxy) serveFixture(w http.ResponseWriter, r *http.Request) {
 // type. Returns ok=false when there is no matching fixture, which the caller
 // turns into a 404 (fail loud). Extracted for unit testing.
 func fixtureFor(root, host, urlPath string) (abs, contentType string, ok bool) {
+	resolve := func(segments ...string) (string, string, bool) {
+		candidate := filepath.Join(append([]string{root}, segments...)...)
+		// Defense against path traversal: a crafted urlPath containing ".."
+		// segments could otherwise make filepath.Join escape `root` and serve an
+		// arbitrary file. The MITM CA private key lives at /ca/ca.key (a mounted
+		// volume), so an escape would leak the very CA the panel trusts — reject
+		// any resolved path that is not inside root. Symlinks inside the fixture
+		// tree are not used and not followed here.
+		if candidate != root && !strings.HasPrefix(candidate, root+string(filepath.Separator)) {
+			return "", "", false
+		}
+		return candidate, "", true
+	}
+
 	switch {
 	case host == "api.github.com" && strings.HasPrefix(urlPath, "/repos/XTLS/Xray-core/releases"):
 		// 3x-ui hits https://api.github.com/repos/XTLS/Xray-core/releases
 		// (optionally with a ?per_page= query, which we ignore). The panel
 		// only reads tag_name from the returned array.
-		return filepath.Join(root, "api.github.com", "repos", "XTLS", "Xray-core", "releases.json"),
-			"application/json; charset=utf-8", true
+		p, _, ok := resolve("api.github.com", "repos", "XTLS", "Xray-core", "releases.json")
+		if !ok {
+			return "", "", false
+		}
+		return p, "application/json; charset=utf-8", true
 
 	case host == "github.com" && strings.HasPrefix(urlPath, "/XTLS/Xray-core/releases/download/"):
 		// 3x-ui downloads https://github.com/XTLS/Xray-core/releases/download/<v>/Xray-linux-64.zip
 		// Mirror the path verbatim under the fixture root so adding a version
 		// is just "drop the zip in place".
 		rel := strings.TrimPrefix(urlPath, "/")
-		candidate := filepath.Join(root, "github.com", rel)
-		return candidate, "application/zip", true
+		p, _, ok := resolve("github.com", rel)
+		if !ok {
+			return "", "", false
+		}
+		return p, "application/zip", true
 
 	default:
 		return "", "", false
