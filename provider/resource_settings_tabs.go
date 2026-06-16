@@ -404,7 +404,8 @@ func panelSubscriptionSchema() schema.Schema {
 					"`{\"packets\":\"tlshello\",\"length\":\"100-200\",\"interval\":\"10-20\"}`. " +
 					"**v2.9.1 and earlier:** full outbound object with tag, protocol, settings and streamSettings. " +
 					"Deprecated in 3x-ui v3.2.8 — replaced by sub_clash_enable_routing.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				PlanModifiers:      []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				DeprecationMessage: "Deprecated in 3x-ui v3.2.8. Use sub_clash_enable_routing instead.",
 			},
 			"sub_json_noises": schema.StringAttribute{
 				Optional: true, Computed: true,
@@ -413,7 +414,8 @@ func panelSubscriptionSchema() schema.Schema {
 					"`[{\"type\":\"rand\",\"packet\":\"10-20\",\"delay\":\"10-16\"}]`. " +
 					"**v2.9.1 and earlier:** full outbound object with tag, protocol, settings and streamSettings. " +
 					"Deprecated in 3x-ui v3.2.8 — replaced by sub_clash_rules.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				PlanModifiers:      []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				DeprecationMessage: "Deprecated in 3x-ui v3.2.8. Use sub_clash_rules instead.",
 			},
 			"sub_json_mux": schema.StringAttribute{
 				Optional: true, Computed: true,

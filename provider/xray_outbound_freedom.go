@@ -39,6 +39,7 @@ func freedomSettingsBlock() schema.ListNestedBlock {
 					PlanModifiers: []planmodifier.List{
 						listplanmodifier.UseStateForUnknown(),
 					},
+					DeprecationMessage: "Deprecated. Use final_rule on 3x-ui v2.9.4+ instead.",
 				},
 			},
 			Blocks: map[string]schema.Block{
