@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.14.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.13.0...v3.14.0) (2026-06-15)
+
+
+### Features
+
+* support panel_outbound (outbound egress bridge) for 3x-ui v3.3.1+ ([#283](https://github.com/batonogov/terraform-provider-threexui/issues/283)) ([b9b8715](https://github.com/batonogov/terraform-provider-threexui/commit/b9b87153480763d10137e6dfcfedaa65e666d8f6))
+
 ## [3.13.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.12.0...v3.13.0) (2026-06-15)
 
 
