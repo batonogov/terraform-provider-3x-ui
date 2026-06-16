@@ -167,9 +167,11 @@ func (p *proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 
 	tlsConn := tls.Server(client, &tls.Config{
 		Certificates: []tls.Certificate{leaf},
-		// Advertise only HTTP/1.1 so the client does not negotiate h2 (which
-		// this single-conn server does not implement). The panel's Go client
-		// happily falls back to HTTP/1.1.
+		// Pin ALPN to HTTP/1.1 only. This is load-bearing: the inner HTTP server
+		// serves a single hijacked TLS connection (singleConnListener) and does
+		// NOT implement h2 multiplexing — negotiating h2 would break the
+		// one-request-per-connection assumption. The panel's Go client falls
+		// back to HTTP/1.1 cleanly. Do NOT add "h2" here.
 		NextProtos: []string{"http/1.1"},
 		MinVersion: tls.VersionTLS12,
 	})
@@ -180,11 +182,24 @@ func (p *proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Serve HTTP/1.1 over the single hijacked TLS connection. The inner
-	// handler dispatches to fixtures based on Host + path.
+	// handler dispatches to fixtures based on Host + path. Keep-alives are
+	// disabled so that once the panel's single request is answered, the HTTP
+	// server writes "Connection: close" and closes the TLS connection itself
+	// — no idle fd lingers up to ReadHeaderTimeout, and the conn-handling
+	// goroutine exits promptly. Serve then returns when its singleConnListener's
+	// next Accept yields errListenerClosed.
+	//
+	// NOTE: do NOT `defer tlsConn.Close()` here. Serve returns as soon as the
+	// listener is exhausted (i.e. immediately after the one Accept), which is
+	// BEFORE the conn-handling goroutine has finished writing the response —
+	// a deferred Close would truncate the response with an EOF. Relying on
+	// SetKeepAlivesEnabled(false) to close the conn after the response is the
+	// correct lifecycle for this single-request server.
 	srv := &http.Server{
 		Handler:           http.HandlerFunc(p.serveFixture),
 		ReadHeaderTimeout: 30 * time.Second,
 	}
+	srv.SetKeepAlivesEnabled(false)
 	_ = srv.Serve(&singleConnListener{conn: tlsConn})
 }
 
@@ -404,7 +419,11 @@ func (c *leafCache) sign(host string) (tls.Certificate, error) {
 		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		DNSNames:     []string{host},
-		// BasicConstraintsValid omitted on purpose: this is a leaf.
+		// Assert leaf-ness explicitly. Go's verifier tolerates an absent
+		// basicConstraints, but setting CA:FALSE is RFC 5280-conformant and
+		// survives stricter validators.
+		BasicConstraintsValid: true,
+		IsCA:                  false,
 	}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, c.caCert, &key.PublicKey, c.caKey)
 	if err != nil {
