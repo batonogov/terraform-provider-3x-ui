@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.14.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.14.0...v3.14.1) (2026-06-16)
+
+
+### Bug Fixes
+
+* add DeprecationMessage to panel_proxy schema ([#288](https://github.com/batonogov/terraform-provider-threexui/issues/288)) ([52249f8](https://github.com/batonogov/terraform-provider-threexui/commit/52249f84e67ffe47defec5b91f62e00dbfca6423))
+* add DeprecationMessage to remaining deprecated attributes ([#290](https://github.com/batonogov/terraform-provider-threexui/issues/290)) ([f734c15](https://github.com/batonogov/terraform-provider-threexui/commit/f734c1562967785b62ecfae7e4f405da51170c45))
+
 ## [3.14.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.13.0...v3.14.0) (2026-06-15)
 
 
