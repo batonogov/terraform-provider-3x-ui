@@ -961,7 +961,8 @@ func panelGeneralSchema() schema.Schema {
 					"checks, Telegram bot, outbound testing). Available on 3x-ui v3.2.0 through v3.3.0; " +
 					"superseded by panel_outbound (outbound egress bridge) on v3.3.1+. " +
 					"Ignored by v3.3.1+ panels.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				PlanModifiers:      []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				DeprecationMessage: "Superseded by panel_outbound on 3x-ui v3.3.1+. Use panel_outbound for new configurations.",
 			},
 			"panel_outbound": schema.StringAttribute{
 				Optional:      true,
