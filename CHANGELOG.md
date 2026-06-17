@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.14.2](https://github.com/batonogov/terraform-provider-threexui/compare/v3.14.1...v3.14.2) (2026-06-17)
+
+
+### Bug Fixes
+
+* **settings:** restart the panel when subscription server settings change ([#292](https://github.com/batonogov/terraform-provider-threexui/issues/292)) ([f1752d2](https://github.com/batonogov/terraform-provider-threexui/commit/f1752d28af4f1c143bc43ca47fe30c3ffab719e2))
+
 ## [3.14.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.14.0...v3.14.1) (2026-06-16)
 
 
