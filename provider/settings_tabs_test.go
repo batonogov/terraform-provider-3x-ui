@@ -83,6 +83,27 @@ func TestPanelSettingsNeedRestart_NoRestartKeys(t *testing.T) {
 	}
 }
 
+func TestPanelSettingsNeedRestart_SubscriptionServerKey(t *testing.T) {
+	// Toggling/changing the subscription server must trigger a panel restart — the sub
+	// server is initialised at panel startup, so otherwise the subscription URL 404s.
+	if !panelSettingsNeedRestart(map[string]any{"subEnable": false}, map[string]any{"subEnable": true}) {
+		t.Fatalf("expected restart when the subscription server is enabled")
+	}
+	if !panelSettingsNeedRestart(map[string]any{"subPath": "/old/"}, map[string]any{"subPath": "/new/"}) {
+		t.Fatalf("expected restart when the subscription path changes")
+	}
+	if !panelSettingsNeedRestart(map[string]any{"subPort": float64(2096)}, map[string]any{"subPort": float64(2097)}) {
+		t.Fatalf("expected restart when the subscription port changes")
+	}
+}
+
+func TestPanelSettingsNeedRestart_SubscriptionLinkKeyNoRestart(t *testing.T) {
+	// Link-generation settings (read at request time) must NOT force a restart.
+	if panelSettingsNeedRestart(map[string]any{"subURI": "https://a/"}, map[string]any{"subURI": "https://b/"}) {
+		t.Fatalf("expected no restart for subURI (link-generation only)")
+	}
+}
+
 func TestSettingsValueEqual_Strings(t *testing.T) {
 	if !settingsValueEqual("abc", "abc") {
 		t.Fatalf("expected equal")
