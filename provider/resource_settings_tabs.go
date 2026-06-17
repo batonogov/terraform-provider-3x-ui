@@ -2144,6 +2144,16 @@ func panelSettingsNeedRestart(existing, desired map[string]any) bool {
 		"webCertFile",
 		"webKeyFile",
 		"sessionMaxAge",
+		// Subscription server binding — parallels the web* keys above. The sub server is
+		// (re)initialised at panel startup, so changing whether/where it listens needs a
+		// panel restart; without it the subscription URL 404s until the panel is restarted.
+		"subEnable",
+		"subListen",
+		"subDomain",
+		"subPort",
+		"subPath",
+		"subCertFile",
+		"subKeyFile",
 	}
 	for _, key := range restartKeys {
 		newVal, ok := desired[key]
