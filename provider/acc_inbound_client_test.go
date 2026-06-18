@@ -416,52 +416,50 @@ resource "threexui_inbound_client" "autouuid" {
 }
 
 // --- Client with explicit client_id ---
+//
+// The companion regression guard TestAccInboundClientCommentInPlace pins the
+// in-place half: an OMITTED client_id stays stable across a metadata edit. This
+// pins the other half: an EXPLICIT client_id is the client's identity (UUID), so
+// changing it must force a destroy/recreate rather than an in-place update.
 
 func TestAccInboundClientExplicitID(t *testing.T) {
-	config := testAccProviderConfig() + `
-resource "threexui_inbound" "explicitid_host" {
-  port     = 25108
-  protocol = "vless"
-  remark   = "acc-explicitid-host"
-  enable   = true
-  vless_settings {
-    decryption = "none"
-  }
-  stream_settings {
-    network  = "tcp"
-    security = "reality"
-    reality_settings {
-      target       = "google.com:443"
-      server_names = ["google.com"]
-    }
-  }
-}
+	const initialClientID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+	const changedClientID = "11111111-2222-3333-4444-555555555555"
 
-resource "threexui_inbound_client" "explicitid" {
-  inbound_id = threexui_inbound.explicitid_host.id
-  client_id  = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-  email      = "explicitid@test.com"
-  enable     = true
-  flow       = "xtls-rprx-vision"
-}
-`
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
 		CheckDestroy:             testAccCheckInboundClientDestroyed,
 		Steps: []resource.TestStep{
 			{
-				Config: config,
+				Config: testAccProviderConfig() + testAccInboundClientExplicitIDConfig(initialClientID),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("threexui_inbound_client.explicitid", "client_id", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+					resource.TestCheckResourceAttr("threexui_inbound_client.explicitid", "client_id", initialClientID),
 					resource.TestCheckResourceAttr("threexui_inbound_client.explicitid", "email", "explicitid@test.com"),
 				),
 			},
-			// Idempotency
+			// Idempotency: UseStateForUnknown must prevent false drift.
 			{
-				Config:             config,
+				Config:             testAccProviderConfig() + testAccInboundClientExplicitIDConfig(initialClientID),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
+			},
+			// Changing an explicit client_id forces replacement. The two configs
+			// differ ONLY in client_id, so RequiresReplace is the sole driver of the
+			// recreate (client_id is the client's identity — its UUID). The resource
+			// does not opt into create_before_destroy, so the planned action is
+			// DestroyBeforeCreate.
+			{
+				Config: testAccProviderConfig() + testAccInboundClientExplicitIDConfig(changedClientID),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("threexui_inbound_client.explicitid", plancheck.ResourceActionDestroyBeforeCreate),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound_client.explicitid", "client_id", changedClientID),
+					resource.TestCheckResourceAttr("threexui_inbound_client.explicitid", "email", "explicitid@test.com"),
+				),
 			},
 		},
 	})
@@ -645,6 +643,36 @@ resource "threexui_inbound_client" "hysteria_client" {
 }
 
 // --- Config helpers ---
+
+func testAccInboundClientExplicitIDConfig(clientID string) string {
+	return fmt.Sprintf(`
+resource "threexui_inbound" "explicitid_host" {
+  port     = 25108
+  protocol = "vless"
+  remark   = "acc-explicitid-host"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
+  }
+}
+
+resource "threexui_inbound_client" "explicitid" {
+  inbound_id = threexui_inbound.explicitid_host.id
+  client_id  = %q
+  email      = "explicitid@test.com"
+  enable     = true
+  flow       = "xtls-rprx-vision"
+}
+`, clientID)
+}
 
 func testAccInboundClientUpdateConfig(email string, enable bool, limitIP int, comment string) string {
 	return fmt.Sprintf(`
