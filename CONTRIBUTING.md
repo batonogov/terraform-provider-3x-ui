@@ -69,7 +69,7 @@ This handles `docker compose up`, sets the required environment variables (`TF_A
 
 ## Project Structure
 
-All provider code lives in the `provider/` directory. See [CLAUDE.md](CLAUDE.md) for project-specific implementation notes.
+All provider code lives in the `provider/` directory. See [AGENTS.md](AGENTS.md) for project-specific implementation notes.
 
 Key patterns:
 
