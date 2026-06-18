@@ -71,6 +71,7 @@ terraform.rc
 terraform-provider-threexui
 example2/
 .claude/
+.pi/
 .DS_Store
 .cache
 docs/superpowers/
