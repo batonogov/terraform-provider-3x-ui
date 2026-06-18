@@ -2102,16 +2102,23 @@ func (r *PanelSubscriptionResource) applySubscription(ctx context.Context, plan 
 	}
 
 	settingsMu.Lock()
-	defer settingsMu.Unlock()
 
 	// First apply.
 	existing, err := r.client.GetSettings(ctx)
 	if err != nil {
+		settingsMu.Unlock()
 		diags.AddError("Failed to get settings", err.Error())
 		return
 	}
+	// Detect whether a server-binding key changed (subEnable/subListen/subDomain/
+	// subPort/subPath/subCertFile/subKeyFile). The 3x-ui subscription server is only
+	// (re)initialised at panel startup (see 3x-ui/internal/sub/sub.go Start()+initRouter()),
+	// so without a panel restart the subscription port stays closed / the URL 404s
+	// until the panel is restarted by hand (#291).
+	needRestart := panelSettingsNeedRestart(existing, desired)
 	merged := mergeSettingsForUpdate(r.client, existing, desired)
 	if err := r.client.UpdateSettings(ctx, merged); err != nil {
+		settingsMu.Unlock()
 		diags.AddError("Failed to update settings", err.Error())
 		return
 	}
@@ -2120,15 +2127,32 @@ func (r *PanelSubscriptionResource) applySubscription(ctx context.Context, plan 
 	// Second apply (workaround for 3x-ui bug).
 	existing2, err := r.client.GetSettings(ctx)
 	if err != nil {
+		settingsMu.Unlock()
 		diags.AddError("Failed to get settings (second apply)", err.Error())
 		return
 	}
 	merged2 := mergeSettingsForUpdate(r.client, existing2, desired)
 	if err := r.client.UpdateSettings(ctx, merged2); err != nil {
+		settingsMu.Unlock()
 		diags.AddError("Failed to update settings (second apply)", err.Error())
 		return
 	}
 	r.client.rememberConfiguredSettingSecrets(desired)
+	settingsMu.Unlock()
+
+	// Restart the panel (outside the settings lock) so the subscription server
+	// rebinds with the new settings. Mirrors applyPanelGeneral. No base-path
+	// handling here — the subscription server does not share the panel's webBasePath.
+	if needRestart {
+		if err := r.client.SendRestart(ctx); err != nil {
+			diags.AddError("Failed to restart panel", err.Error())
+			return
+		}
+		if err := r.client.WaitForReady(ctx); err != nil {
+			diags.AddError("Panel did not become ready after restart", err.Error())
+			return
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
