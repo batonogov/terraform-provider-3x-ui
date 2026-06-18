@@ -92,13 +92,18 @@ Four resources — `panel_general`, `panel_security`, `panel_telegram`,
   returns an empty/redacted sentinel. Note: 3x-ui v3.0.2–v3.3.1 actually returns
   these secrets **raw** on `/setting/all`, so the replay path is defensive and
   mainly fires when the panel genuinely has no secret stored.
-- Changing a restart-triggering key in `panel_general` — `webListen`, `webDomain`,
-  `webPort`, `webBasePath`, `webCertFile`, `webKeyFile`, `sessionMaxAge`, and the
-  subscription-server binding keys (`subEnable`, `subListen`, `subDomain`, `subPort`,
-  `subPath`, `subCertFile`, `subKeyFile`) — triggers a provider-initiated restart
-  (`POST /setting/restartPanel`, SIGHUP; 3x-ui does **not** auto-restart). For
-  `webBasePath` the provider additionally calls `SetBasePath` + `WaitForReady` so
-  subsequent requests target the new path.
+- Changing a restart-triggering key triggers a provider-initiated restart
+  (`POST /setting/restartPanel`, SIGHUP; 3x-ui does **not** auto-restart) in two
+  resources, each gated by the shared `panelSettingsNeedRestart` check followed by
+  `SendRestart` + `WaitForReady`: `panel_general` (`webListen`, `webDomain`,
+  `webPort`, `webBasePath`, `webCertFile`, `webKeyFile`, `sessionMaxAge`) and
+  `panel_subscription` (the subscription-server binding keys `subEnable`, `subListen`,
+  `subDomain`, `subPort`, `subPath`, `subCertFile`, `subKeyFile`). The 3x-ui sub
+  server only (re)binds at startup, so without this restart a changed `sub_path`/
+  `sub_port`/… does not take effect and the subscription URL 404s (#291). Link-
+  generation fields (`subURI`, `subTitle`, …) are read per request and do **not**
+  restart. For `webBasePath` the provider additionally calls `SetBasePath` +
+  `WaitForReady` so subsequent requests target the new path.
 
 ### Write-only secret attributes (Terraform 1.11+ / OpenTofu 1.11+)
 

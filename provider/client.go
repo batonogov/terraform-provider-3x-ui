@@ -946,15 +946,29 @@ func (c *Client) WaitForReady(ctx context.Context) error {
 	const (
 		interval = 2 * time.Second
 		timeout  = 30 * time.Second
+		// 3x-ui restarts its web server asynchronously after /setting/restartPanel:
+		// the SIGHUP is delivered to a channel and the main loop does Stop()+Start()
+		// in a goroutine (see main.go), so the old socket can briefly still answer
+		// before being torn down. A single successful login is therefore racy — a
+		// caller can observe "ready" on the dying socket and then hit a connection
+		// reset a moment later. Require a few CONSECUTIVE successes so the restart
+		// has actually settled.
+		consecutiveRequired = 3
 	)
 	deadline := time.Now().Add(timeout)
+	streak := 0
 	for {
 		if time.Now().After(deadline) {
 			return errors.New("panel did not become ready after restart")
 		}
 		// Try to login — this also verifies the panel is reachable.
 		if err := c.Login(ctx); err == nil {
-			return nil
+			streak++
+			if streak >= consecutiveRequired {
+				return nil
+			}
+		} else {
+			streak = 0
 		}
 		select {
 		case <-ctx.Done():
