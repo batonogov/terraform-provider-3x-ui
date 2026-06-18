@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.14.3](https://github.com/batonogov/terraform-provider-threexui/compare/v3.14.2...v3.14.3) (2026-06-18)
+
+
+### Bug Fixes
+
+* keep client_id stable so metadata edits update in-place ([#298](https://github.com/batonogov/terraform-provider-threexui/issues/298)) ([d5012a0](https://github.com/batonogov/terraform-provider-threexui/commit/d5012a0ef89d4dff81fd7cc9ebdd562156b9084b))
+
 ## [3.14.2](https://github.com/batonogov/terraform-provider-threexui/compare/v3.14.1...v3.14.2) (2026-06-17)
 
 
