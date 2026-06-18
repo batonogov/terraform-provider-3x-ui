@@ -11,6 +11,8 @@ Manages the subscription service settings of the 3x-ui panel.
 
 This is a singleton resource -- only one instance should exist per provider. Deleting this resource only removes it from Terraform state; it does not reset the settings.
 
+~> **Note:** Changing any subscription **server-binding** field — `sub_enable`, `sub_listen`, `sub_domain`, `sub_port`, `sub_path`, `sub_cert_file`, `sub_key_file` — triggers a panel restart and therefore brief panel downtime. The 3x-ui subscription server is only (re)initialised at panel startup, so changing whether or where it listens needs a restart to take effect; without it the subscription URL keeps returning 404 until the panel is restarted manually. Link-generation and display fields (for example `sub_uri`, `sub_title`, `sub_json_enable`, `sub_encrypt`, `sub_show_info`) are read on every request and do **not** trigger a restart.
+
 ~> **Note:** When `sub_port` (default `2096`) differs from the main panel port and the panel runs behind a reverse proxy, the proxy must be configured to forward subscription path requests to the subscription port. Without this, subscription URLs will return 404.
 
 **Caddy** example:
