@@ -91,6 +91,13 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 				Optional: true,
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
+					// client_id is Computed and usually omitted from config. Keep the prior
+					// state value instead of going unknown on an unrelated change (e.g. a
+					// comment edit); without this the planned client_id becomes "known after
+					// apply", and RequiresReplace then recreates the client — rotating its
+					// UUID and subId and breaking its vless link and subscription.
+					stringplanmodifier.UseStateForUnknown(),
+					// An explicit client_id change is still a replace (the UUID is identity).
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
