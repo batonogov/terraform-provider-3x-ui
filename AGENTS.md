@@ -30,6 +30,8 @@ Env vars: `THREEXUI_ENDPOINT`, `THREEXUI_USERNAME`, `THREEXUI_PASSWORD`,
 | `task test:unit` | Unit tests (no Docker/Terraform needed) |
 | `task test:unit:coverage` | Unit tests with coverage (`coverage.out`) |
 | `task test:acc` | Acceptance tests (Docker lifecycle included) |
+| `task test:acc:compat` | Acceptance tests vs a pinned `THREEXUI_VERSION` (compat matrix) |
+| `task test:acc:postgres` | Acceptance tests with a PostgreSQL backend (docker compose `--profile postgres`) |
 | `task pre-commit` | fmt + vet + lint + build |
 
 **Watch CI status for a PR:**
@@ -51,7 +53,7 @@ THREEXUI_VERSION=v3.1.0 task test:acc:compat
 TF_ACC=1 THREEXUI_ENDPOINT=http://localhost:2053 \
   THREEXUI_USERNAME=admin THREEXUI_PASSWORD=admin \
   THREEXUI_VERSION=v3.3.1 \
-  go test ./provider -run TestAccInboundVLESS -count=1 -timeout 600s -v
+  go test ./provider -run TestAccInboundReality -count=1 -timeout 600s -v
 ```
 
 ---
@@ -71,6 +73,10 @@ typed model  (structs with types.String / types.Int64 / types.Bool)
 ```
 
 Schema helpers: `inbound_*_schema.go`, `settings.go`, `stream_settings.go`, `sniffing.go`.
+`inbound_client` does read-modify-write on the inbound's `settings.clients` array
+under its own `inboundClientMu` mutex (a third RMW lock alongside `settingsMu` and
+`xrayTemplateMu`). Both core resources accept `restart_xray = true` to restart
+xray-core after create/update/delete (`POST /panel/api/server/restartXrayService`).
 
 ### Panel settings (singletons)
 
@@ -81,10 +87,18 @@ Four resources — `panel_general`, `panel_security`, `panel_telegram`,
 - Shared CRUD via `settingsApplyTyped` / `settingsReadTyped`.
 - Delete only clears TF state — does not reset panel settings.
 - `settingsMu` serializes read-modify-write (separate from `xrayTemplateMu`).
-- `settingsSecrets` on Client caches secret values from GET responses (3x-ui masks them)
-  so they can be replayed in subsequent PUT requests.
-- Changing `web_base_path` in `panel_general` triggers a panel restart and updates
-  the provider client's base path via `SetBasePath` + `WaitForReady`.
+- `settingsSecrets` on Client remembers the last configured `tgBotToken` /
+  `twoFactorToken` / `ldapPassword` and replays them on partial updates when a GET
+  returns an empty/redacted sentinel. Note: 3x-ui v3.0.2–v3.3.1 actually returns
+  these secrets **raw** on `/setting/all`, so the replay path is defensive and
+  mainly fires when the panel genuinely has no secret stored.
+- Changing a restart-triggering key in `panel_general` — `webListen`, `webDomain`,
+  `webPort`, `webBasePath`, `webCertFile`, `webKeyFile`, `sessionMaxAge`, and the
+  subscription-server binding keys (`subEnable`, `subListen`, `subDomain`, `subPort`,
+  `subPath`, `subCertFile`, `subKeyFile`) — triggers a provider-initiated restart
+  (`POST /setting/restartPanel`, SIGHUP; 3x-ui does **not** auto-restart). For
+  `webBasePath` the provider additionally calls `SetBasePath` + `WaitForReady` so
+  subsequent requests target the new path.
 
 ### Write-only secret attributes (Terraform 1.11+ / OpenTofu 1.11+)
 
@@ -129,8 +143,11 @@ has its own `*_schema.go` file.
 ### Xray version (`resource_xray_version.go`)
 
 Separate resource — singleton with ID `"xray_version"`. Calls `InstallXray` + polls
-`waitForXrayVersion` until the version matches. Delete is a no-op with a warning
-(removing from state does NOT revert the installed version).
+`waitForXrayVersion` (90×1s) until the version matches; if the panel still reports a
+stale version after 30 attempts it re-issues `InstallXray` once (3x-ui v3.2.6–v3.2.7
+sometimes silently drop the first install, #262). Read treats `"Unknown"` as a
+soft-fail (Warning + preserved state). Delete is a no-op with a warning (removing
+from state does NOT revert the installed version).
 
 ### Panel user (`resource_panel_user.go`)
 
@@ -142,14 +159,21 @@ above for the `password` / `password_wo` lifecycle.
 
 ### HTTP client (`client.go`)
 
-Cookie auth, auto re-login on 401/404, CSRF handling for 3x-ui v3.
-Supports bootstrap credentials for first-run panel setup.
+Cookie auth, auto re-login on 401/404, CSRF token handling (enforced on all
+`/panel/api/*` + login routes since ≥ v3.0.2; Bearer API-token auth bypasses it).
+Supports bootstrap credentials for first-run panel setup (the panel auto-creates an
+`admin`/`admin` user on an empty DB; bootstrap ordering differs by generation —
+v2.9.x tries bootstrap first, v3.x tries primary first).
 Provider attributes: `two_factor_code` (TOTP for 2FA login), `max_retries`
 (default 1, max 10), `request_timeout`.
 Three retry layers: 5xx on idempotent writes, read-after-write for SQLite
 visibility lag, rate-limit retry for `GetXrayVersions`.
-Client API auto-detection: probes `/panel/api/clients/list` to detect v3.1.0+
-and falls back to old `/panel/api/inbounds/*` endpoints on older versions.
+Two independent API-surface auto-detections (each probed once and cached):
+(a) client API — probes `/panel/api/clients/list` to pick v3.1.0+
+`/panel/api/clients/*` over `/panel/api/inbounds/*`; (b) settings/xray API — probes
+`/panel/api/setting/all` to pick v3.3.0+ `/panel/api/setting/*` + `/panel/api/xray/*`
+over `/panel/setting/*` + `/panel/xray/*`. Both fall back to legacy endpoints
+mid-run via `markLegacy*` on 404.
 
 ### JSON format compatibility (`types.go`)
 
@@ -161,7 +185,7 @@ normalises both formats to plain strings — rest of the code is unaffected.
 
 Seven data sources: `inbounds`, `server_status`, `xray_versions`, `xray_config`,
 `settings`, `online_clients`, `client_traffics`. All are read-only GET wrappers
-except `inbounds` which supports filtering by protocol/tag. JSON attrs that
+that return the raw panel payload — none accept filter arguments. JSON attrs that
 contain secrets (UUIDs, private keys) must be marked `Sensitive: true`.
 
 ---
@@ -172,7 +196,7 @@ These are non-obvious constraints that have caused real bugs.
 
 | Gotcha | Why it matters |
 | --- | --- |
-| `email` in `threexui_inbound_client` is **Required** | Without it, 3x-ui crashes with SQL error on next client add |
+| `email` in `threexui_inbound_client` is **Required** | The `clients`/`client_traffics` tables key on it (`uniqueIndex; not null` / `gorm:"unique"`); the panel rejects an empty email with `"client email is required"` before the SQL layer |
 | Docker `base_path` is `/` | Do **not** set `THREEXUI_BASE_PATH=/panel/` |
 | Data-source JSON attrs need `Sensitive: true` | Payloads contain UUIDs, private keys, tokens |
 | `Optional+Computed` attrs need `UseStateForUnknown` | Prevents false drift (`known after apply`) after import |
@@ -181,9 +205,10 @@ These are non-obvious constraints that have caused real bugs.
 | Subscription resource does **double apply** | Workaround: `sub_json_enable` not saved on first apply with `sub_enable` |
 | Policy levels: `{"0": {...}}` ↔ `[{id=0}]` | Xray JSON uses a map, TF uses a list |
 | DNS servers: string vs object | Address-only → string; with extra fields → object |
+| Protocol names are version-specific | `hysteria2` is a distinct protocol only on v3.0.2/v3.1.0; from v3.2.0 use `protocol = "hysteria"` with `streamSettings.version = 2`. `tunnel` requires ≥ v3.2.0; `tun`/`mtproto` require ≥ v3.3.0 |
 | `xray_version` delete is a no-op | Removing from state does NOT revert the installed xray version |
 | `web_base_path` change triggers panel restart | Must also update provider `base_path`; code auto-updates client |
-| `panel_outbound` vs `panel_proxy` is version-specific | 3x-ui v3.3.1 renamed `panelProxy`→`panelOutbound` and changed semantics: `panel_outbound` takes an Xray outbound/balancer tag; `panel_proxy` (HTTP/SOCKS5 URL) is kept for v3.2.0–v3.3.0 and is `Deprecated`. Both coexist safely — gin ignores the unknown field per version |
+| `panel_outbound` vs `panel_proxy` is version-specific | 3x-ui v3.3.1 **replaced** `panelProxy` (HTTP/SOCKS5 URL, present only in v3.2.0–v3.3.0; absent in v3.0.2/3.1.0) with `panelOutbound` (an Xray outbound/balancer tag). The provider's `panel_proxy` attr is `Deprecated` (provider-side annotation) and maps to the old field; gin silently ignores the unknown `panelProxy` form value on v3.3.1 |
 | Write-only attrs quirks | See "Write-only secret attributes" section above — read `_wo` from `req.Config`; ModifyPlan marks plain `Unknown` on version change; `panel_user` nulls state password instead |
 | xray-settings acc-tests restart xray-core | `TestAccXrayBasics`/`DNS`/`Routing`/`Balancers`/`Reverse`/`Outbounds` each apply a new config = xray restart; `version` becomes `"Unknown"` for ~30-90s after. Use `waitForXrayVersion(t, ctx, client)` poll-loop in any acc-test probing version after them (#280) |
 | `GetXrayVersions` hits GitHub anonymously | 3x-ui's `getXrayVersion` handler has no `Authorization`; 60 req/h/IP on shared runners. Use `skipOnUpstreamRateLimit(t, err)` / `testAccSkipOnXrayVersionsRateLimit(t)` to skip, not fail (#279) |
@@ -228,14 +253,18 @@ Imperative mood, concise subjects.
 - Unit tests: `TestXxx` naming, table-driven where practical.
 - Acceptance tests: `TestAccXxx`, `terraform-plugin-testing`,
   `ProtoV6ProviderFactories` (not `ProviderFactories`).
-- Version-aware skipping: `requireMinVersion(t, "vX.Y.Z")` for features from
-  specific 3x-ui versions. Currently supported: **v3.1.x**, **v3.2.x**, **v3.3.x** (up to v3.3.1).
+- Version-aware skipping: `requireMinVersion(t, "vX.Y.Z")` for features added in a
+  specific 3x-ui version; `requireBelowVersion(t, "vX.Y.Z")` for features removed
+  upstream (e.g. `hysteria2`, dropped in v3.2.0). Currently supported: **v3.1.x**,
+  **v3.2.x**, **v3.3.x** (up to v3.3.1).
 - Flaky test quarantine: `skipOnFlakyVersions(t, ...)` / `skipIfFlaky(t)` with
   `THREEXUI_SKIP_FLAKY` env var to skip known-broken upstream versions.
 - Xray-version acc-tests use `waitForXrayVersion(t, ctx, client)` (90×1s retry on
   `ErrXrayVersionUnknown`) — covers both the cold-start race (handled by the
-  `_wait-for-xray` Taskfile gate) and mid-test restarts after `TestAccXray*` settings
-  tests. **Do not** call `client.GetCurrentXrayVersion()` directly in acc-tests (#280).
+  `_wait-for-xray` + `_warm-xray-version-cache` Taskfile gates, the latter pre-warms
+  3x-ui's 15-min GitHub-API cache) and mid-test restarts after `TestAccXray*`
+  settings tests. **Do not** call `client.GetCurrentXrayVersion()` directly in
+  acc-tests (#280).
 - Any acc-test exercising `GetXrayVersions` (directly or via `threexui_xray_versions`
   data source / `xray_version` resource) must pre-flight with
   `testAccSkipOnXrayVersionsRateLimit(t)`, or wrap the error with
