@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 )
 
 // --- All fields: email, flow, limit_ip, total_gb, expiry_time, enable, tg_id, comment, reset (sub_id is Optional+Computed) ---
@@ -103,6 +104,54 @@ func TestAccInboundClientUpdate(t *testing.T) {
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"password"},
+			},
+		},
+	})
+}
+
+// --- A comment (metadata) change must update in-place, not recreate the client ---
+//
+// Regression guard: client_id is Computed and omitted from config. Without
+// UseStateForUnknown it became "known after apply" on any change, and the
+// RequiresReplace plan modifier then recreated the client — rotating its UUID and
+// subId and breaking the client's vless link and subscription. This asserts the plan
+// is an in-place Update and that client_id is preserved across the change.
+
+func TestAccInboundClientCommentInPlace(t *testing.T) {
+	const email = "client-comment-inplace@test.com"
+	var clientID string
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + testAccInboundClientUpdateConfig(email, true, 2, "before"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound_client.upd", "comment", "before"),
+					resource.TestCheckResourceAttrWith("threexui_inbound_client.upd", "client_id", func(v string) error {
+						clientID = v
+						return nil
+					}),
+				),
+			},
+			{
+				Config: testAccProviderConfig() + testAccInboundClientUpdateConfig(email, true, 2, "after"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("threexui_inbound_client.upd", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound_client.upd", "comment", "after"),
+					resource.TestCheckResourceAttrWith("threexui_inbound_client.upd", "client_id", func(v string) error {
+						if v != clientID {
+							return fmt.Errorf("client_id changed (client was recreated): %q -> %q", clientID, v)
+						}
+						return nil
+					}),
+				),
 			},
 		},
 	})
