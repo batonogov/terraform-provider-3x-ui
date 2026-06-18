@@ -221,6 +221,27 @@ Key paths: `database/model/`, `web/service/`, `web/controller/`, `web/entity/`, 
 
 ## Conventions
 
+### Keeping AGENTS.md current
+
+AGENTS.md is the only place that documents non-obvious behavior an agent cannot
+derive from reading one file. Update it **in the same PR** when you:
+
+- add or remove a resource, data source, or schema attribute;
+- add a new mutex, ModifyPlan behavior, or read-modify-write path;
+- change API endpoint usage, retry budgets, or version-gated behavior;
+- hit a new non-obvious constraint that caused (or would cause) a real bug —
+  add it to "Critical Gotchas".
+
+Prefer citing the 3x-ui source snapshot (`3x-ui-<version>/`) as evidence for
+API-behavior claims rather than restating them from memory.
+
+### Working artifacts
+
+Save scratch artifacts (subagent audit output, draft analysis, large intermediate
+results) under `.pi/artifacts/`, not in the repo root. `.pi/` is git-ignored and
+reserved for agent tooling; nothing under it is committed. This keeps audit
+output reusable within a session without polluting the tree.
+
 ### Commits
 
 Conventional Commits: `feat:`, `fix:`, `docs:`, `ci:`, `test:`, `chore:`.
