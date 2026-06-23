@@ -286,6 +286,7 @@ func (p *ThreeXUIProvider) Resources(_ context.Context) []func() resource.Resour
 		NewPanelSecurityResource,
 		NewPanelUserResource,
 		NewPanelTelegramResource,
+		NewPanelEmailResource,
 		NewPanelSubscriptionResource,
 		NewXrayBasicsResource,
 		NewXrayDNSResource,

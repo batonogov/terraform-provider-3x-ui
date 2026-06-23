@@ -142,6 +142,7 @@ Full documentation is available on the [Terraform Registry](https://registry.ter
 | `threexui_panel_security` | Security settings (2FA) |
 | `threexui_panel_user` | Admin credentials |
 | `threexui_panel_telegram` | Telegram bot integration |
+| `threexui_panel_email` | SMTP/email notifications (v3.4.0+) |
 | `threexui_panel_subscription` | Subscription service settings |
 | `threexui_xray_basics` | Basic Xray config (log, policy, api, stats) |
 | `threexui_xray_dns` | DNS servers and hosts |

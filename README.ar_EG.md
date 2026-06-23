@@ -148,6 +148,7 @@ resource "threexui_inbound_client" "client_a" {
 | `threexui_panel_security` | إعدادات الأمان (2FA) |
 | `threexui_panel_user` | بيانات اعتماد المسؤول |
 | `threexui_panel_telegram` | تكامل بوت تليجرام |
+| `threexui_panel_email` | إشعارات SMTP/email (v3.4.0+) |
 | `threexui_panel_subscription` | إعدادات خدمة الاشتراك |
 | `threexui_xray_basics` | إعدادات Xray الأساسية (log, policy, api, stats) |
 | `threexui_xray_dns` | سيرفرات و hosts الـ DNS |

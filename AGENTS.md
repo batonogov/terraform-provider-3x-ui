@@ -80,15 +80,15 @@ xray-core after create/update/delete (`POST /panel/api/server/restartXrayService
 
 ### Panel settings (singletons)
 
-Four resources — `panel_general`, `panel_security`, `panel_telegram`,
-`panel_subscription` — share `resource_settings_tabs.go`.
+Five resources — `panel_general`, `panel_security`, `panel_telegram`,
+`panel_email`, `panel_subscription` — share `resource_settings_tabs.go`.
 
 - Each is a singleton with ID `"settings"`.
 - Shared CRUD via `settingsApplyTyped` / `settingsReadTyped`.
 - Delete only clears TF state — does not reset panel settings.
 - `settingsMu` serializes read-modify-write (separate from `xrayTemplateMu`).
 - `settingsSecrets` on Client remembers the last configured `tgBotToken` /
-  `twoFactorToken` / `ldapPassword` and replays them on partial updates when a GET
+  `twoFactorToken` / `ldapPassword` / `smtpPassword` and replays them on partial updates when a GET
   returns an empty/redacted sentinel. Note: 3x-ui v3.0.2–v3.3.1 actually returns
   these secrets **raw** on `/setting/all`, so the replay path is defensive and
   mainly fires when the panel genuinely has no secret stored.
@@ -115,6 +115,7 @@ Each secret gets three attributes: old `Sensitive` attr + `WriteOnly` attr + `_w
 | `panel_user` | `password` | `password_wo` | `password_wo_version` |
 | `panel_security` | `two_factor_token` | `two_factor_token_wo` | `two_factor_token_wo_version` |
 | `panel_telegram` | `tg_bot_token` | `tg_bot_token_wo` | `tg_bot_token_wo_version` |
+| `panel_email` | `smtp_password` | `smtp_password_wo` | `smtp_password_wo_version` |
 | `panel_general` | `ldap_password` | `ldap_password_wo` | `ldap_password_wo_version` |
 
 - `PreferWriteOnlyAttribute` validator warns on TF >= 1.11 when using old attr.
@@ -124,7 +125,7 @@ Each secret gets three attributes: old `Sensitive` attr + `WriteOnly` attr + `_w
   - **panel_user**: `password` is nulled in state when `password_wo` is used. Update
     falls back to provider credentials when state password is empty. No ModifyPlan
     needed because state has no prior password to conflict with.
-  - **settings (security/telegram/general)**: `resolveXxxWO` copies `_wo` value into
+  - **settings (security/telegram/email/general)**: `resolveXxxWO` copies `_wo` value into
     the old model field before `expand*()`. ModifyPlan marks the plain attr as Unknown
     on `woVersionTriggered` so Terraform accepts a new sensitive value from Apply.
     Needed because flatten reads the masked value back, which would otherwise be
@@ -214,7 +215,7 @@ These are non-obvious constraints that have caused real bugs.
 | `xray_version` delete is a no-op | Removing from state does NOT revert the installed xray version |
 | `web_base_path` change triggers panel restart | Must also update provider `base_path`; code auto-updates client |
 | `panel_outbound` vs `panel_proxy` is version-specific | 3x-ui v3.3.1 **replaced** `panelProxy` (HTTP/SOCKS5 URL, present only in v3.2.0–v3.3.0; absent in v3.0.2/3.1.0) with `panelOutbound` (an Xray outbound/balancer tag). The provider's `panel_proxy` attr is `Deprecated` (provider-side annotation) and maps to the old field; gin silently ignores the unknown `panelProxy` form value on v3.3.1 |
-| v3.4.0 removed four `AllSetting` fields | 3x-ui v3.4.0 dropped `remarkModel` (→ `remarkTemplate`), `subEmailInRemark`, `subShowInfo`, `tgBotLoginNotify` from `AllSetting`. The provider still sends them (backward compat for v3.1.x–v3.3.x); gin ignores the unknown form values on v3.4.0. All four dropped fields are listed in `intentionallySkipped` in `drift_test.go`. v3.4.0 also **added** the SMTP notification subsystem (`smtp*`, 10 fields, `smtpPassword` is sensitive), `tgEnabledEvents`/`tgMemory`, `remarkTemplate`, `subHideSettings` — none are managed yet (follow-up feature work) |
+| v3.4.0 AllSetting delta | 3x-ui v3.4.0 **added** 14 fields now managed by the provider: SMTP notifications (`smtp*`, 10 fields, `panel_email` resource, `smtpPassword` is sensitive + write-only), `tgEnabledEvents`/`tgMemory` (`panel_telegram`), `remarkTemplate`/`subHideSettings` (`panel_subscription`). v3.4.0 also **dropped** `remarkModel`/`subEmailInRemark`/`subShowInfo`/`tgBotLoginNotify` from `AllSetting`; the provider still sends them (backward compat for v3.1.x–v3.3.x) and they sit in `intentionallySkipped` in `drift_test.go` |
 | WireGuard `workers` dropped upstream | xray-core v26.6.22 (3x-ui v3.4.0) removed the WireGuard `workers` field; `xray_outbound_wireguard` still exposes it (xray ignores unknown JSON keys, so harmless on v3.4.0). Deprecating the attr is follow-up work |
 | Write-only attrs quirks | See "Write-only secret attributes" section above — read `_wo` from `req.Config`; ModifyPlan marks plain `Unknown` on version change; `panel_user` nulls state password instead |
 | xray-settings acc-tests restart xray-core | `TestAccXrayBasics`/`DNS`/`Routing`/`Balancers`/`Reverse`/`Outbounds` each apply a new config = xray restart; `version` becomes `"Unknown"` for ~30-90s after. Use `waitForXrayVersion(t, ctx, client)` poll-loop in any acc-test probing version after them (#280) |

@@ -112,6 +112,8 @@ type PanelTelegramModel struct {
 	TgBotBackup         types.Bool   `tfsdk:"tg_bot_backup"`
 	TgBotLoginNotify    types.Bool   `tfsdk:"tg_bot_login_notify"`
 	TgCPU               types.Int64  `tfsdk:"tg_cpu"`
+	TgEnabledEvents     types.String `tfsdk:"tg_enabled_events"`
+	TgMemory            types.Int64  `tfsdk:"tg_memory"`
 }
 
 func panelTelegramSchema() schema.Schema {
@@ -179,6 +181,16 @@ func panelTelegramSchema() schema.Schema {
 				Optional: true, Computed: true,
 				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
+			"tg_enabled_events": schema.StringAttribute{
+				Optional: true, Computed: true,
+				Description:   "Comma-separated event types to send via Telegram (e.g. login, backup, traffic threshold). Added in 3x-ui v3.4.0; ignored by older panels.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"tg_memory": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				Description:   "Memory usage threshold (%) for Telegram alerts (0-100). Added in 3x-ui v3.4.0; ignored by older panels.",
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
 		},
 	}
 }
@@ -217,6 +229,12 @@ func expandPanelTelegram(m *PanelTelegramModel) map[string]any {
 	if !m.TgCPU.IsNull() && !m.TgCPU.IsUnknown() {
 		payload["tgCpu"] = int(m.TgCPU.ValueInt64())
 	}
+	if !m.TgEnabledEvents.IsNull() && !m.TgEnabledEvents.IsUnknown() {
+		payload["tgEnabledEvents"] = m.TgEnabledEvents.ValueString()
+	}
+	if !m.TgMemory.IsNull() && !m.TgMemory.IsUnknown() {
+		payload["tgMemory"] = int(m.TgMemory.ValueInt64())
+	}
 	return payload
 }
 
@@ -254,12 +272,192 @@ func flattenPanelTelegram(in map[string]any) *PanelTelegramModel {
 	if v, ok := in["tgCpu"]; ok {
 		m.TgCPU = types.Int64Value(int64(intValue(v)))
 	}
+	if v, ok := in["tgEnabledEvents"]; ok {
+		m.TgEnabledEvents = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["tgMemory"]; ok {
+		m.TgMemory = types.Int64Value(int64(intValue(v)))
+	}
 	return m
 }
 
 // ---------------------------------------------------------------------------
-// Panel Subscription model, schema, expand/flatten
+// Panel Email (SMTP notifications) model, schema, expand/flatten
 // ---------------------------------------------------------------------------
+
+// PanelEmailModel mirrors the SMTP notification fields in 3x-ui v3.4.0+ AllSetting.
+// Older panels ignore these form values. smtp_password is a write-only secret
+// (mirrors tg_bot_token_wo / panel_telegram).
+type PanelEmailModel struct {
+	ID                    types.String `tfsdk:"id"`
+	SmtpEnable            types.Bool   `tfsdk:"smtp_enable"`
+	SmtpHost              types.String `tfsdk:"smtp_host"`
+	SmtpPort              types.Int64  `tfsdk:"smtp_port"`
+	SmtpUsername          types.String `tfsdk:"smtp_username"`
+	SmtpPassword          types.String `tfsdk:"smtp_password"`
+	SmtpPasswordWO        types.String `tfsdk:"smtp_password_wo"`
+	SmtpPasswordWOVersion types.Int64  `tfsdk:"smtp_password_wo_version"`
+	SmtpTo                types.String `tfsdk:"smtp_to"`
+	SmtpEncryptionType    types.String `tfsdk:"smtp_encryption_type"`
+	SmtpEnabledEvents     types.String `tfsdk:"smtp_enabled_events"`
+	SmtpCPU               types.Int64  `tfsdk:"smtp_cpu"`
+	SmtpMemory            types.Int64  `tfsdk:"smtp_memory"`
+}
+
+func panelEmailSchema() schema.Schema {
+	return schema.Schema{
+		Description: "Manages the 3x-ui SMTP/email notification settings (3x-ui v3.4.0+). Older panels ignore these attributes.",
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"smtp_enable": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				Description:   "Enable SMTP email notifications.",
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"smtp_host": schema.StringAttribute{
+				Optional: true, Computed: true,
+				Description:   "SMTP server host.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"smtp_port": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				Description:   "SMTP server port (1-65535).",
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+			"smtp_username": schema.StringAttribute{
+				Optional: true, Computed: true,
+				Description:   "SMTP username.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"smtp_password": schema.StringAttribute{
+				Optional: true, Computed: true, Sensitive: true,
+				Description:   "SMTP password. Prefer smtp_password_wo on Terraform 1.11+ / OpenTofu 1.11+.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				Validators: []validator.String{
+					stringvalidator.PreferWriteOnlyAttribute(path.MatchRoot("smtp_password_wo")),
+				},
+			},
+			"smtp_password_wo": schema.StringAttribute{
+				Optional:    true,
+				WriteOnly:   true,
+				Description: "Write-only SMTP password (Terraform 1.11+ / OpenTofu 1.11+). Pair with smtp_password_wo_version to rotate.",
+			},
+			"smtp_password_wo_version": schema.Int64Attribute{
+				Optional: true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.Int64{
+					int64validator.AlsoRequires(path.MatchRoot("smtp_password_wo")),
+				},
+			},
+			"smtp_to": schema.StringAttribute{
+				Optional: true, Computed: true,
+				Description:   "Comma-separated recipient email addresses.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"smtp_encryption_type": schema.StringAttribute{
+				Optional: true, Computed: true,
+				Description:   "SMTP encryption: none, starttls, or tls.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"smtp_enabled_events": schema.StringAttribute{
+				Optional: true, Computed: true,
+				Description:   "Comma-separated event types to send via email (e.g. login, backup, traffic threshold).",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"smtp_cpu": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				Description:   "CPU usage threshold (%) for email alerts (0-100).",
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+			"smtp_memory": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				Description:   "Memory usage threshold (%) for email alerts (0-100).",
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+		},
+	}
+}
+
+func expandPanelEmail(m *PanelEmailModel) map[string]any {
+	payload := map[string]any{}
+	if !m.SmtpEnable.IsNull() && !m.SmtpEnable.IsUnknown() {
+		payload["smtpEnable"] = m.SmtpEnable.ValueBool()
+	}
+	if !m.SmtpHost.IsNull() && !m.SmtpHost.IsUnknown() {
+		payload["smtpHost"] = m.SmtpHost.ValueString()
+	}
+	if !m.SmtpPort.IsNull() && !m.SmtpPort.IsUnknown() {
+		payload["smtpPort"] = int(m.SmtpPort.ValueInt64())
+	}
+	if !m.SmtpUsername.IsNull() && !m.SmtpUsername.IsUnknown() {
+		payload["smtpUsername"] = m.SmtpUsername.ValueString()
+	}
+	if !m.SmtpPasswordWO.IsNull() && !m.SmtpPasswordWO.IsUnknown() {
+		payload["smtpPassword"] = m.SmtpPasswordWO.ValueString()
+	} else if !m.SmtpPassword.IsNull() && !m.SmtpPassword.IsUnknown() {
+		payload["smtpPassword"] = m.SmtpPassword.ValueString()
+	}
+	if !m.SmtpTo.IsNull() && !m.SmtpTo.IsUnknown() {
+		payload["smtpTo"] = m.SmtpTo.ValueString()
+	}
+	if !m.SmtpEncryptionType.IsNull() && !m.SmtpEncryptionType.IsUnknown() {
+		payload["smtpEncryptionType"] = m.SmtpEncryptionType.ValueString()
+	}
+	if !m.SmtpEnabledEvents.IsNull() && !m.SmtpEnabledEvents.IsUnknown() {
+		payload["smtpEnabledEvents"] = m.SmtpEnabledEvents.ValueString()
+	}
+	if !m.SmtpCPU.IsNull() && !m.SmtpCPU.IsUnknown() {
+		payload["smtpCpu"] = int(m.SmtpCPU.ValueInt64())
+	}
+	if !m.SmtpMemory.IsNull() && !m.SmtpMemory.IsUnknown() {
+		payload["smtpMemory"] = int(m.SmtpMemory.ValueInt64())
+	}
+	return payload
+}
+
+func flattenPanelEmail(in map[string]any) *PanelEmailModel {
+	m := &PanelEmailModel{
+		ID: types.StringValue("settings"),
+	}
+	if v, ok := in["smtpEnable"]; ok {
+		m.SmtpEnable = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["smtpHost"]; ok {
+		m.SmtpHost = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["smtpPort"]; ok {
+		m.SmtpPort = types.Int64Value(int64(intValue(v)))
+	}
+	if v, ok := in["smtpUsername"]; ok {
+		m.SmtpUsername = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["smtpPassword"]; ok {
+		m.SmtpPassword = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["smtpTo"]; ok {
+		m.SmtpTo = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["smtpEncryptionType"]; ok {
+		m.SmtpEncryptionType = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["smtpEnabledEvents"]; ok {
+		m.SmtpEnabledEvents = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["smtpCpu"]; ok {
+		m.SmtpCPU = types.Int64Value(int64(intValue(v)))
+	}
+	if v, ok := in["smtpMemory"]; ok {
+		m.SmtpMemory = types.Int64Value(int64(intValue(v)))
+	}
+	return m
+}
 
 type PanelSubscriptionModel struct {
 	ID                    types.String `tfsdk:"id"`
@@ -294,6 +492,9 @@ type PanelSubscriptionModel struct {
 	SubClashEnableRouting types.Bool   `tfsdk:"sub_clash_enable_routing"`
 	SubClashRules         types.String `tfsdk:"sub_clash_rules"`
 	SubJsonFinalMask      types.String `tfsdk:"sub_json_final_mask"`
+	SubThemeDir           types.String `tfsdk:"sub_theme_dir"`
+	RemarkTemplate        types.String `tfsdk:"remark_template"`
+	SubHideSettings       types.Bool   `tfsdk:"sub_hide_settings"`
 }
 
 func panelSubscriptionSchema() schema.Schema {
@@ -461,6 +662,24 @@ func panelSubscriptionSchema() schema.Schema {
 				Description:   "JSON subscription global finalmask — tcp/udp masks and quicParams (3x-ui v3.2.8+).",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
+			"sub_theme_dir": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "Absolute path to a folder containing a custom subscription page template. Added in 3x-ui v3.3.0; ignored by older panels.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"remark_template": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "Subscription remark template ({{VAR}} tokens rendered per client, e.g. Jalali date/transport/status). Added in 3x-ui v3.4.0; ignored by older panels.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_hide_settings": schema.BoolAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "Hide server settings in happ subscription (Happ only). Added in 3x-ui v3.4.0; ignored by older panels.",
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
 		},
 	}
 }
@@ -559,6 +778,15 @@ func expandPanelSubscription(m *PanelSubscriptionModel) map[string]any {
 	}
 	if !m.SubJsonFinalMask.IsNull() && !m.SubJsonFinalMask.IsUnknown() {
 		payload["subJsonFinalMask"] = m.SubJsonFinalMask.ValueString()
+	}
+	if !m.SubThemeDir.IsNull() && !m.SubThemeDir.IsUnknown() {
+		payload["subThemeDir"] = m.SubThemeDir.ValueString()
+	}
+	if !m.RemarkTemplate.IsNull() && !m.RemarkTemplate.IsUnknown() {
+		payload["remarkTemplate"] = m.RemarkTemplate.ValueString()
+	}
+	if !m.SubHideSettings.IsNull() && !m.SubHideSettings.IsUnknown() {
+		payload["subHideSettings"] = m.SubHideSettings.ValueBool()
 	}
 	return payload
 }
@@ -668,6 +896,15 @@ func flattenPanelSubscription(in map[string]any) *PanelSubscriptionModel {
 	if v, ok := in["subJsonFinalMask"]; ok {
 		m.SubJsonFinalMask = types.StringValue(stringValue(v))
 	}
+	if v, ok := in["subThemeDir"]; ok {
+		m.SubThemeDir = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["remarkTemplate"]; ok {
+		m.RemarkTemplate = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subHideSettings"]; ok {
+		m.SubHideSettings = types.BoolValue(boolValue(v))
+	}
 	return m
 }
 
@@ -732,6 +969,7 @@ type PanelGeneralModel struct {
 	WebBasePath                 types.String `tfsdk:"web_base_path"`
 	SessionMaxAge               types.Int64  `tfsdk:"session_max_age"`
 	TrustedProxyCIDRs           types.String `tfsdk:"trusted_proxy_cidrs"`
+	WarpUpdateInterval          types.Int64  `tfsdk:"warp_update_interval"`
 	PageSize                    types.Int64  `tfsdk:"page_size"`
 	RemarkModel                 types.String `tfsdk:"remark_model"`
 	DatePicker                  types.String `tfsdk:"date_picker"`
@@ -805,6 +1043,11 @@ func panelGeneralSchema() schema.Schema {
 				Description: "Comma-separated trusted reverse proxy IPs/CIDRs used by 3x-ui when honoring " +
 					"X-Forwarded-For, X-Forwarded-Host, and X-Real-IP headers.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"warp_update_interval": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				Description:   "Interval (hours) between Cloudflare WARP / geo auto-updates via Xray-core (0 disables). Added in 3x-ui v3.3.0; ignored by older panels.",
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"page_size": schema.Int64Attribute{
 				Optional: true, Computed: true,
@@ -996,6 +1239,9 @@ func expandPanelGeneral(m *PanelGeneralModel) map[string]any {
 	if !m.TrustedProxyCIDRs.IsNull() && !m.TrustedProxyCIDRs.IsUnknown() {
 		payload["trustedProxyCIDRs"] = m.TrustedProxyCIDRs.ValueString()
 	}
+	if !m.WarpUpdateInterval.IsNull() && !m.WarpUpdateInterval.IsUnknown() {
+		payload["warpUpdateInterval"] = int(m.WarpUpdateInterval.ValueInt64())
+	}
 	if !m.PageSize.IsNull() && !m.PageSize.IsUnknown() {
 		payload["pageSize"] = int(m.PageSize.ValueInt64())
 	}
@@ -1122,6 +1368,9 @@ func flattenPanelGeneral(in map[string]any) *PanelGeneralModel {
 	if v, ok := in["trustedProxyCIDRs"]; ok {
 		m.TrustedProxyCIDRs = types.StringValue(stringValue(v))
 	}
+	if v, ok := in["warpUpdateInterval"]; ok {
+		m.WarpUpdateInterval = types.Int64Value(int64(intValue(v)))
+	}
 	if v, ok := in["pageSize"]; ok {
 		m.PageSize = types.Int64Value(int64(intValue(v)))
 	}
@@ -1234,6 +1483,7 @@ var panelSettingSecretKeys = []string{
 	"ldapPassword",
 	"twoFactorToken",
 	"tgBotToken",
+	"smtpPassword",
 }
 
 func settingsApplyTyped(
@@ -1422,6 +1672,14 @@ func preservePanelTelegramSecrets(state, configured *PanelTelegramModel) {
 	}
 	state.TgBotToken = preserveSettingSecret(state.TgBotToken, configured.TgBotToken)
 	state.TgBotTokenWOVersion = preserveWOVersion(state.TgBotTokenWOVersion, configured.TgBotTokenWOVersion)
+}
+
+func preservePanelEmailSecrets(state, configured *PanelEmailModel) {
+	if state == nil || configured == nil {
+		return
+	}
+	state.SmtpPassword = preserveSettingSecret(state.SmtpPassword, configured.SmtpPassword)
+	state.SmtpPasswordWOVersion = preserveWOVersion(state.SmtpPasswordWOVersion, configured.SmtpPasswordWOVersion)
 }
 
 // ---------------------------------------------------------------------------
@@ -1989,6 +2247,165 @@ func (r *PanelTelegramResource) ImportState(ctx context.Context, _ resource.Impo
 	}
 	state := flattenPanelTelegram(settings)
 	r.client.rememberConfiguredSettingSecrets(expandPanelTelegram(state))
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+// ---------------------------------------------------------------------------
+// PanelEmailResource (threexui_panel_email)
+// ---------------------------------------------------------------------------
+
+var (
+	_ resource.Resource                = &PanelEmailResource{}
+	_ resource.ResourceWithConfigure   = &PanelEmailResource{}
+	_ resource.ResourceWithImportState = &PanelEmailResource{}
+	_ resource.ResourceWithModifyPlan  = &PanelEmailResource{}
+)
+
+type PanelEmailResource struct {
+	client *Client
+}
+
+func NewPanelEmailResource() resource.Resource {
+	return &PanelEmailResource{}
+}
+
+func (r *PanelEmailResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_panel_email"
+}
+
+func (r *PanelEmailResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = panelEmailSchema()
+}
+
+func (r *PanelEmailResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	client, ok := req.ProviderData.(*Client)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected Resource Configure Type", "Expected *Client")
+		return
+	}
+	r.client = client
+}
+
+func (r *PanelEmailResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan PanelEmailModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var config PanelEmailModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resolveEmailPasswordWO(&plan, config)
+
+	desired := expandPanelEmail(&plan)
+	settingsApplyTyped(ctx, desired, &resp.Diagnostics, r.client)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
+	}
+	state := flattenPanelEmail(settings)
+	preservePanelEmailSecrets(state, &plan)
+	r.client.rememberConfiguredSettingSecrets(expandPanelEmail(state))
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *PanelEmailResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var prior PanelEmailModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
+	}
+	state := flattenPanelEmail(settings)
+	preservePanelEmailSecrets(state, &prior)
+	r.client.rememberConfiguredSettingSecrets(expandPanelEmail(state))
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *PanelEmailResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan PanelEmailModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var priorState PanelEmailModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &priorState)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var config PanelEmailModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resolveEmailPasswordWOUpdate(&plan, priorState, config)
+
+	desired := expandPanelEmail(&plan)
+	settingsApplyTyped(ctx, desired, &resp.Diagnostics, r.client)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
+	}
+	state := flattenPanelEmail(settings)
+	preservePanelEmailSecrets(state, &plan)
+	r.client.rememberConfiguredSettingSecrets(expandPanelEmail(state))
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func resolveEmailPasswordWO(plan *PanelEmailModel, config PanelEmailModel) {
+	if !config.SmtpPasswordWO.IsNull() {
+		plan.SmtpPassword = config.SmtpPasswordWO
+	}
+}
+
+func resolveEmailPasswordWOUpdate(plan *PanelEmailModel, state PanelEmailModel, config PanelEmailModel) {
+	if config.SmtpPasswordWO.IsNull() {
+		return
+	}
+	if woVersionTriggered(plan.SmtpPasswordWOVersion, state.SmtpPasswordWOVersion) {
+		plan.SmtpPassword = config.SmtpPasswordWO
+	}
+}
+
+func (r *PanelEmailResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
+	resp.State.RemoveResource(ctx)
+}
+
+func (r *PanelEmailResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	modifyPlanWOVersion(
+		ctx, req, resp,
+		func(m PanelEmailModel) types.Int64 { return m.SmtpPasswordWOVersion },
+		func(m *PanelEmailModel, v types.String) { m.SmtpPassword = v },
+	)
+}
+
+func (r *PanelEmailResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
+	if settings == nil {
+		return
+	}
+	state := flattenPanelEmail(settings)
+	r.client.rememberConfiguredSettingSecrets(expandPanelEmail(state))
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 

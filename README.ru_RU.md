@@ -142,6 +142,7 @@ resource "threexui_inbound_client" "client_a" {
 | `threexui_panel_security` | Безопасность (2FA) |
 | `threexui_panel_user` | Учётные данные администратора |
 | `threexui_panel_telegram` | Интеграция с Telegram-ботом |
+| `threexui_panel_email` | SMTP/email-уведомления (v3.4.0+) |
 | `threexui_panel_subscription` | Настройки подписочного сервиса |
 | `threexui_xray_basics` | Базовый Xray (log, policy, api, stats) |
 | `threexui_xray_dns` | DNS-серверы и hosts |
