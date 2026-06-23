@@ -894,6 +894,36 @@ func TestDriftAllSettingFields(t *testing.T) {
 		// Added in 3x-ui v3.3.0 — not yet managed by the provider.
 		"subThemeDir":        true,
 		"warpUpdateInterval": true,
+
+		// Added in 3x-ui v3.4.0 — not yet managed by the provider.
+		// SMTP notification subsystem (mirrors the Telegram pattern; a
+		// dedicated resource + write-only password attribute is follow-up
+		// feature work, see AGENTS.md "Critical Gotchas").
+		"smtpEnable":         true,
+		"smtpHost":           true,
+		"smtpPort":           true,
+		"smtpUsername":       true,
+		"smtpPassword":       true, // sensitive — would need a write-only attribute
+		"smtpTo":             true,
+		"smtpEncryptionType": true,
+		"smtpEnabledEvents":  true,
+		"smtpCpu":            true, // CPU threshold
+		"smtpMemory":         true, // memory threshold
+		// Telegram notification event/threshold additions (parallel to SMTP).
+		"tgEnabledEvents": true,
+		"tgMemory":        true, // memory threshold, mirrors existing tgCpu
+		// Subscription remark templating (Jalali date / transport / status
+		// tokens) and hide-settings flag from v3.4.0.
+		"remarkTemplate":  true,
+		"subHideSettings": true,
+
+		// Removed in 3x-ui v3.4.0 — kept in provider for backward compat
+		// with v3.1.x–v3.3.x panels (gin silently ignores unknown form
+		// values on v3.4.0). remarkModel was superseded by remarkTemplate.
+		"remarkModel":      true,
+		"subEmailInRemark": true,
+		"subShowInfo":      true,
+		"tgBotLoginNotify": true,
 		// v3.3.1 renamed panelProxy → panelOutbound (outbound egress bridge).
 		// The provider keeps panelProxy for backward compat with v3.2.0–v3.3.0
 		// panels even though v3.3.1's AllSetting struct dropped it.

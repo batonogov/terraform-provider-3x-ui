@@ -93,10 +93,11 @@ resource "threexui_inbound_client" "client_a" {
 
 ## Compatibility
 
-**Support policy:** the provider officially supports three 3x-ui minor lines: **v3.1.x**, **v3.2.x**, and **v3.3.x** — every released patch in all three lines is exercised by the acceptance matrix on each push to `main` and every pull request.
+**Support policy:** the provider officially supports four 3x-ui minor lines: **v3.1.x**, **v3.2.x**, **v3.3.x**, and **v3.4.x** — every released patch in all four lines is exercised by the acceptance matrix on each push to `main` and every pull request.
 
 | 3x-ui version | Status |
 | --- | --- |
+| v3.4.0 | Tested |
 | v3.3.1 | Tested |
 | v3.3.0 | Tested |
 | v3.2.8 | Tested |
