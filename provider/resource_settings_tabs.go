@@ -175,7 +175,8 @@ func panelTelegramSchema() schema.Schema {
 			},
 			"tg_bot_login_notify": schema.BoolAttribute{
 				Optional: true, Computed: true,
-				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+				DeprecationMessage: "Removed from 3x-ui v3.4.0; accepted but has no effect on v3.4.0+ panels.",
+				PlanModifiers:      []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"tg_cpu": schema.Int64Attribute{
 				Optional: true, Computed: true,
@@ -578,13 +579,15 @@ func panelSubscriptionSchema() schema.Schema {
 			},
 			"sub_show_info": schema.BoolAttribute{
 				Optional: true, Computed: true,
-				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+				DeprecationMessage: "Removed from 3x-ui v3.4.0; accepted but has no effect on v3.4.0+ panels.",
+				PlanModifiers:      []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"sub_email_in_remark": schema.BoolAttribute{
-				Optional:      true,
-				Computed:      true,
-				Description:   "Include the client email in subscription profile names.",
-				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+				Optional:           true,
+				Computed:           true,
+				Description:        "Include the client email in subscription profile names.",
+				DeprecationMessage: "Removed from 3x-ui v3.4.0; accepted but has no effect on v3.4.0+ panels.",
+				PlanModifiers:      []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"sub_uri": schema.StringAttribute{
 				Optional: true, Computed: true,
@@ -1055,7 +1058,8 @@ func panelGeneralSchema() schema.Schema {
 			},
 			"remark_model": schema.StringAttribute{
 				Optional: true, Computed: true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				DeprecationMessage: "Removed from 3x-ui v3.4.0 (superseded by remark_template). Use remark_template on v3.4.0+; accepted but has no effect on v3.4.0+ panels.",
+				PlanModifiers:      []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"date_picker": schema.StringAttribute{
 				Optional: true, Computed: true,
@@ -1650,12 +1654,35 @@ func preserveWOVersion(observed, configured types.Int64) types.Int64 {
 	return observed
 }
 
+// preserveRemovedString / preserveRemovedBool echo the configured value into
+// state when the panel no longer returns the field (it was dropped upstream,
+// e.g. remarkModel/subShowInfo/tgBotLoginNotify in 3x-ui v3.4.0). Without this,
+// a non-null planned value would collide with a null read-back and surface as
+// "Provider produced inconsistent result after apply".
+func preserveRemovedString(observed, configured types.String) types.String {
+	if observed.IsNull() || observed.IsUnknown() {
+		return configured
+	}
+	return observed
+}
+
+func preserveRemovedBool(observed, configured types.Bool) types.Bool {
+	if observed.IsNull() || observed.IsUnknown() {
+		return configured
+	}
+	return observed
+}
+
 func preservePanelGeneralSecrets(state, configured *PanelGeneralModel) {
 	if state == nil || configured == nil {
 		return
 	}
 	state.LDAPPassword = preserveSettingSecret(state.LDAPPassword, configured.LDAPPassword)
 	state.LDAPPasswordWOVersion = preserveWOVersion(state.LDAPPasswordWOVersion, configured.LDAPPasswordWOVersion)
+	// remarkModel was removed from AllSetting in 3x-ui v3.4.0 (superseded by
+	// remarkTemplate). v3.4.0 panels accept but don't store/return it, so echo the
+	// configured value back to keep state consistent; older panels return it.
+	state.RemarkModel = preserveRemovedString(state.RemarkModel, configured.RemarkModel)
 }
 
 func preservePanelSecuritySecrets(state, configured *PanelSecurityModel) {
@@ -1672,6 +1699,9 @@ func preservePanelTelegramSecrets(state, configured *PanelTelegramModel) {
 	}
 	state.TgBotToken = preserveSettingSecret(state.TgBotToken, configured.TgBotToken)
 	state.TgBotTokenWOVersion = preserveWOVersion(state.TgBotTokenWOVersion, configured.TgBotTokenWOVersion)
+	// tgBotLoginNotify was removed from AllSetting in 3x-ui v3.4.0. Echo the
+	// configured value on v3.4.0 (panel accepts but doesn't return it).
+	state.TgBotLoginNotify = preserveRemovedBool(state.TgBotLoginNotify, configured.TgBotLoginNotify)
 }
 
 func preservePanelEmailSecrets(state, configured *PanelEmailModel) {
@@ -1680,6 +1710,17 @@ func preservePanelEmailSecrets(state, configured *PanelEmailModel) {
 	}
 	state.SmtpPassword = preserveSettingSecret(state.SmtpPassword, configured.SmtpPassword)
 	state.SmtpPasswordWOVersion = preserveWOVersion(state.SmtpPasswordWOVersion, configured.SmtpPasswordWOVersion)
+}
+
+// preservePanelSubscriptionRemoved echoes configured values for fields that
+// 3x-ui v3.4.0 dropped from AllSetting (subShowInfo, subEmailInRemark). v3.4.0
+// panels accept but don't store/return them; echoing keeps Apply consistent.
+func preservePanelSubscriptionRemoved(state, configured *PanelSubscriptionModel) {
+	if state == nil || configured == nil {
+		return
+	}
+	state.SubShowInfo = preserveRemovedBool(state.SubShowInfo, configured.SubShowInfo)
+	state.SubEmailInRemark = preserveRemovedBool(state.SubEmailInRemark, configured.SubEmailInRemark)
 }
 
 // ---------------------------------------------------------------------------
@@ -2464,15 +2505,23 @@ func (r *PanelSubscriptionResource) Create(ctx context.Context, req resource.Cre
 		return
 	}
 	state := flattenPanelSubscription(settings)
+	preservePanelSubscriptionRemoved(state, &plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
-func (r *PanelSubscriptionResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *PanelSubscriptionResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var prior PanelSubscriptionModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	settings := settingsReadTyped(ctx, &resp.Diagnostics, r.client)
 	if settings == nil {
 		return
 	}
 	state := flattenPanelSubscription(settings)
+	preservePanelSubscriptionRemoved(state, &prior)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
@@ -2493,6 +2542,7 @@ func (r *PanelSubscriptionResource) Update(ctx context.Context, req resource.Upd
 		return
 	}
 	state := flattenPanelSubscription(settings)
+	preservePanelSubscriptionRemoved(state, &plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
