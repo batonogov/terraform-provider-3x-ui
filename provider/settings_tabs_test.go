@@ -448,6 +448,23 @@ func TestPreserveRemovedString_ObservedNull(t *testing.T) {
 	}
 }
 
+// Regression: when there is nothing concrete to echo (configured unknown, the
+// normal case for a Computed attr the user did not set), we must return null,
+// NOT unknown — otherwise Terraform errors "all values must be known after apply".
+func TestPreserveRemovedString_ObservedNullConfiguredUnknown(t *testing.T) {
+	got := preserveRemovedString(types.StringNull(), types.StringUnknown())
+	if !got.IsNull() {
+		t.Fatalf("expected null (not unknown) when nothing to echo, got %v", got)
+	}
+}
+
+func TestPreserveRemovedString_ObservedNullConfiguredNull(t *testing.T) {
+	got := preserveRemovedString(types.StringNull(), types.StringNull())
+	if !got.IsNull() {
+		t.Fatalf("expected null when both null, got %v", got)
+	}
+}
+
 func TestPreserveRemovedString_ObservedUnknown(t *testing.T) {
 	got := preserveRemovedString(types.StringUnknown(), types.StringValue("-ieo"))
 	if got.ValueString() != "-ieo" {
@@ -467,6 +484,14 @@ func TestPreserveRemovedBool_ObservedNull(t *testing.T) {
 	got := preserveRemovedBool(types.BoolNull(), types.BoolValue(true))
 	if !got.ValueBool() {
 		t.Fatalf("expected configured true echoed, got false")
+	}
+}
+
+// Regression: unknown configured must yield null, not unknown (see string variant).
+func TestPreserveRemovedBool_ObservedNullConfiguredUnknown(t *testing.T) {
+	got := preserveRemovedBool(types.BoolNull(), types.BoolUnknown())
+	if !got.IsNull() {
+		t.Fatalf("expected null (not unknown) when nothing to echo, got %v", got)
 	}
 }
 

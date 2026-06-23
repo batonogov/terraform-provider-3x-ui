@@ -1660,8 +1660,16 @@ func preserveWOVersion(observed, configured types.Int64) types.Int64 {
 // in 3x-ui v3.4.0, panelProxy in v3.3.1). Without this, a non-null planned
 // value would collide with a null read-back and surface as "Provider produced
 // inconsistent result after apply".
+//
+// Crucially, when there is no concrete value to echo (configured is null or
+// unknown — the normal case for a Computed attr the user did not set), we
+// return null, NOT unknown. Returning unknown would violate Terraform's
+// "all values must be known after apply" rule.
 func preserveRemovedString(observed, configured types.String) types.String {
 	if observed.IsNull() || observed.IsUnknown() {
+		if configured.IsNull() || configured.IsUnknown() {
+			return types.StringNull()
+		}
 		return configured
 	}
 	return observed
@@ -1669,6 +1677,9 @@ func preserveRemovedString(observed, configured types.String) types.String {
 
 func preserveRemovedBool(observed, configured types.Bool) types.Bool {
 	if observed.IsNull() || observed.IsUnknown() {
+		if configured.IsNull() || configured.IsUnknown() {
+			return types.BoolNull()
+		}
 		return configured
 	}
 	return observed
