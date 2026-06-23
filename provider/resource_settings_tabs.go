@@ -1654,11 +1654,12 @@ func preserveWOVersion(observed, configured types.Int64) types.Int64 {
 	return observed
 }
 
-// preserveRemovedString / preserveRemovedBool echo the configured value into
-// state when the panel no longer returns the field (it was dropped upstream,
-// e.g. remarkModel/subShowInfo/tgBotLoginNotify in 3x-ui v3.4.0). Without this,
-// a non-null planned value would collide with a null read-back and surface as
-// "Provider produced inconsistent result after apply".
+// preserveRemovedString / preserveRemovedBool echo the configured (Apply) or
+// prior-state (Read) value into state when the panel no longer returns the
+// field (it was dropped upstream, e.g. remarkModel/subShowInfo/tgBotLoginNotify
+// in 3x-ui v3.4.0, panelProxy in v3.3.1). Without this, a non-null planned
+// value would collide with a null read-back and surface as "Provider produced
+// inconsistent result after apply".
 func preserveRemovedString(observed, configured types.String) types.String {
 	if observed.IsNull() || observed.IsUnknown() {
 		return configured
@@ -1683,6 +1684,10 @@ func preservePanelGeneralSecrets(state, configured *PanelGeneralModel) {
 	// remarkTemplate). v3.4.0 panels accept but don't store/return it, so echo the
 	// configured value back to keep state consistent; older panels return it.
 	state.RemarkModel = preserveRemovedString(state.RemarkModel, configured.RemarkModel)
+	// panelProxy was removed from AllSetting in 3x-ui v3.3.1 (replaced by
+	// panelOutbound). Same echo needed so a user still setting panel_proxy on
+	// v3.3.1+ does not hit "inconsistent result after apply".
+	state.PanelProxy = preserveRemovedString(state.PanelProxy, configured.PanelProxy)
 }
 
 func preservePanelSecuritySecrets(state, configured *PanelSecurityModel) {

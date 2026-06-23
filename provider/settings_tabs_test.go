@@ -435,6 +435,55 @@ func TestPreserveSettingSecret_ObservedDifferentNonEmpty(t *testing.T) {
 	}
 }
 
+// preserveRemoved* echoes the configured value when the panel returns null for
+// a field it dropped upstream (remarkModel, tgBotLoginNotify, subShowInfo,
+// panelProxy, ...). It must return the configured value when observed is
+// null/unknown (the v3.4.0 / v3.3.1+ case) and the observed value otherwise
+// (older panels that still return the field).
+
+func TestPreserveRemovedString_ObservedNull(t *testing.T) {
+	got := preserveRemovedString(types.StringNull(), types.StringValue("-ieo"))
+	if got.ValueString() != "-ieo" {
+		t.Fatalf("expected configured echoed, got %q", got.ValueString())
+	}
+}
+
+func TestPreserveRemovedString_ObservedUnknown(t *testing.T) {
+	got := preserveRemovedString(types.StringUnknown(), types.StringValue("-ieo"))
+	if got.ValueString() != "-ieo" {
+		t.Fatalf("expected configured echoed, got %q", got.ValueString())
+	}
+}
+
+func TestPreserveRemovedString_ObservedNonEmpty(t *testing.T) {
+	// older panels still return the field — observed wins, no drift
+	got := preserveRemovedString(types.StringValue("remote"), types.StringValue("state"))
+	if got.ValueString() != "remote" {
+		t.Fatalf("expected observed to win on panels that return it, got %q", got.ValueString())
+	}
+}
+
+func TestPreserveRemovedBool_ObservedNull(t *testing.T) {
+	got := preserveRemovedBool(types.BoolNull(), types.BoolValue(true))
+	if !got.ValueBool() {
+		t.Fatalf("expected configured true echoed, got false")
+	}
+}
+
+func TestPreserveRemovedBool_ObservedUnknown(t *testing.T) {
+	got := preserveRemovedBool(types.BoolUnknown(), types.BoolValue(true))
+	if !got.ValueBool() {
+		t.Fatalf("expected configured true echoed, got false")
+	}
+}
+
+func TestPreserveRemovedBool_ObservedSet(t *testing.T) {
+	got := preserveRemovedBool(types.BoolValue(false), types.BoolValue(true))
+	if got.ValueBool() {
+		t.Fatalf("expected observed to win on panels that return it, got true")
+	}
+}
+
 func TestMergeSettingsForUpdate_PreservesCachedRedactedSecret(t *testing.T) {
 	client := &Client{}
 	client.rememberConfiguredSettingSecrets(map[string]any{"tgBotToken": "configured-token"})
