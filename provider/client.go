@@ -1387,6 +1387,15 @@ func inboundToForm(in *Inbound) url.Values {
 	if in.NodeID != nil {
 		form.Set("nodeId", strconv.Itoa(*in.NodeID))
 	}
+	if in.SubSortIndex > 0 {
+		form.Set("subSortIndex", strconv.Itoa(in.SubSortIndex))
+	}
+	if in.ShareAddr != "" {
+		form.Set("shareAddr", in.ShareAddr)
+	}
+	if in.ShareAddrStrategy != "" {
+		form.Set("shareAddrStrategy", in.ShareAddrStrategy)
+	}
 	return form
 }
 

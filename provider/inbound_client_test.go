@@ -316,3 +316,32 @@ func TestInboundToForm(t *testing.T) {
 		t.Fatalf("unexpected form: %s", form.Encode())
 	}
 }
+
+// TestInboundToForm_SubscriptionFields is a regression test for the write path
+// of the v3.3.1 multi-node subscription fields. expandInboundFromModel
+// populates these on the struct, but AddInbound/UpdateInbound serialize via
+// inboundToForm (url.Values) — if a field is missing there it is silently
+// dropped and the panel stores its default (subSortIndex=1, shareAddr="",
+// shareAddrStrategy="node"). See PR #306 review (BLOCKER).
+func TestInboundToForm_SubscriptionFields(t *testing.T) {
+	in := &Inbound{
+		ID:                1,
+		Port:              1234,
+		Protocol:          "trojan",
+		Settings:          "{}",
+		SubSortIndex:      2,
+		ShareAddr:         "203.0.113.10",
+		ShareAddrStrategy: "custom",
+	}
+
+	form := inboundToForm(in)
+	if got := form.Get("subSortIndex"); got != "2" {
+		t.Errorf("subSortIndex not serialized: got %q, want \"2\"", got)
+	}
+	if got := form.Get("shareAddr"); got != "203.0.113.10" {
+		t.Errorf("shareAddr not serialized: got %q, want \"203.0.113.10\"", got)
+	}
+	if got := form.Get("shareAddrStrategy"); got != "custom" {
+		t.Errorf("shareAddrStrategy not serialized: got %q, want \"custom\"", got)
+	}
+}
