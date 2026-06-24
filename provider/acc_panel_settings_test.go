@@ -282,7 +282,7 @@ resource "threexui_panel_general" "test" {
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateId:           "settings",
-				ImportStateVerifyIgnore: []string{"ldap_password"},
+				ImportStateVerifyIgnore: []string{"ldap_password", "remark_model", "panel_proxy"},
 			},
 			// Idempotency
 			{
@@ -477,6 +477,9 @@ resource "threexui_panel_security" "test" {
 				ImportState:       true,
 				ImportStateVerify: true,
 				ImportStateId:     "settings",
+				// two_factor_token is a secret: on 3x-ui v3.4.0 the panel no longer
+				// returns it raw, so it does not round-trip through import.
+				ImportStateVerifyIgnore: []string{"two_factor_token"},
 			},
 			// Idempotency
 			{
@@ -562,7 +565,7 @@ resource "threexui_panel_telegram" "test" {
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateId:           "settings",
-				ImportStateVerifyIgnore: []string{"tg_bot_token"},
+				ImportStateVerifyIgnore: []string{"tg_bot_token", "tg_bot_login_notify"},
 			},
 			// Idempotency
 			{
@@ -997,6 +1000,9 @@ resource "threexui_panel_subscription" "test" {
 				ImportState:       true,
 				ImportStateVerify: true,
 				ImportStateId:     "settings",
+				// sub_show_info / sub_email_in_remark were removed from AllSetting in
+				// 3x-ui v3.4.0 and do not round-trip through import there.
+				ImportStateVerifyIgnore: []string{"sub_show_info", "sub_email_in_remark"},
 			},
 			// Idempotency
 			{
@@ -1264,6 +1270,9 @@ resource "threexui_panel_subscription" "test" {
 				ResourceName:      "threexui_panel_subscription.test",
 				ImportState:       true,
 				ImportStateVerify: true,
+				// sub_show_info / sub_email_in_remark were removed from AllSetting in
+				// 3x-ui v3.4.0 and do not round-trip through import there.
+				ImportStateVerifyIgnore: []string{"sub_show_info", "sub_email_in_remark"},
 			},
 		},
 	})
@@ -1647,7 +1656,7 @@ resource "threexui_panel_general" "test" {
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateId:           "settings",
-				ImportStateVerifyIgnore: []string{"ldap_password"},
+				ImportStateVerifyIgnore: []string{"ldap_password", "remark_model", "panel_proxy"},
 			},
 		},
 	})
