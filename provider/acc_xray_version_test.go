@@ -282,7 +282,21 @@ resource "threexui_xray_version" "test" {
 				ExpectNonEmptyPlan: true,
 			},
 			// Step 3: apply should restore the desired version.
+			//
+			// Pre-flight: Step 2's drift simulation left xray freshly restarted via
+			// InstallXray, and this step's apply will InstallXray again. On slow CI
+			// runners (PostgreSQL backend) 3x-ui's refreshVersion() can stall for
+			// minutes after each restart (see waitForXrayVersion doc). Before
+			// committing to an apply we cannot interrupt, verify xray is actually
+			// healthy via the same resilient probe the version tests use: it polls,
+			// nudges with RestartXrayService, and SKIPS if xray stays Unknown — so a
+			// CI-timing stall fails this test as a skip, not as a Step 3/3 apply
+			// error. This matches the existing skipOnFlakyVersions gate above for
+			// the same "InstallXray pickup unreliable" symptom.
 			{
+				PreConfig: func() {
+					waitForXrayVersion(t, ctx, client)
+				},
 				Config: config,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_xray_version.test", "version", currentVersion),
