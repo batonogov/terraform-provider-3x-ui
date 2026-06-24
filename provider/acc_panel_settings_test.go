@@ -12,6 +12,166 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
+// --- Panel Email: SMTP notifications (3x-ui v3.4.0+) ---
+
+func TestAccPanelEmail(t *testing.T) {
+	requireMinVersion(t, "v3.4.0")
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_email" "test" {
+  smtp_enable          = true
+  smtp_host            = "smtp.example.com"
+  smtp_port            = 587
+  smtp_username        = "alerts@example.com"
+  smtp_password        = "supersecret"
+  smtp_to              = "admin@example.com"
+  smtp_encryption_type = "starttls"
+  smtp_enabled_events  = "login,backup"
+  smtp_cpu             = 80
+  smtp_memory          = 90
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "id", "settings"),
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "smtp_enable", "true"),
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "smtp_host", "smtp.example.com"),
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "smtp_port", "587"),
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "smtp_username", "alerts@example.com"),
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "smtp_encryption_type", "starttls"),
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "smtp_cpu", "80"),
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "smtp_memory", "90"),
+				),
+			},
+			// Update
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_email" "test" {
+  smtp_enable          = false
+  smtp_host            = "mail.example.org"
+  smtp_port            = 465
+  smtp_username        = "noreply@example.org"
+  smtp_password        = "supersecret"
+  smtp_to              = "ops@example.org"
+  smtp_encryption_type = "tls"
+  smtp_enabled_events  = ""
+  smtp_cpu             = 95
+  smtp_memory          = 95
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "smtp_enable", "false"),
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "smtp_host", "mail.example.org"),
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "smtp_port", "465"),
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "smtp_encryption_type", "tls"),
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "smtp_cpu", "95"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccPanelEmailWriteOnly(t *testing.T) {
+	requireMinVersion(t, "v3.4.0")
+	resource.Test(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.11.0"))),
+		},
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_email" "test" {
+  smtp_enable               = true
+  smtp_host                 = "smtp.example.com"
+  smtp_port                 = 587
+  smtp_username             = "alerts@example.com"
+  smtp_password_wo          = "supersecret"
+  smtp_password_wo_version  = 1
+  smtp_to                   = "admin@example.com"
+  smtp_encryption_type      = "starttls"
+  smtp_cpu                  = 80
+  smtp_memory               = 90
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "id", "settings"),
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "smtp_enable", "true"),
+					resource.TestCheckResourceAttr("threexui_panel_email.test", "smtp_password_wo_version", "1"),
+				),
+			},
+			// Idempotency: re-applying the same _wo config must produce an empty plan.
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_email" "test" {
+  smtp_enable               = true
+  smtp_host                 = "smtp.example.com"
+  smtp_port                 = 587
+  smtp_username             = "alerts@example.com"
+  smtp_password_wo          = "supersecret"
+  smtp_password_wo_version  = 1
+  smtp_to                   = "admin@example.com"
+  smtp_encryption_type      = "starttls"
+  smtp_cpu                  = 80
+  smtp_memory               = 90
+}
+`,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+// --- Panel v3.4.0 attribute additions (telegram/general/subscription) ---
+
+func TestAccPanelSettings_v340(t *testing.T) {
+	requireMinVersion(t, "v3.4.0")
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_general" "g" {
+  warp_update_interval = 24
+}
+resource "threexui_panel_telegram" "tg" {
+  tg_bot_enable       = false
+  tg_bot_chat_id      = ""
+  tg_lang             = "en"
+  tg_run_time         = "@daily"
+  tg_bot_backup       = false
+  tg_bot_login_notify = true
+  tg_cpu              = 80
+  tg_enabled_events   = "login,backup"
+  tg_memory           = 90
+}
+resource "threexui_panel_subscription" "sub" {
+  sub_enable        = false
+  sub_listen        = ""
+  sub_port          = 2096
+  sub_theme_dir     = "/etc/3x-ui/sub"
+  remark_template   = "{{email}} {{transport}}"
+  sub_hide_settings = true
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_general.g", "warp_update_interval", "24"),
+					resource.TestCheckResourceAttr("threexui_panel_telegram.tg", "tg_enabled_events", "login,backup"),
+					resource.TestCheckResourceAttr("threexui_panel_telegram.tg", "tg_memory", "90"),
+					resource.TestCheckResourceAttr("threexui_panel_subscription.sub", "sub_theme_dir", "/etc/3x-ui/sub"),
+					resource.TestCheckResourceAttr("threexui_panel_subscription.sub", "remark_template", "{{email}} {{transport}}"),
+					resource.TestCheckResourceAttr("threexui_panel_subscription.sub", "sub_hide_settings", "true"),
+				),
+			},
+		},
+	})
+}
+
 // --- Panel General: page_size, remark_model, time_location, update, idempotency ---
 
 func TestAccPanelGeneral(t *testing.T) {
@@ -122,7 +282,7 @@ resource "threexui_panel_general" "test" {
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateId:           "settings",
-				ImportStateVerifyIgnore: []string{"ldap_password"},
+				ImportStateVerifyIgnore: []string{"ldap_password", "remark_model", "panel_proxy"},
 			},
 			// Idempotency
 			{
@@ -317,6 +477,9 @@ resource "threexui_panel_security" "test" {
 				ImportState:       true,
 				ImportStateVerify: true,
 				ImportStateId:     "settings",
+				// two_factor_token is a secret: on 3x-ui v3.4.0 the panel no longer
+				// returns it raw, so it does not round-trip through import.
+				ImportStateVerifyIgnore: []string{"two_factor_token"},
 			},
 			// Idempotency
 			{
@@ -402,7 +565,7 @@ resource "threexui_panel_telegram" "test" {
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateId:           "settings",
-				ImportStateVerifyIgnore: []string{"tg_bot_token"},
+				ImportStateVerifyIgnore: []string{"tg_bot_token", "tg_bot_login_notify"},
 			},
 			// Idempotency
 			{
@@ -837,6 +1000,9 @@ resource "threexui_panel_subscription" "test" {
 				ImportState:       true,
 				ImportStateVerify: true,
 				ImportStateId:     "settings",
+				// sub_show_info / sub_email_in_remark were removed from AllSetting in
+				// 3x-ui v3.4.0 and do not round-trip through import there.
+				ImportStateVerifyIgnore: []string{"sub_show_info", "sub_email_in_remark"},
 			},
 			// Idempotency
 			{
@@ -1104,6 +1270,9 @@ resource "threexui_panel_subscription" "test" {
 				ResourceName:      "threexui_panel_subscription.test",
 				ImportState:       true,
 				ImportStateVerify: true,
+				// sub_show_info / sub_email_in_remark were removed from AllSetting in
+				// 3x-ui v3.4.0 and do not round-trip through import there.
+				ImportStateVerifyIgnore: []string{"sub_show_info", "sub_email_in_remark"},
 			},
 		},
 	})
@@ -1487,7 +1656,7 @@ resource "threexui_panel_general" "test" {
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateId:           "settings",
-				ImportStateVerifyIgnore: []string{"ldap_password"},
+				ImportStateVerifyIgnore: []string{"ldap_password", "remark_model", "panel_proxy"},
 			},
 		},
 	})

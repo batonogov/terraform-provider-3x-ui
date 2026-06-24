@@ -51,6 +51,9 @@ type InboundResourceModel struct {
 	Protocol             types.String `tfsdk:"protocol"`
 	Tag                  types.String `tfsdk:"tag"`
 	NodeID               types.Int64  `tfsdk:"node_id"`
+	SubSortIndex         types.Int64  `tfsdk:"sub_sort_index"`
+	ShareAddr            types.String `tfsdk:"share_addr"`
+	ShareAddrStrategy    types.String `tfsdk:"share_addr_strategy"`
 	RestartXray          types.Bool   `tfsdk:"restart_xray"`
 
 	// Per-protocol settings (typed blocks)
@@ -182,6 +185,21 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					int64planmodifier.UseStateForUnknown(),
 					int64planmodifier.RequiresReplace(),
 				},
+			},
+			"sub_sort_index": schema.Int64Attribute{
+				Optional: true, Computed: true,
+				Description:   "1-based sort order of this inbound's links in subscription output (lower first; ties by id). Added in 3x-ui v3.3.1; ignored by older panels.",
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+			},
+			"share_addr": schema.StringAttribute{
+				Optional: true, Computed: true,
+				Description:   "Share address used in generated subscription links when share_addr_strategy is custom. Added in 3x-ui v3.3.1; ignored by older panels.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"share_addr_strategy": schema.StringAttribute{
+				Optional: true, Computed: true,
+				Description:   "Strategy for the share address in subscription links: node (inbound listen/node address), listen, or custom (uses share_addr). Added in 3x-ui v3.3.1; ignored by older panels.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"restart_xray": schema.BoolAttribute{
 				Optional:    true,
@@ -602,6 +620,15 @@ func expandInboundFromModel(m *InboundResourceModel) *Inbound {
 		nodeID := int(m.NodeID.ValueInt64())
 		inbound.NodeID = &nodeID
 	}
+	if !m.SubSortIndex.IsNull() && !m.SubSortIndex.IsUnknown() {
+		inbound.SubSortIndex = int(m.SubSortIndex.ValueInt64())
+	}
+	if !m.ShareAddr.IsNull() && !m.ShareAddr.IsUnknown() {
+		inbound.ShareAddr = m.ShareAddr.ValueString()
+	}
+	if !m.ShareAddrStrategy.IsNull() && !m.ShareAddrStrategy.IsUnknown() {
+		inbound.ShareAddrStrategy = m.ShareAddrStrategy.ValueString()
+	}
 	return inbound
 }
 
@@ -629,6 +656,9 @@ func inboundToModel(inbound *Inbound, failHard bool) (*InboundResourceModel, dia
 		Protocol:             types.StringValue(inbound.Protocol),
 		Tag:                  types.StringValue(inbound.Tag),
 		NodeID:               types.Int64Null(),
+		SubSortIndex:         types.Int64Value(int64(inbound.SubSortIndex)),
+		ShareAddr:            stringValueOrNull(inbound.ShareAddr),
+		ShareAddrStrategy:    stringValueOrNull(inbound.ShareAddrStrategy),
 	}
 	if inbound.NodeID != nil {
 		m.NodeID = types.Int64Value(int64(*inbound.NodeID))

@@ -93,10 +93,11 @@ resource "threexui_inbound_client" "client_a" {
 
 ## Совместимость
 
-**Политика поддержки:** провайдер официально поддерживает три минорные ветки 3x-ui: **v3.1.x**, **v3.2.x** и **v3.3.x** — каждый выпущенный патч всех трёх веток гоняется в acceptance-матрице на каждом push в `main` и на каждом pull request.
+**Политика поддержки:** провайдер официально поддерживает четыре минорные ветки 3x-ui: **v3.1.x**, **v3.2.x**, **v3.3.x** и **v3.4.x** — каждый выпущенный патч всех четырёх веток гоняется в acceptance-матрице на каждом push в `main` и на каждом pull request.
 
 | Версия 3x-ui | Статус |
 | --- | --- |
+| v3.4.0 | Тестируется |
 | v3.3.1 | Тестируется |
 | v3.3.0 | Тестируется |
 | v3.2.8 | Тестируется |
@@ -141,6 +142,7 @@ resource "threexui_inbound_client" "client_a" {
 | `threexui_panel_security` | Безопасность (2FA) |
 | `threexui_panel_user` | Учётные данные администратора |
 | `threexui_panel_telegram` | Интеграция с Telegram-ботом |
+| `threexui_panel_email` | SMTP/email-уведомления (v3.4.0+) |
 | `threexui_panel_subscription` | Настройки подписочного сервиса |
 | `threexui_xray_basics` | Базовый Xray (log, policy, api, stats) |
 | `threexui_xray_dns` | DNS-серверы и hosts |

@@ -99,10 +99,11 @@ resource "threexui_inbound_client" "client_a" {
 
 ## التوافق
 
-**سياسة الدعم:** الـ provider بيدعم رسميًا تلاتة سطور فرعية (minor) من 3x-ui: **v3.1.x**، **v3.2.x** و **v3.3.x** — كل patch متنزّل من السطور دي بيتشغّل في matrix الـ acceptance في كل push على `main` و في كل pull request.
+**سياسة الدعم:** الـ provider بيدعم رسميًا أربعة سطور فرعية (minor) من 3x-ui: **v3.1.x**، **v3.2.x**، **v3.3.x** و **v3.4.x** — كل patch متنزّل من السطور دي بيتشغّل في matrix الـ acceptance في كل push على `main` و في كل pull request.
 
 | إصدار 3x-ui | الحالة |
 | --- | --- |
+| v3.4.0 | تم اختباره |
 | v3.3.1 | تم اختباره |
 | v3.3.0 | تم اختباره |
 | v3.2.8 | تم اختباره |
@@ -147,6 +148,7 @@ resource "threexui_inbound_client" "client_a" {
 | `threexui_panel_security` | إعدادات الأمان (2FA) |
 | `threexui_panel_user` | بيانات اعتماد المسؤول |
 | `threexui_panel_telegram` | تكامل بوت تليجرام |
+| `threexui_panel_email` | إشعارات SMTP/email (v3.4.0+) |
 | `threexui_panel_subscription` | إعدادات خدمة الاشتراك |
 | `threexui_xray_basics` | إعدادات Xray الأساسية (log, policy, api, stats) |
 | `threexui_xray_dns` | سيرفرات و hosts الـ DNS |

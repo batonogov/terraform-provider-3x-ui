@@ -1272,3 +1272,35 @@ resource "threexui_inbound" "update" {
 }
 `, port, remark, enable)
 }
+
+// --- Inbound v3.3.1 multi-node subscription fields (sub_sort_index, share_addr, share_addr_strategy) ---
+
+func TestAccInboundSubscriptionFields(t *testing.T) {
+	requireMinVersion(t, "v3.3.1")
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "sub" {
+  port               = 25040
+  protocol           = "trojan"
+  remark             = "acc-sub-fields"
+  enable             = true
+  sub_sort_index     = 2
+  share_addr         = "203.0.113.10"
+  share_addr_strategy = "custom"
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrSet("threexui_inbound.sub", "id"),
+					resource.TestCheckResourceAttr("threexui_inbound.sub", "sub_sort_index", "2"),
+					resource.TestCheckResourceAttr("threexui_inbound.sub", "share_addr", "203.0.113.10"),
+					resource.TestCheckResourceAttr("threexui_inbound.sub", "share_addr_strategy", "custom"),
+				),
+			},
+		},
+	})
+}

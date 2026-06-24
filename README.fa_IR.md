@@ -99,10 +99,11 @@ resource "threexui_inbound_client" "client_a" {
 
 ## سازگاری
 
-**سیاست پشتیبانی:** این provider به‌طور رسمی از سه خط مینور 3x-ui پشتیبانی می‌کند: **v3.1.x**، **v3.2.x** و **v3.3.x** — هر patch منتشرشده از هر سه خط در هر push به `main` و هر pull request توسط ماتریس acceptance اجرا می‌شود.
+**سیاست پشتیبانی:** این provider به‌طور رسمی از چهار خط مینور 3x-ui پشتیبانی می‌کند: **v3.1.x**، **v3.2.x**، **v3.3.x** و **v3.4.x** — هر patch منتشرشده از هر چهار خط در هر push به `main` و هر pull request توسط ماتریس acceptance اجرا می‌شود.
 
 | نسخهٔ 3x-ui | وضعیت |
 | --- | --- |
+| v3.4.0 | تست‌شده |
 | v3.3.1 | تست‌شده |
 | v3.3.0 | تست‌شده |
 | v3.2.8 | تست‌شده |
@@ -147,6 +148,7 @@ resource "threexui_inbound_client" "client_a" {
 | `threexui_panel_security` | تنظیمات امنیت (2FA) |
 | `threexui_panel_user` | اعتبارنامه‌های ادمین |
 | `threexui_panel_telegram` | یکپارچه‌سازی با بات تلگرام |
+| `threexui_panel_email` | اعلان‌های SMTP/email (v3.4.0+) |
 | `threexui_panel_subscription` | تنظیمات سرویس subscription |
 | `threexui_xray_basics` | پیکربندی پایهٔ Xray (log, policy, api, stats) |
 | `threexui_xray_dns` | سرورها و hostهای DNS |

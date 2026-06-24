@@ -22,14 +22,17 @@ type Inbound struct {
 	LastTrafficResetTime int64           `json:"lastTrafficResetTime"`
 	ClientStats          []ClientTraffic `json:"clientStats"`
 
-	Listen         string `json:"listen"`
-	Port           int    `json:"port"`
-	Protocol       string `json:"protocol"`
-	Settings       string `json:"settings"`
-	StreamSettings string `json:"streamSettings"`
-	Tag            string `json:"tag"`
-	Sniffing       string `json:"sniffing"`
-	NodeID         *int   `json:"nodeId,omitempty"`
+	Listen            string `json:"listen"`
+	Port              int    `json:"port"`
+	Protocol          string `json:"protocol"`
+	Settings          string `json:"settings"`
+	StreamSettings    string `json:"streamSettings"`
+	Tag               string `json:"tag"`
+	SubSortIndex      int    `json:"subSortIndex,omitempty"`
+	ShareAddr         string `json:"shareAddr,omitempty"`
+	ShareAddrStrategy string `json:"shareAddrStrategy,omitempty"`
+	Sniffing          string `json:"sniffing"`
+	NodeID            *int   `json:"nodeId,omitempty"`
 }
 
 func (i *Inbound) UnmarshalJSON(data []byte) error {

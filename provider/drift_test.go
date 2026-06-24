@@ -770,11 +770,6 @@ func TestDriftInboundFields(t *testing.T) {
 		"-":              true, // UserId uses json:"-"
 		"fallbackParent": true, // v3.1.0 frontend-only, not persisted
 		"originNodeGuid": true, // multi-hop node attribution, not managed by provider
-		// v3.3.1 additions — subscription link sort order and per-inbound
-		// share-address strategy (node-sync); not yet managed by the provider.
-		"subSortIndex":      true,
-		"shareAddrStrategy": true,
-		"shareAddr":         true,
 	}
 
 	dir := latestSnapshotDir(t)
@@ -869,6 +864,8 @@ func TestDriftAllSettingFields(t *testing.T) {
 		"tgBotAPIServer": true, "tgBotChatId": true, "tgLang": true,
 		"tgRunTime": true, "tgBotBackup": true, "tgBotLoginNotify": true,
 		"tgCpu": true,
+		// v3.4.0 Telegram event/threshold additions
+		"tgEnabledEvents": true, "tgMemory": true,
 		// Subscription
 		"subEnable": true, "subJsonEnable": true, "subTitle": true,
 		"subSupportUrl": true, "subProfileUrl": true, "subAnnounce": true,
@@ -881,9 +878,18 @@ func TestDriftAllSettingFields(t *testing.T) {
 		"subJsonRules": true, "subClashEnable": true, "subClashPath": true,
 		"subClashURI": true, "subClashEnableRouting": true, "subClashRules": true,
 		"subJsonFinalMask": true,
+		// v3.3.0/v3.4.0 subscription additions
+		"subThemeDir": true, "remarkTemplate": true, "subHideSettings": true,
 		// v3.2.0
 		"panelProxy":    true,
 		"panelOutbound": true,
+		// v3.3.0 panel_general
+		"warpUpdateInterval": true,
+		// v3.4.0 SMTP/email notifications (threexui_panel_email)
+		"smtpEnable": true, "smtpHost": true, "smtpPort": true,
+		"smtpUsername": true, "smtpPassword": true, "smtpTo": true,
+		"smtpEncryptionType": true, "smtpEnabledEvents": true,
+		"smtpCpu": true, "smtpMemory": true,
 	}
 
 	// Fields intentionally not managed by the provider.
@@ -891,9 +897,14 @@ func TestDriftAllSettingFields(t *testing.T) {
 		// Removed in 3x-ui v3.2.8 — kept in provider for backward compat.
 		"subJsonFragment": true,
 		"subJsonNoises":   true,
-		// Added in 3x-ui v3.3.0 — not yet managed by the provider.
-		"subThemeDir":        true,
-		"warpUpdateInterval": true,
+
+		// Removed in 3x-ui v3.4.0 — kept in provider for backward compat
+		// with v3.1.x–v3.3.x panels (gin silently ignores unknown form
+		// values on v3.4.0). remarkModel was superseded by remarkTemplate.
+		"remarkModel":      true,
+		"subEmailInRemark": true,
+		"subShowInfo":      true,
+		"tgBotLoginNotify": true,
 		// v3.3.1 renamed panelProxy → panelOutbound (outbound egress bridge).
 		// The provider keeps panelProxy for backward compat with v3.2.0–v3.3.0
 		// panels even though v3.3.1's AllSetting struct dropped it.

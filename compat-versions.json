@@ -7,8 +7,9 @@
     {"version": "v3.2.7", "supported": true},
     {"version": "v3.2.8", "supported": true},
     {"version": "v3.3.0", "supported": true},
-    {"version": "v3.3.1", "supported": true}
+    {"version": "v3.3.1", "supported": true},
+    {"version": "v3.4.0", "supported": true}
   ],
-  "default_version": "v3.3.1",
-  "minor_lines": ["3.1.x", "3.2.x", "3.3.x"]
+  "default_version": "v3.4.0",
+  "minor_lines": ["3.1.x", "3.2.x", "3.3.x", "3.4.x"]
 }

@@ -93,10 +93,11 @@ resource "threexui_inbound_client" "client_a" {
 
 ## 兼容性
 
-**支持策略:** 本 provider 正式支持三条 3x-ui 次要版本线: **v3.1.x**、**v3.2.x** 和 **v3.3.x** —— 三条版本线下的每个已发布补丁版本都会在每次 push 到 `main` 和每个 pull request 时由 acceptance 矩阵覆盖。
+**支持策略:** 本 provider 正式支持四条 3x-ui 次要版本线: **v3.1.x**、**v3.2.x**、**v3.3.x** 和 **v3.4.x** —— 四条版本线下的每个已发布补丁版本都会在每次 push 到 `main` 和每个 pull request 时由 acceptance 矩阵覆盖。
 
 | 3x-ui 版本 | 状态 |
 | --- | --- |
+| v3.4.0 | 已测试 |
 | v3.3.1 | 已测试 |
 | v3.3.0 | 已测试 |
 | v3.2.8 | 已测试 |
@@ -141,6 +142,7 @@ resource "threexui_inbound_client" "client_a" {
 | `threexui_panel_security` | 安全设置(2FA) |
 | `threexui_panel_user` | 管理员凭据 |
 | `threexui_panel_telegram` | Telegram bot 集成 |
+| `threexui_panel_email` | SMTP/email 通知 (v3.4.0+) |
 | `threexui_panel_subscription` | 订阅服务设置 |
 | `threexui_xray_basics` | Xray 基础配置(log、policy、api、stats) |
 | `threexui_xray_dns` | DNS 服务器和 hosts |
