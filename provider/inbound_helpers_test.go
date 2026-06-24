@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"regexp"
 	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 func TestPreserveInboundSettings_Nil(t *testing.T) {
@@ -322,5 +324,51 @@ func TestIsSubset_Scalars(t *testing.T) {
 	}
 	if isSubset(float64(1), float64(2)) {
 		t.Fatalf("expected not equal")
+	}
+}
+
+// TestExpandInboundFromModel_v331Fields covers the v3.3.1 subscription-
+// sharing fields (sub_sort_index, share_addr, share_addr_strategy) flowing
+// from the Terraform model into the API Inbound struct.
+func TestExpandInboundFromModel_v331Fields(t *testing.T) {
+	m := &InboundResourceModel{
+		SubSortIndex:      types.Int64Value(3),
+		ShareAddr:         types.StringValue("1.2.3.4"),
+		ShareAddrStrategy: types.StringValue("custom"),
+	}
+	inb := expandInboundFromModel(m)
+	if inb.SubSortIndex != 3 {
+		t.Fatalf("SubSortIndex: %d", inb.SubSortIndex)
+	}
+	if inb.ShareAddr != "1.2.3.4" {
+		t.Fatalf("ShareAddr: %q", inb.ShareAddr)
+	}
+	if inb.ShareAddrStrategy != "custom" {
+		t.Fatalf("ShareAddrStrategy: %q", inb.ShareAddrStrategy)
+	}
+}
+
+// TestInboundToModel_v331Fields covers the reverse direction: API Inbound →
+// Terraform model for the v3.3.1 fields. Uses failHard=false so empty settings
+// produce only warnings and the basic fields (incl. the v3.3.1 ones) are
+// still populated.
+func TestInboundToModel_v331Fields(t *testing.T) {
+	inb := &Inbound{
+		SubSortIndex:      7,
+		ShareAddr:         "node.example.com",
+		ShareAddrStrategy: "node",
+	}
+	m, diags := inboundToModel(inb, false)
+	if diags.HasError() {
+		t.Fatalf("unexpected error diagnostics: %v", diags)
+	}
+	if m.SubSortIndex.ValueInt64() != 7 {
+		t.Fatalf("SubSortIndex: %d", m.SubSortIndex.ValueInt64())
+	}
+	if m.ShareAddr.ValueString() != "node.example.com" {
+		t.Fatalf("ShareAddr: %q", m.ShareAddr.ValueString())
+	}
+	if m.ShareAddrStrategy.ValueString() != "node" {
+		t.Fatalf("ShareAddrStrategy: %q", m.ShareAddrStrategy.ValueString())
 	}
 }

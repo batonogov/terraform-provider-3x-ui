@@ -173,11 +173,26 @@ func (r *XrayVersionResource) Update(ctx context.Context, req resource.UpdateReq
 // that gap the panel returns "Unknown", which surfaces as
 // ErrXrayVersionUnknown. We treat that as "still restarting" and keep
 // polling rather than failing the apply (issue #157).
+//
+// On slow CI runners (PostgreSQL backend) the stall can last minutes: 3x-ui's
+// refreshVersion() runs `xray -version` via exec.Command(...).Output() with
+// NO timeout, and under IO pressure that exec blocks with p.version="Unknown"
+// (PR #306 PostgreSQL run: 4.5 min of continuous "Unknown"). To ride this out
+// the budget was raised (90s → 180s) and, after nudgeAfter seconds of
+// continuous Unknown, we issue a single RestartXrayService under a bounded
+// context — it re-triggers refreshVersion() and is far cheaper than
+// InstallXray (no GitHub download). RestartXrayService honours the context
+// via doJSON, so the nudge is itself time-bounded and cannot extend the stall.
 func (r *XrayVersionResource) waitForXrayVersion(ctx context.Context, version string) (string, error) {
-	const maxAttempts = 90
-	const retryInstallAfter = 30
+	const (
+		maxAttempts       = 180
+		retryInstallAfter = 30
+		nudgeAfter        = 60
+		nudgeTimeout      = 30 * time.Second
+	)
 	var lastSeen string
 	var retried bool
+	var nudged bool
 	for i := 0; i < maxAttempts; i++ {
 		current, err := r.client.GetCurrentXrayVersion(ctx)
 		if err == nil {
@@ -196,6 +211,20 @@ func (r *XrayVersionResource) waitForXrayVersion(ctx context.Context, version st
 				return "", fmt.Errorf("re-issuing InstallXray(%s): %w", version, installErr)
 			}
 			retried = true
+		}
+		// After nudgeAfter seconds of continuous Unknown, force a single cheap
+		// restart under a bounded context to re-trigger refreshVersion(). A failed
+		// nudge is non-fatal — we log nothing (no logger here) and keep polling.
+		if !nudged && i >= nudgeAfter {
+			nudgeCtx, cancel := context.WithTimeout(ctx, nudgeTimeout)
+			nudgeErr := r.client.RestartXrayService(nudgeCtx)
+			cancel()
+			nudged = true
+			if nudgeErr != nil {
+				// Transient nudge failure: keep polling, the version may still
+				// come back on its own once the panel's refreshVersion() returns.
+				continue
+			}
 		}
 		select {
 		case <-ctx.Done():

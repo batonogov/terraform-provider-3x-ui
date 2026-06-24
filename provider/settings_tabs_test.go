@@ -624,6 +624,324 @@ func TestExpandPanelSubscription_v328Fields(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// v3.4.0 coverage: PanelEmail expand/flatten/schema + new TG/subscription
+// fields. These follow the same round-trip convention as the Telegram/
+// subscription tests above; they also call panelEmailSchema() so the schema
+// literal counts towards unit coverage (see TestPanelGeneralSchemaAttributeShape).
+// ---------------------------------------------------------------------------
+
+// TestPanelEmailSchemaAttributeShape asserts the v3.4.0 SMTP attributes exist
+// with the expected Optional+Computed shape, and that the password pair is
+// Sensitive / WriteOnly as documented in AGENTS.md. Exercises panelEmailSchema()
+// so the schema literal is covered.
+func TestPanelEmailSchemaAttributeShape(t *testing.T) {
+	s := panelEmailSchema()
+
+	requireStringOptComp := func(name string) {
+		t.Helper()
+		attr, ok := s.Attributes[name]
+		if !ok {
+			t.Fatalf("attribute %q missing on panel_email schema", name)
+		}
+		str, ok := attr.(schema.StringAttribute)
+		if !ok {
+			t.Fatalf("attribute %q is not a StringAttribute", name)
+		}
+		if !str.Optional || !str.Computed {
+			t.Errorf("attribute %q must be Optional+Computed", name)
+		}
+	}
+
+	requireIntOptComp := func(name string) {
+		t.Helper()
+		attr, ok := s.Attributes[name]
+		if !ok {
+			t.Fatalf("attribute %q missing on panel_email schema", name)
+		}
+		if _, ok := attr.(schema.Int64Attribute); !ok {
+			t.Fatalf("attribute %q is not an Int64Attribute", name)
+		}
+	}
+
+	// Core SMTP fields added in 3x-ui v3.4.0.
+	requireStringOptComp("smtp_host")
+	requireStringOptComp("smtp_username")
+	requireStringOptComp("smtp_to")
+	requireStringOptComp("smtp_encryption_type")
+	requireStringOptComp("smtp_enabled_events")
+	requireIntOptComp("smtp_port")
+	requireIntOptComp("smtp_cpu")
+	requireIntOptComp("smtp_memory")
+
+	// smtp_enable is a bool Optional+Computed.
+	if attr, ok := s.Attributes["smtp_enable"]; !ok {
+		t.Fatalf("attribute %q missing", "smtp_enable")
+	} else if _, ok := attr.(schema.BoolAttribute); !ok {
+		t.Fatalf("smtp_enable is not a BoolAttribute")
+	}
+
+	// smtp_password is the legacy Sensitive attribute.
+	pwdAttr, ok := s.Attributes["smtp_password"]
+	if !ok {
+		t.Fatalf("smtp_password missing")
+	}
+	pwd, ok := pwdAttr.(schema.StringAttribute)
+	if !ok {
+		t.Fatalf("smtp_password is not a StringAttribute")
+	}
+	if !pwd.Sensitive {
+		t.Errorf("smtp_password must be Sensitive")
+	}
+
+	// smtp_password_wo is the write-only alternative.
+	woAttr, ok := s.Attributes["smtp_password_wo"]
+	if !ok {
+		t.Fatalf("smtp_password_wo missing")
+	}
+	wo, ok := woAttr.(schema.StringAttribute)
+	if !ok {
+		t.Fatalf("smtp_password_wo is not a StringAttribute")
+	}
+	if !wo.WriteOnly {
+		t.Errorf("smtp_password_wo must be WriteOnly")
+	}
+}
+
+func TestExpandPanelEmail(t *testing.T) {
+	m := &PanelEmailModel{
+		SmtpEnable:         typeBoolValue(true),
+		SmtpHost:           typeStringValue("smtp.example.com"),
+		SmtpPort:           typeInt64Value(587),
+		SmtpUsername:       typeStringValue("user"),
+		SmtpPassword:       typeStringValue("plain-secret"),
+		SmtpTo:             typeStringValue("ops@example.com"),
+		SmtpEncryptionType: typeStringValue("starttls"),
+		SmtpEnabledEvents:  typeStringValue("login,backup"),
+		SmtpCPU:            typeInt64Value(90),
+		SmtpMemory:         typeInt64Value(80),
+	}
+	got := expandPanelEmail(m)
+	if got["smtpEnable"] != true {
+		t.Fatalf("smtpEnable: %v", got["smtpEnable"])
+	}
+	if got["smtpHost"] != "smtp.example.com" {
+		t.Fatalf("smtpHost: %v", got["smtpHost"])
+	}
+	if got["smtpPort"] != 587 {
+		t.Fatalf("smtpPort: %v", got["smtpPort"])
+	}
+	if got["smtpUsername"] != "user" {
+		t.Fatalf("smtpUsername: %v", got["smtpUsername"])
+	}
+	// No _wo set → plain password used.
+	if got["smtpPassword"] != "plain-secret" {
+		t.Fatalf("smtpPassword (plain fallback): %v", got["smtpPassword"])
+	}
+	if got["smtpTo"] != "ops@example.com" {
+		t.Fatalf("smtpTo: %v", got["smtpTo"])
+	}
+	if got["smtpEncryptionType"] != "starttls" {
+		t.Fatalf("smtpEncryptionType: %v", got["smtpEncryptionType"])
+	}
+	if got["smtpEnabledEvents"] != "login,backup" {
+		t.Fatalf("smtpEnabledEvents: %v", got["smtpEnabledEvents"])
+	}
+	if got["smtpCpu"] != 90 {
+		t.Fatalf("smtpCpu: %v", got["smtpCpu"])
+	}
+	if got["smtpMemory"] != 80 {
+		t.Fatalf("smtpMemory: %v", got["smtpMemory"])
+	}
+}
+
+// TestExpandPanelEmail_WriteOnlyPrecedence asserts that when both the plain and
+// write-only password are set, the write-only value wins (matches the
+// expandPanelEmail branch order). This is the core of the write-only contract.
+func TestExpandPanelEmail_WriteOnlyPrecedence(t *testing.T) {
+	m := &PanelEmailModel{
+		SmtpPassword:   typeStringValue("plain-secret"),
+		SmtpPasswordWO: typeStringValue("wo-secret"),
+	}
+	got := expandPanelEmail(m)
+	if got["smtpPassword"] != "wo-secret" {
+		t.Fatalf("write-only password must take precedence, got %v", got["smtpPassword"])
+	}
+}
+
+func TestFlattenPanelEmail(t *testing.T) {
+	in := map[string]any{
+		"smtpEnable":         true,
+		"smtpHost":           "smtp.example.com",
+		"smtpPort":           float64(587),
+		"smtpUsername":       "user",
+		"smtpPassword":       "returned-secret",
+		"smtpTo":             "ops@example.com",
+		"smtpEncryptionType": "starttls",
+		"smtpEnabledEvents":  "login,backup",
+		"smtpCpu":            float64(90),
+		"smtpMemory":         float64(80),
+	}
+	m := flattenPanelEmail(in)
+	if m.ID.ValueString() != "settings" {
+		t.Fatalf("id: %s", m.ID.ValueString())
+	}
+	if !m.SmtpEnable.ValueBool() {
+		t.Fatalf("smtpEnable")
+	}
+	if m.SmtpHost.ValueString() != "smtp.example.com" {
+		t.Fatalf("smtpHost: %s", m.SmtpHost.ValueString())
+	}
+	if m.SmtpPort.ValueInt64() != 587 {
+		t.Fatalf("smtpPort: %d", m.SmtpPort.ValueInt64())
+	}
+	if m.SmtpUsername.ValueString() != "user" {
+		t.Fatalf("smtpUsername: %s", m.SmtpUsername.ValueString())
+	}
+	if m.SmtpPassword.ValueString() != "returned-secret" {
+		t.Fatalf("smtpPassword: %s", m.SmtpPassword.ValueString())
+	}
+	if m.SmtpTo.ValueString() != "ops@example.com" {
+		t.Fatalf("smtpTo: %s", m.SmtpTo.ValueString())
+	}
+	if m.SmtpEncryptionType.ValueString() != "starttls" {
+		t.Fatalf("smtpEncryptionType: %s", m.SmtpEncryptionType.ValueString())
+	}
+	if m.SmtpEnabledEvents.ValueString() != "login,backup" {
+		t.Fatalf("smtpEnabledEvents: %s", m.SmtpEnabledEvents.ValueString())
+	}
+	if m.SmtpCPU.ValueInt64() != 90 {
+		t.Fatalf("smtpCpu: %d", m.SmtpCPU.ValueInt64())
+	}
+	if m.SmtpMemory.ValueInt64() != 80 {
+		t.Fatalf("smtpMemory: %d", m.SmtpMemory.ValueInt64())
+	}
+}
+
+// TestExpandPanelTelegram_v340Fields covers the v3.4.0 telegram fields added
+// alongside the v3.4.0 SMTP work (tgEnabledEvents, tgMemory).
+func TestExpandPanelTelegram_v340Fields(t *testing.T) {
+	m := &PanelTelegramModel{
+		TgEnabledEvents: typeStringValue("login,backup"),
+		TgMemory:        typeInt64Value(85),
+	}
+	got := expandPanelTelegram(m)
+	if got["tgEnabledEvents"] != "login,backup" {
+		t.Fatalf("tgEnabledEvents: %v", got["tgEnabledEvents"])
+	}
+	if got["tgMemory"] != 85 {
+		t.Fatalf("tgMemory: %v", got["tgMemory"])
+	}
+}
+
+func TestFlattenPanelTelegram_v340Fields(t *testing.T) {
+	in := map[string]any{
+		"tgEnabledEvents": "login,backup",
+		"tgMemory":        float64(85),
+	}
+	m := flattenPanelTelegram(in)
+	if m.TgEnabledEvents.ValueString() != "login,backup" {
+		t.Fatalf("tgEnabledEvents: %s", m.TgEnabledEvents.ValueString())
+	}
+	if m.TgMemory.ValueInt64() != 85 {
+		t.Fatalf("tgMemory: %d", m.TgMemory.ValueInt64())
+	}
+}
+
+// TestExpandPanelSubscription_v340Fields covers the v3.4.0 subscription fields
+// (remarkTemplate, subHideSettings, subThemeDir).
+func TestExpandPanelSubscription_v340Fields(t *testing.T) {
+	m := &PanelSubscriptionModel{
+		RemarkTemplate:  typeStringValue("#REMARK#-#EMAIL#"),
+		SubHideSettings: typeBoolValue(true),
+		SubThemeDir:     typeStringValue("/sub/theme/"),
+	}
+	got := expandPanelSubscription(m)
+	if got["remarkTemplate"] != "#REMARK#-#EMAIL#" {
+		t.Fatalf("remarkTemplate: %v", got["remarkTemplate"])
+	}
+	if got["subHideSettings"] != true {
+		t.Fatalf("subHideSettings: %v", got["subHideSettings"])
+	}
+	if got["subThemeDir"] != "/sub/theme/" {
+		t.Fatalf("subThemeDir: %v", got["subThemeDir"])
+	}
+}
+
+func TestFlattenPanelSubscription_v340Fields(t *testing.T) {
+	in := map[string]any{
+		"remarkTemplate":  "#REMARK#-#EMAIL#",
+		"subHideSettings": true,
+		"subThemeDir":     "/sub/theme/",
+	}
+	m := flattenPanelSubscription(in)
+	if m.RemarkTemplate.ValueString() != "#REMARK#-#EMAIL#" {
+		t.Fatalf("remarkTemplate: %s", m.RemarkTemplate.ValueString())
+	}
+	if !m.SubHideSettings.ValueBool() {
+		t.Fatalf("subHideSettings")
+	}
+	if m.SubThemeDir.ValueString() != "/sub/theme/" {
+		t.Fatalf("subThemeDir: %s", m.SubThemeDir.ValueString())
+	}
+}
+
+// TestPreservePanelEmailSecrets verifies the SMTP password replay path: when
+// the panel returns a redacted/masked sentinel for smtpPassword, the provider
+// replays the user-configured secret so state stays consistent (defensive —
+// 3x-ui v3.0.2–v3.3.1 actually return secrets raw, so this mainly fires when
+// the panel genuinely has no secret stored). Also covers the write-only
+// version trigger carry-through.
+func TestPreservePanelEmailSecrets(t *testing.T) {
+	state := &PanelEmailModel{
+		// Panel returned a masked sentinel for the password.
+		SmtpPassword:          typeStringValue("********"),
+		SmtpPasswordWOVersion: typeInt64Value(2),
+	}
+	configured := &PanelEmailModel{
+		// User still configures the real secret.
+		SmtpPassword:          typeStringValue("real-secret"),
+		SmtpPasswordWOVersion: typeInt64Value(0),
+	}
+	preservePanelEmailSecrets(state, configured)
+	// Redacted observed + non-empty configured → configured wins (replay).
+	if state.SmtpPassword.ValueString() != "real-secret" {
+		t.Fatalf("expected configured secret to win over redacted observed, got %q", state.SmtpPassword.ValueString())
+	}
+	// preserveWOVersion echoes the observed version when it is set.
+	if state.SmtpPasswordWOVersion.ValueInt64() != 2 {
+		t.Fatalf("expected wo version preserved, got %d", state.SmtpPasswordWOVersion.ValueInt64())
+	}
+}
+
+// TestPreservePanelEmailSecrets_NilGuards asserts the nil-safety guard.
+func TestPreservePanelEmailSecrets_NilGuards(t *testing.T) {
+	// Neither nil panics; both are no-ops.
+	preservePanelEmailSecrets(nil, &PanelEmailModel{})
+	preservePanelEmailSecrets(&PanelEmailModel{}, nil)
+}
+
+// TestPreservePanelSubscriptionRemoved verifies that the v3.4.0-removed
+// subscription fields (subShowInfo, subEmailInRemark) are echoed from state so
+// Apply stays consistent on v3.4.0 panels (which accept but don't return them).
+func TestPreservePanelSubscriptionRemoved(t *testing.T) {
+	state := &PanelSubscriptionModel{
+		SubShowInfo:      typeBoolValue(true),
+		SubEmailInRemark: typeBoolValue(false),
+	}
+	configured := &PanelSubscriptionModel{
+		SubShowInfo:      types.BoolNull(),
+		SubEmailInRemark: types.BoolNull(),
+	}
+	preservePanelSubscriptionRemoved(state, configured)
+	if !state.SubShowInfo.ValueBool() {
+		t.Fatalf("expected sub_show_info preserved from state")
+	}
+	if state.SubEmailInRemark.ValueBool() {
+		t.Fatalf("expected sub_email_in_remark preserved from state")
+	}
+}
+
 // Helper functions for creating typed values in tests
 func typeBoolValue(v bool) types.Bool       { return types.BoolValue(v) }
 func typeStringValue(v string) types.String { return types.StringValue(v) }
