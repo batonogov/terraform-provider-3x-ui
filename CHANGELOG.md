@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.15.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.14.4...v3.15.0) (2026-06-25)
+
+
+### Features
+
+* add support for 3x-ui v3.4.0 ([#306](https://github.com/batonogov/terraform-provider-threexui/issues/306)) ([56a666d](https://github.com/batonogov/terraform-provider-threexui/commit/56a666d61fa12f986c12c5a5415d582a02963fe6))
+
+
+### Bug Fixes
+
+* **test:** bound TestAccXrayVersionDrift Step 2 budget and skip on pickup failure ([#308](https://github.com/batonogov/terraform-provider-threexui/issues/308)) ([7b23c2a](https://github.com/batonogov/terraform-provider-threexui/commit/7b23c2a3bdea0a39bf65a2921a7b7c3fd205d489))
+
 ## [3.14.4](https://github.com/batonogov/terraform-provider-threexui/compare/v3.14.3...v3.14.4) (2026-06-18)
 
 
