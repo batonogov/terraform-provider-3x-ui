@@ -166,6 +166,33 @@ resource "threexui_xray_version" "test" {
 // It installs version A via Terraform, changes the version to B outside
 // Terraform via the API, then asserts that the next plan is non-empty
 // (drift detected) and that applying brings the version back to A.
+
+// minDriftBudget is the minimum time TestAccXrayVersionDrift needs to reach
+// one of its internal skip paths (GetXrayVersions rate-limit ~30s,
+// waitForXrayVersion "Unknown" ~180s, Step 2 bounded-poll pickup ~120s)
+// without being panic-killed by the binary -timeout. Worst-case sequential
+// budget when nothing succeeds but each path skips cleanly is ~325s, so 5m
+// gives a comfortable margin: the test either completes or skips well before
+// the deadline. See the deadline guard at the top of TestAccXrayVersionDrift.
+const minDriftBudget = 5 * time.Minute
+
+// shouldSkipForDeadline reports whether a test should skip because too little
+// time remains before the binary -timeout deadline to run safely. It is pure
+// (no *testing.T dependency) so it can be unit-tested directly. hasDeadline
+// mirrors the second return value of (*testing.T).Deadline, which is false
+// when no -timeout is configured (e.g. a local `go test` run); in that case
+// the guard is a no-op and the test runs normally.
+func shouldSkipForDeadline(deadline time.Time, hasDeadline bool, now time.Time, minBudget time.Duration) (skip bool, remaining time.Duration) {
+	if !hasDeadline {
+		return false, 0
+	}
+	remaining = deadline.Sub(now)
+	if remaining < 0 {
+		remaining = 0
+	}
+	return remaining < minBudget, remaining
+}
+
 func TestAccXrayVersionDrift(t *testing.T) {
 	testAccPreCheck(t)
 	// InstallXray accepts the request but the panel never picks up the new
@@ -183,6 +210,23 @@ func TestAccXrayVersionDrift(t *testing.T) {
 		"InstallXray pickup is broken or unreliable on this panel version",
 		"v2.9.1", "v2.9.2", "v2.9.3", "v3.0.0", "v3.0.1",
 		"v3.2.5", "v3.2.6", "v3.2.7")
+
+	// Deadline guard: this test has a large worst-case budget before it
+	// reaches one of its internal skip paths — GetXrayVersions rate-limit skip
+	// (~30s), waitForXrayVersion "Unknown" skip (~180s), or the Step 2
+	// bounded-poll pickup skip (~120s). When the preceding TestAccXrayVersion
+	// and TestAccXrayVersionResource tests already burned ~6min each skipping
+	// under IO load (the 180s waitForXrayVersion stall), drift starts so late
+	// that the binary -timeout panic-kills it mid-Step-2 before its own skip
+	// fires — taking the whole suite down with it. Pre-flighting the remaining
+	// deadline turns that panic into a clean skip. Same environment/CI-timing
+	// category as #279/#306/#308: NOT a provider regression.
+	if dl, ok := t.Deadline(); ok {
+		if skip, remain := shouldSkipForDeadline(dl, true, time.Now(), minDriftBudget); skip {
+			t.Skipf("skipping TestAccXrayVersionDrift: only %s left before the binary -timeout (need ≥%s to reach a skip path safely); the preceding xray-version tests likely burned the budget under CI IO load — environment issue, not a provider regression (#279/#306/#308)",
+				remain, minDriftBudget)
+		}
+	}
 	client, err := testAccClientFromEnv()
 	if err != nil {
 		t.Fatalf("client init: %s", err)
@@ -326,4 +370,65 @@ resource "threexui_xray_version" "test" {
 			},
 		},
 	})
+}
+
+// TestShouldSkipForDeadline covers the pure deadline-guard helper used by
+// TestAccXrayVersionDrift. It must not depend on *testing.T or any live panel
+// so it runs under the plain `go test` (non-TF_ACC) unit suite.
+func TestShouldSkipForDeadline(t *testing.T) {
+	now := time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)
+	const budget = 5 * time.Minute
+	tests := []struct {
+		name        string
+		deadline    time.Time
+		hasDeadline bool
+		wantSkip    bool
+		wantRemain  time.Duration
+	}{
+		{
+			name:        "no deadline configured is a no-op",
+			hasDeadline: false,
+			wantSkip:    false,
+			wantRemain:  0,
+		},
+		{
+			name:        "plenty of time remaining runs the test",
+			deadline:    now.Add(10 * time.Minute),
+			hasDeadline: true,
+			wantSkip:    false,
+			wantRemain:  10 * time.Minute,
+		},
+		{
+			name:        "exactly the minimum budget runs the test (boundary)",
+			deadline:    now.Add(budget),
+			hasDeadline: true,
+			wantSkip:    false,
+			wantRemain:  budget,
+		},
+		{
+			name:        "less than the minimum budget skips",
+			deadline:    now.Add(2 * time.Minute),
+			hasDeadline: true,
+			wantSkip:    true,
+			wantRemain:  2 * time.Minute,
+		},
+		{
+			name:        "past deadline skips with clamped zero remaining",
+			deadline:    now.Add(-1 * time.Second),
+			hasDeadline: true,
+			wantSkip:    true,
+			wantRemain:  0,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			skip, remain := shouldSkipForDeadline(tc.deadline, tc.hasDeadline, now, budget)
+			if skip != tc.wantSkip {
+				t.Fatalf("skip = %v, want %v", skip, tc.wantSkip)
+			}
+			if remain != tc.wantRemain {
+				t.Fatalf("remaining = %v, want %v", remain, tc.wantRemain)
+			}
+		})
+	}
 }
