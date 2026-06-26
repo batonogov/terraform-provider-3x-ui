@@ -168,12 +168,14 @@ resource "threexui_xray_version" "test" {
 // (drift detected) and that applying brings the version back to A.
 
 // minDriftBudget is the minimum time TestAccXrayVersionDrift needs to reach
-// one of its internal skip paths (GetXrayVersions rate-limit ~30s,
-// waitForXrayVersion "Unknown" ~180s, Step 2 bounded-poll pickup ~120s)
-// without being panic-killed by the binary -timeout. Worst-case sequential
-// budget when nothing succeeds but each path skips cleanly is ~325s, so 5m
-// gives a comfortable margin: the test either completes or skips well before
-// the deadline. See the deadline guard at the top of TestAccXrayVersionDrift.
+// one of its internal skip paths without being panic-killed by the binary
+// -timeout. The skip paths are mutually exclusive (the test exits on the
+// first one that fires), so the worst case is the longest single path, not
+// their sum: ~30s for the GetXrayVersions rate-limit skip, ~180s for a
+// waitForXrayVersion "Unknown" stall, ~150s for the Step 2 bounded-poll
+// pickup skip — i.e. ~200s worst case. minDriftBudget of 5m gives ~100s of
+// margin so the test either completes or skips well before the deadline.
+// See the deadline guard at the top of TestAccXrayVersionDrift.
 const minDriftBudget = 5 * time.Minute
 
 // shouldSkipForDeadline reports whether a test should skip because too little
@@ -214,8 +216,8 @@ func TestAccXrayVersionDrift(t *testing.T) {
 	// Deadline guard: this test has a large worst-case budget before it
 	// reaches one of its internal skip paths — GetXrayVersions rate-limit skip
 	// (~30s), waitForXrayVersion "Unknown" skip (~180s), or the Step 2
-	// bounded-poll pickup skip (~120s). When the preceding TestAccXrayVersion
-	// and TestAccXrayVersionResource tests already burned ~6min each skipping
+	// bounded-poll pickup skip (~150s). When the preceding TestAccXrayVersion
+	// and TestAccXrayVersionResource tests already burned ~3min each skipping
 	// under IO load (the 180s waitForXrayVersion stall), drift starts so late
 	// that the binary -timeout panic-kills it mid-Step-2 before its own skip
 	// fires — taking the whole suite down with it. Pre-flighting the remaining
