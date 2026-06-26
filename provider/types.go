@@ -92,6 +92,63 @@ type ClientTraffic struct {
 	LastOnline int64  `json:"lastOnline"`
 }
 
+// Node represents a 3x-ui cluster node (model.Node): a remote 3x-ui panel
+// registered with the central panel for multi-node/cluster management.
+//
+// Managed fields (user-editable via the threexui_node resource, see M2) are the
+// top block; the rest are observed state populated by the central panel's
+// heartbeat probes. ApiToken and PinnedCertSha256 are sensitive and returned
+// raw by the panel (no redaction layer), so callers must keep them marked
+// Sensitive in Terraform schemas.
+//
+// Available since 3x-ui v3.0.2; /panel/api/nodes has no legacy fallback path.
+type Node struct {
+	// Managed (user-editable).
+	Id                  int      `json:"id"`
+	Name                string   `json:"name"`
+	Remark              string   `json:"remark"`
+	Scheme              string   `json:"scheme"`
+	Address             string   `json:"address"`
+	Port                int      `json:"port"`
+	BasePath            string   `json:"basePath"`
+	ApiToken            string   `json:"apiToken"`
+	Enable              bool     `json:"enable"`
+	AllowPrivateAddress bool     `json:"allowPrivateAddress"`
+	TlsVerifyMode       string   `json:"tlsVerifyMode"`
+	PinnedCertSha256    string   `json:"pinnedCertSha256"`
+	InboundSyncMode     string   `json:"inboundSyncMode"`
+	InboundTags         []string `json:"inboundTags"`
+	OutboundTag         string   `json:"outboundTag"`
+
+	// Observed identity / heartbeat state (read-only).
+	Guid          string  `json:"guid"`
+	Status        string  `json:"status"`
+	LastHeartbeat int64   `json:"lastHeartbeat"`
+	LatencyMs     int     `json:"latencyMs"`
+	XrayVersion   string  `json:"xrayVersion"`
+	PanelVersion  string  `json:"panelVersion"`
+	CpuPct        float64 `json:"cpuPct"`
+	MemPct        float64 `json:"memPct"`
+	UptimeSecs    uint64  `json:"uptimeSecs"`
+	NetUp         uint64  `json:"netUp"`
+	NetDown       uint64  `json:"netDown"`
+	LastError     string  `json:"lastError"`
+	XrayState     string  `json:"xrayState"`
+	XrayError     string  `json:"xrayError"`
+	ConfigDirty   bool    `json:"configDirty"`
+	ConfigDirtyAt int64   `json:"configDirtyAt"`
+	InboundCount  int     `json:"inboundCount"`
+	ClientCount   int     `json:"clientCount"`
+	OnlineCount   int     `json:"onlineCount"`
+	ActiveCount   int     `json:"activeCount"`
+	DisabledCount int     `json:"disabledCount"`
+	DepletedCount int     `json:"depletedCount"`
+	ParentGuid    string  `json:"parentGuid,omitempty"`
+	Transitive    bool    `json:"transitive,omitempty"`
+	CreatedAt     int64   `json:"createdAt"`
+	UpdatedAt     int64   `json:"updatedAt"`
+}
+
 // ParseJSONField decodes a JSON string into a generic map.
 func ParseJSONField(value string) (map[string]any, error) {
 	var out map[string]any

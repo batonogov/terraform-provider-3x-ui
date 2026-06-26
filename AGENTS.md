@@ -189,10 +189,17 @@ normalises both formats to plain strings — rest of the code is unaffected.
 
 ### Data sources
 
-Seven data sources: `inbounds`, `server_status`, `xray_versions`, `xray_config`,
+Eight data sources: `inbounds`, `nodes`, `server_status`, `xray_versions`, `xray_config`,
 `settings`, `online_clients`, `client_traffics`. All are read-only GET wrappers
 that return the raw panel payload — none accept filter arguments. JSON attrs that
 contain secrets (UUIDs, private keys) must be marked `Sensitive: true`.
+
+`threexui_nodes` wraps `GET /panel/api/nodes` (3x-ui multi-node/cluster surface,
+available since v3.0.2; no legacy fallback). The response is a **node tree**
+including transitive sub-nodes (read-only projections with `Id == 0`,
+`transitive == true`). The payload carries each node's `apiToken` and
+`pinnedCertSha256` **raw** (no redaction layer), so the `nodes` attr is
+`Sensitive: true`.
 
 ---
 
