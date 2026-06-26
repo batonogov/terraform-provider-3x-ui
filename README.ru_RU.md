@@ -158,6 +158,7 @@ resource "threexui_inbound_client" "client_a" {
 | Data source | Описание |
 | --- | --- |
 | `threexui_inbounds` | Список всех инбаундов (JSON, sensitive) |
+| `threexui_nodes` | Дерево узлов кластера / multi-node (JSON, sensitive) |
 | `threexui_server_status` | Статус сервера: CPU, память, диск, uptime (JSON) |
 | `threexui_settings` | Все настройки панели (JSON, sensitive) |
 | `threexui_xray_config` | Текущий шаблон Xray (JSON, sensitive) |

@@ -566,6 +566,19 @@ func (c *Client) GetInbounds(ctx context.Context) ([]Inbound, error) {
 	return out, nil
 }
 
+// GetNodes lists the cluster node tree registered with the central panel
+// (3x-ui multi-node surface, /panel/api/nodes). The response is a tree that
+// includes transitive sub-nodes (read-only projections with Id == 0 and
+// Transitive == true). Available since 3x-ui v3.0.2; there is no legacy
+// fallback path, so no API-surface auto-detection is needed.
+func (c *Client) GetNodes(ctx context.Context) ([]Node, error) {
+	var out []Node
+	if err := c.doJSON(ctx, http.MethodGet, "panel/api/nodes", nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *Client) AddInboundClient(ctx context.Context, inboundID int, client map[string]any) error {
 	if inboundID == 0 {
 		return errors.New("inbound id is required for add client")

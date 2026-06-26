@@ -164,6 +164,7 @@ resource "threexui_inbound_client" "client_a" {
 | Data Source | توضیح |
 | --- | --- |
 | `threexui_inbounds` | لیست همهٔ اینباندها (JSON، حساس) |
+| `threexui_nodes` | درخت گره‌های کلاستر / multi-node (JSON، حساس) |
 | `threexui_server_status` | وضعیت سرور: CPU، حافظه، دیسک، uptime (JSON) |
 | `threexui_settings` | همهٔ تنظیمات پنل (JSON، حساس) |
 | `threexui_xray_config` | قالب فعلی Xray (JSON، حساس) |

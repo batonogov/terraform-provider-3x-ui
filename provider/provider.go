@@ -301,6 +301,7 @@ func (p *ThreeXUIProvider) Resources(_ context.Context) []func() resource.Resour
 func (p *ThreeXUIProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewInboundsDataSource,
+		NewNodesDataSource,
 		NewServerStatusDataSource,
 		NewXrayVersionsDataSource,
 		NewXrayConfigDataSource,

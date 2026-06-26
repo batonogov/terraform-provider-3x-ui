@@ -158,6 +158,7 @@ resource "threexui_inbound_client" "client_a" {
 | Data Source | 说明 |
 | --- | --- |
 | `threexui_inbounds` | 所有 inbound(JSON,敏感) |
+| `threexui_nodes` | 集群节点树 / multi-node（JSON，敏感） |
 | `threexui_server_status` | 服务器状态:CPU、内存、磁盘、uptime(JSON) |
 | `threexui_settings` | 所有面板设置(JSON,敏感) |
 | `threexui_xray_config` | 当前 Xray 模板(JSON,敏感) |

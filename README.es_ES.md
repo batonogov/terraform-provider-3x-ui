@@ -158,6 +158,7 @@ La documentación completa está en el [Terraform Registry](https://registry.ter
 | Data source | Descripción |
 | --- | --- |
 | `threexui_inbounds` | Lista de todos los inbounds (JSON, sensible) |
+| `threexui_nodes` | Árbol de nodos del clúster / multi-node (JSON, sensible) |
 | `threexui_server_status` | Estado del servidor: CPU, memoria, disco, uptime (JSON) |
 | `threexui_settings` | Todos los ajustes del panel (JSON, sensible) |
 | `threexui_xray_config` | Plantilla actual de Xray (JSON, sensible) |

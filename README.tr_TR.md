@@ -158,6 +158,7 @@ Tam belgeler [Terraform Registry](https://registry.terraform.io/providers/batono
 | Veri Kaynağı | Açıklama |
 | --- | --- |
 | `threexui_inbounds` | Tüm inbound'ların listesi (JSON, hassas) |
+| `threexui_nodes` | Küme düğüm ağacı / multi-node (JSON, hassas) |
 | `threexui_server_status` | Sunucu durumu: CPU, bellek, disk, uptime (JSON) |
 | `threexui_settings` | Tüm panel ayarları (JSON, hassas) |
 | `threexui_xray_config` | Geçerli Xray şablonu (JSON, hassas) |

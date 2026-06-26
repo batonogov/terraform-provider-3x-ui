@@ -19,6 +19,7 @@ func TestDataSourceSensitiveAttributes(t *testing.T) {
 		attribute string
 	}{
 		{"inbounds", NewInboundsDataSource, "inbounds"},
+		{"nodes", NewNodesDataSource, "nodes"},
 		{"settings", NewSettingsDataSource, "json"},
 		{"xray_config", NewXrayConfigDataSource, "json"},
 	}

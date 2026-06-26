@@ -164,6 +164,7 @@ resource "threexui_inbound_client" "client_a" {
 | Data Source | الوصف |
 | --- | --- |
 | `threexui_inbounds` | كل الـ inbounds (JSON، حساس) |
+| `threexui_nodes` | شجرة عقد الكتلة / multi-node (JSON، حساس) |
 | `threexui_server_status` | حالة السيرفر: CPU، الذاكرة، القرص، uptime (JSON) |
 | `threexui_settings` | كل إعدادات اللوحة (JSON، حساس) |
 | `threexui_xray_config` | قالب Xray الحالي (JSON، حساس) |
