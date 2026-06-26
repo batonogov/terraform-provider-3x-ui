@@ -97,6 +97,7 @@ resource "threexui_inbound_client" "client_a" {
 
 | 3x-ui 版本 | 状态 |
 | --- | --- |
+| v3.4.1 | 已测试 |
 | v3.4.0 | 已测试 |
 | v3.3.1 | 已测试 |
 | v3.3.0 | 已测试 |

@@ -886,6 +886,36 @@ func TestFlattenPanelSubscription_v340Fields(t *testing.T) {
 	}
 }
 
+// TestExpandPanelSubscription_v341Fields covers the v3.4.1 subscription
+// Incy routing-injection fields (subIncyEnableRouting, subIncyRoutingRules).
+func TestExpandPanelSubscription_v341Fields(t *testing.T) {
+	m := &PanelSubscriptionModel{
+		SubIncyEnableRouting: typeBoolValue(true),
+		SubIncyRoutingRules:  typeStringValue("vless://incy-rule"),
+	}
+	got := expandPanelSubscription(m)
+	if got["subIncyEnableRouting"] != true {
+		t.Fatalf("subIncyEnableRouting: %v", got["subIncyEnableRouting"])
+	}
+	if got["subIncyRoutingRules"] != "vless://incy-rule" {
+		t.Fatalf("subIncyRoutingRules: %v", got["subIncyRoutingRules"])
+	}
+}
+
+func TestFlattenPanelSubscription_v341Fields(t *testing.T) {
+	in := map[string]any{
+		"subIncyEnableRouting": true,
+		"subIncyRoutingRules":  "vless://incy-rule",
+	}
+	m := flattenPanelSubscription(in)
+	if !m.SubIncyEnableRouting.ValueBool() {
+		t.Fatalf("subIncyEnableRouting")
+	}
+	if m.SubIncyRoutingRules.ValueString() != "vless://incy-rule" {
+		t.Fatalf("subIncyRoutingRules: %s", m.SubIncyRoutingRules.ValueString())
+	}
+}
+
 // TestPreservePanelEmailSecrets verifies the SMTP password replay path: when
 // the panel returns a redacted/masked sentinel for smtpPassword, the provider
 // replays the user-configured secret so state stays consistent (defensive —

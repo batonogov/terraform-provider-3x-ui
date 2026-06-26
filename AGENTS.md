@@ -216,6 +216,7 @@ These are non-obvious constraints that have caused real bugs.
 | `web_base_path` change triggers panel restart | Must also update provider `base_path`; code auto-updates client |
 | `panel_outbound` vs `panel_proxy` is version-specific | 3x-ui v3.3.1 **replaced** `panelProxy` (HTTP/SOCKS5 URL, present only in v3.2.0–v3.3.0; absent in v3.0.2/3.1.0) with `panelOutbound` (an Xray outbound/balancer tag). The provider's `panel_proxy` attr is `Deprecated` (provider-side annotation) and maps to the old field; gin silently ignores the unknown `panelProxy` form value on v3.3.1 |
 | v3.4.0 AllSetting delta | 3x-ui v3.4.0 **added** 14 fields now managed by the provider: SMTP notifications (`smtp*`, 10 fields, `panel_email` resource, `smtpPassword` is sensitive + write-only), `tgEnabledEvents`/`tgMemory` (`panel_telegram`), `remarkTemplate`/`subHideSettings` (`panel_subscription`). v3.4.0 also **dropped** `remarkModel`/`subEmailInRemark`/`subShowInfo`/`tgBotLoginNotify` from `AllSetting`; the provider still sends them (backward compat for v3.1.x–v3.3.x) and they sit in `intentionallySkipped` in `drift_test.go` |
+| v3.4.1 AllSetting delta | 3x-ui v3.4.1 **added** 2 subscription fields now managed by `panel_subscription`: `subIncyEnableRouting`/`subIncyRoutingRules` (Incy client routing injection). No fields were removed |
 | WireGuard `workers` dropped upstream | xray-core v26.6.22 (3x-ui v3.4.0) removed the WireGuard `workers` field; `xray_outbound_wireguard` still exposes it (xray ignores unknown JSON keys, so harmless on v3.4.0). Deprecating the attr is follow-up work |
 | Write-only attrs quirks | See "Write-only secret attributes" section above — read `_wo` from `req.Config`; ModifyPlan marks plain `Unknown` on version change; `panel_user` nulls state password instead |
 | xray-settings acc-tests restart xray-core | `TestAccXrayBasics`/`DNS`/`Routing`/`Balancers`/`Reverse`/`Outbounds` each apply a new config = xray restart; `version` becomes `"Unknown"` for ~30-90s after. Use `waitForXrayVersion(t, ctx, client)` poll-loop in any acc-test probing version after them (#280) |
@@ -286,7 +287,7 @@ Imperative mood, concise subjects.
 - Version-aware skipping: `requireMinVersion(t, "vX.Y.Z")` for features added in a
   specific 3x-ui version; `requireBelowVersion(t, "vX.Y.Z")` for features removed
   upstream (e.g. `hysteria2`, dropped in v3.2.0). Currently supported: **v3.1.x**,
-  **v3.2.x**, **v3.3.x**, **v3.4.x** (up to v3.4.0).
+  **v3.2.x**, **v3.3.x**, **v3.4.x** (up to v3.4.1).
 - Flaky test quarantine: `skipOnFlakyVersions(t, ...)` / `skipIfFlaky(t)` with
   `THREEXUI_SKIP_FLAKY` env var to skip known-broken upstream versions.
 - Xray-version acc-tests use `waitForXrayVersion(t, ctx, client)` (90×1s retry on
