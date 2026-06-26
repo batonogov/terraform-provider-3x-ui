@@ -41,6 +41,11 @@ gh pr checks <PR>          # one-shot
 gh pr checks <PR> --watch  # live
 ```
 
+Every PR must end with a **green CI + a clean Codecov report**. The
+`ci.yml` test job uploads coverage to Codecov (`codecov/codecov-action`),
+which then posts a **Patch coverage** comment. Review it as part of the PR:
+see [Testing → Codecov patch coverage](#testing) below for the rule.
+
 **Version-specific acc tests:**
 
 ```bash
@@ -312,6 +317,22 @@ Imperative mood, concise subjects.
   create/update/import round-trip for every protocol.
 - Destroy checks use `destroyVisibilityAttempts` (60 × 500 ms) to handle
   SQLite visibility lag after delete.
+- **Codecov patch coverage is a PR gate.** The `ci.yml` test job uploads
+  `coverage.out` to Codecov, which posts a *Patch coverage* comment on the PR
+  (e.g. `⚠️ Patch coverage is 39% with 28 lines missing`). A red Codecov
+  report must be resolved before merge — do not ignore it. Concretely:
+  - New `provider/*.go` code is **unit-tested**, not only acc-tested. A data
+    source's `Schema`/`Configure`/`Read`, a resource's CRUD methods, and new
+    `Client` methods must each have a direct unit test. Acc tests don't count
+    toward patch coverage and run only with `TF_ACC=1`.
+  - If Codecov flags a line, either cover it with a unit test or, if the line
+    is genuinely unreachable/defensive (e.g. a can't-happen error branch),
+    document why inline. Do **not** merge with a red patch-coverage report
+    just because CI is green — `task test:unit:coverage` reproduces the same
+    numbers locally (`coverage.out`).
+  - Install the Codecov GitHub app on the repo so uploads/comments are
+    processed reliably (the bot warns: *"Please install the 'codecov app svg
+    image'…"* when the app is missing).
 
 ### Pre-commit
 

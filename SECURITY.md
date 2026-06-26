@@ -42,7 +42,7 @@ The 3x-ui panel issues and stores secrets that this provider reads and writes. T
 | `threexui_panel_email` | `smtp_password` |
 | `threexui_panel_user` | `old_password`, `new_password` |
 | `threexui_xray_outbounds` | per-protocol credentials (e.g. `password`, `users[].password`) |
-| Data sources | `threexui_inbounds.inbounds`, `threexui_settings.json`, `threexui_xray_config.json` (full payloads) |
+| Data sources | `threexui_inbounds.inbounds`, `threexui_nodes.nodes` (`apiToken`, `pinnedCertSha256`), `threexui_settings.json`, `threexui_xray_config.json` (full payloads) |
 
 ## Protecting Terraform State
 

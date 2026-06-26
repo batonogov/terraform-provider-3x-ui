@@ -152,6 +152,104 @@ func dsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------------------------------------------------------------------------
+// Nodes data source (cluster node tree)
+// ---------------------------------------------------------------------------
+
+func TestNodesDataSource_Read(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/panel/api/nodes" {
+			w.Write(okResponse([]any{
+				map[string]any{
+					"id":         1,
+					"name":       "de-fra-1",
+					"address":    "node1.example.com",
+					"port":       2053,
+					"apiToken":   "secret-token",
+					"enable":     true,
+					"guid":       "11111111-1111-1111-1111-111111111111",
+					"status":     "online",
+					"transitive": false,
+				},
+			}))
+			return
+		}
+		dsHandler(w, r)
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	ds := &NodesDataSource{client: client}
+	resp := newDSReadResponse(t, ds)
+	ds.Read(context.Background(), datasource.ReadRequest{}, &resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected errors: %v", resp.Diagnostics)
+	}
+
+	var state NodesDataSourceModel
+	resp.State.Get(context.Background(), &state)
+	if state.ID.ValueString() != "1" {
+		t.Fatalf("expected id 1, got %s", state.ID.ValueString())
+	}
+	if state.Nodes.IsNull() {
+		t.Fatal("expected nodes to be set")
+	}
+	// Raw payload must contain the sensitive apiToken (Sensitive attr, not redacted).
+	if !contains(state.Nodes.ValueString(), "secret-token") {
+		t.Fatalf("expected raw payload to contain apiToken, got %s", state.Nodes.ValueString())
+	}
+}
+
+func TestNodesDataSource_Read_Empty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/panel/api/nodes" {
+			w.Write(okResponse([]any{}))
+			return
+		}
+		dsHandler(w, r)
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	ds := &NodesDataSource{client: client}
+	resp := newDSReadResponse(t, ds)
+	ds.Read(context.Background(), datasource.ReadRequest{}, &resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected errors: %v", resp.Diagnostics)
+	}
+
+	var state NodesDataSourceModel
+	resp.State.Get(context.Background(), &state)
+	if state.ID.ValueString() != "0" {
+		t.Fatalf("expected id 0 for empty cluster, got %s", state.ID.ValueString())
+	}
+	if state.Nodes.ValueString() != "[]" {
+		t.Fatalf("expected empty JSON array, got %s", state.Nodes.ValueString())
+	}
+}
+
+func TestNodesDataSource_Read_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/panel/api/nodes" {
+			w.Write(failResponse("boom"))
+			return
+		}
+		dsHandler(w, r)
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	ds := &NodesDataSource{client: client}
+	resp := newDSReadResponse(t, ds)
+	ds.Read(context.Background(), datasource.ReadRequest{}, &resp)
+
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected error, got none")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // ServerStatus data source
 // ---------------------------------------------------------------------------
 
@@ -504,6 +602,7 @@ func TestDataSourceMetadata(t *testing.T) {
 		{NewInboundsDataSource(), "threexui_inbounds"},
 		{NewSettingsDataSource(), "threexui_settings"},
 		{NewXrayConfigDataSource(), "threexui_xray_config"},
+		{NewNodesDataSource(), "threexui_nodes"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.expected, func(t *testing.T) {
@@ -542,6 +641,8 @@ func TestDataSourceConfigure(t *testing.T) {
 			d.Configure(context.Background(), req, &resp)
 		case *XrayConfigDataSource:
 			d.Configure(context.Background(), req, &resp)
+		case *NodesDataSource:
+			d.Configure(context.Background(), req, &resp)
 		default:
 			t.Fatalf("unhandled data source type: %T", ds)
 		}
@@ -559,6 +660,7 @@ func TestDataSourceConfigure(t *testing.T) {
 		{"inbounds", NewInboundsDataSource()},
 		{"settings", NewSettingsDataSource()},
 		{"xray_config", NewXrayConfigDataSource()},
+		{"nodes", NewNodesDataSource()},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
