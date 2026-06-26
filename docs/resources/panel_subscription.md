@@ -58,6 +58,8 @@ resource "threexui_panel_subscription" "settings" {
 
 - `sub_enable_routing` (Optional, Boolean) - Enable routing in subscriptions.
 - `sub_routing_rules` (Optional, String) - Routing rules for subscriptions.
+- `sub_incy_enable_routing` (Optional, Boolean) - Enable routing injection for the Incy subscription client (3x-ui v3.4.1+).
+- `sub_incy_routing_rules` (Optional, String) - Incy routing deep-link injected into the subscription body (3x-ui v3.4.1+).
 
 ### Server
 

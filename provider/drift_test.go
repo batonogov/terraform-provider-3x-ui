@@ -880,6 +880,8 @@ func TestDriftAllSettingFields(t *testing.T) {
 		"subJsonFinalMask": true,
 		// v3.3.0/v3.4.0 subscription additions
 		"subThemeDir": true, "remarkTemplate": true, "subHideSettings": true,
+		// v3.4.1 subscription additions (Incy client routing injection)
+		"subIncyEnableRouting": true, "subIncyRoutingRules": true,
 		// v3.2.0
 		"panelProxy":    true,
 		"panelOutbound": true,

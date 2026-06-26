@@ -1,5 +1,5 @@
 {
-  "version": "3.4.0",
+  "version": "3.4.1",
   "protocols_go_model": [
     "http",
     "hysteria",
@@ -149,6 +149,8 @@
     "subEnableRouting",
     "subEncrypt",
     "subHideSettings",
+    "subIncyEnableRouting",
+    "subIncyRoutingRules",
     "subJsonEnable",
     "subJsonFinalMask",
     "subJsonMux",

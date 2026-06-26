@@ -496,6 +496,8 @@ type PanelSubscriptionModel struct {
 	SubThemeDir           types.String `tfsdk:"sub_theme_dir"`
 	RemarkTemplate        types.String `tfsdk:"remark_template"`
 	SubHideSettings       types.Bool   `tfsdk:"sub_hide_settings"`
+	SubIncyEnableRouting  types.Bool   `tfsdk:"sub_incy_enable_routing"`
+	SubIncyRoutingRules   types.String `tfsdk:"sub_incy_routing_rules"`
 }
 
 func panelSubscriptionSchema() schema.Schema {
@@ -542,6 +544,14 @@ func panelSubscriptionSchema() schema.Schema {
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"sub_routing_rules": schema.StringAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_incy_enable_routing": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"sub_incy_routing_rules": schema.StringAttribute{
 				Optional: true, Computed: true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
@@ -713,6 +723,12 @@ func expandPanelSubscription(m *PanelSubscriptionModel) map[string]any {
 	if !m.SubRoutingRules.IsNull() && !m.SubRoutingRules.IsUnknown() {
 		payload["subRoutingRules"] = m.SubRoutingRules.ValueString()
 	}
+	if !m.SubIncyEnableRouting.IsNull() && !m.SubIncyEnableRouting.IsUnknown() {
+		payload["subIncyEnableRouting"] = m.SubIncyEnableRouting.ValueBool()
+	}
+	if !m.SubIncyRoutingRules.IsNull() && !m.SubIncyRoutingRules.IsUnknown() {
+		payload["subIncyRoutingRules"] = m.SubIncyRoutingRules.ValueString()
+	}
 	if !m.SubListen.IsNull() && !m.SubListen.IsUnknown() {
 		payload["subListen"] = m.SubListen.ValueString()
 	}
@@ -821,6 +837,12 @@ func flattenPanelSubscription(in map[string]any) *PanelSubscriptionModel {
 	}
 	if v, ok := in["subRoutingRules"]; ok {
 		m.SubRoutingRules = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subIncyEnableRouting"]; ok {
+		m.SubIncyEnableRouting = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["subIncyRoutingRules"]; ok {
+		m.SubIncyRoutingRules = types.StringValue(stringValue(v))
 	}
 	if v, ok := in["subListen"]; ok {
 		m.SubListen = types.StringValue(stringValue(v))
