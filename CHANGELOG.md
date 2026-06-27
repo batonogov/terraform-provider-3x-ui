@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.17.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.16.0...v3.17.0) (2026-06-27)
+
+
+### Features
+
+* add threexui_node resource (Create/Read/Import) for cluster nodes ([#321](https://github.com/batonogov/terraform-provider-threexui/issues/321)) ([6be298c](https://github.com/batonogov/terraform-provider-threexui/commit/6be298ca5249f6b9d81d57f9d72bce17d454faef))
+* add threexui_nodes data source (cluster node tree) ([#320](https://github.com/batonogov/terraform-provider-threexui/issues/320)) ([08325c1](https://github.com/batonogov/terraform-provider-threexui/commit/08325c189fd59b38c7cdcb99f687ee5dfdbd10b6))
+* **node:** real Update + Delete for threexui_node (M3) ([#322](https://github.com/batonogov/terraform-provider-threexui/issues/322)) ([72b86a4](https://github.com/batonogov/terraform-provider-threexui/commit/72b86a441020012be97521afa19fd75a30bce423))
+* **node:** write-only secrets for threexui_node (M4) ([#323](https://github.com/batonogov/terraform-provider-threexui/issues/323)) ([7d8d009](https://github.com/batonogov/terraform-provider-threexui/commit/7d8d009f76f7ae8c31f835ff94fcc7c71f7dabfc))
+
+
+### Bug Fixes
+
+* **test:** skip TestAccXrayVersionDrift before binary -timeout panic ([#312](https://github.com/batonogov/terraform-provider-threexui/issues/312)) ([15f1077](https://github.com/batonogov/terraform-provider-threexui/commit/15f10777e123ee5ac195d378e255d0673a4bf7b3))
+
 ## [3.16.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.15.0...v3.16.0) (2026-06-26)
 
 
