@@ -972,3 +972,142 @@ func setPlanValue(t *testing.T, r *NodeResource, plan tfsdk.Plan, key, val strin
 // ModifyPlan requires fully initialising resp.Plan's Schema/Raw, which is
 // fragile; the resolve + woVersionTriggered unit tests below cover the
 // behaviour that matters.
+
+// ---------------------------------------------------------------------------
+// ModifyPlan (M4, inlined for dual-secret support)
+// ---------------------------------------------------------------------------
+
+// modifyPlanFixture builds a Plan/State pair for ModifyPlan tests, with the
+// given *_wo_version values for both secrets and a concrete api_token.
+func modifyPlanFixture(t *testing.T, r *NodeResource, apiWOVer, pinWOVer, stateAPIWOVer, statePinWOVer int64) (tfsdk.Plan, tfsdk.State) {
+	t.Helper()
+	var schemaResp resource.SchemaResponse
+	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+	ctx := context.Background()
+	objType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+
+	build := func(apiV, pinV int64) tfsdk.Plan {
+		vals := map[string]tftypes.Value{}
+		for k := range schemaResp.Schema.Attributes {
+			switch k {
+			case "port":
+				vals[k] = tftypes.NewValue(tftypes.Number, 2053)
+			case "enable", "allow_private_address", "config_dirty", "transitive":
+				vals[k] = tftypes.NewValue(tftypes.Bool, nil)
+			case "inbound_tags":
+				vals[k] = tftypes.NewValue(tftypes.List{ElementType: tftypes.String}, nil)
+			case "api_token_wo_version":
+				vals[k] = tftypes.NewValue(tftypes.Number, apiV)
+			case "pinned_cert_sha256_wo_version":
+				vals[k] = tftypes.NewValue(tftypes.Number, pinV)
+			case "cpu_pct", "mem_pct", "latency_ms", "last_heartbeat", "uptime_secs",
+				"net_up", "net_down", "config_dirty_at", "inbound_count", "client_count",
+				"online_count", "active_count", "disabled_count", "depleted_count",
+				"created_at", "updated_at":
+				vals[k] = tftypes.NewValue(tftypes.Number, nil)
+			default:
+				vals[k] = tftypes.NewValue(tftypes.String, nil)
+			}
+		}
+		vals["id"] = tftypes.NewValue(tftypes.String, "1")
+		vals["api_token"] = tftypes.NewValue(tftypes.String, "prior-token")
+		return tfsdk.Plan{Schema: schemaResp.Schema, Raw: tftypes.NewValue(objType, vals)}
+	}
+
+	plan := build(apiWOVer, pinWOVer)
+	state := build(stateAPIWOVer, statePinWOVer)
+	return plan, tfsdk.State(state)
+}
+
+// TestNodeResource_ModifyPlan_BothSecretsTriggered is the regression test for
+// the dual-secret bug the M4 review caught: when both *_wo_version change at
+// once, BOTH plain secrets must be marked Unknown (a naive double call to the
+// shared modifyPlanWOVersion generic would erase the first mark).
+func TestNodeResource_ModifyPlan_BothSecretsTriggered(t *testing.T) {
+	r := &NodeResource{}
+	ctx := context.Background()
+	plan, st := modifyPlanFixture(t, r, 2, 2, 1, 1) // both bumped
+
+	var schemaResp resource.SchemaResponse
+	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+	resp := &resource.ModifyPlanResponse{
+		Plan: tfsdk.Plan{Schema: schemaResp.Schema, Raw: tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil)},
+	}
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, State: st}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error: %v", resp.Diagnostics)
+	}
+	var out NodeResourceModel
+	resp.Plan.Get(ctx, &out)
+	if !out.ApiToken.IsUnknown() {
+		t.Fatalf("expected api_token marked Unknown on simultaneous rotation, got %v", out.ApiToken)
+	}
+	if !out.PinnedCertSha256.IsUnknown() {
+		t.Fatalf("expected pinned_cert_sha256 marked Unknown on simultaneous rotation, got %v", out.PinnedCertSha256)
+	}
+}
+
+func TestNodeResource_ModifyPlan_SingleSecretTriggered(t *testing.T) {
+	r := &NodeResource{}
+	ctx := context.Background()
+	// Only api_token_wo_version bumps; pinned stays the same.
+	plan, st := modifyPlanFixture(t, r, 2, 1, 1, 1)
+
+	var schemaResp resource.SchemaResponse
+	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+	resp := &resource.ModifyPlanResponse{
+		Plan: tfsdk.Plan{Schema: schemaResp.Schema, Raw: tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil)},
+	}
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, State: st}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error: %v", resp.Diagnostics)
+	}
+	var out NodeResourceModel
+	resp.Plan.Get(ctx, &out)
+	if !out.ApiToken.IsUnknown() {
+		t.Fatalf("expected api_token Unknown, got %v", out.ApiToken)
+	}
+	if out.PinnedCertSha256.IsUnknown() {
+		t.Fatal("pinned_cert_sha256 must NOT be Unknown when its version is unchanged")
+	}
+}
+
+func TestNodeResource_ModifyPlan_NoTrigger(t *testing.T) {
+	r := &NodeResource{}
+	ctx := context.Background()
+	// No version change at all — ModifyPlan must be a no-op.
+	plan, st := modifyPlanFixture(t, r, 1, 1, 1, 1)
+
+	var schemaResp resource.SchemaResponse
+	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+	resp := &resource.ModifyPlanResponse{
+		Plan: tfsdk.Plan{Schema: schemaResp.Schema, Raw: tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil)},
+	}
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, State: st}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error: %v", resp.Diagnostics)
+	}
+	var out NodeResourceModel
+	resp.Plan.Get(ctx, &out)
+	if out.ApiToken.IsUnknown() {
+		t.Fatal("api_token must not be Unknown when no version changed")
+	}
+	if out.PinnedCertSha256.IsUnknown() {
+		t.Fatal("pinned_cert_sha256 must not be Unknown when no version changed")
+	}
+}
+
+// TestResolveNodeSecretsWOUpdate_PinnedCert rounds out the symmetric coverage
+// for the second write-only secret on the update path (api_token is covered by
+// the _TriggerBumped/_FirstUse/_NoTrigger tests above).
+func TestResolveNodeSecretsWOUpdate_PinnedCert(t *testing.T) {
+	plan := &NodeResourceModel{
+		PinnedCertSha256WOVersion: types.Int64Value(3),
+	}
+	state := NodeResourceModel{PinnedCertSha256WOVersion: types.Int64Value(2)}
+	config := NodeResourceModel{PinnedCertSha256WO: types.StringValue("rotated-pin")}
+	resolveNodeSecretsWOUpdate(plan, state, config)
+	if plan.PinnedCertSha256.ValueString() != "rotated-pin" {
+		t.Fatalf("expected pinned_cert_sha256 rotated, got %q", plan.PinnedCertSha256.ValueString())
+	}
+}

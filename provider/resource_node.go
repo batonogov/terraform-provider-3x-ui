@@ -51,20 +51,35 @@ func (r *NodeResource) Configure(_ context.Context, req resource.ConfigureReques
 // new sensitive value from Apply instead of rejecting it as "inconsistent
 // values for sensitive" (the write-only value is read from req.Config and
 // copied into the plain field by resolveNodeSecretsWO at Apply time).
+//
+// Inlined rather than calling the shared modifyPlanWOVersion generic twice:
+// that generic re-reads req.Plan and overwrites the whole resp.Plan on each
+// call, so a second call would erase the Unknown mark set by the first
+// (simultaneous rotation of both secrets). threexui_node is the first
+// resource with two write-only secrets; the settings resources have one each
+// and use the generic directly.
 func (r *NodeResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	modifyPlanWOVersion(
-		ctx, req, resp,
-		func(m NodeResourceModel) types.Int64 { return m.ApiTokenWOVersion },
-		func(m *NodeResourceModel, v types.String) { m.ApiToken = v },
-	)
+	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return
+	}
+	var plan, state NodeResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	modifyPlanWOVersion(
-		ctx, req, resp,
-		func(m NodeResourceModel) types.Int64 { return m.PinnedCertSha256WOVersion },
-		func(m *NodeResourceModel, v types.String) { m.PinnedCertSha256 = v },
-	)
+	changed := false
+	if woVersionTriggered(plan.ApiTokenWOVersion, state.ApiTokenWOVersion) {
+		plan.ApiToken = types.StringUnknown()
+		changed = true
+	}
+	if woVersionTriggered(plan.PinnedCertSha256WOVersion, state.PinnedCertSha256WOVersion) {
+		plan.PinnedCertSha256 = types.StringUnknown()
+		changed = true
+	}
+	if changed {
+		resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	}
 }
 
 func (r *NodeResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -303,6 +318,11 @@ func flattenNodeToModel(n *Node, m *NodeResourceModel) {
 	if n == nil {
 		return
 	}
+	// Note: *_wo_version fields are intentionally NOT overwritten here — flatten
+	// mutates the existing model in place (Create/Update pass &plan), so the
+	// planned wo_version survives into state. (The settings resources instead
+	// build a fresh model in flatten* and must call preserveWOVersion; node does
+	// not because it mutates in place.)
 	m.Name = types.StringValue(n.Name)
 	if n.Remark != "" {
 		m.Remark = types.StringValue(n.Remark)
