@@ -135,7 +135,14 @@ func TestNodeResource_Delete_InboundsAttached(t *testing.T) {
 	}
 }
 
-func TestNodeResource_Delete_AlreadyGone(t *testing.T) {
+// TestNodeResource_Delete_ToleratesNotFound verifies the defensive record-
+// not-found branch in Delete. Note: the real 3x-ui panel returns SUCCESS for
+// deleting an already-absent node (service/node.go Delete ignores the First
+// error and gorm Delete with WHERE does not error on zero rows), so the
+// realistic 'already gone' path is covered by TestNodeResource_Delete_Success.
+// This test pins resilience to a hypothetical record-not-found response so
+// the guard at resource_node.go does not regress into a hard error.
+func TestNodeResource_Delete_ToleratesNotFound(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/login":
@@ -156,9 +163,9 @@ func TestNodeResource_Delete_AlreadyGone(t *testing.T) {
 	state := nodeResourceDeleteState(t, r, "7")
 	var resp resource.DeleteResponse
 	r.Delete(context.Background(), resource.DeleteRequest{State: state}, &resp)
-	// Out-of-band deletion should be treated as success (already gone).
+	// A record-not-found on delete must be tolerated (treated as already gone).
 	if resp.Diagnostics.HasError() {
-		t.Fatalf("unexpected error on already-gone Delete: %v", resp.Diagnostics)
+		t.Fatalf("unexpected error on record-not-found Delete: %v", resp.Diagnostics)
 	}
 }
 
