@@ -139,7 +139,7 @@ La documentación completa está en el [Terraform Registry](https://registry.ter
 | --- | --- |
 | `threexui_inbound` | Inbound (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria; socks/dokodemo-door legacy antes de 3.2) |
 | `threexui_inbound_client` | Cliente dentro de un inbound |
-| `threexui_node` | Nodo del clúster / registro multi-node (Create/Read/Import) |
+| `threexui_node` | Nodo del clúster / registro multi-node |
 | `threexui_panel_general` | Ajustes generales del panel |
 | `threexui_panel_security` | Ajustes de seguridad (2FA) |
 | `threexui_panel_user` | Credenciales de administrador |

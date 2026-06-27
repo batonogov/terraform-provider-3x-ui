@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -83,22 +82,90 @@ func TestNodeResource_Configure(t *testing.T) {
 	}
 }
 
-func TestNodeResource_Delete_NotYetImplemented(t *testing.T) {
-	r := &NodeResource{}
-	var resp resource.DeleteResponse
-	r.Delete(context.Background(), resource.DeleteRequest{}, &resp)
-	// Delete is a placeholder for M2 — must emit a warning, no error.
-	hasWarning := false
-	for _, d := range resp.Diagnostics {
-		if d.Severity() == diag.SeverityWarning {
-			hasWarning = true
+func TestNodeResource_Delete_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/nodes/del/7":
+			w.Write(okResponse(nil))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
 		}
-	}
-	if !hasWarning {
-		t.Fatal("expected a warning diagnostic on Delete (M3 TODO)")
-	}
+	}))
+	defer srv.Close()
+
+	r := &NodeResource{client: newTestClient(t, srv.URL)}
+	state := nodeResourceDeleteState(t, r, "7")
+	var resp resource.DeleteResponse
+	r.Delete(context.Background(), resource.DeleteRequest{State: state}, &resp)
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("unexpected error on Delete: %v", resp.Diagnostics)
+	}
+}
+
+func TestNodeResource_Delete_InboundsAttached(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/nodes/del/7":
+			// DB-002 guard: panel refuses with success:false mentioning inbounds.
+			w.Write(failResponse("cannot delete node: 2 inbound(s) still attached to it"))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	r := &NodeResource{client: newTestClient(t, srv.URL)}
+	state := nodeResourceDeleteState(t, r, "7")
+	var resp resource.DeleteResponse
+	r.Delete(context.Background(), resource.DeleteRequest{State: state}, &resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected error when inbounds are still attached")
+	}
+}
+
+// TestNodeResource_Delete_ToleratesNotFound verifies the defensive record-
+// not-found branch in Delete. Note: the real 3x-ui panel returns SUCCESS for
+// deleting an already-absent node (service/node.go Delete ignores the First
+// error and gorm Delete with WHERE does not error on zero rows), so the
+// realistic 'already gone' path is covered by TestNodeResource_Delete_Success.
+// This test pins resilience to a hypothetical record-not-found response so
+// the guard at resource_node.go does not regress into a hard error.
+func TestNodeResource_Delete_ToleratesNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/nodes/del/7":
+			w.Write(failResponse("obtain (record not found)"))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	r := &NodeResource{client: newTestClient(t, srv.URL)}
+	state := nodeResourceDeleteState(t, r, "7")
+	var resp resource.DeleteResponse
+	r.Delete(context.Background(), resource.DeleteRequest{State: state}, &resp)
+	// A record-not-found on delete must be tolerated (treated as already gone).
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error on record-not-found Delete: %v", resp.Diagnostics)
 	}
 }
 
@@ -512,23 +579,19 @@ func nodeResourcePlan(t *testing.T, r *NodeResource, vals map[string]any) tfsdk.
 			out[k] = tftypes.NewValue(tftypes.String, nil)
 		}
 	}
-	if v, ok := vals["name"]; ok {
-		out["name"] = tftypes.NewValue(tftypes.String, v)
-	}
-	if v, ok := vals["address"]; ok {
-		out["address"] = tftypes.NewValue(tftypes.String, v)
+	stringFields := []string{"name", "address", "scheme", "id", "remark", "base_path",
+		"api_token", "tls_verify_mode", "pinned_cert_sha256",
+		"inbound_sync_mode", "outbound_tag"}
+	for _, k := range stringFields {
+		if v, ok := vals[k]; ok {
+			out[k] = tftypes.NewValue(tftypes.String, v)
+		}
 	}
 	if v, ok := vals["port"]; ok {
 		out["port"] = tftypes.NewValue(tftypes.Number, v)
 	}
-	if v, ok := vals["scheme"]; ok {
-		out["scheme"] = tftypes.NewValue(tftypes.String, v)
-	}
 	if v, ok := vals["enable"]; ok {
 		out["enable"] = tftypes.NewValue(tftypes.Bool, v)
-	}
-	if v, ok := vals["id"]; ok {
-		out["id"] = tftypes.NewValue(tftypes.String, v)
 	}
 	_ = objType
 	return tfsdk.Plan{
@@ -550,19 +613,26 @@ func newNodeResourceCreateResponse(t *testing.T, r *NodeResource) resource.Creat
 	}
 }
 
-// TestNodeResource_Update_Placeholder covers the M2 Update placeholder: it
-// re-reads and emits the "not yet implemented" warning. Real update is M3.
-func TestNodeResource_Update_Placeholder(t *testing.T) {
+// TestNodeResource_Update covers the real M3 Update: form-POST
+// /panel/api/nodes/update/:id then re-read GET /get/:id. The server restarts
+// xray itself on outbound_tag change, so the provider does not.
+func TestNodeResource_Update(t *testing.T) {
+	var updatedForm string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/login":
 			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
 			w.Write(okResponse(nil))
 			return
+		case "/panel/api/nodes/update/7":
+			r.ParseForm()
+			updatedForm = r.Form.Encode()
+			w.Write(okResponse(nil))
+			return
 		case "/panel/api/nodes/get/7":
 			w.Write(okResponse(map[string]any{
 				"id": 7, "name": "de-fra-1", "address": "node1.example.com",
-				"port": 2053, "enable": true,
+				"port": 2053, "enable": false, "remark": "renamed",
 			}))
 			return
 		default:
@@ -575,19 +645,55 @@ func TestNodeResource_Update_Placeholder(t *testing.T) {
 	r := &NodeResource{client: newTestClient(t, srv.URL)}
 	plan := nodeResourcePlan(t, r, map[string]any{
 		"name": "de-fra-1", "address": "node1.example.com", "port": int64(2053),
-		"id": "7",
+		"id": "7", "remark": "renamed",
 	})
 
 	resp := newNodeResourceUpdateResponse(t, r)
 	r.Update(context.Background(), resource.UpdateRequest{Plan: plan}, &resp)
-	hasWarning := false
-	for _, d := range resp.Diagnostics {
-		if d.Severity() == diag.SeverityWarning {
-			hasWarning = true
-		}
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error on Update: %v", resp.Diagnostics)
 	}
-	if !hasWarning {
-		t.Fatal("expected the M3-TODO warning on Update")
+	// The update form must carry the managed field changes.
+	if !contains(updatedForm, "remark=renamed") {
+		t.Fatalf("update form missing remark: %q", updatedForm)
+	}
+
+	var state NodeResourceModel
+	resp.State.Get(context.Background(), &state)
+	if state.Remark.ValueString() != "renamed" {
+		t.Fatalf("expected re-read remark 'renamed', got %q", state.Remark.ValueString())
+	}
+}
+
+func TestNodeResource_Update_RemovesOnNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/nodes/update/7":
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/nodes/get/7":
+			// Node vanished between update and re-read.
+			w.Write(failResponse("obtain (record not found)"))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	r := &NodeResource{client: newTestClient(t, srv.URL)}
+	plan := nodeResourcePlan(t, r, map[string]any{
+		"name": "de-fra-1", "address": "node1.example.com", "port": int64(2053), "id": "7",
+	})
+	resp := newNodeResourceUpdateResponse(t, r)
+	r.Update(context.Background(), resource.UpdateRequest{Plan: plan}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error on Update re-read not-found: %v", resp.Diagnostics)
 	}
 }
 
@@ -607,5 +713,113 @@ func newNodeResourceUpdateResponse(t *testing.T, r *NodeResource) resource.Updat
 			Schema: schemaResp.Schema,
 			Raw:    tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil),
 		},
+	}
+}
+
+// nodeResourceDeleteState builds a tfsdk.State with just the id, for Delete.
+func nodeResourceDeleteState(t *testing.T, r *NodeResource, id string) tfsdk.State {
+	t.Helper()
+	var schemaResp resource.SchemaResponse
+	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+	ctx := context.Background()
+	objType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	vals := map[string]tftypes.Value{}
+	for k := range schemaResp.Schema.Attributes {
+		vals[k] = tftypes.NewValue(objType.AttributeTypes[k], nil)
+	}
+	vals["id"] = tftypes.NewValue(tftypes.String, id)
+	return tfsdk.State{
+		Schema: schemaResp.Schema,
+		Raw:    tftypes.NewValue(objType, vals),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Client methods: UpdateNode / DeleteNode
+// ---------------------------------------------------------------------------
+
+func TestUpdateNode(t *testing.T) {
+	var receivedForm string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/nodes/update/7":
+			r.ParseForm()
+			receivedForm = r.Form.Encode()
+			w.Write(okResponse(nil))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	err := client.UpdateNode(context.Background(), 7, &Node{
+		Name: "de-fra-1", Scheme: "https", Address: "node1.example.com",
+		Port: 2053, Remark: "updated-remark", OutboundTag: "proxy-out",
+		InboundTags: []string{},
+	})
+	if err != nil {
+		t.Fatalf("UpdateNode error: %v", err)
+	}
+	for _, want := range []string{"remark=updated-remark", "outboundTag=proxy-out", "address=node1.example.com"} {
+		if !contains(receivedForm, want) {
+			t.Fatalf("update form missing %q in %q", want, receivedForm)
+		}
+	}
+}
+
+func TestUpdateNode_NilAndZeroID(t *testing.T) {
+	client := newTestClient(t, "http://localhost:0")
+	if err := client.UpdateNode(context.Background(), 7, nil); err == nil {
+		t.Fatal("expected error on nil node")
+	}
+	if err := client.UpdateNode(context.Background(), 0, &Node{Name: "x"}); err == nil {
+		t.Fatal("expected error on zero id")
+	}
+}
+
+func TestDeleteNode(t *testing.T) {
+	var delPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/nodes/del/7":
+			delPath = r.URL.Path
+			// Gin uses POST for delete (not DELETE); confirm the method too.
+			if r.Method != http.MethodPost {
+				w.Write(failResponse("method not allowed"))
+				return
+			}
+			w.Write(okResponse(nil))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	if err := client.DeleteNode(context.Background(), 7); err != nil {
+		t.Fatalf("DeleteNode error: %v", err)
+	}
+	if delPath != "/panel/api/nodes/del/7" {
+		t.Fatalf("expected del hit on /panel/api/nodes/del/7, got %q", delPath)
+	}
+}
+
+func TestDeleteNode_ZeroID(t *testing.T) {
+	client := newTestClient(t, "http://localhost:0")
+	if err := client.DeleteNode(context.Background(), 0); err == nil {
+		t.Fatal("expected error on zero id")
 	}
 }
