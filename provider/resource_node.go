@@ -15,6 +15,7 @@ var (
 	_ resource.Resource                = &NodeResource{}
 	_ resource.ResourceWithConfigure   = &NodeResource{}
 	_ resource.ResourceWithImportState = &NodeResource{}
+	_ resource.ResourceWithModifyPlan  = &NodeResource{}
 )
 
 type NodeResource struct {
@@ -45,12 +46,40 @@ func (r *NodeResource) Configure(_ context.Context, req resource.ConfigureReques
 	r.client = client
 }
 
+// ModifyPlan marks the plain secret attributes (api_token, pinned_cert_sha256)
+// as Unknown when their *_wo_version trigger changes, so Terraform accepts the
+// new sensitive value from Apply instead of rejecting it as "inconsistent
+// values for sensitive" (the write-only value is read from req.Config and
+// copied into the plain field by resolveNodeSecretsWO at Apply time).
+func (r *NodeResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	modifyPlanWOVersion(
+		ctx, req, resp,
+		func(m NodeResourceModel) types.Int64 { return m.ApiTokenWOVersion },
+		func(m *NodeResourceModel, v types.String) { m.ApiToken = v },
+	)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	modifyPlanWOVersion(
+		ctx, req, resp,
+		func(m NodeResourceModel) types.Int64 { return m.PinnedCertSha256WOVersion },
+		func(m *NodeResourceModel, v types.String) { m.PinnedCertSha256 = v },
+	)
+}
+
 func (r *NodeResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan NodeResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	var config NodeResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resolveNodeSecretsWO(&plan, config)
 
 	in := nodeFromModel(&plan)
 
@@ -121,6 +150,18 @@ func (r *NodeResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	var state NodeResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	var config NodeResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resolveNodeSecretsWOUpdate(&plan, state, config)
 
 	id, err := parseNodeID(plan.ID.ValueString())
 	if err != nil {
@@ -196,6 +237,35 @@ func parseNodeID(id string) (int, error) {
 		return 0, fmt.Errorf("invalid node id: %s", id)
 	}
 	return parsed, nil
+}
+
+// resolveNodeSecretsWO copies the write-only secret values from config into
+// the plain fields before Create. Write-only values live only in req.Config
+// (the framework nulls them in plan/state), so without this the panel would
+// never receive the new secret on first apply. The settings-style strategy
+// applies because the panel returns secrets raw (#314 R1) and flatten reads
+// them back, which would otherwise clash with a null plan value.
+func resolveNodeSecretsWO(plan *NodeResourceModel, config NodeResourceModel) {
+	if !config.ApiTokenWO.IsNull() && !config.ApiTokenWO.IsUnknown() {
+		plan.ApiToken = config.ApiTokenWO
+	}
+	if !config.PinnedCertSha256WO.IsNull() && !config.PinnedCertSha256WO.IsUnknown() {
+		plan.PinnedCertSha256 = config.PinnedCertSha256WO
+	}
+}
+
+// resolveNodeSecretsWOUpdate copies the write-only secret into the plain field
+// on Update only when the *_wo_version trigger changed (version bump, or first
+// use when state has none). This avoids resending the secret on every update.
+func resolveNodeSecretsWOUpdate(plan *NodeResourceModel, state, config NodeResourceModel) {
+	if !config.ApiTokenWO.IsNull() && !config.ApiTokenWO.IsUnknown() &&
+		woVersionTriggered(plan.ApiTokenWOVersion, state.ApiTokenWOVersion) {
+		plan.ApiToken = config.ApiTokenWO
+	}
+	if !config.PinnedCertSha256WO.IsNull() && !config.PinnedCertSha256WO.IsUnknown() &&
+		woVersionTriggered(plan.PinnedCertSha256WOVersion, state.PinnedCertSha256WOVersion) {
+		plan.PinnedCertSha256 = config.PinnedCertSha256WO
+	}
 }
 
 // nodeFromModel builds the API Node from the managed attributes of the model.
