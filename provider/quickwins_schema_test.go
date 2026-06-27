@@ -22,8 +22,8 @@ func TestProviderMetadata(t *testing.T) {
 func TestProviderResources(t *testing.T) {
 	p := &ThreeXUIProvider{}
 	resources := p.Resources(context.Background())
-	if len(resources) != 15 {
-		t.Fatalf("expected 15 resources, got %d", len(resources))
+	if len(resources) != 16 {
+		t.Fatalf("expected 16 resources, got %d", len(resources))
 	}
 }
 

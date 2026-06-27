@@ -281,6 +281,7 @@ func (p *ThreeXUIProvider) Configure(ctx context.Context, req provider.Configure
 func (p *ThreeXUIProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewInboundResource,
+		NewNodeResource,
 		NewInboundClientResource,
 		NewPanelGeneralResource,
 		NewPanelSecurityResource,

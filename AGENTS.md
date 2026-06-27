@@ -168,6 +168,26 @@ prior state credentials (falls back to provider credentials when state
 password is empty, e.g. after using `password_wo`). See Write-only section
 above for the `password` / `password_wo` lifecycle.
 
+### Cluster node (`resource_node.go`)
+
+`threexui_node` — manages a remote 3x-ui panel registered as a cluster node
+(multi-node surface, `/panel/api/nodes`; available since v3.0.2, no legacy
+fallback). Create does a form-POST `/panel/api/nodes`; the **central panel
+probes the node for reachability (`ensureReachable`) before persisting it**, so
+the node's web API must be reachable from the central panel at apply time —
+there is no provider-side flag to bypass this (decided in #315). Read does
+`GET /panel/api/nodes/:id` and treats HTTP 404 as remove-from-state. Import is
+by numeric id (`ImportStatePassthroughID`). **Update and Delete are M2
+placeholders** (warning, no server change); real update (form-POST
+`/panel/api/nodes/:id` + Xray restart on `outbound_tag` change — the server
+already restarts on `outbound_tag` change per `controller/node.go:180-181`, so
+the provider only needs to POST) and real delete (DELETE, which 3x-ui refuses
+when inbounds are still attached — DB-002, #314 R3) are M3 (#318). `api_token`
+and `pinned_cert_sha256` are `Sensitive` (the panel returns them raw, no
+redaction — #314 R1); write-only `_wo` variants are M4 (#319). Schema lives in
+`node_schema.go`; the typed `Node` model is shared with the `threexui_nodes`
+data source (`types.go`).
+
 ### HTTP client (`client.go`)
 
 Cookie auth, auto re-login on 401/404, CSRF token handling (enforced on all
