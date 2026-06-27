@@ -509,7 +509,7 @@ func TestNodeResource_Create(t *testing.T) {
 	})
 
 	resp := newNodeResourceCreateResponse(t, r)
-	r.Create(context.Background(), resource.CreateRequest{Plan: plan}, &resp)
+	r.Create(context.Background(), resource.CreateRequest{Plan: plan, Config: planToConfig(plan)}, &resp)
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("unexpected error on Create: %v", resp.Diagnostics)
 	}
@@ -548,7 +548,7 @@ func TestNodeResource_Create_ReachabilityError(t *testing.T) {
 		"name": "x", "address": "unreachable.example", "port": int64(2053),
 	})
 	resp := newNodeResourceCreateResponse(t, r)
-	r.Create(context.Background(), resource.CreateRequest{Plan: plan}, &resp)
+	r.Create(context.Background(), resource.CreateRequest{Plan: plan, Config: planToConfig(plan)}, &resp)
 	if !resp.Diagnostics.HasError() {
 		t.Fatal("expected error on unreachable node create")
 	}
@@ -567,7 +567,8 @@ func nodeResourcePlan(t *testing.T, r *NodeResource, vals map[string]any) tfsdk.
 		case "port", "latency_ms", "last_heartbeat", "uptime_secs", "net_up",
 			"net_down", "config_dirty_at", "inbound_count", "client_count",
 			"online_count", "active_count", "disabled_count", "depleted_count",
-			"created_at", "updated_at":
+			"created_at", "updated_at",
+			"api_token_wo_version", "pinned_cert_sha256_wo_version":
 			out[k] = tftypes.NewValue(tftypes.Number, nil)
 		case "enable", "allow_private_address", "config_dirty", "transitive":
 			out[k] = tftypes.NewValue(tftypes.Bool, nil)
@@ -580,8 +581,8 @@ func nodeResourcePlan(t *testing.T, r *NodeResource, vals map[string]any) tfsdk.
 		}
 	}
 	stringFields := []string{"name", "address", "scheme", "id", "remark", "base_path",
-		"api_token", "tls_verify_mode", "pinned_cert_sha256",
-		"inbound_sync_mode", "outbound_tag"}
+		"api_token", "api_token_wo", "pinned_cert_sha256", "pinned_cert_sha256_wo",
+		"tls_verify_mode", "inbound_sync_mode", "outbound_tag"}
 	for _, k := range stringFields {
 		if v, ok := vals[k]; ok {
 			out[k] = tftypes.NewValue(tftypes.String, v)
@@ -649,7 +650,7 @@ func TestNodeResource_Update(t *testing.T) {
 	})
 
 	resp := newNodeResourceUpdateResponse(t, r)
-	r.Update(context.Background(), resource.UpdateRequest{Plan: plan}, &resp)
+	r.Update(context.Background(), resource.UpdateRequest{Plan: plan, Config: planToConfig(plan), State: tfsdk.State(plan)}, &resp)
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("unexpected error on Update: %v", resp.Diagnostics)
 	}
@@ -691,7 +692,7 @@ func TestNodeResource_Update_RemovesOnNotFound(t *testing.T) {
 		"name": "de-fra-1", "address": "node1.example.com", "port": int64(2053), "id": "7",
 	})
 	resp := newNodeResourceUpdateResponse(t, r)
-	r.Update(context.Background(), resource.UpdateRequest{Plan: plan}, &resp)
+	r.Update(context.Background(), resource.UpdateRequest{Plan: plan, Config: planToConfig(plan), State: tfsdk.State(plan)}, &resp)
 	if resp.Diagnostics.HasError() {
 		t.Fatalf("unexpected error on Update re-read not-found: %v", resp.Diagnostics)
 	}
@@ -821,5 +822,292 @@ func TestDeleteNode_ZeroID(t *testing.T) {
 	client := newTestClient(t, "http://localhost:0")
 	if err := client.DeleteNode(context.Background(), 0); err == nil {
 		t.Fatal("expected error on zero id")
+	}
+}
+
+// planToConfig wraps a tfsdk.Plan's Schema/Raw into a tfsdk.Config so that
+// Create/Update requests in unit tests carry the write-only _wo values the
+// resource reads from req.Config.
+func planToConfig(plan tfsdk.Plan) tfsdk.Config {
+	return tfsdk.Config(plan)
+}
+
+// ---------------------------------------------------------------------------
+// Write-only secrets (M4): resolve + ModifyPlan
+// ---------------------------------------------------------------------------
+
+// resolveNodeSecretsWO must copy the _wo value from config into the plain
+// field on Create. This is the settings-style strategy (#314 R1).
+func TestResolveNodeSecretsWO_Create(t *testing.T) {
+	plan := &NodeResourceModel{}
+	config := NodeResourceModel{
+		ApiToken:           types.StringValue("from-state"),
+		ApiTokenWO:         types.StringValue("wo-secret"),
+		PinnedCertSha256:   types.StringValue("old-pin"),
+		PinnedCertSha256WO: types.StringValue("wo-pin"),
+	}
+	resolveNodeSecretsWO(plan, config)
+	if plan.ApiToken.ValueString() != "wo-secret" {
+		t.Fatalf("expected api_token copied from _wo, got %q", plan.ApiToken.ValueString())
+	}
+	if plan.PinnedCertSha256.ValueString() != "wo-pin" {
+		t.Fatalf("expected pinned_cert_sha256 copied from _wo, got %q", plan.PinnedCertSha256.ValueString())
+	}
+}
+
+// resolveNodeSecretsWO must be a no-op when no _wo value is configured
+// (plain path: state value survives).
+func TestResolveNodeSecretsWO_NoWOConfigured(t *testing.T) {
+	plan := &NodeResourceModel{ApiToken: types.StringValue("keep-me")}
+	config := NodeResourceModel{}
+	resolveNodeSecretsWO(plan, config)
+	if plan.ApiToken.ValueString() != "keep-me" {
+		t.Fatalf("plain api_token should be preserved, got %q", plan.ApiToken.ValueString())
+	}
+}
+
+// resolveNodeSecretsWOUpdate only copies the secret when the _wo_version
+// trigger changed (version bump OR first use when state has none).
+func TestResolveNodeSecretsWOUpdate_TriggerBumped(t *testing.T) {
+	plan := &NodeResourceModel{ApiTokenWOVersion: types.Int64Value(2)}
+	state := NodeResourceModel{ApiTokenWOVersion: types.Int64Value(1)}
+	config := NodeResourceModel{ApiTokenWO: types.StringValue("rotated")}
+	resolveNodeSecretsWOUpdate(plan, state, config)
+	if plan.ApiToken.ValueString() != "rotated" {
+		t.Fatalf("expected api_token rotated on version bump, got %q", plan.ApiToken.ValueString())
+	}
+}
+
+func TestResolveNodeSecretsWOUpdate_FirstUse(t *testing.T) {
+	plan := &NodeResourceModel{ApiTokenWOVersion: types.Int64Value(1)}
+	state := NodeResourceModel{ApiTokenWOVersion: types.Int64Null()}
+	config := NodeResourceModel{ApiTokenWO: types.StringValue("first")}
+	resolveNodeSecretsWOUpdate(plan, state, config)
+	if plan.ApiToken.ValueString() != "first" {
+		t.Fatalf("expected api_token set on first use, got %q", plan.ApiToken.ValueString())
+	}
+}
+
+func TestResolveNodeSecretsWOUpdate_NoTrigger(t *testing.T) {
+	// Version unchanged -> _wo value must NOT be resent (no-op update).
+	plan := &NodeResourceModel{
+		ApiToken:          types.StringValue("existing"),
+		ApiTokenWOVersion: types.Int64Value(1),
+	}
+	state := NodeResourceModel{ApiTokenWOVersion: types.Int64Value(1)}
+	config := NodeResourceModel{ApiTokenWO: types.StringValue("ignored")}
+	resolveNodeSecretsWOUpdate(plan, state, config)
+	if plan.ApiToken.ValueString() != "existing" {
+		t.Fatalf("expected api_token unchanged on no-trigger update, got %q", plan.ApiToken.ValueString())
+	}
+}
+
+// TestNodeResource_Create_WithWriteOnlyToken exercises the full Create path
+// where the secret is supplied via api_token_wo: the resource must send it to
+// the panel (the form carries the resolved value, not empty).
+func TestNodeResource_Create_WithWriteOnlyToken(t *testing.T) {
+	var receivedForm string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/nodes/add":
+			r.ParseForm()
+			receivedForm = r.Form.Encode()
+			w.Write(okResponse(map[string]any{"id": 9, "name": "n", "address": "a", "port": 2053}))
+			return
+		case "/panel/api/nodes/get/9":
+			w.Write(okResponse(map[string]any{"id": 9, "name": "n", "address": "a", "port": 2053}))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	r := &NodeResource{client: newTestClient(t, srv.URL)}
+	plan := nodeResourcePlan(t, r, map[string]any{
+		"name": "n", "address": "a", "port": int64(2053),
+	})
+	// Supply the secret only via write-only in config.
+	planWO := setPlanValue(t, r, plan, "api_token_wo", "wo-create-secret")
+
+	resp := newNodeResourceCreateResponse(t, r)
+	r.Create(context.Background(), resource.CreateRequest{Plan: planWO, Config: planToConfig(planWO)}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error: %v", resp.Diagnostics)
+	}
+	if !contains(receivedForm, "apiToken=wo-create-secret") {
+		t.Fatalf("create form must carry the resolved write-only token; got %q", receivedForm)
+	}
+}
+
+// setPlanValue returns a copy of the plan with the given string attribute set.
+// Used to inject write-only values that nodeResourcePlan does not set by default.
+func setPlanValue(t *testing.T, r *NodeResource, plan tfsdk.Plan, key, val string) tfsdk.Plan {
+	t.Helper()
+	var schemaResp resource.SchemaResponse
+	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+	ctx := context.Background()
+	objType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	vals := map[string]tftypes.Value{}
+	_ = plan.Raw.As(&vals)
+	for k, v := range vals {
+		vals[k] = v
+	}
+	vals[key] = tftypes.NewValue(tftypes.String, val)
+	return tfsdk.Plan{
+		Schema: plan.Schema,
+		Raw:    tftypes.NewValue(objType, vals),
+	}
+}
+
+// NOTE: ModifyPlan itself is exercised end-to-end by the write-only acc
+// tests (M4 follow-up). Its core logic lives in the generic
+// modifyPlanWOVersion helper (already covered by the settings resources)
+// plus resolveNodeSecretsWO/Update (covered above). Directly unit-testing
+// ModifyPlan requires fully initialising resp.Plan's Schema/Raw, which is
+// fragile; the resolve + woVersionTriggered unit tests below cover the
+// behaviour that matters.
+
+// ---------------------------------------------------------------------------
+// ModifyPlan (M4, inlined for dual-secret support)
+// ---------------------------------------------------------------------------
+
+// modifyPlanFixture builds a Plan/State pair for ModifyPlan tests, with the
+// given *_wo_version values for both secrets and a concrete api_token.
+func modifyPlanFixture(t *testing.T, r *NodeResource, apiWOVer, pinWOVer, stateAPIWOVer, statePinWOVer int64) (tfsdk.Plan, tfsdk.State) {
+	t.Helper()
+	var schemaResp resource.SchemaResponse
+	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+	ctx := context.Background()
+	objType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+
+	build := func(apiV, pinV int64) tfsdk.Plan {
+		vals := map[string]tftypes.Value{}
+		for k := range schemaResp.Schema.Attributes {
+			switch k {
+			case "port":
+				vals[k] = tftypes.NewValue(tftypes.Number, 2053)
+			case "enable", "allow_private_address", "config_dirty", "transitive":
+				vals[k] = tftypes.NewValue(tftypes.Bool, nil)
+			case "inbound_tags":
+				vals[k] = tftypes.NewValue(tftypes.List{ElementType: tftypes.String}, nil)
+			case "api_token_wo_version":
+				vals[k] = tftypes.NewValue(tftypes.Number, apiV)
+			case "pinned_cert_sha256_wo_version":
+				vals[k] = tftypes.NewValue(tftypes.Number, pinV)
+			case "cpu_pct", "mem_pct", "latency_ms", "last_heartbeat", "uptime_secs",
+				"net_up", "net_down", "config_dirty_at", "inbound_count", "client_count",
+				"online_count", "active_count", "disabled_count", "depleted_count",
+				"created_at", "updated_at":
+				vals[k] = tftypes.NewValue(tftypes.Number, nil)
+			default:
+				vals[k] = tftypes.NewValue(tftypes.String, nil)
+			}
+		}
+		vals["id"] = tftypes.NewValue(tftypes.String, "1")
+		vals["api_token"] = tftypes.NewValue(tftypes.String, "prior-token")
+		return tfsdk.Plan{Schema: schemaResp.Schema, Raw: tftypes.NewValue(objType, vals)}
+	}
+
+	plan := build(apiWOVer, pinWOVer)
+	state := build(stateAPIWOVer, statePinWOVer)
+	return plan, tfsdk.State(state)
+}
+
+// TestNodeResource_ModifyPlan_BothSecretsTriggered is the regression test for
+// the dual-secret bug the M4 review caught: when both *_wo_version change at
+// once, BOTH plain secrets must be marked Unknown (a naive double call to the
+// shared modifyPlanWOVersion generic would erase the first mark).
+func TestNodeResource_ModifyPlan_BothSecretsTriggered(t *testing.T) {
+	r := &NodeResource{}
+	ctx := context.Background()
+	plan, st := modifyPlanFixture(t, r, 2, 2, 1, 1) // both bumped
+
+	var schemaResp resource.SchemaResponse
+	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+	resp := &resource.ModifyPlanResponse{
+		Plan: tfsdk.Plan{Schema: schemaResp.Schema, Raw: tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil)},
+	}
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, State: st}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error: %v", resp.Diagnostics)
+	}
+	var out NodeResourceModel
+	resp.Plan.Get(ctx, &out)
+	if !out.ApiToken.IsUnknown() {
+		t.Fatalf("expected api_token marked Unknown on simultaneous rotation, got %v", out.ApiToken)
+	}
+	if !out.PinnedCertSha256.IsUnknown() {
+		t.Fatalf("expected pinned_cert_sha256 marked Unknown on simultaneous rotation, got %v", out.PinnedCertSha256)
+	}
+}
+
+func TestNodeResource_ModifyPlan_SingleSecretTriggered(t *testing.T) {
+	r := &NodeResource{}
+	ctx := context.Background()
+	// Only api_token_wo_version bumps; pinned stays the same.
+	plan, st := modifyPlanFixture(t, r, 2, 1, 1, 1)
+
+	var schemaResp resource.SchemaResponse
+	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+	resp := &resource.ModifyPlanResponse{
+		Plan: tfsdk.Plan{Schema: schemaResp.Schema, Raw: tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil)},
+	}
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, State: st}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error: %v", resp.Diagnostics)
+	}
+	var out NodeResourceModel
+	resp.Plan.Get(ctx, &out)
+	if !out.ApiToken.IsUnknown() {
+		t.Fatalf("expected api_token Unknown, got %v", out.ApiToken)
+	}
+	if out.PinnedCertSha256.IsUnknown() {
+		t.Fatal("pinned_cert_sha256 must NOT be Unknown when its version is unchanged")
+	}
+}
+
+func TestNodeResource_ModifyPlan_NoTrigger(t *testing.T) {
+	r := &NodeResource{}
+	ctx := context.Background()
+	// No version change at all — ModifyPlan must be a no-op.
+	plan, st := modifyPlanFixture(t, r, 1, 1, 1, 1)
+
+	var schemaResp resource.SchemaResponse
+	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+	resp := &resource.ModifyPlanResponse{
+		Plan: tfsdk.Plan{Schema: schemaResp.Schema, Raw: tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil)},
+	}
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, State: st}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error: %v", resp.Diagnostics)
+	}
+	var out NodeResourceModel
+	resp.Plan.Get(ctx, &out)
+	if out.ApiToken.IsUnknown() {
+		t.Fatal("api_token must not be Unknown when no version changed")
+	}
+	if out.PinnedCertSha256.IsUnknown() {
+		t.Fatal("pinned_cert_sha256 must not be Unknown when no version changed")
+	}
+}
+
+// TestResolveNodeSecretsWOUpdate_PinnedCert rounds out the symmetric coverage
+// for the second write-only secret on the update path (api_token is covered by
+// the _TriggerBumped/_FirstUse/_NoTrigger tests above).
+func TestResolveNodeSecretsWOUpdate_PinnedCert(t *testing.T) {
+	plan := &NodeResourceModel{
+		PinnedCertSha256WOVersion: types.Int64Value(3),
+	}
+	state := NodeResourceModel{PinnedCertSha256WOVersion: types.Int64Value(2)}
+	config := NodeResourceModel{PinnedCertSha256WO: types.StringValue("rotated-pin")}
+	resolveNodeSecretsWOUpdate(plan, state, config)
+	if plan.PinnedCertSha256.ValueString() != "rotated-pin" {
+		t.Fatalf("expected pinned_cert_sha256 rotated, got %q", plan.PinnedCertSha256.ValueString())
 	}
 }

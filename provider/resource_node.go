@@ -15,6 +15,7 @@ var (
 	_ resource.Resource                = &NodeResource{}
 	_ resource.ResourceWithConfigure   = &NodeResource{}
 	_ resource.ResourceWithImportState = &NodeResource{}
+	_ resource.ResourceWithModifyPlan  = &NodeResource{}
 )
 
 type NodeResource struct {
@@ -45,12 +46,55 @@ func (r *NodeResource) Configure(_ context.Context, req resource.ConfigureReques
 	r.client = client
 }
 
+// ModifyPlan marks the plain secret attributes (api_token, pinned_cert_sha256)
+// as Unknown when their *_wo_version trigger changes, so Terraform accepts the
+// new sensitive value from Apply instead of rejecting it as "inconsistent
+// values for sensitive" (the write-only value is read from req.Config and
+// copied into the plain field by resolveNodeSecretsWO at Apply time).
+//
+// Inlined rather than calling the shared modifyPlanWOVersion generic twice:
+// that generic re-reads req.Plan and overwrites the whole resp.Plan on each
+// call, so a second call would erase the Unknown mark set by the first
+// (simultaneous rotation of both secrets). threexui_node is the first
+// resource with two write-only secrets; the settings resources have one each
+// and use the generic directly.
+func (r *NodeResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return
+	}
+	var plan, state NodeResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	changed := false
+	if woVersionTriggered(plan.ApiTokenWOVersion, state.ApiTokenWOVersion) {
+		plan.ApiToken = types.StringUnknown()
+		changed = true
+	}
+	if woVersionTriggered(plan.PinnedCertSha256WOVersion, state.PinnedCertSha256WOVersion) {
+		plan.PinnedCertSha256 = types.StringUnknown()
+		changed = true
+	}
+	if changed {
+		resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	}
+}
+
 func (r *NodeResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan NodeResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	var config NodeResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resolveNodeSecretsWO(&plan, config)
 
 	in := nodeFromModel(&plan)
 
@@ -121,6 +165,18 @@ func (r *NodeResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	var state NodeResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	var config NodeResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resolveNodeSecretsWOUpdate(&plan, state, config)
 
 	id, err := parseNodeID(plan.ID.ValueString())
 	if err != nil {
@@ -198,6 +254,35 @@ func parseNodeID(id string) (int, error) {
 	return parsed, nil
 }
 
+// resolveNodeSecretsWO copies the write-only secret values from config into
+// the plain fields before Create. Write-only values live only in req.Config
+// (the framework nulls them in plan/state), so without this the panel would
+// never receive the new secret on first apply. The settings-style strategy
+// applies because the panel returns secrets raw (#314 R1) and flatten reads
+// them back, which would otherwise clash with a null plan value.
+func resolveNodeSecretsWO(plan *NodeResourceModel, config NodeResourceModel) {
+	if !config.ApiTokenWO.IsNull() && !config.ApiTokenWO.IsUnknown() {
+		plan.ApiToken = config.ApiTokenWO
+	}
+	if !config.PinnedCertSha256WO.IsNull() && !config.PinnedCertSha256WO.IsUnknown() {
+		plan.PinnedCertSha256 = config.PinnedCertSha256WO
+	}
+}
+
+// resolveNodeSecretsWOUpdate copies the write-only secret into the plain field
+// on Update only when the *_wo_version trigger changed (version bump, or first
+// use when state has none). This avoids resending the secret on every update.
+func resolveNodeSecretsWOUpdate(plan *NodeResourceModel, state, config NodeResourceModel) {
+	if !config.ApiTokenWO.IsNull() && !config.ApiTokenWO.IsUnknown() &&
+		woVersionTriggered(plan.ApiTokenWOVersion, state.ApiTokenWOVersion) {
+		plan.ApiToken = config.ApiTokenWO
+	}
+	if !config.PinnedCertSha256WO.IsNull() && !config.PinnedCertSha256WO.IsUnknown() &&
+		woVersionTriggered(plan.PinnedCertSha256WOVersion, state.PinnedCertSha256WOVersion) {
+		plan.PinnedCertSha256 = config.PinnedCertSha256WO
+	}
+}
+
 // nodeFromModel builds the API Node from the managed attributes of the model.
 func nodeFromModel(m *NodeResourceModel) *Node {
 	n := &Node{
@@ -233,6 +318,11 @@ func flattenNodeToModel(n *Node, m *NodeResourceModel) {
 	if n == nil {
 		return
 	}
+	// Note: *_wo_version fields are intentionally NOT overwritten here — flatten
+	// mutates the existing model in place (Create/Update pass &plan), so the
+	// planned wo_version survives into state. (The settings resources instead
+	// build a fresh model in flatten* and must call preserveWOVersion; node does
+	// not because it mutates in place.)
 	m.Name = types.StringValue(n.Name)
 	if n.Remark != "" {
 		m.Remark = types.StringValue(n.Remark)

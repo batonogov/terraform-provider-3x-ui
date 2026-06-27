@@ -44,11 +44,15 @@ terraform import threexui_node.fra1 7
 - `remark` (Optional, String) - Free-form note.
 - `scheme` (Optional, String) - `http` or `https`. Defaults to `https`.
 - `base_path` (Optional, String) - Node web API base path. Defaults to `/`.
-- `api_token` (Optional, String, Sensitive) - Bearer API token the central panel uses to authenticate to the node. Required unless `tls_verify_mode` is `mtls`. The panel returns this raw without redaction.
+- `api_token` (Optional, String, Sensitive) - Bearer API token the central panel uses to authenticate to the node. Required unless `tls_verify_mode` is `mtls`. The panel returns this raw without redaction. Prefer the write-only `api_token_wo` on TF 1.11+.
+- `api_token_wo` (Optional, String, Write-Only) - Write-only node API token (Terraform 1.11+ / OpenTofu 1.11+). Pair with `api_token_wo_version` to rotate.
+- `api_token_wo_version` (Optional, Number) - Increment to rotate `api_token_wo`. Each change sends the current `_wo` value to the panel; requires `api_token_wo`.
 - `enable` (Optional, Bool) - Whether the node is enabled. Defaults to `true`.
 - `allow_private_address` (Optional, Bool) - Allow the node address to resolve to a private IP. Defaults to `false`.
 - `tls_verify_mode` (Optional, String) - `verify`, `skip`, `pin`, or `mtls`. Defaults to `verify`.
-- `pinned_cert_sha256` (Optional, String, Sensitive) - Pinned certificate fingerprint, required when `tls_verify_mode` is `pin`.
+- `pinned_cert_sha256` (Optional, String, Sensitive) - Pinned certificate fingerprint, required when `tls_verify_mode` is `pin`. Prefer the write-only `pinned_cert_sha256_wo` on TF 1.11+.
+- `pinned_cert_sha256_wo` (Optional, String, Write-Only) - Write-only pinned certificate fingerprint (Terraform 1.11+ / OpenTofu 1.11+). Pair with `pinned_cert_sha256_wo_version` to rotate.
+- `pinned_cert_sha256_wo_version` (Optional, Number) - Increment to rotate `pinned_cert_sha256_wo`; requires `pinned_cert_sha256_wo`.
 - `inbound_sync_mode` (Optional, String) - `all` or `selected`. Defaults to `all`.
 - `inbound_tags` (Optional, List of String) - Inbound tags to sync when `inbound_sync_mode` is `selected`.
 - `outbound_tag` (Optional, String) - Xray outbound/balancer tag bridging this node.
@@ -85,4 +89,4 @@ Import is supported by numeric id:
 terraform import threexui_node.NAME <id>
 ```
 
-> **Scope note:** Write-only secret attributes (`api_token_wo`, `pinned_cert_sha256_wo`) are M4 (#319). Until then, `api_token`/`pinned_cert_sha256` are plain `Sensitive`.
+> **Scope note:** Write-only secret attributes (`api_token_wo` + `api_token_wo_version`, `pinned_cert_sha256_wo` + `pinned_cert_sha256_wo_version`) follow the AWS/Azure write-only pattern (Terraform 1.11+ / OpenTofu 1.11+). Set the `_wo` value and bump the `_wo_version` to rotate; the plain attribute keeps the masked value in state. The panel returns secrets raw (#314 R1), so this uses the settings-style strategy (ModifyPlan marks the plain attr Unknown on version change). On TF >= 1.11 using the plain `Sensitive` attr emits a `PreferWriteOnlyAttribute` warning.

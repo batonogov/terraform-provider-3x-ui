@@ -122,6 +122,7 @@ Each secret gets three attributes: old `Sensitive` attr + `WriteOnly` attr + `_w
 | `panel_telegram` | `tg_bot_token` | `tg_bot_token_wo` | `tg_bot_token_wo_version` |
 | `panel_email` | `smtp_password` | `smtp_password_wo` | `smtp_password_wo_version` |
 | `panel_general` | `ldap_password` | `ldap_password_wo` | `ldap_password_wo_version` |
+| `threexui_node` | `api_token`, `pinned_cert_sha256` | `api_token_wo`, `pinned_cert_sha256_wo` | `api_token_wo_version`, `pinned_cert_sha256_wo_version` |
 
 - `PreferWriteOnlyAttribute` validator warns on TF >= 1.11 when using old attr.
 - `int64validator.AlsoRequires` enforces that `*_wo_version` can only be set with `*_wo`.
@@ -189,7 +190,10 @@ POSTs `/del/:id`; 3x-ui refuses to delete a node that still owns inbounds
 (DB-002, #314 R3) — surfaced as a clear error so the operator detaches the
 inbounds first. Import is by numeric id (`ImportStatePassthroughID`). `api_token`
 and `pinned_cert_sha256` are `Sensitive` (panel returns them raw, no redaction —
-issue #314 R1); write-only `_wo` variants are M4 (issue #319). Schema lives in `node_schema.go`;
+issue #314 R1) with write-only `_wo` variants following the settings-style
+strategy (`api_token_wo`+`_wo_version`, `pinned_cert_sha256_wo`+`_wo_version`;
+`resolveNodeSecretsWO`/`resolveNodeSecretsWOUpdate` + ModifyPlan via the
+shared `modifyPlanWOVersion` generic). Schema lives in `node_schema.go`;
 the typed `Node` model is shared with the `threexui_nodes` data source (`types.go`).
 
 ### HTTP client (`client.go`)

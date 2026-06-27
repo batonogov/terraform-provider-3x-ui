@@ -3,6 +3,7 @@ package provider
 import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
@@ -21,21 +22,25 @@ import (
 // (Computed). See .pi/m2-contract.md and 3x-ui-3.4.1/internal/database/model/model.go.
 type NodeResourceModel struct {
 	// Managed (user-editable).
-	ID                  types.String   `tfsdk:"id"`
-	Name                types.String   `tfsdk:"name"`
-	Remark              types.String   `tfsdk:"remark"`
-	Scheme              types.String   `tfsdk:"scheme"`
-	Address             types.String   `tfsdk:"address"`
-	Port                types.Int64    `tfsdk:"port"`
-	BasePath            types.String   `tfsdk:"base_path"`
-	ApiToken            types.String   `tfsdk:"api_token"`
-	Enable              types.Bool     `tfsdk:"enable"`
-	AllowPrivateAddress types.Bool     `tfsdk:"allow_private_address"`
-	TlsVerifyMode       types.String   `tfsdk:"tls_verify_mode"`
-	PinnedCertSha256    types.String   `tfsdk:"pinned_cert_sha256"`
-	InboundSyncMode     types.String   `tfsdk:"inbound_sync_mode"`
-	InboundTags         []types.String `tfsdk:"inbound_tags"`
-	OutboundTag         types.String   `tfsdk:"outbound_tag"`
+	ID                        types.String   `tfsdk:"id"`
+	Name                      types.String   `tfsdk:"name"`
+	Remark                    types.String   `tfsdk:"remark"`
+	Scheme                    types.String   `tfsdk:"scheme"`
+	Address                   types.String   `tfsdk:"address"`
+	Port                      types.Int64    `tfsdk:"port"`
+	BasePath                  types.String   `tfsdk:"base_path"`
+	ApiToken                  types.String   `tfsdk:"api_token"`
+	ApiTokenWO                types.String   `tfsdk:"api_token_wo"`
+	ApiTokenWOVersion         types.Int64    `tfsdk:"api_token_wo_version"`
+	Enable                    types.Bool     `tfsdk:"enable"`
+	AllowPrivateAddress       types.Bool     `tfsdk:"allow_private_address"`
+	TlsVerifyMode             types.String   `tfsdk:"tls_verify_mode"`
+	PinnedCertSha256          types.String   `tfsdk:"pinned_cert_sha256"`
+	PinnedCertSha256WO        types.String   `tfsdk:"pinned_cert_sha256_wo"`
+	PinnedCertSha256WOVersion types.Int64    `tfsdk:"pinned_cert_sha256_wo_version"`
+	InboundSyncMode           types.String   `tfsdk:"inbound_sync_mode"`
+	InboundTags               []types.String `tfsdk:"inbound_tags"`
+	OutboundTag               types.String   `tfsdk:"outbound_tag"`
 
 	// Observed identity / heartbeat state (Computed).
 	Guid          types.String  `tfsdk:"guid"`
@@ -123,9 +128,28 @@ func nodeResourceSchema() schema.Schema {
 			"api_token": schema.StringAttribute{
 				Optional:  true,
 				Sensitive: true,
+				Validators: []validator.String{
+					stringvalidator.PreferWriteOnlyAttribute(path.MatchRoot("api_token_wo")),
+				},
 				Description: "Bearer API token used by the central panel to authenticate to the node's web API. " +
 					"Required unless tls_verify_mode is 'mtls' (mTLS nodes authenticate via client certificate). " +
-					"The panel returns this value raw without redaction, so it is marked Sensitive.",
+					"The panel returns this value raw without redaction, so it is marked Sensitive. " +
+					"Prefer the write-only api_token_wo (Terraform 1.11+ / OpenTofu 1.11+).",
+			},
+			"api_token_wo": schema.StringAttribute{
+				Optional:    true,
+				WriteOnly:   true,
+				Description: "Write-only node API token (Terraform 1.11+ / OpenTofu 1.11+). Pair with api_token_wo_version to rotate.",
+			},
+			"api_token_wo_version": schema.Int64Attribute{
+				Optional: true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.Int64{
+					int64validator.AlsoRequires(path.MatchRoot("api_token_wo")),
+				},
+				Description: "Increment to rotate the write-only api_token_wo. Each change sends the current _wo value to the panel.",
 			},
 			"enable": schema.BoolAttribute{
 				Optional:    true,
@@ -149,9 +173,28 @@ func nodeResourceSchema() schema.Schema {
 				Description: "TLS verification mode for the node web API. One of verify, skip, pin, mtls. Defaults to verify.",
 			},
 			"pinned_cert_sha256": schema.StringAttribute{
+				Optional:  true,
+				Sensitive: true,
+				Validators: []validator.String{
+					stringvalidator.PreferWriteOnlyAttribute(path.MatchRoot("pinned_cert_sha256_wo")),
+				},
+				Description: "Pinned certificate fingerprint (SHA-256) required when tls_verify_mode is 'pin'. Returned raw by the panel, hence Sensitive. " +
+					"Prefer the write-only pinned_cert_sha256_wo (Terraform 1.11+ / OpenTofu 1.11+).",
+			},
+			"pinned_cert_sha256_wo": schema.StringAttribute{
 				Optional:    true,
-				Sensitive:   true,
-				Description: "Pinned certificate fingerprint (SHA-256) required when tls_verify_mode is 'pin'. Returned raw by the panel, hence Sensitive.",
+				WriteOnly:   true,
+				Description: "Write-only pinned certificate fingerprint (Terraform 1.11+ / OpenTofu 1.11+). Pair with pinned_cert_sha256_wo_version to rotate.",
+			},
+			"pinned_cert_sha256_wo_version": schema.Int64Attribute{
+				Optional: true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.Int64{
+					int64validator.AlsoRequires(path.MatchRoot("pinned_cert_sha256_wo")),
+				},
+				Description: "Increment to rotate the write-only pinned_cert_sha256_wo.",
 			},
 			"inbound_sync_mode": schema.StringAttribute{
 				Optional: true,
