@@ -145,7 +145,7 @@ resource "threexui_inbound_client" "client_a" {
 | --- | --- |
 | `threexui_inbound` | inbound (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria؛ socks/dokodemo-door legacy قبل 3.2) |
 | `threexui_inbound_client` | عميل داخل inbound |
-| `threexui_node` | عقدة الكتلة / تسجيل multi-node (Create/Read/Import) |
+| `threexui_node` | عقدة الكتلة / تسجيل multi-node |
 | `threexui_panel_general` | إعدادات اللوحة العامة |
 | `threexui_panel_security` | إعدادات الأمان (2FA) |
 | `threexui_panel_user` | بيانات اعتماد المسؤول |

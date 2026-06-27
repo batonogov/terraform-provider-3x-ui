@@ -610,6 +610,36 @@ func (c *Client) CreateNode(ctx context.Context, n *Node) (*Node, error) {
 	return &out, nil
 }
 
+// UpdateNode updates a cluster node's managed fields (POST
+// /panel/api/nodes/update/:id). The 3x-ui controller restarts the Xray core
+// itself when outbound_tag changes (controller/node.go:180-181) and runs
+// ensureReachable, so the provider does NOT need to call RestartXrayService.
+// The update handler returns only a status message (no object), so callers
+// must re-read via GetNode to refresh observed state.
+func (c *Client) UpdateNode(ctx context.Context, id int, n *Node) error {
+	if n == nil {
+		return errors.New("node is nil")
+	}
+	if id == 0 {
+		return errors.New("node id is required for update")
+	}
+	form := nodeToForm(n)
+	return c.doForm(ctx, http.MethodPost, fmt.Sprintf("panel/api/nodes/update/%d", id), form, nil)
+}
+
+// DeleteNode unregisters a cluster node from the central panel (POST
+// /panel/api/nodes/del/:id — gin uses POST, not DELETE). 3x-ui refuses to
+// delete a node that still owns inbounds (DB-002); the panel surfaces that as
+// HTTP 200 + success:false with an "inbound(s) still attached" message, which
+// doForm surfaces as a request-failed error. Callers should surface that to
+// the operator so they detach/delete the inbounds first.
+func (c *Client) DeleteNode(ctx context.Context, id int) error {
+	if id == 0 {
+		return errors.New("node id is required for delete")
+	}
+	return c.doForm(ctx, http.MethodPost, fmt.Sprintf("panel/api/nodes/del/%d", id), url.Values{}, nil)
+}
+
 // nodeToForm builds the application/x-www-form-urlencoded body for node
 // create/update, mirroring the form tags on model.Node in 3x-ui. inboundTags
 // is serialized to a JSON string (gorm json serializer on the upstream side).

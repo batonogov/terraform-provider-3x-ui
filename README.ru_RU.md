@@ -139,7 +139,7 @@ resource "threexui_inbound_client" "client_a" {
 | --- | --- |
 | `threexui_inbound` | Инбаунд (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria; legacy socks/dokodemo-door до 3.2) |
 | `threexui_inbound_client` | Клиент внутри инбаунда |
-| `threexui_node` | Узел кластера / регистрация multi-node (Create/Read/Import) |
+| `threexui_node` | Узел кластера / регистрация multi-node |
 | `threexui_panel_general` | Общие настройки панели |
 | `threexui_panel_security` | Безопасность (2FA) |
 | `threexui_panel_user` | Учётные данные администратора |

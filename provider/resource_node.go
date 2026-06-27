@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -110,10 +111,10 @@ func (r *NodeResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// Update is a minimal placeholder for M2. Full update (form-POST
-// /panel/api/nodes/:id, restart-on-outbound_tag change) is M3 (#318).
-// For now we accept the plan and re-read so state is consistent, but make no
-// server-side change beyond what Create already established.
+// Update applies in-place changes to a cluster node via form-POST
+// /panel/api/nodes/update/:id. The 3x-ui controller restarts the Xray core
+// itself when outbound_tag changes (controller/node.go:180-181) and runs
+// ensureReachable, so this method does NOT call RestartXrayService.
 func (r *NodeResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan NodeResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -127,33 +128,61 @@ func (r *NodeResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	// TODO(M3, #318): form-POST /panel/api/nodes/:id with nodeFromModel(&plan),
-	// then restart the Xray core if outbound_tag changed. Until then, surface
-	// the limitation so operators do not silently expect in-place updates.
-	resp.Diagnostics.AddWarning(
-		"threexui_node updates are not yet implemented",
-		"In-place updates of threexui_node are implemented in M3 (#318). "+
-			"For now, change name/address (forces replacement) or recreate the resource. "+
-			"Other attribute changes will not be applied to the panel until M3 lands.",
-	)
+	if err := r.client.UpdateNode(ctx, id, nodeFromModel(&plan)); err != nil {
+		hint := ""
+		if strings.Contains(strings.ToLower(err.Error()), "unreachable") {
+			hint = "\n\nNote: the central panel probes the node for reachability (ensureReachable) during update. Ensure the node's web API is reachable from the central panel."
+		}
+		resp.Diagnostics.AddError("Failed to update cluster node", err.Error()+hint)
+		return
+	}
 
-	// Re-read to keep state aligned with the (unchanged) remote.
-	if got, getErr := r.client.GetNode(ctx, id); getErr == nil && got != nil {
+	// The update handler returns only a status message (no object), so re-read
+	// to refresh observed state and detect drift.
+	got, getErr := r.client.GetNode(ctx, id)
+	if getErr != nil {
+		if isAPIRecordNotFound(getErr) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+		resp.Diagnostics.AddWarning("Failed to re-read node after update", getErr.Error())
+	} else if got != nil {
 		flattenNodeToModel(got, &plan)
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-// Delete is a minimal placeholder for M2. Full delete (DELETE
-// /panel/api/nodes/:id, handling the inbound-attachment guard from #314 R3)
-// is M3 (#318). For now, removing the resource from state does NOT unregister
-// the node from the panel.
-func (r *NodeResource) Delete(_ context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
-	resp.Diagnostics.AddWarning(
-		"threexui_node delete is not yet implemented",
-		"Removing this resource from state does not unregister the node from the panel. "+
-			"Full delete (DELETE /panel/api/nodes/:id) is implemented in M3 (#318).",
-	)
+// Delete unregisters a cluster node from the central panel (POST
+// /panel/api/nodes/del/:id). 3x-ui refuses to delete a node that still owns
+// inbounds (DB-002, #314 R3); in that case the operator must detach/delete
+// the inbounds first. Other transient failures return an error; on success
+// the resource is removed from state.
+func (r *NodeResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state NodeResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	id, err := parseNodeID(state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid node id", err.Error())
+		return
+	}
+
+	if err := r.client.DeleteNode(ctx, id); err != nil {
+		if isAPIRecordNotFound(err) {
+			// Already gone out-of-band; treat as deleted.
+			return
+		}
+		msg := err.Error()
+		if strings.Contains(strings.ToLower(msg), "inbound") || strings.Contains(strings.ToLower(msg), "attached") {
+			msg += "\n\n3x-ui refuses to delete a node that still owns inbounds (DB-002). " +
+				"Detach or delete the inbounds referencing this node first, then re-run terraform destroy."
+		}
+		resp.Diagnostics.AddError("Failed to delete cluster node", msg)
+		return
+	}
 }
 
 func (r *NodeResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

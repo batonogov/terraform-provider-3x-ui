@@ -172,23 +172,25 @@ above for the `password` / `password_wo` lifecycle.
 
 `threexui_node` — manages a remote 3x-ui panel registered as a cluster node
 (multi-node surface, `/panel/api/nodes/*`; available since v3.0.2, no legacy
-fallback). Create does a form-POST `/panel/api/nodes/add`; the **central panel
-probes the node for reachability (`ensureReachable`) before persisting it**, so
-the node's web API must be reachable from the central panel at apply time —
-there is no provider-side flag to bypass this (decided in #315). Read does
-`GET /panel/api/nodes/get/:id` and treats a missing node (the panel signals
-this as HTTP 200 + `success:false` with a gorm "record not found" message,
-NOT HTTP 404 — see `util.go jsonMsgObj`) as remove-from-state. Import is
-by numeric id (`ImportStatePassthroughID`). **Update and Delete are M2
-placeholders** (warning, no server change); real update (form-POST
-`/panel/api/nodes/update/:id` + Xray restart on `outbound_tag` change — the server
-already restarts on `outbound_tag` change per `controller/node.go:180-181`, so
-the provider only needs to POST) and real delete (DELETE, which 3x-ui refuses
-when inbounds are still attached — DB-002, #314 R3) are M3 (#318). `api_token`
-and `pinned_cert_sha256` are `Sensitive` (the panel returns them raw, no
-redaction — #314 R1); write-only `_wo` variants are M4 (#319). Schema lives in
-`node_schema.go`; the typed `Node` model is shared with the `threexui_nodes`
-data source (`types.go`).
+fallback). Routes are gin subpaths: list `GET /list`, read `GET /get/:id`, create
+`POST /add`, update `POST /update/:id`, delete `POST /del/:id` (POST, not DELETE).
+Create does a form-POST `/add`, then re-reads `/get/:id` for observed state. The
+**central panel probes the node for reachability (`ensureReachable`) before
+persisting it**, so the node's web API must be reachable from the central panel
+at apply time — there is no provider-side flag to bypass this (decided in #315).
+Read does `GET /get/:id` and treats a missing node (the panel signals this as
+HTTP 200 + `success:false` with a gorm "record not found" message, NOT HTTP 404
+— see `util.go jsonMsgObj`; handled via `isAPIRecordNotFound`) as remove-from-
+state. Update form-POSTs `/update/:id` then re-reads; the **3x-ui server
+restarts the Xray core itself** when `outbound_tag` changes
+(`controller/node.go:180-181`), so the provider does NOT call
+`RestartXrayService` (unlike `threexui_inbound`'s `restart_xray = true`). Delete
+POSTs `/del/:id`; 3x-ui refuses to delete a node that still owns inbounds
+(DB-002, #314 R3) — surfaced as a clear error so the operator detaches the
+inbounds first. Import is by numeric id (`ImportStatePassthroughID`). `api_token`
+and `pinned_cert_sha256` are `Sensitive` (panel returns them raw, no redaction —
+issue #314 R1); write-only `_wo` variants are M4 (issue #319). Schema lives in `node_schema.go`;
+the typed `Node` model is shared with the `threexui_nodes` data source (`types.go`).
 
 ### HTTP client (`client.go`)
 

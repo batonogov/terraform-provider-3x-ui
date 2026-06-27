@@ -11,7 +11,7 @@ Manages a remote 3x-ui panel registered as a cluster node on the central panel. 
 
 > **Reachability constraint:** The central panel probes the node for reachability (`ensureReachable`) during create/update before persisting it. The node's web API **must be reachable from the central panel at apply time**, otherwise the create/update fails. There is no way to bypass this from the provider — it is inherent to the 3x-ui server flow.
 >
-> **Scope (M2):** This resource implements **Create + Read + Import**. **In-place Update and Delete are placeholders** that emit a warning and do not change the node on the panel; they are implemented in M3 (#318). To change a node today, change `name`/`address` (forces replacement) or recreate the resource. Write-only secrets (`api_token_wo`) are M4 (#319).
+> **Xray restart on `outbound_tag` change:** changing `outbound_tag` causes the 3x-ui server to restart the Xray core itself (`controller/node.go` update handler). The provider does not issue a separate restart — it relies on the server-side behaviour.
 
 ## Example Usage
 
@@ -73,6 +73,10 @@ In addition to the arguments above, the following observed-state attributes are 
 - `parent_guid` (String) / `transitive` (Bool) - Node-tree attribution (read-only transitive sub-nodes have `transitive = true`).
 - `created_at` / `updated_at` (Number) - Unix millis.
 
+## Delete behaviour
+
+`terraform destroy` unregisters the node from the panel (`POST /panel/api/nodes/del/:id`). 3x-ui **refuses** to delete a node that still owns inbounds (DB-002): if any inbound references this node, the delete fails with an error mentioning the attached inbounds. Detach or delete those inbounds first, then re-run `terraform destroy`. If the node was already removed out-of-band, delete succeeds (treated as already gone).
+
 ## Import
 
 Import is supported by numeric id:
@@ -80,3 +84,5 @@ Import is supported by numeric id:
 ```bash
 terraform import threexui_node.NAME <id>
 ```
+
+> **Scope note:** Write-only secret attributes (`api_token_wo`, `pinned_cert_sha256_wo`) are M4 (#319). Until then, `api_token`/`pinned_cert_sha256` are plain `Sensitive`.
