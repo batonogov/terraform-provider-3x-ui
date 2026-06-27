@@ -139,6 +139,7 @@ Tam belgeler [Terraform Registry](https://registry.terraform.io/providers/batono
 | --- | --- |
 | `threexui_inbound` | Inbound proxy (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria; 3.2 öncesi legacy socks/dokodemo-door) |
 | `threexui_inbound_client` | Bir inbound içindeki istemci |
+| `threexui_node` | Küme düğümü / multi-node kaydı (Create/Read/Import) |
 | `threexui_panel_general` | Genel panel ayarları |
 | `threexui_panel_security` | Güvenlik ayarları (2FA) |
 | `threexui_panel_user` | Yönetici kimlik bilgileri |

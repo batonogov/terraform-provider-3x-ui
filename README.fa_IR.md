@@ -145,6 +145,7 @@ resource "threexui_inbound_client" "client_a" {
 | --- | --- |
 | `threexui_inbound` | اینباند (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria؛ socks/dokodemo-door در نسخه‌های قبل از 3.2 به‌صورت legacy) |
 | `threexui_inbound_client` | کلاینت داخل اینباند |
+| `threexui_node` | گره کلاستر / ثبت multi-node (Create/Read/Import) |
 | `threexui_panel_general` | تنظیمات عمومی پنل |
 | `threexui_panel_security` | تنظیمات امنیت (2FA) |
 | `threexui_panel_user` | اعتبارنامه‌های ادمین |

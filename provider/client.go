@@ -573,10 +573,84 @@ func (c *Client) GetInbounds(ctx context.Context) ([]Inbound, error) {
 // fallback path, so no API-surface auto-detection is needed.
 func (c *Client) GetNodes(ctx context.Context) ([]Node, error) {
 	var out []Node
-	if err := c.doJSON(ctx, http.MethodGet, "panel/api/nodes", nil, &out); err != nil {
+	if err := c.doJSON(ctx, http.MethodGet, "panel/api/nodes/list", nil, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+// GetNode fetches a single cluster node by its numeric id
+// (GET /panel/api/nodes/:id). Used by the threexui_node resource for
+// read-after-create and import. Returns ErrNotFound when the node does not
+// exist (central panel responds 404 / error envelope).
+func (c *Client) GetNode(ctx context.Context, id int) (*Node, error) {
+	if id == 0 {
+		return nil, errors.New("node id is required")
+	}
+	var out Node
+	if err := c.doJSON(ctx, http.MethodGet, fmt.Sprintf("panel/api/nodes/get/%d", id), nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateNode registers a remote 3x-ui panel as a cluster node on the central
+// panel (POST /panel/api/nodes/add). The central panel probes the node for
+// reachability (ensureReachable) before persisting it, so the node's web API
+// must be reachable from the central panel during apply. Returns the created
+// node (the controller echoes back the bound model.Node).
+func (c *Client) CreateNode(ctx context.Context, n *Node) (*Node, error) {
+	if n == nil {
+		return nil, errors.New("node is nil")
+	}
+	var out Node
+	if err := c.doForm(ctx, http.MethodPost, "panel/api/nodes/add", nodeToForm(n), &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// nodeToForm builds the application/x-www-form-urlencoded body for node
+// create/update, mirroring the form tags on model.Node in 3x-ui. inboundTags
+// is serialized to a JSON string (gorm json serializer on the upstream side).
+func nodeToForm(in *Node) url.Values {
+	form := url.Values{}
+	if in == nil {
+		return form
+	}
+	form.Set("name", in.Name)
+	form.Set("remark", in.Remark)
+	if in.Scheme != "" {
+		form.Set("scheme", in.Scheme)
+	}
+	form.Set("address", in.Address)
+	form.Set("port", strconv.Itoa(in.Port))
+	if in.BasePath != "" {
+		form.Set("basePath", in.BasePath)
+	}
+	form.Set("apiToken", in.ApiToken)
+	form.Set("enable", strconv.FormatBool(in.Enable))
+	form.Set("allowPrivateAddress", strconv.FormatBool(in.AllowPrivateAddress))
+	if in.TlsVerifyMode != "" {
+		form.Set("tlsVerifyMode", in.TlsVerifyMode)
+	}
+	if in.PinnedCertSha256 != "" {
+		form.Set("pinnedCertSha256", in.PinnedCertSha256)
+	}
+	if in.InboundSyncMode != "" {
+		form.Set("inboundSyncMode", in.InboundSyncMode)
+	}
+	tags := in.InboundTags
+	if tags == nil {
+		tags = []string{}
+	}
+	if b, err := json.Marshal(tags); err == nil {
+		form.Set("inboundTags", string(b))
+	}
+	if in.OutboundTag != "" {
+		form.Set("outboundTag", in.OutboundTag)
+	}
+	return form
 }
 
 func (c *Client) AddInboundClient(ctx context.Context, inboundID int, client map[string]any) error {
@@ -1514,4 +1588,16 @@ func isHTTPNotFound(err error) bool {
 		return true
 	}
 	return false
+}
+
+// isAPIRecordNotFound reports whether the panel reported a missing record.
+// 3x-ui handlers wrap gorm errors into an HTTP 200 success:false envelope
+// (util.go jsonMsgObj), so a missing node surfaces as a request-failed error
+// whose message contains the gorm "record not found" text — not as HTTP 404.
+func isAPIRecordNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "record not found") || strings.Contains(msg, "no rows")
 }
