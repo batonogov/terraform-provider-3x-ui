@@ -157,7 +157,7 @@ func dsHandler(w http.ResponseWriter, r *http.Request) {
 
 func TestNodesDataSource_Read(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/panel/api/nodes" {
+		if r.URL.Path == "/panel/api/nodes/list" {
 			w.Write(okResponse([]any{
 				map[string]any{
 					"id":         1,
@@ -202,7 +202,7 @@ func TestNodesDataSource_Read(t *testing.T) {
 
 func TestNodesDataSource_Read_Empty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/panel/api/nodes" {
+		if r.URL.Path == "/panel/api/nodes/list" {
 			w.Write(okResponse([]any{}))
 			return
 		}
@@ -231,7 +231,7 @@ func TestNodesDataSource_Read_Empty(t *testing.T) {
 
 func TestNodesDataSource_Read_Error(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/panel/api/nodes" {
+		if r.URL.Path == "/panel/api/nodes/list" {
 			w.Write(failResponse("boom"))
 			return
 		}

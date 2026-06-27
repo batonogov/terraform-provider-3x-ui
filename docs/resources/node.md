@@ -7,7 +7,7 @@ description: |-
 
 # threexui_node (Resource)
 
-Manages a remote 3x-ui panel registered as a cluster node on the central panel. Wraps the 3x-ui multi-node API (`/panel/api/nodes`), available since 3x-ui v3.0.2.
+Manages a remote 3x-ui panel registered as a cluster node on the central panel. Wraps the 3x-ui multi-node API (`/panel/api/nodes/*`), available since 3x-ui v3.0.2.
 
 > **Reachability constraint:** The central panel probes the node for reachability (`ensureReachable`) during create/update before persisting it. The node's web API **must be reachable from the central panel at apply time**, otherwise the create/update fails. There is no way to bypass this from the provider — it is inherent to the 3x-ui server flow.
 >

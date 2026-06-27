@@ -90,8 +90,11 @@ func (r *NodeResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 
 	got, err := r.client.GetNode(ctx, id)
 	if err != nil {
-		if isHTTPNotFound(err) {
-			// Node was deleted out-of-band; drop it from state.
+		// The panel signals a missing node with HTTP 200 + success:false
+		// carrying a gorm "record not found" message, not HTTP 404
+		// (controller/node.go get → jsonMsg). Treat that as out-of-band
+		// deletion and drop the resource from state.
+		if isAPIRecordNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}

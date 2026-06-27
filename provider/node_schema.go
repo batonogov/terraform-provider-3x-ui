@@ -3,9 +3,10 @@ package provider
 import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -180,9 +181,15 @@ func nodeResourceSchema() schema.Schema {
 			"panel_version":  computedString("3x-ui panel version reported by the node."),
 			"cpu_pct": schema.Float64Attribute{
 				Computed: true,
+				PlanModifiers: []planmodifier.Float64{
+					float64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"mem_pct": schema.Float64Attribute{
 				Computed: true,
+				PlanModifiers: []planmodifier.Float64{
+					float64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"uptime_secs":     computedInt64("Node uptime in seconds."),
 			"net_up":          computedInt64("Network upload bytes."),
@@ -233,8 +240,8 @@ func computedBool(desc string) schema.BoolAttribute {
 	return schema.BoolAttribute{
 		Computed:    true,
 		Description: desc,
+		PlanModifiers: []planmodifier.Bool{
+			boolplanmodifier.UseStateForUnknown(),
+		},
 	}
 }
-
-// (path retained for future ConfigValidators; see G6 in .pi/m2-contract.md)
-var _ = path.Root

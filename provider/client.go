@@ -573,7 +573,7 @@ func (c *Client) GetInbounds(ctx context.Context) ([]Inbound, error) {
 // fallback path, so no API-surface auto-detection is needed.
 func (c *Client) GetNodes(ctx context.Context) ([]Node, error) {
 	var out []Node
-	if err := c.doJSON(ctx, http.MethodGet, "panel/api/nodes", nil, &out); err != nil {
+	if err := c.doJSON(ctx, http.MethodGet, "panel/api/nodes/list", nil, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -588,14 +588,14 @@ func (c *Client) GetNode(ctx context.Context, id int) (*Node, error) {
 		return nil, errors.New("node id is required")
 	}
 	var out Node
-	if err := c.doJSON(ctx, http.MethodGet, fmt.Sprintf("panel/api/nodes/%d", id), nil, &out); err != nil {
+	if err := c.doJSON(ctx, http.MethodGet, fmt.Sprintf("panel/api/nodes/get/%d", id), nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
 // CreateNode registers a remote 3x-ui panel as a cluster node on the central
-// panel (POST /panel/api/nodes). The central panel probes the node for
+// panel (POST /panel/api/nodes/add). The central panel probes the node for
 // reachability (ensureReachable) before persisting it, so the node's web API
 // must be reachable from the central panel during apply. Returns the created
 // node (the controller echoes back the bound model.Node).
@@ -604,7 +604,7 @@ func (c *Client) CreateNode(ctx context.Context, n *Node) (*Node, error) {
 		return nil, errors.New("node is nil")
 	}
 	var out Node
-	if err := c.doForm(ctx, http.MethodPost, "panel/api/nodes", nodeToForm(n), &out); err != nil {
+	if err := c.doForm(ctx, http.MethodPost, "panel/api/nodes/add", nodeToForm(n), &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -1588,4 +1588,16 @@ func isHTTPNotFound(err error) bool {
 		return true
 	}
 	return false
+}
+
+// isAPIRecordNotFound reports whether the panel reported a missing record.
+// 3x-ui handlers wrap gorm errors into an HTTP 200 success:false envelope
+// (util.go jsonMsgObj), so a missing node surfaces as a request-failed error
+// whose message contains the gorm "record not found" text — not as HTTP 404.
+func isAPIRecordNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "record not found") || strings.Contains(msg, "no rows")
 }

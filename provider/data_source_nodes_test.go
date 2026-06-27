@@ -8,7 +8,7 @@ import (
 )
 
 // TestGetNodes verifies the client decodes the 3x-ui multi-node tree
-// (GET /panel/api/nodes), including the managed fields and a transitive
+// (GET /panel/api/nodes/list), including the managed fields and a transitive
 // sub-node (read-only projection surfaced from a downstream panel).
 func TestGetNodes(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -17,7 +17,7 @@ func TestGetNodes(t *testing.T) {
 			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
 			w.Write(okResponse(nil))
 			return
-		case "/panel/api/nodes":
+		case "/panel/api/nodes/list":
 			// A direct node plus a transitive sub-node (Id == 0, read-only).
 			w.Write(okResponse([]any{
 				map[string]any{
@@ -108,7 +108,7 @@ func TestGetNodesEmpty(t *testing.T) {
 			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
 			w.Write(okResponse(nil))
 			return
-		case "/panel/api/nodes":
+		case "/panel/api/nodes/list":
 			w.Write(okResponse([]any{}))
 			return
 		default:

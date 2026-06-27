@@ -109,8 +109,10 @@ func TestNodeResource_Read_RemovesOnNotFound(t *testing.T) {
 			w.Write(okResponse(nil))
 			return
 		}
-		if r.URL.Path == "/panel/api/nodes/42" {
-			w.WriteHeader(http.StatusNotFound)
+		// The panel signals a missing node with HTTP 200 + success:false carrying
+		// a gorm "record not found" message — NOT HTTP 404 (util.go jsonMsgObj).
+		if r.URL.Path == "/panel/api/nodes/get/42" {
+			w.Write(failResponse("obtain (record not found)"))
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -119,7 +121,7 @@ func TestNodeResource_Read_RemovesOnNotFound(t *testing.T) {
 
 	r := &NodeResource{client: newTestClient(t, srv.URL)}
 
-	// State carries an id pointing at a node the panel reports as 404.
+	// State carries an id pointing at a node the panel reports as missing.
 	state := nodeResourceReadState(t, r, "42")
 	resp := newNodeResourceReadResponse(t, r)
 	r.Read(context.Background(), resource.ReadRequest{State: state}, &resp)
@@ -248,7 +250,7 @@ func TestCreateNode(t *testing.T) {
 			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
 			w.Write(okResponse(nil))
 			return
-		case "/panel/api/nodes":
+		case "/panel/api/nodes/add":
 			r.ParseForm()
 			receivedForm = r.Form.Encode()
 			w.Write(okResponse(map[string]any{
@@ -304,7 +306,7 @@ func TestGetNode(t *testing.T) {
 			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
 			w.Write(okResponse(nil))
 			return
-		case "/panel/api/nodes/7":
+		case "/panel/api/nodes/get/7":
 			w.Write(okResponse(map[string]any{
 				"id": 7, "name": "de-fra-1", "address": "node1.example.com",
 				"port": 2053, "status": "online", "guid": "g-7",
@@ -405,7 +407,7 @@ func TestNodeResource_Create(t *testing.T) {
 			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
 			w.Write(okResponse(nil))
 			return
-		case "/panel/api/nodes":
+		case "/panel/api/nodes/add":
 			r.ParseForm()
 			if r.Form.Get("name") != "de-fra-1" {
 				w.Write(failResponse("bad name"))
@@ -416,7 +418,7 @@ func TestNodeResource_Create(t *testing.T) {
 				"port": 2053, "enable": true,
 			}))
 			return
-		case "/panel/api/nodes/7":
+		case "/panel/api/nodes/get/7":
 			w.Write(okResponse(map[string]any{
 				"id": 7, "name": "de-fra-1", "address": "node1.example.com",
 				"port": 2053, "enable": true, "status": "online", "guid": "g-7",
@@ -464,7 +466,7 @@ func TestNodeResource_Create_ReachabilityError(t *testing.T) {
 			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
 			w.Write(okResponse(nil))
 			return
-		case "/panel/api/nodes":
+		case "/panel/api/nodes/add":
 			w.Write(failResponse("node unreachable"))
 			return
 		default:
@@ -557,7 +559,7 @@ func TestNodeResource_Update_Placeholder(t *testing.T) {
 			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
 			w.Write(okResponse(nil))
 			return
-		case "/panel/api/nodes/7":
+		case "/panel/api/nodes/get/7":
 			w.Write(okResponse(map[string]any{
 				"id": 7, "name": "de-fra-1", "address": "node1.example.com",
 				"port": 2053, "enable": true,

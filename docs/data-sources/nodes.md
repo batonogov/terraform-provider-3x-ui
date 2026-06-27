@@ -7,7 +7,7 @@ description: |-
 
 # threexui_nodes (Data Source)
 
-Retrieves the cluster node tree registered with the central 3x-ui panel as a JSON string. Corresponds to `GET /panel/api/nodes` (the 3x-ui multi-node/cluster surface, available since 3x-ui v3.0.2).
+Retrieves the cluster node tree registered with the central 3x-ui panel as a JSON string. Corresponds to `GET /panel/api/nodes/list` (the 3x-ui multi-node/cluster surface, available since 3x-ui v3.0.2).
 
 ## Example Usage
 

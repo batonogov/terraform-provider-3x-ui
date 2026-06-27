@@ -171,15 +171,17 @@ above for the `password` / `password_wo` lifecycle.
 ### Cluster node (`resource_node.go`)
 
 `threexui_node` — manages a remote 3x-ui panel registered as a cluster node
-(multi-node surface, `/panel/api/nodes`; available since v3.0.2, no legacy
-fallback). Create does a form-POST `/panel/api/nodes`; the **central panel
+(multi-node surface, `/panel/api/nodes/*`; available since v3.0.2, no legacy
+fallback). Create does a form-POST `/panel/api/nodes/add`; the **central panel
 probes the node for reachability (`ensureReachable`) before persisting it**, so
 the node's web API must be reachable from the central panel at apply time —
 there is no provider-side flag to bypass this (decided in #315). Read does
-`GET /panel/api/nodes/:id` and treats HTTP 404 as remove-from-state. Import is
+`GET /panel/api/nodes/get/:id` and treats a missing node (the panel signals
+this as HTTP 200 + `success:false` with a gorm "record not found" message,
+NOT HTTP 404 — see `util.go jsonMsgObj`) as remove-from-state. Import is
 by numeric id (`ImportStatePassthroughID`). **Update and Delete are M2
 placeholders** (warning, no server change); real update (form-POST
-`/panel/api/nodes/:id` + Xray restart on `outbound_tag` change — the server
+`/panel/api/nodes/update/:id` + Xray restart on `outbound_tag` change — the server
 already restarts on `outbound_tag` change per `controller/node.go:180-181`, so
 the provider only needs to POST) and real delete (DELETE, which 3x-ui refuses
 when inbounds are still attached — DB-002, #314 R3) are M3 (#318). `api_token`
@@ -219,7 +221,7 @@ Eight data sources: `inbounds`, `nodes`, `server_status`, `xray_versions`, `xray
 that return the raw panel payload — none accept filter arguments. JSON attrs that
 contain secrets (UUIDs, private keys) must be marked `Sensitive: true`.
 
-`threexui_nodes` wraps `GET /panel/api/nodes` (3x-ui multi-node/cluster surface,
+`threexui_nodes` wraps `GET /panel/api/nodes/list` (3x-ui multi-node/cluster surface,
 available since v3.0.2; no legacy fallback). The response is a **node tree**
 including transitive sub-nodes (read-only projections with `Id == 0`,
 `transitive == true`). The payload carries each node's `apiToken` and
