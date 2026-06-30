@@ -1010,6 +1010,7 @@ type PanelGeneralModel struct {
 	LDAPHost                    types.String `tfsdk:"ldap_host"`
 	LDAPPort                    types.Int64  `tfsdk:"ldap_port"`
 	LDAPUseTLS                  types.Bool   `tfsdk:"ldap_use_tls"`
+	LDAPInsecureSkipVerify      types.Bool   `tfsdk:"ldap_insecure_skip_verify"`
 	LDAPBindDN                  types.String `tfsdk:"ldap_bind_dn"`
 	LDAPPassword                types.String `tfsdk:"ldap_password"`
 	LDAPPasswordWO              types.String `tfsdk:"ldap_password_wo"`
@@ -1137,6 +1138,11 @@ func panelGeneralSchema() schema.Schema {
 			},
 			"ldap_use_tls": schema.BoolAttribute{
 				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"ldap_insecure_skip_verify": schema.BoolAttribute{
+				Optional: true, Computed: true,
+				Description:   "Skip verification of the LDAP server's TLS certificate (3x-ui v3.4.2+; ignored by older panels).",
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"ldap_bind_dn": schema.StringAttribute{
@@ -1313,6 +1319,9 @@ func expandPanelGeneral(m *PanelGeneralModel) map[string]any {
 	if !m.LDAPUseTLS.IsNull() && !m.LDAPUseTLS.IsUnknown() {
 		payload["ldapUseTLS"] = m.LDAPUseTLS.ValueBool()
 	}
+	if !m.LDAPInsecureSkipVerify.IsNull() && !m.LDAPInsecureSkipVerify.IsUnknown() {
+		payload["ldapInsecureSkipVerify"] = m.LDAPInsecureSkipVerify.ValueBool()
+	}
 	if !m.LDAPBindDN.IsNull() && !m.LDAPBindDN.IsUnknown() {
 		payload["ldapBindDN"] = m.LDAPBindDN.ValueString()
 	}
@@ -1441,6 +1450,9 @@ func flattenPanelGeneral(in map[string]any) *PanelGeneralModel {
 	}
 	if v, ok := in["ldapUseTLS"]; ok {
 		m.LDAPUseTLS = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["ldapInsecureSkipVerify"]; ok {
+		m.LDAPInsecureSkipVerify = types.BoolValue(boolValue(v))
 	}
 	if v, ok := in["ldapBindDN"]; ok {
 		m.LDAPBindDN = types.StringValue(stringValue(v))

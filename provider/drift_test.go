@@ -826,9 +826,20 @@ func TestDriftClientFields(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	checkMissing(t, upstream, providerKnown, nil,
+	// The Client struct gained 5 WireGuard multi-client fields in v3.4.2
+	// (privateKey/publicKey/allowedIPs/preSharedKey/keepAlive). They are not
+	// exposed on the generic threexui_inbound_client resource (which RMWs the
+	// shared settings.clients[]); instead they are surfaced on the WireGuard
+	// inbound via wireguard_settings.peer[] and wireguard_settings.clients[]
+	// (InboundWireguardPeerModel / InboundWireguardClientModel). Kept here so
+	// the generic-client drift gate stays green.
+	clientIntentionallySkipped := map[string]bool{
+		"privateKey": true, "publicKey": true, "allowedIPs": true,
+		"preSharedKey": true, "keepAlive": true,
+	}
+	checkMissing(t, upstream, providerKnown, clientIntentionallySkipped,
 		"upstream Client struct has json fields not known to provider: %v")
-	checkRemoved(t, providerKnown, upstreamSet, nil,
+	checkRemoved(t, providerKnown, upstreamSet, clientIntentionallySkipped,
 		"provider knows Client fields not in upstream: %v")
 }
 
@@ -851,7 +862,7 @@ func TestDriftAllSettingFields(t *testing.T) {
 		"externalTrafficInformURI": true, "restartXrayOnClientDisable": true,
 		// LDAP
 		"ldapEnable": true, "ldapHost": true, "ldapPort": true,
-		"ldapUseTLS": true, "ldapBindDN": true, "ldapPassword": true,
+		"ldapUseTLS": true, "ldapInsecureSkipVerify": true, "ldapBindDN": true, "ldapPassword": true,
 		"ldapBaseDN": true, "ldapUserFilter": true, "ldapUserAttr": true,
 		"ldapVlessField": true, "ldapSyncCron": true,
 		"ldapFlagField": true, "ldapTruthyValues": true, "ldapInvertFlag": true,
