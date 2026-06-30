@@ -1277,7 +1277,7 @@ func flattenInboundWireguardPeersToModel(list []any) []InboundWireguardPeerModel
 // wireguard_settings Blocks map readable; the peer block stays inline.
 func wireguardClientsBlock() schema.ListNestedBlock {
 	return schema.ListNestedBlock{
-		Description: "WireGuard multi-client peers (3x-ui v3.4.2+). Each entry is one client device the server accepts, with its own keypair and traffic limits. Absent/empty on older panels.",
+		Description: "WireGuard multi-client peers (3x-ui v3.4.2+). Each entry is one client device the server accepts, with its own keypair and traffic limits. Absent/empty on older panels. Use EITHER this `clients` block OR the legacy `peer` block for an inbound, not both — the panel treats them as separate models and populating both yields undefined behavior.",
 		NestedObject: schema.NestedBlockObject{
 			Attributes: map[string]schema.Attribute{
 				"private_key": schema.StringAttribute{
@@ -1316,6 +1316,7 @@ func wireguardClientsBlock() schema.ListNestedBlock {
 				},
 				"email": schema.StringAttribute{
 					Optional: true, Computed: true,
+					Description: "Client email identifier. The panel requires a non-empty unique email (it keys traffic counters on it; an empty value is rejected at runtime), so set this even though it is Optional in the schema.",
 					PlanModifiers: []planmodifier.String{
 						stringplanmodifier.UseStateForUnknown(),
 					},
@@ -1364,6 +1365,7 @@ func wireguardClientsBlock() schema.ListNestedBlock {
 				},
 				"reset": schema.Int64Attribute{
 					Optional: true, Computed: true,
+					Description: "Traffic-counter reset period in days (0 = no periodic reset).",
 					PlanModifiers: []planmodifier.Int64{
 						int64planmodifier.UseStateForUnknown(),
 					},
