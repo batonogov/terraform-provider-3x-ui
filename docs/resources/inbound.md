@@ -231,6 +231,21 @@ Use the block matching your `protocol`. Only one should be specified.
   - `pre_shared_key` (Optional, String)
   - `allowed_ips` (Optional, List of String)
   - `keep_alive` (Optional, Number)
+- `clients` (Optional, Block List) - WireGuard multi-client peers (3x-ui v3.4.2+). Absent/empty on older panels. Each entry is one client device the server accepts, with its own keypair and traffic limits.
+  - `private_key` (Optional, String, Sensitive)
+  - `public_key` (Optional, String)
+  - `pre_shared_key` (Optional, String, Sensitive)
+  - `allowed_ips` (Optional, List of String)
+  - `keep_alive` (Optional, Number)
+  - `email` (Optional, String)
+  - `limit_ip` (Optional, Number)
+  - `total_gb` (Optional, Number)
+  - `expiry_time` (Optional, Number)
+  - `enable` (Optional, Boolean)
+  - `tg_id` (Optional, Number)
+  - `sub_id` (Optional, String)
+  - `comment` (Optional, String)
+  - `reset` (Optional, Number)
 
 #### `dokodemo_settings`
 
