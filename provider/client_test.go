@@ -677,6 +677,112 @@ func TestUpdateUserDoesNotRetryOn5xx(t *testing.T) {
 	}
 }
 
+// TestUpdateUserSendsTwoFactorCode verifies that UpdateUser includes the
+// twoFactorCode field in its payload when the provider has a 2FA code
+// configured. 3x-ui v3.4.2 requires this on /setting/updateUser whenever 2FA
+// is enabled; older panels ignore the extra key.
+func TestUpdateUserSendsTwoFactorCode(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/panel/api/setting/all" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if r.URL.Path != "/panel/setting/updateUser" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		got = body
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	client.twoFactor = "123456"
+	if err := client.UpdateUser(context.Background(), "admin", "admin", "newuser", "newpass"); err != nil {
+		t.Fatalf("UpdateUser error: %v", err)
+	}
+	if got["twoFactorCode"] != "123456" {
+		t.Fatalf("expected twoFactorCode=123456 in payload, got: %v", got["twoFactorCode"])
+	}
+	if got["newPassword"] != "newpass" {
+		t.Fatalf("expected newPassword=newpass, got: %v", got["newPassword"])
+	}
+}
+
+// TestUpdateUserOmitsTwoFactorCodeWhenUnset verifies the payload omits
+// twoFactorCode entirely when no 2FA code is configured (backward-compatible
+// for panels/users without 2FA).
+func TestUpdateUserOmitsTwoFactorCodeWhenUnset(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/panel/api/setting/all" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if r.URL.Path != "/panel/setting/updateUser" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		got = body
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	// twoFactor is intentionally left empty.
+	if err := client.UpdateUser(context.Background(), "admin", "admin", "newuser", "newpass"); err != nil {
+		t.Fatalf("UpdateUser error: %v", err)
+	}
+	if _, has := got["twoFactorCode"]; has {
+		t.Fatalf("expected twoFactorCode absent when unset, got: %v", got["twoFactorCode"])
+	}
+}
+
+// TestUpdateSettingsSendsTwoFactorCodeNoMutation verifies UpdateSettings adds
+// twoFactorCode to the on-the-wire payload (needed on v3.4.2 to disable 2FA via
+// /setting/update) WITHOUT mutating the caller's settings map.
+func TestUpdateSettingsSendsTwoFactorCodeNoMutation(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/panel/api/setting/all" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if r.URL.Path != "/panel/setting/update" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		got = body
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	client.twoFactor = "654321"
+	settings := map[string]any{"webPort": 2053}
+	if err := client.UpdateSettings(context.Background(), settings); err != nil {
+		t.Fatalf("UpdateSettings error: %v", err)
+	}
+	// On-wire payload carries the code.
+	if got["twoFactorCode"] != "654321" {
+		t.Fatalf("expected twoFactorCode=654321 in payload, got: %v", got["twoFactorCode"])
+	}
+	if got["webPort"] != float64(2053) {
+		t.Fatalf("expected webPort=2053 preserved in payload, got: %v", got["webPort"])
+	}
+	// Caller's map must NOT be mutated (it may feed plan/state).
+	if _, polluted := settings["twoFactorCode"]; polluted {
+		t.Fatalf("caller settings map was mutated with twoFactorCode: %v", settings)
+	}
+}
+
 func TestUpdateInboundRetryRespectsCtxCancel(t *testing.T) {
 	// Context cancellation during the backoff must short-circuit the retry,
 	// not block the caller.

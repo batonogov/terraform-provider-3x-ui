@@ -407,6 +407,46 @@ func TestPanelOutboundExpandFlatten(t *testing.T) {
 	})
 }
 
+func TestLDAPInsecureSkipVerifyExpandFlatten(t *testing.T) {
+	t.Run("set true", func(t *testing.T) {
+		m := &PanelGeneralModel{
+			LDAPInsecureSkipVerify: types.BoolValue(true),
+		}
+		expanded := expandPanelGeneral(m)
+		if expanded["ldapInsecureSkipVerify"] != true {
+			t.Fatalf("expected ldapInsecureSkipVerify=true, got %v", expanded["ldapInsecureSkipVerify"])
+		}
+	})
+
+	t.Run("null omits key", func(t *testing.T) {
+		m := &PanelGeneralModel{
+			LDAPInsecureSkipVerify: types.BoolNull(),
+		}
+		expanded := expandPanelGeneral(m)
+		if _, ok := expanded["ldapInsecureSkipVerify"]; ok {
+			t.Fatalf("expected no ldapInsecureSkipVerify key, got %v", expanded["ldapInsecureSkipVerify"])
+		}
+	})
+
+	t.Run("flatten with value", func(t *testing.T) {
+		in := map[string]any{"ldapInsecureSkipVerify": true}
+		m := flattenPanelGeneral(in)
+		if !m.LDAPInsecureSkipVerify.ValueBool() {
+			t.Fatalf("expected true, got %v", m.LDAPInsecureSkipVerify)
+		}
+	})
+
+	t.Run("flatten missing key stays null", func(t *testing.T) {
+		// Old panels (v3.4.1 and earlier) never return this key — the
+		// Optional+Computed attr must stay null until the panel sends it.
+		in := map[string]any{}
+		m := flattenPanelGeneral(in)
+		if !m.LDAPInsecureSkipVerify.IsNull() {
+			t.Fatalf("expected null for missing key on old panels, got %v", m.LDAPInsecureSkipVerify)
+		}
+	})
+}
+
 func TestPreserveSettingSecret_ConfiguredEmptyObservedNonEmpty(t *testing.T) {
 	got := preserveSettingSecret(types.StringValue("existing-secret"), types.StringValue(""))
 	if got.ValueString() != "" {

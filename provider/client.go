@@ -995,6 +995,13 @@ func (c *Client) UpdateUser(ctx context.Context, oldUsername, oldPassword, newUs
 		"newUsername": newUsername,
 		"newPassword": newPassword,
 	}
+	// 3x-ui v3.4.2 requires a fresh twoFactorCode on /setting/updateUser
+	// whenever 2FA is enabled. Older panels ignore the extra field (gin's
+	// JSON binder does not reject unknown keys), so sending it unconditionally
+	// when a code is configured is backward-compatible.
+	if c.twoFactor != "" {
+		payload["twoFactorCode"] = c.twoFactor
+	}
 	err := c.withSettingsFallback(ctx, func() error {
 		return c.doJSON(ctx, http.MethodPost, c.settingPath(ctx, "updateUser"), payload, nil)
 	})
@@ -1018,8 +1025,22 @@ func (c *Client) UpdateSettings(ctx context.Context, settings map[string]any) er
 	if settings == nil {
 		return errors.New("settings payload is required")
 	}
+	payload := settings
+	// 3x-ui v3.4.2 requires a fresh twoFactorCode on /setting/update when
+	// disabling 2FA (updateSettingForm embeds AllSetting + TwoFactorCode;
+	// the controller only verifies the code on the disable-2FA path).
+	// Older panels bind into AllSetting and ignore the extra key, so adding
+	// it when a code is configured is backward-compatible. Copy to avoid
+	// mutating the caller's map (which may feed plan/state).
+	if c.twoFactor != "" {
+		payload = make(map[string]any, len(settings)+1)
+		for k, v := range settings {
+			payload[k] = v
+		}
+		payload["twoFactorCode"] = c.twoFactor
+	}
 	return c.withSettingsFallback(ctx, func() error {
-		return c.doJSONRetryable(ctx, http.MethodPost, c.settingPath(ctx, "update"), settings, nil)
+		return c.doJSONRetryable(ctx, http.MethodPost, c.settingPath(ctx, "update"), payload, nil)
 	})
 }
 

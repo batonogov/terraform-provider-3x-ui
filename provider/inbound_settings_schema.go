@@ -48,12 +48,13 @@ type InboundSocksSettingsModel struct {
 }
 
 type InboundWireguardSettingsModel struct {
-	MTU         types.List                  `tfsdk:"mtu"` // list of int64
-	SecretKey   types.String                `tfsdk:"secret_key"`
-	NoKernelTun types.Bool                  `tfsdk:"no_kernel_tun"`
-	Gateway     types.List                  `tfsdk:"gateway"` // list of string
-	DNS         types.List                  `tfsdk:"dns"`     // list of string
-	Peer        []InboundWireguardPeerModel `tfsdk:"peer"`
+	MTU         types.List                    `tfsdk:"mtu"` // list of int64
+	SecretKey   types.String                  `tfsdk:"secret_key"`
+	NoKernelTun types.Bool                    `tfsdk:"no_kernel_tun"`
+	Gateway     types.List                    `tfsdk:"gateway"` // list of string
+	DNS         types.List                    `tfsdk:"dns"`     // list of string
+	Peer        []InboundWireguardPeerModel   `tfsdk:"peer"`
+	Clients     []InboundWireguardClientModel `tfsdk:"clients"`
 }
 
 type InboundDokodemoSettingsModel struct {
@@ -99,6 +100,29 @@ type InboundWireguardPeerModel struct {
 	PreSharedKey types.String `tfsdk:"pre_shared_key"`
 	AllowedIPs   types.List   `tfsdk:"allowed_ips"` // list of string
 	KeepAlive    types.Int64  `tfsdk:"keep_alive"`
+}
+
+// InboundWireguardClientModel is one WireGuard inbound client under the
+// multi-client model introduced in 3x-ui v3.4.2 (wireguard_settings.clients[]).
+// Each client is a peer the server accepts; the panel stores the keypair so it
+// can render a full .conf/QR. Unlike InboundWireguardPeerModel (which uses the
+// legacy snake_case settings keys), the multi-client array is serialised with
+// camelCase JSON keys to match the upstream WireguardClient zod schema.
+type InboundWireguardClientModel struct {
+	PrivateKey   types.String `tfsdk:"private_key"`
+	PublicKey    types.String `tfsdk:"public_key"`
+	PreSharedKey types.String `tfsdk:"pre_shared_key"`
+	AllowedIPs   types.List   `tfsdk:"allowed_ips"` // list of string
+	KeepAlive    types.Int64  `tfsdk:"keep_alive"`
+	Email        types.String `tfsdk:"email"`
+	LimitIP      types.Int64  `tfsdk:"limit_ip"`
+	TotalGB      types.Int64  `tfsdk:"total_gb"`
+	ExpiryTime   types.Int64  `tfsdk:"expiry_time"`
+	Enable       types.Bool   `tfsdk:"enable"`
+	TgID         types.Int64  `tfsdk:"tg_id"`
+	SubID        types.String `tfsdk:"sub_id"`
+	Comment      types.String `tfsdk:"comment"`
+	Reset        types.Int64  `tfsdk:"reset"`
 }
 
 // ---------------------------------------------------------------------------
@@ -365,6 +389,7 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 						},
 					},
 				},
+				"clients": wireguardClientsBlock(),
 			},
 		},
 		"dokodemo_settings": schema.SingleNestedBlock{
@@ -660,6 +685,9 @@ func expandWireguardInboundSettings(m *InboundWireguardSettingsModel) map[string
 	}
 	if len(m.Peer) > 0 {
 		out["peers"] = expandWireguardPeersFromModel(m.Peer)
+	}
+	if len(m.Clients) > 0 {
+		out["clients"] = expandWireguardClientsFromModel(m.Clients)
 	}
 	return out
 }
@@ -1036,6 +1064,9 @@ func flattenWireguardInboundSettings(data map[string]any) *InboundWireguardSetti
 	if v, ok := data["peers"].([]any); ok && len(v) > 0 {
 		m.Peer = flattenInboundWireguardPeersToModel(v)
 	}
+	if v, ok := data["clients"].([]any); ok && len(v) > 0 {
+		m.Clients = flattenInboundWireguardClientsToModel(v)
+	}
 	return m
 }
 
@@ -1237,6 +1268,251 @@ func flattenInboundWireguardPeersToModel(list []any) []InboundWireguardPeerModel
 			p.KeepAlive = types.Int64Null()
 		}
 		out = append(out, p)
+	}
+	return out
+}
+
+// wireguardClientsBlock returns the schema.ListNestedBlock for the WireGuard
+// multi-client array (3x-ui v3.4.2+). Defined as a helper to keep the
+// wireguard_settings Blocks map readable; the peer block stays inline.
+func wireguardClientsBlock() schema.ListNestedBlock {
+	return schema.ListNestedBlock{
+		Description: "WireGuard multi-client peers (3x-ui v3.4.2+). Each entry is one client device the server accepts, with its own keypair and traffic limits. Absent/empty on older panels. Use EITHER this `clients` block OR the legacy `peer` block for an inbound, not both — the panel treats them as separate models and populating both yields undefined behavior.",
+		NestedObject: schema.NestedBlockObject{
+			Attributes: map[string]schema.Attribute{
+				"private_key": schema.StringAttribute{
+					Optional: true, Computed: true, Sensitive: true,
+					Description: "Client private key (panel renders configs from it; generated server-side when absent).",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"public_key": schema.StringAttribute{
+					Optional: true, Computed: true,
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"pre_shared_key": schema.StringAttribute{
+					Optional: true, Computed: true, Sensitive: true,
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"allowed_ips": schema.ListAttribute{
+					Optional:    true,
+					Computed:    true,
+					ElementType: types.StringType,
+					Description: "Client tunnel addresses (allocated server-side when empty).",
+					PlanModifiers: []planmodifier.List{
+						listplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"keep_alive": schema.Int64Attribute{
+					Optional: true, Computed: true,
+					PlanModifiers: []planmodifier.Int64{
+						int64planmodifier.UseStateForUnknown(),
+					},
+				},
+				"email": schema.StringAttribute{
+					Optional: true, Computed: true,
+					Description: "Client email identifier. The panel requires a non-empty unique email (it keys traffic counters on it; an empty value is rejected at runtime), so set this even though it is Optional in the schema.",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"limit_ip": schema.Int64Attribute{
+					Optional: true, Computed: true,
+					PlanModifiers: []planmodifier.Int64{
+						int64planmodifier.UseStateForUnknown(),
+					},
+				},
+				"total_gb": schema.Int64Attribute{
+					Optional: true, Computed: true,
+					PlanModifiers: []planmodifier.Int64{
+						int64planmodifier.UseStateForUnknown(),
+					},
+				},
+				"expiry_time": schema.Int64Attribute{
+					Optional: true, Computed: true,
+					PlanModifiers: []planmodifier.Int64{
+						int64planmodifier.UseStateForUnknown(),
+					},
+				},
+				"enable": schema.BoolAttribute{
+					Optional: true, Computed: true,
+					PlanModifiers: []planmodifier.Bool{
+						boolplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"tg_id": schema.Int64Attribute{
+					Optional: true, Computed: true,
+					PlanModifiers: []planmodifier.Int64{
+						int64planmodifier.UseStateForUnknown(),
+					},
+				},
+				"sub_id": schema.StringAttribute{
+					Optional: true, Computed: true,
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"comment": schema.StringAttribute{
+					Optional: true, Computed: true,
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"reset": schema.Int64Attribute{
+					Optional: true, Computed: true,
+					Description: "Traffic-counter reset period in days (0 = no periodic reset).",
+					PlanModifiers: []planmodifier.Int64{
+						int64planmodifier.UseStateForUnknown(),
+					},
+				},
+			},
+		},
+	}
+}
+
+// expandWireguardClientsFromModel serialises typed WG client entries to the
+// upstream camelCase JSON shape (wireguard_settings.clients[]). camelCase is
+// mandatory here, unlike the legacy peer array which uses snake_case.
+func expandWireguardClientsFromModel(list []InboundWireguardClientModel) []any {
+	out := make([]any, 0, len(list))
+	for _, c := range list {
+		entry := map[string]any{}
+		if !c.PrivateKey.IsNull() && !c.PrivateKey.IsUnknown() {
+			entry["privateKey"] = c.PrivateKey.ValueString()
+		}
+		if !c.PublicKey.IsNull() && !c.PublicKey.IsUnknown() {
+			entry["publicKey"] = c.PublicKey.ValueString()
+		}
+		if !c.PreSharedKey.IsNull() && !c.PreSharedKey.IsUnknown() {
+			entry["preSharedKey"] = c.PreSharedKey.ValueString()
+		}
+		if !c.AllowedIPs.IsNull() && !c.AllowedIPs.IsUnknown() {
+			entry["allowedIPs"] = typesListToAnySlice(c.AllowedIPs)
+		}
+		if !c.KeepAlive.IsNull() && !c.KeepAlive.IsUnknown() {
+			entry["keepAlive"] = int(c.KeepAlive.ValueInt64())
+		}
+		if !c.Email.IsNull() && !c.Email.IsUnknown() {
+			entry["email"] = c.Email.ValueString()
+		}
+		if !c.LimitIP.IsNull() && !c.LimitIP.IsUnknown() {
+			entry["limitIp"] = int(c.LimitIP.ValueInt64())
+		}
+		if !c.TotalGB.IsNull() && !c.TotalGB.IsUnknown() {
+			entry["totalGB"] = c.TotalGB.ValueInt64()
+		}
+		if !c.ExpiryTime.IsNull() && !c.ExpiryTime.IsUnknown() {
+			entry["expiryTime"] = c.ExpiryTime.ValueInt64()
+		}
+		if !c.Enable.IsNull() && !c.Enable.IsUnknown() {
+			entry["enable"] = c.Enable.ValueBool()
+		}
+		if !c.TgID.IsNull() && !c.TgID.IsUnknown() {
+			entry["tgId"] = c.TgID.ValueInt64()
+		}
+		if !c.SubID.IsNull() && !c.SubID.IsUnknown() {
+			entry["subId"] = c.SubID.ValueString()
+		}
+		if !c.Comment.IsNull() && !c.Comment.IsUnknown() {
+			entry["comment"] = c.Comment.ValueString()
+		}
+		if !c.Reset.IsNull() && !c.Reset.IsUnknown() {
+			entry["reset"] = int(c.Reset.ValueInt64())
+		}
+		if len(entry) > 0 {
+			out = append(out, entry)
+		}
+	}
+	return out
+}
+
+// flattenInboundWireguardClientsToModel parses the upstream camelCase
+// wireguard_settings.clients[] array back into typed entries. Returns nil when
+// the array is absent (old panels ≤ v3.4.1 never carry this key).
+func flattenInboundWireguardClientsToModel(list []any) []InboundWireguardClientModel {
+	out := make([]InboundWireguardClientModel, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		c := InboundWireguardClientModel{}
+		if v, ok := raw["privateKey"].(string); ok && v != "" {
+			c.PrivateKey = types.StringValue(v)
+		} else {
+			c.PrivateKey = types.StringNull()
+		}
+		if v, ok := raw["publicKey"].(string); ok && v != "" {
+			c.PublicKey = types.StringValue(v)
+		} else {
+			c.PublicKey = types.StringNull()
+		}
+		if v, ok := raw["preSharedKey"].(string); ok && v != "" {
+			c.PreSharedKey = types.StringValue(v)
+		} else {
+			c.PreSharedKey = types.StringNull()
+		}
+		if v, ok := raw["allowedIPs"]; ok {
+			c.AllowedIPs = anySliceToTypesList(v)
+		} else {
+			c.AllowedIPs = types.ListNull(types.StringType)
+		}
+		if v, ok := raw["keepAlive"]; ok {
+			c.KeepAlive = types.Int64Value(int64(intValue(v)))
+		} else {
+			c.KeepAlive = types.Int64Null()
+		}
+		if v, ok := raw["email"].(string); ok {
+			c.Email = types.StringValue(v)
+		} else {
+			c.Email = types.StringNull()
+		}
+		if v, ok := raw["limitIp"]; ok {
+			c.LimitIP = types.Int64Value(int64(intValue(v)))
+		} else {
+			c.LimitIP = types.Int64Null()
+		}
+		if v, ok := raw["totalGB"]; ok {
+			c.TotalGB = types.Int64Value(int64(intValue(v)))
+		} else {
+			c.TotalGB = types.Int64Null()
+		}
+		if v, ok := raw["expiryTime"]; ok {
+			c.ExpiryTime = types.Int64Value(int64(intValue(v)))
+		} else {
+			c.ExpiryTime = types.Int64Null()
+		}
+		if v, ok := raw["enable"]; ok {
+			c.Enable = types.BoolValue(boolValue(v))
+		} else {
+			c.Enable = types.BoolNull()
+		}
+		if v, ok := raw["tgId"]; ok {
+			c.TgID = types.Int64Value(int64(intValue(v)))
+		} else {
+			c.TgID = types.Int64Null()
+		}
+		if v, ok := raw["subId"].(string); ok {
+			c.SubID = types.StringValue(v)
+		} else {
+			c.SubID = types.StringNull()
+		}
+		if v, ok := raw["comment"].(string); ok {
+			c.Comment = types.StringValue(v)
+		} else {
+			c.Comment = types.StringNull()
+		}
+		if v, ok := raw["reset"]; ok {
+			c.Reset = types.Int64Value(int64(intValue(v)))
+		} else {
+			c.Reset = types.Int64Null()
+		}
+		out = append(out, c)
 	}
 	return out
 }

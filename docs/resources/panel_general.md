@@ -58,6 +58,7 @@ resource "threexui_panel_general" "settings" {
 - `ldap_host` (Optional, String) - LDAP server host. Default is `""`.
 - `ldap_port` (Optional, Number) - LDAP server port. Default is `389`.
 - `ldap_use_tls` (Optional, Boolean) - Use TLS for LDAP. Default is `false`.
+- `ldap_insecure_skip_verify` (Optional, Boolean) - Skip verification of the LDAP server's TLS certificate. 3x-ui v3.4.2+; ignored by older panels. Default is `false`.
 - `ldap_bind_dn` (Optional, String) - Bind DN. Default is `""`.
 - `ldap_password` (Optional, String, Sensitive) - Bind password. Default is `""`.
 - `ldap_password_wo` (Optional, String, WriteOnly) - Write-only version of `ldap_password`. Not persisted in state. Terraform 1.11+ / OpenTofu 1.11+.
