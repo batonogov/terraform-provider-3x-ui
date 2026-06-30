@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.18.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.17.0...v3.18.0) (2026-06-30)
+
+
+### Features
+
+* support 3x-ui v3.4.2 (ldap, WireGuard multi-client, 2FA) ([#324](https://github.com/batonogov/terraform-provider-threexui/issues/324)) ([5ff2ff7](https://github.com/batonogov/terraform-provider-threexui/commit/5ff2ff7f0c72e065dd5171ae67e5e0db2229b74f))
+
 ## [3.17.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.16.0...v3.17.0) (2026-06-27)
 
 
