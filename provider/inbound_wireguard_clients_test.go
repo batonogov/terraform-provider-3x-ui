@@ -123,6 +123,30 @@ func TestFlattenInboundWireguardClientsToModel(t *testing.T) {
 			t.Fatalf("expected empty slice for empty input, got %v", got)
 		}
 	})
+
+	t.Run("skips non-map entries and nulls empty optional fields", func(t *testing.T) {
+		// Covers the defensive `continue` on a malformed (non-map) array
+		// element, and the else branches that null out optional fields
+		// (publicKey, email) when the upstream payload omits or blanks them.
+		list := []any{
+			"not-a-map",      // skipped by the type assertion
+			map[string]any{}, // minimal client: every field missing/empty
+		}
+		got := flattenInboundWireguardClientsToModel(list)
+		if len(got) != 1 {
+			t.Fatalf("expected 1 client (non-map skipped), got %d", len(got))
+		}
+		c := got[0]
+		if !c.PublicKey.IsNull() {
+			t.Errorf("expected publicKey null when missing, got %q", c.PublicKey)
+		}
+		if !c.Email.IsNull() {
+			t.Errorf("expected email null when missing, got %q", c.Email)
+		}
+		if !c.PrivateKey.IsNull() {
+			t.Errorf("expected privateKey null when missing, got %q", c.PrivateKey)
+		}
+	})
 }
 
 // TestWireguardSettingsClientsRoundTrip exercises the full WG inbound settings
