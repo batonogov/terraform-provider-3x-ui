@@ -1,5 +1,5 @@
 {
-  "version": "3.4.1",
+  "version": "3.4.2",
   "protocols_go_model": [
     "http",
     "hysteria",
@@ -78,6 +78,7 @@
     "up"
   ],
   "client_fields": [
+    "allowedIPs",
     "auth",
     "comment",
     "created_at",
@@ -87,8 +88,12 @@
     "flow",
     "group",
     "id",
+    "keepAlive",
     "limitIp",
     "password",
+    "preSharedKey",
+    "privateKey",
+    "publicKey",
     "reset",
     "reverse",
     "security",
@@ -113,6 +118,7 @@
     "ldapFlagField",
     "ldapHost",
     "ldapInboundTags",
+    "ldapInsecureSkipVerify",
     "ldapInvertFlag",
     "ldapPassword",
     "ldapPort",
