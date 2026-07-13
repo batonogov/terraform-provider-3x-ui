@@ -1521,8 +1521,8 @@ func flattenInboundWireguardClientsToModel(list []any) []InboundWireguardClientM
 // JSON string -> untyped map (wraps existing flattenSettings)
 // ---------------------------------------------------------------------------
 
-func flattenSettingsToMap(settingsJSON string) (map[string]any, error) {
-	flat, err := flattenSettings(settingsJSON)
+func flattenSettingsToMap(settingsJSON string, protocol string) (map[string]any, error) {
+	flat, err := flattenSettings(settingsJSON, protocol)
 	if err != nil {
 		return nil, err
 	}

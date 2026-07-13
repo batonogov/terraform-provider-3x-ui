@@ -114,7 +114,7 @@ func TestBuildAndFlattenSettings(t *testing.T) {
 	item := map[string]any{
 		"decryption": "none",
 	}
-	settingsJSON := buildSettingsJSON(item)
+	settingsJSON := buildSettingsJSON(item, "")
 	if settingsJSON == "{}" {
 		t.Fatalf("expected settings JSON, got {}")
 	}
@@ -126,7 +126,7 @@ func TestBuildAndFlattenSettings(t *testing.T) {
 		t.Fatalf("unexpected decryption: %#v", payload["decryption"])
 	}
 
-	flattened, err := flattenSettings(`{"decryption":"none","clients":[{"id":"id1","email":"a@example.com","limitIp":2,"expiryTime":10,"enable":true}]}`)
+	flattened, err := flattenSettings(`{"decryption":"none","clients":[{"id":"id1","email":"a@example.com","limitIp":2,"expiryTime":10,"enable":true}]}`, "")
 	if err != nil {
 		t.Fatalf("flattenSettings error: %v", err)
 	}

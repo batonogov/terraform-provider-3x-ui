@@ -6,7 +6,7 @@ import (
 )
 
 func TestFlattenSettings_MalformedJSON(t *testing.T) {
-	_, err := flattenSettings(`{invalid`)
+	_, err := flattenSettings(`{invalid`, "")
 	if err == nil {
 		t.Fatal("expected error for malformed settings JSON")
 	}
@@ -36,7 +36,7 @@ func TestFlattenSniffing_MalformedJSON(t *testing.T) {
 }
 
 func TestFlattenSettingsToMap_MalformedJSON(t *testing.T) {
-	_, err := flattenSettingsToMap(`{bad`)
+	_, err := flattenSettingsToMap(`{bad`, "")
 	if err == nil {
 		t.Fatal("expected error for malformed settings JSON")
 	}
@@ -57,7 +57,7 @@ func TestFlattenSniffingToMap_MalformedJSON(t *testing.T) {
 }
 
 func TestFlattenSettings_EmptyString(t *testing.T) {
-	result, err := flattenSettings("")
+	result, err := flattenSettings("", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
