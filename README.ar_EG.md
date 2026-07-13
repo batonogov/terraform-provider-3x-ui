@@ -99,7 +99,7 @@ resource "threexui_inbound_client" "client_a" {
 
 ## التوافق
 
-**سياسة الدعم:** الـ provider بيدعم رسميًا أربعة سطور فرعية (minor) من 3x-ui: **v3.1.x**، **v3.2.x**، **v3.3.x** و **v3.4.x** — كل patch متنزّل من السطور دي بيتشغّل في matrix الـ acceptance في كل push على `main` و في كل pull request.
+**سياسة الدعم:** الـ provider بيدعم رسميًا خمسة سطور فرعية (minor) من 3x-ui: **v3.1.x**، **v3.2.x**، **v3.3.x**، **v3.4.x** و **v3.5.x** — كل patch متنزّل من السطور دي بيتشغّل في matrix الـ acceptance في كل push على `main` و في كل pull request.
 
 | إصدار 3x-ui | الحالة |
 | --- | --- |
