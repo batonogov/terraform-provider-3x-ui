@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -393,5 +394,504 @@ func TestHostGroupResource_Read_PopulatesFromGet(t *testing.T) {
 	}
 	if got.GroupID.ValueString() != "grp-1" {
 		t.Fatalf("expected group_id=grp-1, got %q", got.GroupID)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Create / Update / Delete resource-level tests (tfsdk Plan/State wiring).
+// These cover the resource CRUD methods directly so Codecov patch coverage is
+// green, mirroring the node resource test pattern.
+// ---------------------------------------------------------------------------
+
+// hostGroupResourcePlan builds a tfsdk.Plan with managed attribute values.
+// All unmentioned attributes are null; only the keys present in vals are set.
+func hostGroupResourcePlan(t *testing.T, r *HostGroupResource, vals map[string]any) tfsdk.Plan {
+	t.Helper()
+	var schemaResp resource.SchemaResponse
+	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+	ctx := context.Background()
+	objType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	out := map[string]tftypes.Value{}
+	// Default every attribute to a typed null based on the schema's attribute type.
+	for k := range schemaResp.Schema.Attributes {
+		out[k] = tftypes.NewValue(objType.AttributeTypes[k], nil)
+	}
+	// String attributes.
+	for _, k := range []string{"id", "group_id", "remark", "server_description", "security",
+		"sni", "host_header", "path", "fingerprint", "verify_peer_cert_by_name",
+		"ech_config_list", "mux_params", "sockopt_params", "final_mask",
+		"vless_route", "mihomo_ip_version"} {
+		if v, ok := vals[k].(string); ok {
+			out[k] = tftypes.NewValue(tftypes.String, v)
+		}
+	}
+	// Int64 attributes → Number.
+	for _, k := range []string{"sort_order", "port"} {
+		if v, ok := vals[k].(int64); ok {
+			out[k] = tftypes.NewValue(tftypes.Number, v)
+		}
+	}
+	// Bool attributes.
+	for _, k := range []string{"is_disabled", "is_hidden", "override_sni_from_address",
+		"keep_sni_blank", "allow_insecure", "mihomo_x25519", "shuffle_host"} {
+		if v, ok := vals[k].(bool); ok {
+			out[k] = tftypes.NewValue(tftypes.Bool, v)
+		}
+	}
+	// inbound_ids → List[int64] (Number element).
+	if ids, ok := vals["inbound_ids"].([]int64); ok {
+		elems := make([]tftypes.Value, 0, len(ids))
+		for _, id := range ids {
+			elems = append(elems, tftypes.NewValue(tftypes.Number, id))
+		}
+		out["inbound_ids"] = tftypes.NewValue(tftypes.List{ElementType: tftypes.Number}, elems)
+	}
+	return tfsdk.Plan{
+		Schema: schemaResp.Schema,
+		Raw:    tftypes.NewValue(objType, out),
+	}
+}
+
+func newHostGroupResourceCreateResponse(t *testing.T, r *HostGroupResource) resource.CreateResponse {
+	t.Helper()
+	var schemaResp resource.SchemaResponse
+	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+	ctx := context.Background()
+	return resource.CreateResponse{
+		State: tfsdk.State{
+			Schema: schemaResp.Schema,
+			Raw:    tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil),
+		},
+	}
+}
+
+func newHostGroupResourceUpdateResponse(t *testing.T, r *HostGroupResource) resource.UpdateResponse {
+	t.Helper()
+	var schemaResp resource.SchemaResponse
+	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+	ctx := context.Background()
+	return resource.UpdateResponse{
+		State: tfsdk.State{
+			Schema: schemaResp.Schema,
+			Raw:    tftypes.NewValue(schemaResp.Schema.Type().TerraformType(ctx), nil),
+		},
+	}
+}
+
+func TestHostGroupResource_Create_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/hosts/add":
+			// /add returns an ARRAY of host rows; the server-generated groupId is
+			// on each row. Create re-reads via /get for canonical state.
+			w.Write(okResponse([]any{
+				map[string]any{"groupId": "grp-new", "remark": "r"},
+			}))
+			return
+		case "/panel/api/hosts/get/grp-new":
+			w.Write(okResponse(map[string]any{
+				"groupId": "grp-new", "remark": "hello",
+				"inboundIds": []int{1, 2}, "port": 443,
+			}))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	r := &HostGroupResource{client: newTestClient(t, srv.URL)}
+	plan := hostGroupResourcePlan(t, r, map[string]any{
+		"remark":      "hello",
+		"inbound_ids": []int64{1, 2},
+	})
+	resp := newHostGroupResourceCreateResponse(t, r)
+	r.Create(context.Background(), resource.CreateRequest{Plan: plan}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error on Create: %v", resp.Diagnostics)
+	}
+	var state HostGroupResourceModel
+	resp.State.Get(context.Background(), &state)
+	if state.GroupID.ValueString() != "grp-new" {
+		t.Fatalf("expected group_id=grp-new after Create, got %q", state.GroupID)
+	}
+	if state.Remark.ValueString() != "hello" {
+		t.Fatalf("expected remark=hello (from re-read), got %q", state.Remark)
+	}
+}
+
+func TestHostGroupResource_Create_AddError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/hosts/add":
+			w.Write(failResponse("inbound ids do not exist"))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	r := &HostGroupResource{client: newTestClient(t, srv.URL)}
+	plan := hostGroupResourcePlan(t, r, map[string]any{
+		"remark":      "x",
+		"inbound_ids": []int64{999},
+	})
+	resp := newHostGroupResourceCreateResponse(t, r)
+	r.Create(context.Background(), resource.CreateRequest{Plan: plan}, &resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected error when /add fails")
+	}
+}
+
+func TestHostGroupResource_Update(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/hosts/update/grp-7":
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/hosts/get/grp-7":
+			w.Write(okResponse(map[string]any{
+				"groupId": "grp-7", "remark": "renamed",
+				"inboundIds": []int{3}, "port": 8443,
+			}))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	r := &HostGroupResource{client: newTestClient(t, srv.URL)}
+	plan := hostGroupResourcePlan(t, r, map[string]any{
+		"remark":      "renamed",
+		"inbound_ids": []int64{3},
+		"port":        int64(8443),
+	})
+	state := hostGroupResourceReadState(t, r, "grp-7")
+	resp := newHostGroupResourceUpdateResponse(t, r)
+	r.Update(context.Background(), resource.UpdateRequest{Plan: plan, State: state}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error on Update: %v", resp.Diagnostics)
+	}
+	var got HostGroupResourceModel
+	resp.State.Get(context.Background(), &got)
+	if got.Remark.ValueString() != "renamed" {
+		t.Fatalf("expected remark=renamed after Update re-read, got %q", got.Remark)
+	}
+}
+
+func TestHostGroupResource_Delete_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/hosts/del/grp-9":
+			w.Write(okResponse(nil))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	r := &HostGroupResource{client: newTestClient(t, srv.URL)}
+	state := hostGroupResourceReadState(t, r, "grp-9")
+	var resp resource.DeleteResponse
+	r.Delete(context.Background(), resource.DeleteRequest{State: state}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error on Delete: %v", resp.Diagnostics)
+	}
+}
+
+func TestHostGroupResource_Delete_ToleratesNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/hosts/del/grp-9":
+			// Missing group on delete → "host group not found"; must be tolerated.
+			w.Write(failResponse("obtain (host group not found)"))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	r := &HostGroupResource{client: newTestClient(t, srv.URL)}
+	state := hostGroupResourceReadState(t, r, "grp-9")
+	var resp resource.DeleteResponse
+	r.Delete(context.Background(), resource.DeleteRequest{State: state}, &resp)
+	// A missing group on delete must be tolerated (treated as already gone),
+	// mirroring Read — the panel signals "host group not found", not gorm
+	// record-not-found, so Delete checks isHostGroupNotFound too.
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Delete of a missing group must not error: %v", resp.Diagnostics)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Client method edge cases (CreateHostGroup fallbacks, Update/Delete, matcher)
+// ---------------------------------------------------------------------------
+
+func TestCreateHostGroup_EmptyRowsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/login" {
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		}
+		if r.URL.Path == "/panel/api/hosts/add" {
+			// Server returns an empty array (no rows) and the caller provided no groupId.
+			w.Write(okResponse([]any{}))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	_, err := client.CreateHostGroup(context.Background(), &HostGroup{Remark: "r"})
+	if err == nil {
+		t.Fatal("expected error when /add returns no rows and no groupId provided")
+	}
+}
+
+func TestCreateHostGroup_UsesProvidedGroupID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/hosts/add":
+			// Empty rows in response, but the caller pre-set GroupId.
+			w.Write(okResponse([]any{}))
+			return
+		case "/panel/api/hosts/get/pre-set":
+			w.Write(okResponse(map[string]any{"groupId": "pre-set", "remark": "r"}))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	created, err := client.CreateHostGroup(context.Background(), &HostGroup{
+		GroupId: "pre-set", Remark: "r",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if created == nil || created.GroupId != "pre-set" {
+		t.Fatalf("expected fallback to provided groupId pre-set, got %+v", created)
+	}
+}
+
+func TestCreateHostGroup_NilArg(t *testing.T) {
+	client := newTestClient(t, "http://localhost:0")
+	if _, err := client.CreateHostGroup(context.Background(), nil); err == nil {
+		t.Fatal("expected error for nil host group")
+	}
+}
+
+func TestUpdateHostGroup(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/hosts/update/grp-u":
+			w.Write(okResponse(nil))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	if err := client.UpdateHostGroup(context.Background(), "grp-u", &HostGroup{Remark: "u"}); err != nil {
+		t.Fatalf("unexpected UpdateHostGroup error: %v", err)
+	}
+	// Guard clauses.
+	if err := client.UpdateHostGroup(context.Background(), "", &HostGroup{}); err == nil {
+		t.Fatal("expected error for empty groupID")
+	}
+	if err := client.UpdateHostGroup(context.Background(), "grp-u", nil); err == nil {
+		t.Fatal("expected error for nil host group")
+	}
+}
+
+func TestDeleteHostGroup(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/hosts/del/grp-d":
+			w.Write(okResponse(nil))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	if err := client.DeleteHostGroup(context.Background(), "grp-d"); err != nil {
+		t.Fatalf("unexpected DeleteHostGroup error: %v", err)
+	}
+	// Empty groupID guard.
+	if err := client.DeleteHostGroup(context.Background(), ""); err == nil {
+		t.Fatal("expected error for empty groupID")
+	}
+}
+
+func TestIsHostGroupNotFound(t *testing.T) {
+	if isHostGroupNotFound(nil) {
+		t.Fatal("nil err must be false")
+	}
+	if !isHostGroupNotFound(failResponseErr("obtain (host group not found)")) {
+		t.Fatal("host group not found message must match")
+	}
+	if isHostGroupNotFound(failResponseErr("some other error")) {
+		t.Fatal("unrelated error must not match")
+	}
+}
+
+// TestGetHostGroup_OtherError covers the non-not-found error branch: a
+// failure that is neither "host group not found" nor a gorm record-not-found
+// must be surfaced as an error (not swallowed into nil,nil).
+func TestGetHostGroup_OtherError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		case "/panel/api/hosts/get/grp-x":
+			w.Write(failResponse("validation failed"))
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	got, err := client.GetHostGroup(context.Background(), "grp-x")
+	if err == nil {
+		t.Fatal("expected error for a non-not-found failure")
+	}
+	if got != nil {
+		t.Fatalf("expected nil HostGroup on error, got %+v", got)
+	}
+}
+
+// failResponseErr wraps a message into an error the way GetHostGroup would.
+func failResponseErr(msg string) error {
+	return fmt.Errorf("request failed: status 200, msg: %s", msg)
+}
+
+// TestHostGroupResource_Metadata_Configure_Import covers the trivial wiring
+// methods so the whole resource's lines count toward Codecov patch coverage.
+func TestHostGroupResource_Metadata_Configure_Import(t *testing.T) {
+	r := NewHostGroupResource().(*HostGroupResource)
+
+	// Metadata.
+	var metaResp resource.MetadataResponse
+	r.Metadata(context.Background(), resource.MetadataRequest{ProviderTypeName: "threexui"}, &metaResp)
+	if metaResp.TypeName != "threexui_host_group" {
+		t.Fatalf("expected TypeName threexui_host_group, got %q", metaResp.TypeName)
+	}
+
+	// Configure: nil ProviderData is a no-op (skip path).
+	var cfgResp resource.ConfigureResponse
+	r.Configure(context.Background(), resource.ConfigureRequest{}, &cfgResp)
+	if cfgResp.Diagnostics.HasError() {
+		t.Fatalf("nil ProviderData Configure must be a no-op, got errors: %v", cfgResp.Diagnostics)
+	}
+
+	// Configure: wrong type → error.
+	var cfgBad resource.ConfigureResponse
+	r.Configure(context.Background(), resource.ConfigureRequest{ProviderData: "not-a-client"}, &cfgBad)
+	if !cfgBad.Diagnostics.HasError() {
+		t.Fatal("expected error for non-*Client ProviderData")
+	}
+
+	// Configure: real client → stored.
+	cli := newTestClient(t, "http://localhost:0")
+	var cfgOK resource.ConfigureResponse
+	r.Configure(context.Background(), resource.ConfigureRequest{ProviderData: cli}, &cfgOK)
+	if cfgOK.Diagnostics.HasError() {
+		t.Fatalf("unexpected Configure error: %v", cfgOK.Diagnostics)
+	}
+	if r.client == nil {
+		t.Fatal("expected client to be set after Configure")
+	}
+}
+
+// TestHostGroupResource_EmptyGroupIDError covers the defensive "group_id is
+// empty" error branch in Read/Update/Delete (state without group_id or id).
+func TestHostGroupResource_EmptyGroupIDError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/login" {
+			http.SetCookie(w, &http.Cookie{Name: "3x-ui", Value: "sess"})
+			w.Write(okResponse(nil))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	r := &HostGroupResource{client: newTestClient(t, srv.URL)}
+	state := hostGroupResourceReadState(t, r, "") // empty group_id + id
+
+	var readResp resource.ReadResponse
+	r.Read(context.Background(), resource.ReadRequest{State: state}, &readResp)
+	if !readResp.Diagnostics.HasError() {
+		t.Fatal("expected error on Read with empty group_id")
+	}
+
+	var updResp resource.UpdateResponse
+	r.Update(context.Background(), resource.UpdateRequest{Plan: tfsdk.Plan(state), State: state}, &updResp)
+	if !updResp.Diagnostics.HasError() {
+		t.Fatal("expected error on Update with empty group_id")
+	}
+
+	var delResp resource.DeleteResponse
+	r.Delete(context.Background(), resource.DeleteRequest{State: state}, &delResp)
+	if !delResp.Diagnostics.HasError() {
+		t.Fatal("expected error on Delete with empty group_id")
 	}
 }

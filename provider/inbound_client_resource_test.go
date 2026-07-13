@@ -1,10 +1,33 @@
 package provider
 
 import (
+	"context"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+// TestInboundClientResource_Schema exercises the full schema definition
+// (incl. the v3.5.0 secret/ad_tag attributes) so the schema declaration lines
+// count toward Codecov patch coverage.
+func TestInboundClientResource_Schema(t *testing.T) {
+	r := NewInboundClientResource()
+	var resp resource.SchemaResponse
+	r.Schema(context.Background(), resource.SchemaRequest{}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected schema errors: %v", resp.Diagnostics)
+	}
+	for _, attr := range []string{"secret", "ad_tag", "email"} {
+		if _, ok := resp.Schema.Attributes[attr]; !ok {
+			t.Fatalf("attribute %q missing from inbound_client schema", attr)
+		}
+	}
+	// secret must be Sensitive (FakeTLS key).
+	if !resp.Schema.Attributes["secret"].IsSensitive() {
+		t.Fatal("secret attribute must be Sensitive")
+	}
+}
 
 func TestFindClientByID(t *testing.T) {
 	clients := []map[string]any{

@@ -162,3 +162,113 @@ func TestToFloat64(t *testing.T) {
 		})
 	}
 }
+
+// TestXrayBalancersSchema exercises the full schema definition (incl. the
+// v3.5.0 fallback_tag + strategy.settings nested blocks) so the schema helper
+// lines count toward Codecov patch coverage.
+func TestXrayBalancersSchema(t *testing.T) {
+	s := xrayBalancersSchema()
+	if s.Attributes["id"] == nil {
+		t.Fatal("expected id attribute")
+	}
+	if s.Blocks["balancer"] == nil {
+		t.Fatal("expected balancer block")
+	}
+}
+
+// TestFlattenXrayBalancersEdgeCases covers the defensive branches in
+// flattenXrayBalancers: missing balancer key, non-list balancer, non-map item,
+// and a balancer entry lacking tag/selector.
+func TestFlattenXrayBalancersEdgeCases(t *testing.T) {
+	cases := []struct {
+		name string
+		data map[string]any
+		want int // expected number of balancer entries
+	}{
+		{"no balancer key", map[string]any{}, 0},
+		{"balancer not a list", map[string]any{"balancer": "oops"}, 0},
+		{"non-map item skipped", map[string]any{"balancer": []any{"str"}}, 0},
+		{"entry without tag/selector", map[string]any{"balancer": []any{
+			map[string]any{"fallbackTag": "fb"},
+		}}, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := flattenXrayBalancers(tc.data)
+			if len(m.Balancer) != tc.want {
+				t.Fatalf("expected %d balancers, got %d", tc.want, len(m.Balancer))
+			}
+		})
+	}
+}
+
+// TestFlattenBalancerStrategyEdgeCases covers the nil/empty branches.
+func TestFlattenBalancerStrategyEdgeCases(t *testing.T) {
+	if flattenBalancerStrategy(map[string]any{}) != nil {
+		t.Fatal("empty strategy map must return nil")
+	}
+	// Strategy with only a non-type key → out stays empty → nil.
+	if flattenBalancerStrategy(map[string]any{"settings": map[string]any{}}) != nil {
+		t.Fatal("strategy with only empty settings must return nil")
+	}
+	// Type without settings → out has type only.
+	got := flattenBalancerStrategy(map[string]any{"type": "random"})
+	if got == nil || got["type"] != "random" {
+		t.Fatalf("expected type=random, got %v", got)
+	}
+}
+
+// TestFlattenBalancerStrategySettingsIntExpected confirms expected survives a
+// Go int (in-process round-trip), not just JSON float64.
+func TestFlattenBalancerStrategySettingsIntExpected(t *testing.T) {
+	res := flattenBalancerStrategySettings(map[string]any{
+		"settings": map[string]any{
+			"expected":  5, // int, not float64
+			"tolerance": 0.25,
+			"baselines": []any{"b1"},
+			"costs": []any{
+				map[string]any{"regexp": true, "match": ".*"}, // cost without value
+			},
+		},
+	})
+	if len(res) != 1 {
+		t.Fatalf("expected 1 settings block, got %d", len(res))
+	}
+	st := res[0]
+	if st.Expected.ValueInt64() != 5 {
+		t.Fatalf("expected int expected=5, got %d", st.Expected.ValueInt64())
+	}
+	if st.Tolerance.ValueFloat64() != 0.25 {
+		t.Fatalf("expected tolerance=0.25, got %f", st.Tolerance.ValueFloat64())
+	}
+	if len(st.Costs) != 1 || !st.Costs[0].Regexp.ValueBool() {
+		t.Fatalf("expected 1 cost with regexp=true, got %+v", st.Costs)
+	}
+}
+
+// TestExpandBalancerStrategyEdgeCases covers the empty/non-map branches.
+func TestExpandBalancerStrategyEdgeCases(t *testing.T) {
+	if expandBalancerStrategy(nil) != nil {
+		t.Fatal("nil list must return nil")
+	}
+	if expandBalancerStrategy([]any{"not-a-map"}) != nil {
+		t.Fatal("non-map item must return nil")
+	}
+	if expandBalancerStrategy([]any{map[string]any{}}) != nil {
+		t.Fatal("empty map (no type/settings) must return nil")
+	}
+}
+
+// TestBuildXrayBalancersJSONEdgeCases covers the missing/non-list balancer key.
+func TestBuildXrayBalancersJSONEdgeCases(t *testing.T) {
+	res := buildXrayBalancersJSON(map[string]any{})
+	arr, ok := res.([]any)
+	if !ok || len(arr) != 0 {
+		t.Fatalf("missing balancer key must yield empty []any, got %#v", res)
+	}
+	res = buildXrayBalancersJSON(map[string]any{"balancer": "oops"})
+	arr, _ = res.([]any)
+	if len(arr) != 0 {
+		t.Fatalf("non-list balancer must yield empty []any, got %#v", res)
+	}
+}

@@ -85,6 +85,43 @@ func TestXrayBasicsEnvOmittedWhenEmpty(t *testing.T) {
 	}
 }
 
+// TestXrayBasicsSchema exercises the full schema definition (incl. the v3.5.0
+// env block) so the schema helper lines count toward Codecov patch coverage.
+func TestXrayBasicsSchema(t *testing.T) {
+	s := xrayBasicsSchema()
+	if s.Blocks["env"] == nil {
+		t.Fatal("expected env block in xray_basics schema")
+	}
+	if s.Blocks["metrics"] == nil {
+		t.Fatal("expected metrics block in xray_basics schema")
+	}
+}
+
+// TestXrayBasicsEnvSingleKeyEmptyValue covers the env flatten branch where a
+// value is empty (ValueNull path) and the env block has a single entry.
+func TestXrayBasicsEnvSingleKeyEmptyValue(t *testing.T) {
+	model := &XrayBasicsModel{
+		ID: types.StringValue("xray_basics"),
+		Env: []XrayBasicsEnv{
+			{Key: types.StringValue("ONLY"), Value: types.StringNull()},
+		},
+	}
+	expanded := expandXrayBasics(model)
+	envMap, ok := expanded["env"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected env map, got %T", expanded["env"])
+	}
+	// Null value expands to empty string.
+	if v, ok := envMap["ONLY"].(string); !ok || v != "" {
+		t.Fatalf("expected ONLY to be empty string for null value, got %v", envMap["ONLY"])
+	}
+	// Round-trip back: single key preserved.
+	m2 := flattenXrayBasics(flattenXrayBasicsToMap(buildXrayBasicsJSON(expanded)))
+	if len(m2.Env) != 1 || m2.Env[0].Key.ValueString() != "ONLY" {
+		t.Fatalf("single-key env round-trip failed, got %+v", m2.Env)
+	}
+}
+
 // TestExtractXraySectionIncludesEnv confirms the merge-root extractor (used by
 // threexui_xray_basics) picks up the top-level "env" key added in v3.5.0.
 func TestExtractXraySectionIncludesEnv(t *testing.T) {

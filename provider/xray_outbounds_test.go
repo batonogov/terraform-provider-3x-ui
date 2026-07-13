@@ -93,3 +93,13 @@ func TestXrayOutboundTargetStrategyOmittedWhenEmpty(t *testing.T) {
 			model2.Outbound[0].TargetStrategy.ValueString())
 	}
 }
+
+// TestXrayOutboundsSchema exercises the full schema definition (incl. the
+// v3.5.0 target_strategy attribute) so the schema helper lines count toward
+// Codecov patch coverage.
+func TestXrayOutboundsSchema(t *testing.T) {
+	s := xrayOutboundsSchema()
+	if s.Blocks["outbound"] == nil {
+		t.Fatal("expected outbound block in xray_outbounds schema")
+	}
+}

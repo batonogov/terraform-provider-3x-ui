@@ -262,8 +262,9 @@ func (r *HostGroupResource) Delete(ctx context.Context, req resource.DeleteReque
 	}
 
 	if err := r.client.DeleteHostGroup(ctx, groupID); err != nil {
-		if isAPIRecordNotFound(err) {
-			// Already gone out-of-band; treat as deleted.
+		// Already gone out-of-band (either gorm record-not-found or the panel's
+		// explicit "host group not found" sentinel); treat as deleted.
+		if isAPIRecordNotFound(err) || isHostGroupNotFound(err) {
 			return
 		}
 		resp.Diagnostics.AddError("Failed to delete host group", err.Error())
