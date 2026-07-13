@@ -5,6 +5,10 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/float64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -20,13 +24,34 @@ type XrayBalancersModel struct {
 }
 
 type XrayBalancerEntry struct {
-	Tag      types.String           `tfsdk:"tag"`
-	Selector types.List             `tfsdk:"selector"` // list of strings
-	Strategy []XrayBalancerStrategy `tfsdk:"strategy"`
+	Tag         types.String           `tfsdk:"tag"`
+	Selector    types.List             `tfsdk:"selector"` // list of strings
+	FallbackTag types.String           `tfsdk:"fallback_tag"`
+	Strategy    []XrayBalancerStrategy `tfsdk:"strategy"`
 }
 
 type XrayBalancerStrategy struct {
-	Type types.String `tfsdk:"type"`
+	Type     types.String                   `tfsdk:"type"`
+	Settings []XrayBalancerStrategySettings `tfsdk:"settings"`
+}
+
+// XrayBalancerStrategySettings mirrors xray-core's balancer strategy settings
+// (frontend BalancerStrategySettingsSchema). Used by the leastPing/leastLoad
+// strategies to tune observatory-based selection.
+type XrayBalancerStrategySettings struct {
+	Expected  types.Int64        `tfsdk:"expected"`
+	MaxRTT    types.String       `tfsdk:"max_rtt"`
+	Tolerance types.Float64      `tfsdk:"tolerance"`
+	Baselines types.List         `tfsdk:"baselines"` // list of strings
+	Costs     []XrayBalancerCost `tfsdk:"costs"`
+}
+
+// XrayBalancerCost mirrors xray-core's balancer cost object
+// (frontend BalancerCostObjectSchema): a regexp/keyword match → cost value.
+type XrayBalancerCost struct {
+	Regexp types.Bool    `tfsdk:"regexp"`
+	Match  types.String  `tfsdk:"match"`
+	Value  types.Float64 `tfsdk:"value"`
 }
 
 // ---------------------------------------------------------------------------
@@ -54,6 +79,14 @@ func xrayBalancersSchema() schema.Schema {
 							Required:    true,
 							ElementType: types.StringType,
 						},
+						"fallback_tag": schema.StringAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "Fallback balancer tag used when this balancer has no healthy outbound (xray-core balancer-to-balancer fallback). Empty means no fallback.",
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
+						},
 					},
 					Blocks: map[string]schema.Block{
 						"strategy": schema.ListNestedBlock{
@@ -61,6 +94,68 @@ func xrayBalancersSchema() schema.Schema {
 								Attributes: map[string]schema.Attribute{
 									"type": schema.StringAttribute{
 										Required: true,
+									},
+								},
+								Blocks: map[string]schema.Block{
+									"settings": schema.ListNestedBlock{
+										NestedObject: schema.NestedBlockObject{
+											Attributes: map[string]schema.Attribute{
+												"expected": schema.Int64Attribute{
+													Optional: true, Computed: true,
+													Description: "Number of expected alive outbounds (leastPing/leastLoad).",
+													PlanModifiers: []planmodifier.Int64{
+														int64planmodifier.UseStateForUnknown(),
+													},
+												},
+												"max_rtt": schema.StringAttribute{
+													Optional: true, Computed: true,
+													Description: "Max acceptable round-trip time (xray duration string, e.g. \"500ms\").",
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
+												},
+												"tolerance": schema.Float64Attribute{
+													Optional: true, Computed: true,
+													Description: "Selection tolerance 0.0–1.0 (leastLoad).",
+													PlanModifiers: []planmodifier.Float64{
+														float64planmodifier.UseStateForUnknown(),
+													},
+												},
+												"baselines": schema.ListAttribute{
+													Optional: true, Computed: true,
+													ElementType: types.StringType,
+													PlanModifiers: []planmodifier.List{
+														listplanmodifier.UseStateForUnknown(),
+													},
+												},
+											},
+											Blocks: map[string]schema.Block{
+												"costs": schema.ListNestedBlock{
+													NestedObject: schema.NestedBlockObject{
+														Attributes: map[string]schema.Attribute{
+															"regexp": schema.BoolAttribute{
+																Optional: true, Computed: true,
+																PlanModifiers: []planmodifier.Bool{
+																	boolplanmodifier.UseStateForUnknown(),
+																},
+															},
+															"match": schema.StringAttribute{
+																Optional: true, Computed: true,
+																PlanModifiers: []planmodifier.String{
+																	stringplanmodifier.UseStateForUnknown(),
+																},
+															},
+															"value": schema.Float64Attribute{
+																Optional: true, Computed: true,
+																PlanModifiers: []planmodifier.Float64{
+																	float64planmodifier.UseStateForUnknown(),
+																},
+															},
+														},
+													},
+												},
+											},
+										},
 									},
 								},
 							},
@@ -102,12 +197,19 @@ func expandXrayBalancers(m *XrayBalancersModel) map[string]any {
 			entry["selector"] = sel
 		}
 
+		if !b.FallbackTag.IsNull() && !b.FallbackTag.IsUnknown() {
+			entry["fallbackTag"] = b.FallbackTag.ValueString()
+		}
+
 		if len(b.Strategy) > 0 {
 			strategies := make([]any, 0, len(b.Strategy))
 			for _, s := range b.Strategy {
 				sEntry := map[string]any{}
 				if !s.Type.IsNull() && !s.Type.IsUnknown() {
 					sEntry["type"] = s.Type.ValueString()
+				}
+				if settings := expandBalancerStrategySettings(s.Settings); settings != nil {
+					sEntry["settings"] = settings
 				}
 				if len(sEntry) > 0 {
 					strategies = append(strategies, sEntry)
@@ -171,6 +273,10 @@ func flattenXrayBalancers(data map[string]any) *XrayBalancersModel {
 			entry.Selector = types.ListValueMust(types.StringType, []attr.Value{})
 		}
 
+		if ft, ok := raw["fallback_tag"].(string); ok && ft != "" {
+			entry.FallbackTag = types.StringValue(ft)
+		}
+
 		if stratList, ok := raw["strategy"].([]any); ok {
 			strategies := make([]XrayBalancerStrategy, 0, len(stratList))
 			for _, sItem := range stratList {
@@ -181,6 +287,9 @@ func flattenXrayBalancers(data map[string]any) *XrayBalancersModel {
 				s := XrayBalancerStrategy{}
 				if t, ok := sMap["type"].(string); ok {
 					s.Type = types.StringValue(t)
+				}
+				if sMap != nil {
+					s.Settings = flattenBalancerStrategySettings(sMap)
 				}
 				strategies = append(strategies, s)
 			}
@@ -226,6 +335,9 @@ func expandBalancers(list []any) []any {
 				entry["selector"] = expandStringList(list)
 			}
 		}
+		if v, ok := m["fallbackTag"].(string); ok && v != "" {
+			entry["fallbackTag"] = v
+		}
 		if v, ok := m["strategy"]; ok {
 			if list, ok := v.([]any); ok {
 				if s := expandBalancerStrategy(list); s != nil {
@@ -251,6 +363,66 @@ func expandBalancerStrategy(list []any) map[string]any {
 	out := map[string]any{}
 	if v, ok := item["type"].(string); ok && v != "" {
 		out["type"] = v
+	}
+	if v, ok := item["settings"].(map[string]any); ok && len(v) > 0 {
+		out["settings"] = v
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// expandBalancerStrategySettings converts the TF settings block list into the
+// wire map xray-core expects (camelCase keys). Returns nil when the block is
+// absent/empty so the key is omitted on the wire.
+func expandBalancerStrategySettings(settings []XrayBalancerStrategySettings) map[string]any {
+	if len(settings) == 0 {
+		return nil
+	}
+	st := settings[0]
+	out := map[string]any{}
+	if !st.Expected.IsNull() && !st.Expected.IsUnknown() {
+		out["expected"] = int(st.Expected.ValueInt64())
+	}
+	if !st.MaxRTT.IsNull() && !st.MaxRTT.IsUnknown() {
+		out["maxRTT"] = st.MaxRTT.ValueString()
+	}
+	if !st.Tolerance.IsNull() && !st.Tolerance.IsUnknown() {
+		out["tolerance"] = st.Tolerance.ValueFloat64()
+	}
+	if !st.Baselines.IsNull() && !st.Baselines.IsUnknown() {
+		elems := st.Baselines.Elements()
+		bl := make([]any, 0, len(elems))
+		for _, e := range elems {
+			if sv, ok := e.(types.String); ok && !sv.IsNull() && !sv.IsUnknown() {
+				bl = append(bl, sv.ValueString())
+			}
+		}
+		if len(bl) > 0 {
+			out["baselines"] = bl
+		}
+	}
+	if len(st.Costs) > 0 {
+		costs := make([]any, 0, len(st.Costs))
+		for _, c := range st.Costs {
+			cEntry := map[string]any{}
+			if !c.Regexp.IsNull() && !c.Regexp.IsUnknown() {
+				cEntry["regexp"] = c.Regexp.ValueBool()
+			}
+			if !c.Match.IsNull() && !c.Match.IsUnknown() {
+				cEntry["match"] = c.Match.ValueString()
+			}
+			if !c.Value.IsNull() && !c.Value.IsUnknown() {
+				cEntry["value"] = c.Value.ValueFloat64()
+			}
+			if len(cEntry) > 0 {
+				costs = append(costs, cEntry)
+			}
+		}
+		if len(costs) > 0 {
+			out["costs"] = costs
+		}
 	}
 	if len(out) == 0 {
 		return nil
@@ -294,6 +466,9 @@ func flattenBalancers(list []any) []any {
 		if v, ok := m["selector"].([]any); ok {
 			entry["selector"] = v
 		}
+		if v, ok := m["fallbackTag"].(string); ok {
+			entry["fallback_tag"] = v
+		}
 		if v, ok := m["strategy"].(map[string]any); ok {
 			if s := flattenBalancerStrategy(v); s != nil {
 				entry["strategy"] = []any{s}
@@ -312,8 +487,93 @@ func flattenBalancerStrategy(in map[string]any) map[string]any {
 	if v, ok := in["type"].(string); ok {
 		out["type"] = v
 	}
+	if v, ok := in["settings"].(map[string]any); ok && len(v) > 0 {
+		out["settings"] = v
+	}
 	if len(out) == 0 {
 		return nil
 	}
 	return out
+}
+
+// flattenBalancerStrategySettings converts the wire settings map (camelCase)
+// back into the TF settings block list. JSON numbers arrive as float64.
+func flattenBalancerStrategySettings(in map[string]any) []XrayBalancerStrategySettings {
+	settingsRaw, ok := in["settings"].(map[string]any)
+	if !ok || len(settingsRaw) == 0 {
+		return nil
+	}
+	st := XrayBalancerStrategySettings{}
+	if v, ok := settingsRaw["expected"]; ok {
+		switch n := v.(type) {
+		case float64:
+			st.Expected = types.Int64Value(int64(n))
+		case int:
+			st.Expected = types.Int64Value(int64(n))
+		case int64:
+			st.Expected = types.Int64Value(n)
+		}
+	}
+	if v, ok := settingsRaw["maxRTT"].(string); ok && v != "" {
+		st.MaxRTT = types.StringValue(v)
+	}
+	if v, ok := settingsRaw["tolerance"]; ok {
+		if f, ok := toFloat64(v); ok {
+			st.Tolerance = types.Float64Value(f)
+		}
+	}
+	if v, ok := settingsRaw["baselines"].([]any); ok && len(v) > 0 {
+		vals := make([]attr.Value, 0, len(v))
+		for _, b := range v {
+			if s, ok := b.(string); ok {
+				vals = append(vals, types.StringValue(s))
+			}
+		}
+		st.Baselines = types.ListValueMust(types.StringType, vals)
+	}
+	if v, ok := settingsRaw["costs"].([]any); ok && len(v) > 0 {
+		costs := make([]XrayBalancerCost, 0, len(v))
+		for _, cItem := range v {
+			cMap, ok := cItem.(map[string]any)
+			if !ok {
+				continue
+			}
+			c := XrayBalancerCost{}
+			if r, ok := cMap["regexp"].(bool); ok {
+				c.Regexp = types.BoolValue(r)
+			}
+			if m, ok := cMap["match"].(string); ok {
+				c.Match = types.StringValue(m)
+			}
+			if val, ok := cMap["value"]; ok {
+				if f, ok := toFloat64(val); ok {
+					c.Value = types.Float64Value(f)
+				}
+			}
+			costs = append(costs, c)
+		}
+		if len(costs) > 0 {
+			st.Costs = costs
+		}
+	}
+	return []XrayBalancerStrategySettings{st}
+}
+
+// toFloat64 coerces a JSON-decoded numeric value to float64. encoding/json
+// decodes all numbers as float64, but values built in-process (e.g. in
+// round-trip tests) may be int/int64, so accept all numeric kinds.
+func toFloat64(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case int32:
+		return float64(n), true
+	}
+	return 0, false
 }

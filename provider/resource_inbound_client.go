@@ -5,10 +5,12 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -18,6 +20,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -56,6 +59,8 @@ type InboundClientResourceModel struct {
 	Comment     types.String `tfsdk:"comment"`
 	Reset       types.Int64  `tfsdk:"reset"`
 	Group       types.String `tfsdk:"group"`
+	Secret      types.String `tfsdk:"secret"`
+	AdTag       types.String `tfsdk:"ad_tag"`
 	RestartXray types.Bool   `tfsdk:"restart_xray"`
 }
 
@@ -203,6 +208,34 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 				Optional:    true,
 				Computed:    true,
 				Description: "Client group name (3x-ui v3.2.0+).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"secret": schema.StringAttribute{
+				Optional:  true,
+				Computed:  true,
+				Sensitive: true,
+				Description: "MTProto FakeTLS secret (3x-ui v3.5.0+, mtg-multi per-client). " +
+					"Format: \"ee\" + 32 hex chars (random middle) + hex-encoded domain suffix. " +
+					"The panel rebuilds the domain suffix from the inbound's fakeTlsDomain on save, " +
+					"so only the random middle must be stable across applies. Setting a domain " +
+					"suffix that differs from the inbound's fakeTlsDomain causes drift after the " +
+					"first apply (the panel heals it) — leave unset to let the panel generate it. " +
+					"Leave unset for non-MTProto clients.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"ad_tag": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+				Description: "MTProto advertising tag from @MTProxybot (3x-ui v3.5.0+). " +
+					"Must be exactly 32 hex characters (16 bytes). Leave unset for non-MTProto clients.",
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^[0-9a-fA-F]{32}$`),
+						"ad_tag must be exactly 32 hexadecimal characters (16 bytes)"),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -538,6 +571,12 @@ func expandInboundClientFromModel(m *InboundClientResourceModel) map[string]any 
 	if !m.Group.IsNull() && !m.Group.IsUnknown() {
 		client["group"] = m.Group.ValueString()
 	}
+	if !m.Secret.IsNull() && !m.Secret.IsUnknown() {
+		client["secret"] = m.Secret.ValueString()
+	}
+	if !m.AdTag.IsNull() && !m.AdTag.IsUnknown() {
+		client["adTag"] = m.AdTag.ValueString()
+	}
 	if !m.ClientID.IsNull() && !m.ClientID.IsUnknown() {
 		client["id"] = m.ClientID.ValueString()
 	}
@@ -565,6 +604,8 @@ func inboundClientToModel(inboundID int, clientID string, client map[string]any)
 		Comment:    types.StringValue(stringValue(client["comment"])),
 		Reset:      types.Int64Value(int64(intValue(client["reset"]))),
 		Group:      stringValueOrNull(stringValue(client["group"])),
+		Secret:     stringValueOrNull(stringValue(client["secret"])),
+		AdTag:      stringValueOrNull(stringValue(client["adTag"])),
 	}
 }
 

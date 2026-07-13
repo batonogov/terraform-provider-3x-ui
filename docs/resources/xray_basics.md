@@ -99,6 +99,24 @@ Empty block. Presence enables Xray stats collection.
 - `tag` (String, Optional) - Tag for the metrics API. Defaults to `"metrics_out"`.
 - `listen` (String, Optional) - Listen address for the metrics API (e.g. `"127.0.0.1:11111"`).
 
+### env (Block, Optional, List)
+
+Environment variables passed to xray-core (3x-ui v3.5.0+, xray-core v26.7.11+). xray-core stores `env` as a `map[string]string`; the provider models it as a repeated block so state stays deterministic (entries are sorted by key).
+
+- `key` (String, Required) - Environment variable name (e.g. `XRAY_LOG_LEVEL`). Written verbatim to the xray-core template — no snake_case/camelCase translation. Duplicate keys are not enforced at the schema level — the last entry wins on the wire.
+- `value` (String, Optional) - Environment variable value.
+
+```hcl
+env {
+  key   = "XRAY_LOG_LEVEL"
+  value = "warning"
+}
+env {
+  key   = "XRAY_LOCATION_ASSET"
+  value = "/usr/share/xray"
+}
+```
+
 ## Attribute Reference
 
 - `id` - The resource identifier (`xray_basics`).

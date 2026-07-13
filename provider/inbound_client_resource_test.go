@@ -165,3 +165,63 @@ func TestInboundClientGroupExpandFlatten(t *testing.T) {
 		}
 	})
 }
+
+func TestInboundClientMtprotoExpandFlatten(t *testing.T) {
+	// v3.5.0 mtg-multi: MTProto clients carry a per-client FakeTLS secret and
+	// an optional advertising tag. Both are Optional on the model and only
+	// written to the wire map when set, mirroring password/group handling.
+	t.Run("secret and ad_tag set", func(t *testing.T) {
+		model := &InboundClientResourceModel{
+			InboundID: types.Int64Value(1),
+			ClientID:  types.StringValue("uuid"),
+			Email:     types.StringValue("mtproto@test.com"),
+			Secret:    types.StringValue("ee1234567890abcdef1234567890abcd7777772e636c6f7564666c6172652e636f6d"),
+			AdTag:     types.StringValue("0123456789abcdef0123456789abcdef"),
+		}
+		expanded := expandInboundClientFromModel(model)
+		if expanded["secret"] != model.Secret.ValueString() {
+			t.Fatalf("expected secret on wire, got %v", expanded["secret"])
+		}
+		// ad_tag tfsdk maps to upstream camelCase "adTag" key.
+		if expanded["adTag"] != model.AdTag.ValueString() {
+			t.Fatalf("expected adTag on wire, got %v", expanded["adTag"])
+		}
+		flattened := inboundClientToModel(1, "uuid", expanded)
+		if flattened.Secret.ValueString() != model.Secret.ValueString() {
+			t.Fatalf("secret round-trip failed: got %q", flattened.Secret)
+		}
+		if flattened.AdTag.ValueString() != model.AdTag.ValueString() {
+			t.Fatalf("ad_tag round-trip failed: got %q", flattened.AdTag)
+		}
+	})
+
+	t.Run("secret and ad_tag null are omitted", func(t *testing.T) {
+		model := &InboundClientResourceModel{
+			InboundID: types.Int64Value(1),
+			ClientID:  types.StringValue("uuid"),
+			Email:     types.StringValue("vless@test.com"),
+			Secret:    types.StringNull(),
+			AdTag:     types.StringNull(),
+		}
+		expanded := expandInboundClientFromModel(model)
+		if _, ok := expanded["secret"]; ok {
+			t.Fatalf("non-MTProto client must not carry a secret key")
+		}
+		if _, ok := expanded["adTag"]; ok {
+			t.Fatalf("non-MTProto client must not carry an adTag key")
+		}
+	})
+
+	t.Run("empty from API flattens to null", func(t *testing.T) {
+		client := map[string]any{
+			"id": "uuid", "email": "mtproto@test.com", "secret": "", "adTag": "",
+		}
+		flattened := inboundClientToModel(1, "uuid", client)
+		if !flattened.Secret.IsNull() {
+			t.Fatalf("expected null secret, got %q", flattened.Secret)
+		}
+		if !flattened.AdTag.IsNull() {
+			t.Fatalf("expected null ad_tag, got %q", flattened.AdTag)
+		}
+	})
+}

@@ -808,6 +808,8 @@ func TestDriftClientFields(t *testing.T) {
 		"expiryTime": true, "enable": true, "tgId": true, "subId": true,
 		"comment": true, "reset": true, "created_at": true, "updated_at": true,
 		"reverse": true, "group": true,
+		// v3.5.0 MTProto multi-client (mtg-multi): per-client FakeTLS secret + ad-tag.
+		"secret": true, "adTag": true,
 	}
 
 	dir := latestSnapshotDir(t)

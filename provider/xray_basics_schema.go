@@ -25,6 +25,7 @@ type XrayBasicsModel struct {
 	API     []XrayBasicsAPI     `tfsdk:"api"`
 	Stats   []XrayBasicsStats   `tfsdk:"stats"`
 	Metrics []XrayBasicsMetrics `tfsdk:"metrics"`
+	Env     []XrayBasicsEnv     `tfsdk:"env"`
 }
 
 type XrayBasicsLog struct {
@@ -67,6 +68,16 @@ type XrayBasicsStats struct{}
 type XrayBasicsMetrics struct {
 	Tag    types.String `tfsdk:"tag"`
 	Listen types.String `tfsdk:"listen"`
+}
+
+// XrayBasicsEnv represents one entry of the xray-core top-level `env` map
+// (3x-ui v3.5.0+, xray-core v26.7.11+). xray-core expects a map[string]string;
+// the provider models it as a repeated block so state stays deterministic.
+// Keys are arbitrary environment-variable names (e.g. XRAY_LOG_LEVEL) and are
+// written to the wire verbatim — no snake_case/camelCase translation.
+type XrayBasicsEnv struct {
+	Key   types.String `tfsdk:"key"`
+	Value types.String `tfsdk:"value"`
 }
 
 // ---------------------------------------------------------------------------
@@ -241,6 +252,24 @@ func xrayBasicsSchema() schema.Schema {
 					},
 				},
 			},
+			"env": schema.ListNestedBlock{
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"key": schema.StringAttribute{
+							Required:    true,
+							Description: "Environment variable name (e.g. XRAY_LOG_LEVEL). Written verbatim to the xray-core template. Duplicate keys are not enforced at the schema level — the last entry wins on the wire.",
+						},
+						"value": schema.StringAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "Environment variable value.",
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -275,6 +304,9 @@ func alignBasicsBlocksWithPlan(state, plan *XrayBasicsModel) {
 	}
 	if len(plan.Metrics) == 0 {
 		state.Metrics = nil
+	}
+	if len(plan.Env) == 0 {
+		state.Env = nil
 	}
 }
 
@@ -394,6 +426,24 @@ func expandXrayBasics(m *XrayBasicsModel) map[string]any {
 			metricsMap["listen"] = metrics.Listen.ValueString()
 		}
 		out["metrics"] = metricsMap
+	}
+
+	if len(m.Env) > 0 {
+		envMap := map[string]any{}
+		for _, e := range m.Env {
+			if e.Key.IsNull() || e.Key.IsUnknown() {
+				continue
+			}
+			k := e.Key.ValueString()
+			v := ""
+			if !e.Value.IsNull() && !e.Value.IsUnknown() {
+				v = e.Value.ValueString()
+			}
+			envMap[k] = v
+		}
+		if len(envMap) > 0 {
+			out["env"] = envMap
+		}
 	}
 
 	return out
@@ -565,6 +615,28 @@ func flattenXrayBasics(data map[string]any) *XrayBasicsModel {
 		}
 	}
 
+	if envRaw, ok := data["env"]; ok {
+		if envMap, ok := envRaw.(map[string]any); ok && len(envMap) > 0 {
+			env := make([]XrayBasicsEnv, 0, len(envMap))
+			for k, raw := range envMap {
+				e := XrayBasicsEnv{Key: types.StringValue(k)}
+				if v, ok := raw.(string); ok && v != "" {
+					e.Value = types.StringValue(v)
+				} else {
+					e.Value = types.StringNull()
+				}
+				env = append(env, e)
+			}
+			// Deterministic order: Go randomises map iteration.
+			sort.Slice(env, func(i, j int) bool {
+				return env[i].Key.ValueString() < env[j].Key.ValueString()
+			})
+			if len(env) > 0 {
+				m.Env = env
+			}
+		}
+	}
+
 	return m
 }
 
@@ -604,6 +676,14 @@ func buildXrayBasicsJSON(d map[string]any) any {
 			if metrics := expandBasicsMetrics(m); metrics != nil {
 				payload["metrics"] = metrics
 			}
+		}
+	}
+	// env is a map[string]string carried verbatim — keys are arbitrary
+	// environment-variable names, not translated to camelCase like the
+	// nested log/policy/api attributes.
+	if v, ok := d["env"]; ok {
+		if m, ok := v.(map[string]any); ok && len(m) > 0 {
+			payload["env"] = m
 		}
 	}
 
@@ -763,6 +843,9 @@ func flattenXrayBasicsToMap(data any) map[string]any {
 		if metrics := flattenBasicsMetrics(v); metrics != nil {
 			out["metrics"] = metrics
 		}
+	}
+	if v, ok := payload["env"].(map[string]any); ok && len(v) > 0 {
+		out["env"] = v
 	}
 
 	return out

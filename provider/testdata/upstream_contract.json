@@ -1,5 +1,5 @@
 {
-  "version": "3.4.2",
+  "version": "3.5.0",
   "protocols_go_model": [
     "http",
     "hysteria",
@@ -78,6 +78,7 @@
     "up"
   ],
   "client_fields": [
+    "adTag",
     "allowedIPs",
     "auth",
     "comment",
@@ -96,6 +97,7 @@
     "publicKey",
     "reset",
     "reverse",
+    "secret",
     "security",
     "subId",
     "tgId",

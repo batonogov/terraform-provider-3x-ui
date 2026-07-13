@@ -360,7 +360,7 @@ func expandRoutingRules(list []any) []any {
 		if !ok {
 			continue
 		}
-		if isInternalAPIRoutingRule(m) {
+		if isInternalAPIRoutingRule(m) || isManagedDnsAllowRule(m) {
 			continue
 		}
 		entry := map[string]any{}
@@ -450,7 +450,7 @@ func flattenRoutingRules(list []any) []any {
 		if !ok {
 			continue
 		}
-		if isInternalAPIRoutingRule(m) {
+		if isInternalAPIRoutingRule(m) || isManagedDnsAllowRule(m) {
 			continue
 		}
 		entry := map[string]any{}
@@ -510,6 +510,48 @@ func isInternalAPIRoutingRule(m map[string]any) bool {
 	}
 	return routingValueContainsString(m["inboundTag"], "api") ||
 		routingValueContainsString(m["inbound_tag"], "api")
+}
+
+// isManagedDnsAllowRule mirrors 3x-ui v3.5.0's service.dnsAllowRuleShape: a plain
+// "type=field, ip=[...], port=..., outboundTag=direct" rule with no other
+// matchers (an "enabled":true key is tolerated). The panel inserts these
+// before the geoip:private block rule (service.EnsureDnsServerRouting) to keep
+// private/internal DNS servers reachable, and rebuilds them on every xray-
+// template save. Filtering them out of Read avoids a permanent drift — without
+// this the rules reappear on every `terraform plan` because the server re-adds
+// them after each apply. A rule carrying any extra matcher is left untouched
+// (the upstream shape check is strict, so hand-written allow-rules survive).
+func isManagedDnsAllowRule(m map[string]any) bool {
+	if t, _ := m["type"].(string); t != "field" {
+		return false
+	}
+	outboundTag, _ := m["outboundTag"].(string)
+	if outboundTag == "" {
+		outboundTag, _ = m["outbound_tag"].(string)
+	}
+	if outboundTag != "direct" {
+		return false
+	}
+	if _, ok := m["ip"]; !ok {
+		return false
+	}
+	if _, ok := m["port"]; !ok {
+		return false
+	}
+	for key := range m {
+		switch key {
+		case "type", "outboundTag", "outbound_tag", "ip", "port":
+			continue
+		case "enabled":
+			if enabled, ok := m[key].(bool); !ok || !enabled {
+				return false
+			}
+			continue
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func routingValueContainsString(raw any, value string) bool {

@@ -758,7 +758,7 @@ func extractXraySection(current map[string]any, section xraySection) any {
 	switch section.mode {
 	case xraySectionMergeRoot:
 		out := map[string]any{}
-		for _, key := range []string{"log", "policy", "api", "stats"} {
+		for _, key := range []string{"log", "policy", "api", "stats", "env"} {
 			if v, ok := current[key]; ok {
 				out[key] = v
 			}

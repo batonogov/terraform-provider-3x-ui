@@ -3,12 +3,14 @@ package provider
 import (
 	"encoding/json"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -25,6 +27,7 @@ type XrayOutboundEntry struct {
 	Tag                 types.String                 `tfsdk:"tag"`
 	Protocol            types.String                 `tfsdk:"protocol"`
 	SendThrough         types.String                 `tfsdk:"send_through"`
+	TargetStrategy      types.String                 `tfsdk:"target_strategy"`
 	Mux                 []XrayOutboundMux            `tfsdk:"mux"`
 	FreedomSettings     []XrayFreedomSettings        `tfsdk:"freedom_settings"`
 	BlackholeSettings   []XrayBlackholeSettings      `tfsdk:"blackhole_settings"`
@@ -228,6 +231,21 @@ func xrayOutboundsSchema() schema.Schema {
 								stringplanmodifier.UseStateForUnknown(),
 							},
 						},
+						"target_strategy": schema.StringAttribute{
+							Optional: true, Computed: true,
+							Description: "Domain strategy applied to this outbound's destination (3x-ui v3.5.0+, " +
+								"xray-core v26.7.11+). One of: AsIs, UseIP, UseIPv4, UseIPv6, UseIPv6v4, " +
+								"UseIPv4v6, ForceIPv6v4. Empty/AsIs means xray resolves the destination as-is " +
+								"(the key is omitted on the wire when empty, AsIs being xray-core's default). " +
+								"Older xray cores silently ignore the unknown key; freedom_settings.domain_strategy " +
+								"is a separate, pre-existing field.",
+							Validators: []validator.String{
+								stringvalidator.OneOf("AsIs", "UseIP", "UseIPv4", "UseIPv6", "UseIPv6v4", "UseIPv4v6", "ForceIPv6v4"),
+							},
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
+						},
 					},
 					Blocks: map[string]schema.Block{
 						"mux":                  muxBlock(),
@@ -319,6 +337,9 @@ func expandXrayOutbounds(m *XrayOutboundsModel) map[string]any {
 		}
 		if !ob.SendThrough.IsNull() && !ob.SendThrough.IsUnknown() {
 			entry["send_through"] = ob.SendThrough.ValueString()
+		}
+		if !ob.TargetStrategy.IsNull() && !ob.TargetStrategy.IsUnknown() {
+			entry["target_strategy"] = ob.TargetStrategy.ValueString()
 		}
 
 		// Mux
@@ -466,6 +487,12 @@ func flattenXrayOutbounds(data map[string]any) *XrayOutboundsModel {
 			entry.SendThrough = types.StringValue(v)
 		} else {
 			entry.SendThrough = types.StringNull()
+		}
+		// TargetStrategy
+		if v, ok := raw["target_strategy"].(string); ok && v != "" {
+			entry.TargetStrategy = types.StringValue(v)
+		} else {
+			entry.TargetStrategy = types.StringNull()
 		}
 
 		// Mux
@@ -656,6 +683,9 @@ func expandOutbounds(list []any) []any {
 		if v, ok := m["send_through"].(string); ok && v != "" {
 			entry["sendThrough"] = v
 		}
+		if v, ok := m["target_strategy"].(string); ok && v != "" {
+			entry["targetStrategy"] = v
+		}
 
 		// Mux
 		if v, ok := m["mux"]; ok {
@@ -775,6 +805,9 @@ func flattenOutbounds(list []any) []any {
 		}
 		if v, ok := m["sendThrough"].(string); ok {
 			entry["send_through"] = v
+		}
+		if v, ok := m["targetStrategy"].(string); ok {
+			entry["target_strategy"] = v
 		}
 
 		// Mux
