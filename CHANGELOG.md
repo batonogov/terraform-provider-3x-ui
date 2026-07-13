@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.19.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.18.0...v3.19.0) (2026-07-13)
+
+
+### Features
+
+* add 3x-ui v3.5.0 support ([#332](https://github.com/batonogov/terraform-provider-threexui/issues/332)) ([5aa664c](https://github.com/batonogov/terraform-provider-threexui/commit/5aa664c42421ac15a939656757d6608949fe523c))
+
 ## [3.18.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.17.0...v3.18.0) (2026-06-30)
 
 
