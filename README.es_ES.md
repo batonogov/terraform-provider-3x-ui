@@ -93,7 +93,7 @@ resource "threexui_inbound_client" "client_a" {
 
 ## Compatibilidad
 
-**Política de soporte:** el proveedor soporta oficialmente cuatro líneas menores de 3x-ui: **v3.1.x**, **v3.2.x**, **v3.3.x** y **v3.4.x** — cada parche publicado de las cuatro líneas se ejecuta en la matriz de aceptación en cada push a `main` y en cada pull request.
+**Política de soporte:** el proveedor soporta oficialmente cinco líneas menores de 3x-ui: **v3.1.x**, **v3.2.x**, **v3.3.x**, **v3.4.x** y **v3.5.x** — cada parche publicado de las cinco líneas se ejecuta en la matriz de aceptación en cada push a `main` y en cada pull request.
 
 | Versión de 3x-ui | Estado |
 | --- | --- |
