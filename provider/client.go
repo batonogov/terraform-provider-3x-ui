@@ -640,6 +640,89 @@ func (c *Client) DeleteNode(ctx context.Context, id int) error {
 	return c.doForm(ctx, http.MethodPost, fmt.Sprintf("panel/api/nodes/del/%d", id), url.Values{}, nil)
 }
 
+// CreateHostGroup creates a host group on the central panel (POST
+// /panel/api/hosts/add, JSON body). 3x-ui v3.5.0+ only. The server generates a
+// groupId (random.NumLower(16)) when the request's GroupId is empty; the
+// created host rows are echoed back. Callers should re-read via GetHostGroup
+// to capture the server-generated groupId and canonical observed state.
+func (c *Client) CreateHostGroup(ctx context.Context, hg *HostGroup) (*HostGroup, error) {
+	if hg == nil {
+		return nil, errors.New("host group is nil")
+	}
+	// /add returns the created host rows ([]*model.Host via jsonMsgObj), not a
+	// single HostGroup. Extract the server-generated groupId from the first
+	// row, then re-read the canonical HostGroup via /get/:groupId.
+	var rows []struct {
+		GroupId string `json:"groupId"`
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "panel/api/hosts/add", hg, &rows); err != nil {
+		return nil, err
+	}
+	groupID := hg.GroupId
+	if len(rows) > 0 && rows[0].GroupId != "" {
+		groupID = rows[0].GroupId
+	}
+	if groupID == "" {
+		return nil, errors.New("host group add returned no rows and no group id was provided")
+	}
+	return c.GetHostGroup(ctx, groupID)
+}
+
+// GetHostGroup fetches a host group by its groupId (GET
+// /panel/api/hosts/get/:groupId). Returns (nil, nil) when the group does not
+// exist (the panel signals this as HTTP 200 + success:false with a gorm
+// "record not found" message, surfaced via isAPIRecordNotFound). 3x-ui v3.5.0+.
+func (c *Client) GetHostGroup(ctx context.Context, groupID string) (*HostGroup, error) {
+	if groupID == "" {
+		return nil, errors.New("host group id is required")
+	}
+	var out HostGroup
+	if err := c.doJSON(ctx, http.MethodGet, fmt.Sprintf("panel/api/hosts/get/%s", groupID), nil, &out); err != nil {
+		// 3x-ui signals a missing group as HTTP 200 + success:false with a
+		// "host group not found" message (the service uses .Find() + an explicit
+		// common.NewError, not gorm.ErrRecordNotFound), so isAPIRecordNotFound
+		// does not match. Treat it as "gone" so the resource removes from state.
+		if isHostGroupNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &out, nil
+}
+
+// isHostGroupNotFound detects the panel's "host group not found" sentinel.
+// Unlike nodes (gorm.ErrRecordNotFound → "record not found"), host groups use
+// an explicit common.NewError("host group not found"), which the generic
+// isAPIRecordNotFound does not match.
+func isHostGroupNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "host group not found")
+}
+
+// UpdateHostGroup updates a host group (POST /panel/api/hosts/update/:groupId,
+// JSON body). The handler does a delete-then-recreate under a transaction;
+// callers must re-read via GetHostGroup to refresh observed state. 3x-ui v3.5.0+.
+func (c *Client) UpdateHostGroup(ctx context.Context, groupID string, hg *HostGroup) error {
+	if hg == nil {
+		return errors.New("host group is nil")
+	}
+	if groupID == "" {
+		return errors.New("host group id is required for update")
+	}
+	return c.doJSON(ctx, http.MethodPost, fmt.Sprintf("panel/api/hosts/update/%s", groupID), hg, nil)
+}
+
+// DeleteHostGroup deletes a host group (POST /panel/api/hosts/del/:groupId).
+// gin uses POST, not DELETE. 3x-ui v3.5.0+.
+func (c *Client) DeleteHostGroup(ctx context.Context, groupID string) error {
+	if groupID == "" {
+		return errors.New("host group id is required for delete")
+	}
+	return c.doJSON(ctx, http.MethodPost, fmt.Sprintf("panel/api/hosts/del/%s", groupID), nil, nil)
+}
+
 // nodeToForm builds the application/x-www-form-urlencoded body for node
 // create/update, mirroring the form tags on model.Node in 3x-ui. inboundTags
 // is serialized to a JSON string (gorm json serializer on the upstream side).

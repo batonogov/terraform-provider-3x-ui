@@ -69,6 +69,7 @@ resource "threexui_xray_outbounds" "config" {
 - `tag` (String, Optional) - Outbound tag name.
 - `protocol` (String, Required) - Protocol type (`freedom`, `blackhole`, `dns`, `vmess`, `vless`, `trojan`, `shadowsocks`, `socks`, `http`, `wireguard`, `hysteria`, `hysteria2`).
 - `send_through` (String, Optional) - Source IP address to bind.
+- `target_strategy` (String, Optional) - Domain strategy for the outbound's destination (3x-ui v3.5.0+, xray-core v26.7.11+). One of: `AsIs`, `UseIP`, `UseIPv4`, `UseIPv6`, `UseIPv6v4`, `UseIPv4v6`, `ForceIPv6v4`. Empty/`AsIs` means xray resolves the destination as-is (the key is omitted on the wire when empty). Older xray cores silently ignore the unknown key; `freedom_settings.domain_strategy` is a separate, pre-existing field.
 
 #### mux (Block, Optional, Max: 1)
 
