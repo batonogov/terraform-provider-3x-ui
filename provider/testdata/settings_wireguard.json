@@ -13,5 +13,21 @@
   "gateway": ["10.0.0.1", "fd00::1"],
   "dns": ["1.1.1.1", "8.8.8.8"],
   "noKernelTun": false,
-  "clients": []
+  "clients": [
+    {
+      "privateKey": "wg-client-private-key",
+      "publicKey": "wg-client-public-key",
+      "preSharedKey": "wg-client-preshared-key",
+      "allowedIPs": ["10.0.0.2/32"],
+      "keepAlive": 25,
+      "email": "wg-client@example.com",
+      "limitIp": 0,
+      "totalGB": 0,
+      "expiryTime": 0,
+      "enable": true,
+      "tgId": 0,
+      "subId": "wg-client-sub-id",
+      "reset": 0
+    }
+  ]
 }

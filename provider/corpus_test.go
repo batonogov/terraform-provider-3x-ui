@@ -57,18 +57,19 @@ func loadFixture(t *testing.T, name string) []byte {
 
 func TestCorpusSettings_RoundTrip(t *testing.T) {
 	cases := []struct {
-		fixture string
-		desc    string
+		fixture  string
+		desc     string
+		protocol string // passed to flattenSettings/buildSettingsJSON; "wireguard" retains clients[]
 	}{
-		{"settings_vless.json", "VLESS with fallbacks and testseed"},
-		{"settings_trojan.json", "Trojan with empty fallbacks"},
-		{"settings_shadowsocks.json", "Shadowsocks with method/password/network"},
-		{"settings_http.json", "HTTP with multiple accounts"},
-		{"settings_socks.json", "SOCKS with auth and UDP"},
-		{"settings_mixed.json", "Mixed with auth, accounts, UDP and IP"},
-		{"settings_wireguard.json", "WireGuard with peers, gateway, dns, mtu list"},
-		{"settings_dokodemo.json", "Dokodemo-door with portMap and followRedirect"},
-		{"settings_hysteria.json", "Hysteria v2 with version field"},
+		{"settings_vless.json", "VLESS with fallbacks and testseed", ""},
+		{"settings_trojan.json", "Trojan with empty fallbacks", ""},
+		{"settings_shadowsocks.json", "Shadowsocks with method/password/network", ""},
+		{"settings_http.json", "HTTP with multiple accounts", ""},
+		{"settings_socks.json", "SOCKS with auth and UDP", ""},
+		{"settings_mixed.json", "Mixed with auth, accounts, UDP and IP", ""},
+		{"settings_wireguard.json", "WireGuard with peers, gateway, dns, mtu, multi-client", "wireguard"},
+		{"settings_dokodemo.json", "Dokodemo-door with portMap and followRedirect", ""},
+		{"settings_hysteria.json", "Hysteria v2 with version field", ""},
 	}
 
 	for _, tc := range cases {
@@ -76,7 +77,7 @@ func TestCorpusSettings_RoundTrip(t *testing.T) {
 			raw := string(loadFixture(t, tc.fixture))
 
 			// Step 1: flatten (API JSON -> untyped map)
-			flattened, err := flattenSettings(raw)
+			flattened, err := flattenSettings(raw, tc.protocol)
 			if err != nil {
 				t.Fatalf("flattenSettings failed: %v", err)
 			}
@@ -86,10 +87,10 @@ func TestCorpusSettings_RoundTrip(t *testing.T) {
 			firstFlat := flattened[0].(map[string]any)
 
 			// Step 2: build (untyped map -> API JSON)
-			rebuilt := buildSettingsJSON(firstFlat)
+			rebuilt := buildSettingsJSON(firstFlat, tc.protocol)
 
 			// Step 3: flatten again and compare
-			reflattened, err := flattenSettings(rebuilt)
+			reflattened, err := flattenSettings(rebuilt, tc.protocol)
 			if err != nil {
 				t.Fatalf("second flattenSettings failed: %v", err)
 			}
@@ -110,20 +111,20 @@ func TestCorpusSettings_RoundTrip(t *testing.T) {
 }
 
 // TestCorpusSettings_ClientsStripped verifies that flattenSettings drops the
-// "clients" key (clients are managed via threexui_inbound_client, not inbound settings).
+// "clients" key for non-WireGuard protocols (clients are managed via
+// threexui_inbound_client, not inbound settings).
 func TestCorpusSettings_ClientsStripped(t *testing.T) {
 	cases := []struct {
 		fixture string
 		desc    string
 	}{
 		{"settings_vless.json", "VLESS clients stripped"},
-		{"settings_wireguard.json", "WireGuard empty clients stripped"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			raw := string(loadFixture(t, tc.fixture))
 
-			flattened, err := flattenSettings(raw)
+			flattened, err := flattenSettings(raw, "")
 			if err != nil {
 				t.Fatalf("flattenSettings failed: %v", err)
 			}
@@ -132,9 +133,40 @@ func TestCorpusSettings_ClientsStripped(t *testing.T) {
 			}
 			firstFlat := flattened[0].(map[string]any)
 			if _, ok := firstFlat["clients"]; ok {
-				t.Fatal("clients should be stripped by flattenSettings")
+				t.Fatal("clients should be stripped by flattenSettings for non-WireGuard protocols")
 			}
 		})
+	}
+}
+
+// TestCorpusSettings_WireguardClientsRetained verifies the WireGuard
+// multi-client surface (3x-ui v3.4.2+): unlike vmess/vless/trojan/SS/hysteria,
+// WireGuard peers live in `settings.clients[]` and are managed via
+// threexui_inbound itself — so flattenSettings/buildSettingsJSON MUST forward
+// the clients array when protocol is "wireguard". Regression test for #342.
+func TestCorpusSettings_WireguardClientsRetained(t *testing.T) {
+	raw := string(loadFixture(t, "settings_wireguard.json"))
+
+	// flatten (API JSON -> untyped map): clients[] must survive.
+	flattened, err := flattenSettings(raw, "wireguard")
+	if err != nil {
+		t.Fatalf("flattenSettings failed: %v", err)
+	}
+	firstFlat := flattened[0].(map[string]any)
+	clients, ok := firstFlat["clients"].([]any)
+	if !ok || len(clients) != 1 {
+		t.Fatalf("WireGuard clients[] must be retained on flatten (protocol=wireguard), got %#v", firstFlat["clients"])
+	}
+
+	// build (untyped map -> API JSON): clients[] must be written to the wire.
+	rebuilt := buildSettingsJSON(firstFlat, "wireguard")
+	reflattened, err := flattenSettings(rebuilt, "wireguard")
+	if err != nil {
+		t.Fatalf("second flattenSettings failed: %v", err)
+	}
+	secondFlat := reflattened[0].(map[string]any)
+	if _, ok := secondFlat["clients"].([]any); !ok {
+		t.Fatal("WireGuard clients[] must survive the build->flatten round-trip (protocol=wireguard)")
 	}
 }
 
@@ -425,7 +457,7 @@ func TestCorpusXrayTemplate_Balancers(t *testing.T) {
 func TestCorpusMalformed_TruncatedJSON(t *testing.T) {
 	raw := string(loadFixture(t, "malformed_truncated.txt"))
 
-	_, err := flattenSettings(raw)
+	_, err := flattenSettings(raw, "")
 	if err == nil {
 		t.Fatal("expected error for truncated JSON")
 	}
@@ -454,7 +486,7 @@ func TestCorpusMalformed_WrongTypes(t *testing.T) {
 	raw := string(loadFixture(t, "malformed_wrong_types.json"))
 
 	// flattenSettings should not error but should skip mistyped fields
-	flattened, err := flattenSettings(raw)
+	flattened, err := flattenSettings(raw, "")
 	if err != nil {
 		t.Fatalf("flattenSettings should handle wrong types gracefully: %v", err)
 	}
@@ -476,7 +508,7 @@ func TestCorpusMalformed_WrongTypes(t *testing.T) {
 func TestCorpusMalformed_NullFields(t *testing.T) {
 	raw := string(loadFixture(t, "malformed_null_fields.json"))
 
-	flattened, err := flattenSettings(raw)
+	flattened, err := flattenSettings(raw, "")
 	if err != nil {
 		t.Fatalf("flattenSettings should handle null fields: %v", err)
 	}
@@ -491,7 +523,7 @@ func TestCorpusMalformed_NullFields(t *testing.T) {
 func TestCorpusMalformed_EmptyObject(t *testing.T) {
 	raw := string(loadFixture(t, "malformed_empty_object.json"))
 
-	flattened, err := flattenSettings(raw)
+	flattened, err := flattenSettings(raw, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -520,7 +552,7 @@ func TestCorpusMalformed_ExtraFields(t *testing.T) {
 	raw := string(loadFixture(t, "malformed_extra_fields.json"))
 
 	// Extra fields should be silently ignored, known fields preserved
-	flattened, err := flattenSettings(raw)
+	flattened, err := flattenSettings(raw, "")
 	if err != nil {
 		t.Fatalf("flattenSettings should ignore extra fields: %v", err)
 	}
@@ -543,8 +575,8 @@ func TestCorpusMalformed_ExtraFields(t *testing.T) {
 	}
 
 	// Round-trip should still work for the known fields
-	rebuilt := buildSettingsJSON(m)
-	reflattened, err := flattenSettings(rebuilt)
+	rebuilt := buildSettingsJSON(m, "")
+	reflattened, err := flattenSettings(rebuilt, "")
 	if err != nil {
 		t.Fatalf("round-trip failed: %v", err)
 	}

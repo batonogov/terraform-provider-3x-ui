@@ -579,7 +579,7 @@ func expandInboundFromModel(m *InboundResourceModel) *Inbound {
 	// Settings: typed blocks -> untyped map -> JSON
 	var settingsJSON string
 	if settingsMap := expandSettingsFromModel(protocol, m); len(settingsMap) > 0 {
-		settingsJSON = buildSettingsJSON(settingsMap)
+		settingsJSON = buildSettingsJSON(settingsMap, protocol)
 	} else {
 		settingsJSON = "{}"
 	}
@@ -670,7 +670,7 @@ func inboundToModel(inbound *Inbound, failHard bool) (*InboundResourceModel, dia
 	}
 
 	// Settings: JSON -> untyped map -> typed model
-	settingsMap, err := flattenSettingsToMap(inbound.Settings)
+	settingsMap, err := flattenSettingsToMap(inbound.Settings, inbound.Protocol)
 	if err != nil {
 		addDiag("Failed to parse inbound settings", err.Error())
 	} else if settingsMap != nil {

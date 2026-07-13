@@ -239,8 +239,8 @@ func TestBuildFlattenSettings_DokodemoPortMap(t *testing.T) {
 		"network":         "tcp,udp",
 		"follow_redirect": true,
 	}
-	jsonStr := buildSettingsJSON(input)
-	result, err := flattenSettings(jsonStr)
+	jsonStr := buildSettingsJSON(input, "")
+	result, err := flattenSettings(jsonStr, "")
 	if err != nil {
 		t.Fatalf("flattenSettings error: %v", err)
 	}
@@ -273,8 +273,8 @@ func TestBuildFlattenSettings_TunnelRewriteFields(t *testing.T) {
 		"allowed_network": "tcp",
 		"follow_redirect": true,
 	}
-	jsonStr := buildSettingsJSON(input)
-	result, err := flattenSettings(jsonStr)
+	jsonStr := buildSettingsJSON(input, "")
+	result, err := flattenSettings(jsonStr, "")
 	if err != nil {
 		t.Fatalf("flattenSettings error: %v", err)
 	}
@@ -306,8 +306,8 @@ func TestBuildFlattenSettings_Mixed(t *testing.T) {
 		"udp":      true,
 		"ip":       "127.0.0.1",
 	}
-	jsonStr := buildSettingsJSON(input)
-	result, err := flattenSettings(jsonStr)
+	jsonStr := buildSettingsJSON(input, "")
+	result, err := flattenSettings(jsonStr, "")
 	if err != nil {
 		t.Fatalf("flattenSettings error: %v", err)
 	}
@@ -364,8 +364,8 @@ func TestExpandFlattenMixedSettingsModel_RoundTrip(t *testing.T) {
 	}
 
 	// Build JSON and flatten back
-	jsonStr := buildSettingsJSON(expanded)
-	flatMap, err := flattenSettingsToMap(jsonStr)
+	jsonStr := buildSettingsJSON(expanded, "")
+	flatMap, err := flattenSettingsToMap(jsonStr, "")
 	if err != nil {
 		t.Fatalf("flattenSettingsToMap error: %v", err)
 	}
@@ -431,8 +431,8 @@ func TestExpandFlattenSettingsModel_Hysteria2Alias(t *testing.T) {
 		t.Fatalf("unexpected version: %v", expanded["version"])
 	}
 
-	jsonStr := buildSettingsJSON(expanded)
-	flatMap, err := flattenSettingsToMap(jsonStr)
+	jsonStr := buildSettingsJSON(expanded, "")
+	flatMap, err := flattenSettingsToMap(jsonStr, "")
 	if err != nil {
 		t.Fatalf("flattenSettingsToMap error: %v", err)
 	}
