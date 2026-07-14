@@ -437,6 +437,10 @@ func (r *InboundClientResource) Create(ctx context.Context, req resource.CreateR
 	if state == nil {
 		return
 	}
+	// Preserve _wo_version from plan — inboundClientToModel builds a fresh
+	// model and would lose the trigger, causing perpetual rotation.
+	state.PasswordWOVersion = preserveWOVersion(state.PasswordWOVersion, plan.PasswordWOVersion)
+	state.SecretWOVersion = preserveWOVersion(state.SecretWOVersion, plan.SecretWOVersion)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 	r.maybeRestartXrayClient(ctx, &plan)
 }
@@ -515,6 +519,10 @@ func (r *InboundClientResource) Update(ctx context.Context, req resource.UpdateR
 	if state == nil {
 		return
 	}
+	// Preserve _wo_version from plan — inboundClientToModel builds a fresh
+	// model and would lose the trigger, causing perpetual rotation.
+	state.PasswordWOVersion = preserveWOVersion(state.PasswordWOVersion, plan.PasswordWOVersion)
+	state.SecretWOVersion = preserveWOVersion(state.SecretWOVersion, plan.SecretWOVersion)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 	r.maybeRestartXrayClient(ctx, &plan)
 }
