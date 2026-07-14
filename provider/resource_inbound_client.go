@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -32,8 +33,9 @@ var inboundClientMu sync.Mutex
 // ---------------------------------------------------------------------------
 
 var (
-	_ resource.Resource                = &InboundClientResource{}
-	_ resource.ResourceWithImportState = &InboundClientResource{}
+	_ resource.Resource                   = &InboundClientResource{}
+	_ resource.ResourceWithImportState    = &InboundClientResource{}
+	_ resource.ResourceWithModifyPlan     = &InboundClientResource{}
 )
 
 // ---------------------------------------------------------------------------
@@ -62,6 +64,12 @@ type InboundClientResourceModel struct {
 	Secret      types.String `tfsdk:"secret"`
 	AdTag       types.String `tfsdk:"ad_tag"`
 	RestartXray types.Bool   `tfsdk:"restart_xray"`
+
+	// Write-only secret variants (Strategy B — see resource_node.go).
+	PasswordWO        types.String `tfsdk:"password_wo"`
+	PasswordWOVersion types.Int64  `tfsdk:"password_wo_version"`
+	SecretWO          types.String `tfsdk:"secret_wo"`
+	SecretWOVersion   types.Int64  `tfsdk:"secret_wo_version"`
 }
 
 // ---------------------------------------------------------------------------
@@ -120,8 +128,28 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 				Optional:  true,
 				Computed:  true,
 				Sensitive: true,
+				Validators: []validator.String{
+					stringvalidator.PreferWriteOnlyAttribute(path.MatchRoot("password_wo")),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"password_wo": schema.StringAttribute{
+				Optional:   true,
+				Sensitive:  true,
+				WriteOnly:  true,
+				Description: "Write-only password for trojan/shadowsocks clients. Use password_wo_version to trigger updates.",
+			},
+			"password_wo_version": schema.Int64Attribute{
+				Optional:   true,
+				Computed:   true,
+				Description: "Increment to trigger password update when using password_wo.",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.Int64{
+					int64validator.AlsoRequires(path.MatchRoot("password_wo")),
 				},
 			},
 			"flow": schema.StringAttribute{
@@ -224,8 +252,28 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 					"suffix that differs from the inbound's fakeTlsDomain causes drift after the " +
 					"first apply (the panel heals it) — leave unset to let the panel generate it. " +
 					"Leave unset for non-MTProto clients.",
+				Validators: []validator.String{
+					stringvalidator.PreferWriteOnlyAttribute(path.MatchRoot("secret_wo")),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"secret_wo": schema.StringAttribute{
+				Optional:   true,
+				Sensitive:  true,
+				WriteOnly:  true,
+				Description: "Write-only MTProto FakeTLS secret (3x-ui v3.5.0+). Use secret_wo_version to trigger updates.",
+			},
+			"secret_wo_version": schema.Int64Attribute{
+				Optional:   true,
+				Computed:   true,
+				Description: "Increment to trigger secret update when using secret_wo.",
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.Int64{
+					int64validator.AlsoRequires(path.MatchRoot("secret_wo")),
 				},
 			},
 			"ad_tag": schema.StringAttribute{
@@ -262,6 +310,58 @@ func (r *InboundClientResource) Configure(_ context.Context, req resource.Config
 }
 
 // ---------------------------------------------------------------------------
+// ModifyPlan — mark plain secrets Unknown when _wo_version changes (inlined
+// for two WO secrets, same pattern as resource_node.go).
+// ---------------------------------------------------------------------------
+
+func (r *InboundClientResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return
+	}
+	var plan, state InboundClientResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	changed := false
+	if woVersionTriggered(plan.PasswordWOVersion, state.PasswordWOVersion) {
+		plan.Password = types.StringUnknown()
+		changed = true
+	}
+	if woVersionTriggered(plan.SecretWOVersion, state.SecretWOVersion) {
+		plan.Secret = types.StringUnknown()
+		changed = true
+	}
+	if changed {
+		resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	}
+}
+
+// resolveInboundClientSecretsWO copies _wo values into plain fields on Create.
+func resolveInboundClientSecretsWO(plan *InboundClientResourceModel, config InboundClientResourceModel) {
+	if !config.PasswordWO.IsNull() && !config.PasswordWO.IsUnknown() {
+		plan.Password = config.PasswordWO
+	}
+	if !config.SecretWO.IsNull() && !config.SecretWO.IsUnknown() {
+		plan.Secret = config.SecretWO
+	}
+}
+
+// resolveInboundClientSecretsWOUpdate copies _wo values into plain fields on
+// Update only when the _wo_version trigger changed.
+func resolveInboundClientSecretsWOUpdate(plan *InboundClientResourceModel, state, config InboundClientResourceModel) {
+	if !config.PasswordWO.IsNull() && !config.PasswordWO.IsUnknown() &&
+		woVersionTriggered(plan.PasswordWOVersion, state.PasswordWOVersion) {
+		plan.Password = config.PasswordWO
+	}
+	if !config.SecretWO.IsNull() && !config.SecretWO.IsUnknown() &&
+		woVersionTriggered(plan.SecretWOVersion, state.SecretWOVersion) {
+		plan.Secret = config.SecretWO
+	}
+}
+
+// ---------------------------------------------------------------------------
 // CRUD
 // ---------------------------------------------------------------------------
 
@@ -270,6 +370,23 @@ func (r *InboundClientResource) Create(ctx context.Context, req resource.CreateR
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	var config InboundClientResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resolveInboundClientSecretsWO(&plan, config)
+
+	// Ensure _wo_version is known (not Unknown) after Create — Terraform
+	// requires all Computed values to be known after apply. If no _wo is
+	// configured, default to 0.
+	if plan.PasswordWOVersion.IsUnknown() {
+		plan.PasswordWOVersion = types.Int64Value(0)
+	}
+	if plan.SecretWOVersion.IsUnknown() {
+		plan.SecretWOVersion = types.Int64Value(0)
 	}
 
 	inboundID := int(plan.InboundID.ValueInt64())
@@ -330,6 +447,10 @@ func (r *InboundClientResource) Create(ctx context.Context, req resource.CreateR
 	if state == nil {
 		return
 	}
+	// Preserve _wo_version from plan — inboundClientToModel builds a fresh
+	// model and would lose the trigger, causing perpetual rotation.
+	state.PasswordWOVersion = preserveWOVersion(state.PasswordWOVersion, plan.PasswordWOVersion)
+	state.SecretWOVersion = preserveWOVersion(state.SecretWOVersion, plan.SecretWOVersion)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 	r.maybeRestartXrayClient(ctx, &plan)
 }
@@ -371,6 +492,13 @@ func (r *InboundClientResource) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 
+	var config InboundClientResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resolveInboundClientSecretsWOUpdate(&plan, cur, config)
+
 	inboundID, clientID, err := splitInboundClientID(cur.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid resource ID", err.Error())
@@ -401,6 +529,10 @@ func (r *InboundClientResource) Update(ctx context.Context, req resource.UpdateR
 	if state == nil {
 		return
 	}
+	// Preserve _wo_version from plan — inboundClientToModel builds a fresh
+	// model and would lose the trigger, causing perpetual rotation.
+	state.PasswordWOVersion = preserveWOVersion(state.PasswordWOVersion, plan.PasswordWOVersion)
+	state.SecretWOVersion = preserveWOVersion(state.SecretWOVersion, plan.SecretWOVersion)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 	r.maybeRestartXrayClient(ctx, &plan)
 }
