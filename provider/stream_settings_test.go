@@ -357,16 +357,22 @@ func TestKCPSettings_Roundtrip(t *testing.T) {
 // the resource shows perpetual drift (plan re-adds an empty block, refresh drops
 // it again). Previously the fallback compared network to the wrong value
 // ("hysteria2", a v3.0.2/v3.1.0-only protocol name) instead of "hysteria".
+// The defensive `hysteria2` fallback is also tested for backward compatibility.
 func TestFlattenStreamSettings_HysteriaEmptySettingsRetained(t *testing.T) {
-	out, err := flattenStreamSettings(`{"network":"hysteria","hysteriaSettings":{}}`)
-	if err != nil {
-		t.Fatalf("flattenStreamSettings error: %v", err)
-	}
-	if len(out) == 0 {
-		t.Fatal("expected non-empty result")
-	}
-	first := out[0].(map[string]any)
-	if _, ok := first["hysteria_settings"]; !ok {
-		t.Fatalf("hysteria_settings must be retained for network=hysteria even when empty, got: %#v", first)
+	for _, network := range []string{"hysteria", "hysteria2"} {
+		t.Run(network, func(t *testing.T) {
+			json := `{"network":"` + network + `","hysteriaSettings":{}}`
+			out, err := flattenStreamSettings(json)
+			if err != nil {
+				t.Fatalf("flattenStreamSettings error: %v", err)
+			}
+			if len(out) == 0 {
+				t.Fatal("expected non-empty result")
+			}
+			first := out[0].(map[string]any)
+			if _, ok := first["hysteria_settings"]; !ok {
+				t.Fatalf("hysteria_settings must be retained for network=%s even when empty, got: %#v", network, first)
+			}
+		})
 	}
 }
