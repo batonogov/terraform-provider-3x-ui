@@ -64,6 +64,8 @@ Starting with provider v3.13.0, resources that manage secrets offer write-only (
 | `threexui_panel_security` | `two_factor_token_wo` | `two_factor_token_wo_version` |
 | `threexui_panel_telegram` | `tg_bot_token_wo` | `tg_bot_token_wo_version` |
 | `threexui_panel_general` | `ldap_password_wo` | `ldap_password_wo_version` |
+| `threexui_panel_email` | `smtp_password_wo` | `smtp_password_wo_version` |
+| `threexui_node` | `api_token_wo`, `pinned_cert_sha256_wo` | `api_token_wo_version`, `pinned_cert_sha256_wo_version` |
 
 ### How it works
 

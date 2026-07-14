@@ -142,6 +142,7 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 			"auth": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
+				Sensitive:   true,
 				Description: "Auth password for Hysteria clients.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
