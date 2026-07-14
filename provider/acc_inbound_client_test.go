@@ -103,7 +103,7 @@ func TestAccInboundClientUpdate(t *testing.T) {
 				ResourceName:            "threexui_inbound_client.upd",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"password"},
+				ImportStateVerifyIgnore: []string{"password", "password_wo", "password_wo_version", "secret", "secret_wo", "secret_wo_version"},
 			},
 		},
 	})
@@ -519,7 +519,7 @@ func TestAccInboundClientExplicitSubID(t *testing.T) {
 				ResourceName:            "threexui_inbound_client.subid",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"password"},
+				ImportStateVerifyIgnore: []string{"password", "password_wo", "password_wo_version", "secret", "secret_wo", "secret_wo_version"},
 			},
 		},
 	})
