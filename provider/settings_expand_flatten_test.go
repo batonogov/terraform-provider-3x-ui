@@ -520,3 +520,116 @@ func TestFlattenSettingsToModel_TunnelProtocol(t *testing.T) {
 		t.Fatalf("unexpected allowed_network: %s", model.DokodemoSettings.AllowedNetwork.ValueString())
 	}
 }
+
+func TestExpandFlattenMtprotoSettingsModel_RoundTrip(t *testing.T) {
+	model := &InboundResourceModel{
+		MtprotoSettings: &InboundMtprotoSettingsModel{
+			FakeTlsDomain:         types.StringValue("bing.com"),
+			ProxyProtocolListener: types.BoolValue(true),
+			PreferIp:              types.StringValue("prefer-ipv6"),
+			Debug:                 types.BoolValue(false),
+			DomainFronting: []InboundMtprotoDomainFrontingModel{
+				{IP: types.StringValue("1.2.3.4"), Port: types.Int64Value(443), ProxyProtocol: types.BoolValue(true)},
+			},
+			OutboundTag:      types.StringValue("mt-out"),
+			RouteThroughXray: types.BoolValue(true),
+			RouteXrayPort:    types.Int64Value(1080),
+			PublicIpv4:       types.StringValue("203.0.113.1"),
+			PublicIpv6:       types.StringValue("2001:db8::1"),
+		},
+	}
+
+	// Expand typed model → untyped map
+	expanded := expandSettingsFromModel("mtproto", model)
+	if expanded == nil {
+		t.Fatal("expected non-nil result for mtproto protocol")
+	}
+	if expanded["fake_tls_domain"] != "bing.com" {
+		t.Fatalf("unexpected fake_tls_domain: %v", expanded["fake_tls_domain"])
+	}
+	if expanded["proxy_protocol_listener"] != true {
+		t.Fatalf("unexpected proxy_protocol_listener: %v", expanded["proxy_protocol_listener"])
+	}
+	if expanded["prefer_ip"] != "prefer-ipv6" {
+		t.Fatalf("unexpected prefer_ip: %v", expanded["prefer_ip"])
+	}
+	if expanded["outbound_tag"] != "mt-out" {
+		t.Fatalf("unexpected outbound_tag: %v", expanded["outbound_tag"])
+	}
+	if expanded["route_xray_port"] != 1080 {
+		t.Fatalf("unexpected route_xray_port: %v", expanded["route_xray_port"])
+	}
+
+	// Build JSON (snake → camelCase)
+	jsonStr := buildSettingsJSON(expanded, "mtproto")
+
+	// Flatten back (camelCase → snake)
+	flatMap, err := flattenSettingsToMap(jsonStr, "mtproto")
+	if err != nil {
+		t.Fatalf("flattenSettingsToMap error: %v", err)
+	}
+
+	result := &InboundResourceModel{}
+	flattenSettingsToModel("mtproto", flatMap, result)
+	if result.MtprotoSettings == nil {
+		t.Fatal("expected MtprotoSettings to be set")
+	}
+	if result.MtprotoSettings.FakeTlsDomain.ValueString() != "bing.com" {
+		t.Fatalf("unexpected fake_tls_domain: %s", result.MtprotoSettings.FakeTlsDomain.ValueString())
+	}
+	if !result.MtprotoSettings.ProxyProtocolListener.ValueBool() {
+		t.Fatalf("unexpected proxy_protocol_listener: %v", result.MtprotoSettings.ProxyProtocolListener.ValueBool())
+	}
+	if result.MtprotoSettings.PreferIp.ValueString() != "prefer-ipv6" {
+		t.Fatalf("unexpected prefer_ip: %s", result.MtprotoSettings.PreferIp.ValueString())
+	}
+	if result.MtprotoSettings.Debug.ValueBool() != false {
+		t.Fatalf("unexpected debug: %v", result.MtprotoSettings.Debug.ValueBool())
+	}
+	if len(result.MtprotoSettings.DomainFronting) != 1 {
+		t.Fatalf("expected 1 domain_fronting entry, got %d", len(result.MtprotoSettings.DomainFronting))
+	}
+	df := result.MtprotoSettings.DomainFronting[0]
+	if df.IP.ValueString() != "1.2.3.4" {
+		t.Fatalf("unexpected domain_fronting ip: %s", df.IP.ValueString())
+	}
+	if df.Port.ValueInt64() != 443 {
+		t.Fatalf("unexpected domain_fronting port: %d", df.Port.ValueInt64())
+	}
+	if !df.ProxyProtocol.ValueBool() {
+		t.Fatalf("unexpected domain_fronting proxy_protocol: %v", df.ProxyProtocol.ValueBool())
+	}
+	if result.MtprotoSettings.OutboundTag.ValueString() != "mt-out" {
+		t.Fatalf("unexpected outbound_tag: %s", result.MtprotoSettings.OutboundTag.ValueString())
+	}
+	if !result.MtprotoSettings.RouteThroughXray.ValueBool() {
+		t.Fatalf("unexpected route_through_xray: %v", result.MtprotoSettings.RouteThroughXray.ValueBool())
+	}
+	if result.MtprotoSettings.RouteXrayPort.ValueInt64() != 1080 {
+		t.Fatalf("unexpected route_xray_port: %d", result.MtprotoSettings.RouteXrayPort.ValueInt64())
+	}
+	if result.MtprotoSettings.PublicIpv4.ValueString() != "203.0.113.1" {
+		t.Fatalf("unexpected public_ipv4: %s", result.MtprotoSettings.PublicIpv4.ValueString())
+	}
+	if result.MtprotoSettings.PublicIpv6.ValueString() != "2001:db8::1" {
+		t.Fatalf("unexpected public_ipv6: %s", result.MtprotoSettings.PublicIpv6.ValueString())
+	}
+}
+
+func TestExpandSettingsFromModel_MtprotoNil(t *testing.T) {
+	model := &InboundResourceModel{
+		MtprotoSettings: nil,
+	}
+	result := expandSettingsFromModel("mtproto", model)
+	if result != nil {
+		t.Fatalf("expected nil for nil MtprotoSettings, got %v", result)
+	}
+}
+
+func TestFlattenSettingsToModel_MtprotoEmptyData(t *testing.T) {
+	model := &InboundResourceModel{}
+	flattenSettingsToModel("mtproto", map[string]any{}, model)
+	if model.MtprotoSettings != nil {
+		t.Fatal("expected nil MtprotoSettings for empty data")
+	}
+}

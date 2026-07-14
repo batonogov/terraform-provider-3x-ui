@@ -151,6 +151,42 @@ func buildSettingsJSON(item map[string]any, protocol string) string {
 		}
 	}
 
+	// MTProto settings (3x-ui v3.3.0+)
+	if v, ok := item["fake_tls_domain"].(string); ok && v != "" {
+		payload["fakeTlsDomain"] = v
+	}
+	if v, ok := item["proxy_protocol_listener"]; ok {
+		payload["proxyProtocolListener"] = boolValue(v)
+	}
+	if v, ok := item["prefer_ip"].(string); ok && v != "" {
+		payload["preferIp"] = v
+	}
+	if v, ok := item["debug"]; ok {
+		payload["debug"] = boolValue(v)
+	}
+	if v, ok := item["domain_fronting"]; ok {
+		if list, ok := v.([]any); ok && len(list) > 0 {
+			payload["domainFronting"] = expandMtprotoDomainFronting(list)
+		}
+	}
+	if v, ok := item["outbound_tag"].(string); ok && v != "" {
+		payload["outboundTag"] = v
+	}
+	if v, ok := item["route_through_xray"]; ok {
+		payload["routeThroughXray"] = boolValue(v)
+	}
+	if v, ok := item["route_xray_port"]; ok {
+		if p := intValue(v); p != 0 {
+			payload["routeXrayPort"] = p
+		}
+	}
+	if v, ok := item["public_ipv4"].(string); ok && v != "" {
+		payload["publicIpv4"] = v
+	}
+	if v, ok := item["public_ipv6"].(string); ok && v != "" {
+		payload["publicIpv6"] = v
+	}
+
 	if len(payload) == 0 {
 		return "{}"
 	}
@@ -273,6 +309,38 @@ func flattenSettings(settings string, protocol string) ([]any, error) {
 		if v, ok := payload["clients"].([]any); ok && len(v) > 0 {
 			out["clients"] = v
 		}
+	}
+
+	// MTProto settings (3x-ui v3.3.0+)
+	if v, ok := payload["fakeTlsDomain"].(string); ok {
+		out["fake_tls_domain"] = v
+	}
+	if v, ok := payload["proxyProtocolListener"].(bool); ok {
+		out["proxy_protocol_listener"] = v
+	}
+	if v, ok := payload["preferIp"].(string); ok {
+		out["prefer_ip"] = v
+	}
+	if v, ok := payload["debug"].(bool); ok {
+		out["debug"] = v
+	}
+	if v, ok := payload["domainFronting"].([]any); ok {
+		out["domain_fronting"] = flattenMtprotoDomainFronting(v)
+	}
+	if v, ok := payload["outboundTag"].(string); ok {
+		out["outbound_tag"] = v
+	}
+	if v, ok := payload["routeThroughXray"].(bool); ok {
+		out["route_through_xray"] = v
+	}
+	if v, ok := payload["routeXrayPort"]; ok {
+		out["route_xray_port"] = intValue(v)
+	}
+	if v, ok := payload["publicIpv4"].(string); ok {
+		out["public_ipv4"] = v
+	}
+	if v, ok := payload["publicIpv6"].(string); ok {
+		out["public_ipv6"] = v
 	}
 	if len(out) == 0 {
 		return []any{}, nil
@@ -464,6 +532,54 @@ func flattenIntList(list []any) []int {
 	out := make([]int, 0, len(list))
 	for _, v := range list {
 		out = append(out, intValue(v))
+	}
+	return out
+}
+
+func expandMtprotoDomainFronting(list []any) []any {
+	out := make([]any, 0, len(list))
+	for _, item := range list {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		entry := map[string]any{}
+		if v, ok := m["ip"].(string); ok && v != "" {
+			entry["ip"] = v
+		}
+		if v, ok := m["port"]; ok {
+			if p := intValue(v); p != 0 {
+				entry["port"] = p
+			}
+		}
+		if v, ok := m["proxy_protocol"]; ok {
+			entry["proxyProtocol"] = boolValue(v)
+		}
+		if len(entry) > 0 {
+			out = append(out, entry)
+		}
+	}
+	return out
+}
+
+func flattenMtprotoDomainFronting(list []any) []any {
+	out := make([]any, 0, len(list))
+	for _, item := range list {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		entry := map[string]any{}
+		if v, ok := m["ip"].(string); ok {
+			entry["ip"] = v
+		}
+		if v, ok := m["port"]; ok {
+			entry["port"] = intValue(v)
+		}
+		if v, ok := m["proxyProtocol"].(bool); ok {
+			entry["proxy_protocol"] = v
+		}
+		out = append(out, entry)
 	}
 	return out
 }
