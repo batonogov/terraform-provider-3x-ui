@@ -164,7 +164,7 @@ resource "threexui_inbound" "hysteria" {
 ### Top-level
 
 - `port` (Required, Number) - Port number for the inbound.
-- `protocol` (Required, String) - Protocol type (`vless`, `vmess`, `trojan`, `shadowsocks`, `http`, `mixed`, `wireguard`, `tunnel`, `hysteria`). Legacy `socks` and `dokodemo-door` are available only on panels before 3x-ui v3.2.0; use `mixed` and `tunnel` on v3.2.0+.
+- `protocol` (Required, String) - Protocol type (`vless`, `vmess`, `trojan`, `shadowsocks`, `http`, `mixed`, `wireguard`, `tunnel`, `hysteria`). Legacy `socks` and `dokodemo-door` are available only on panels before 3x-ui v3.2.0; use `mixed` and `tunnel` on v3.2.0+. `tun` is also available on 3x-ui v3.5.0+.
 - `enable` (Optional, Boolean) - Whether the inbound is enabled. Default is `true`.
 - `remark` (Optional, String) - A label/name for the inbound.
 - `listen` (Optional, String) - Listen address.
@@ -175,6 +175,9 @@ resource "threexui_inbound" "hysteria" {
 - `traffic_reset` (Optional, String) - Traffic reset period. Default is `never`.
 - `node_id` (Optional, Number) - 3x-ui v3 node ID for multi-node deployments. Leave unset for the local panel. Changing this value recreates the inbound because 3x-ui v3 does not support moving an existing inbound between nodes.
 - `restart_xray` (Optional, Boolean) - Restart Xray core after create, update, or delete operations. Default is `false`.
+- `sub_sort_index` (Optional, Number) - 1-based sort order of this inbound's links in subscription output (lower first; ties by id). Added in 3x-ui v3.3.1; ignored by older panels.
+- `share_addr` (Optional, String) - Share address used in generated subscription links when share_addr_strategy is custom. Added in 3x-ui v3.3.1; ignored by older panels.
+- `share_addr_strategy` (Optional, String) - Strategy for the share address in subscription links: `node` (inbound listen/node address), `listen`, or `custom` (uses `share_addr`). Added in 3x-ui v3.3.1; ignored by older panels.
 
 ### Per-protocol Settings Blocks
 
@@ -199,7 +202,7 @@ Use the block matching your `protocol`. Only one should be specified.
 #### `shadowsocks_settings`
 
 - `method` (Optional, String) - Encryption method (e.g. `chacha20-ietf-poly1305`, `2022-blake3-aes-256-gcm`). On 3x-ui v2.9.3+ the legacy `aes-128-gcm`/`aes-256-gcm` ciphers were dropped from the xray user switch and silently route through Shadowsocks-2022; pick a chacha20 variant or a `2022-blake3-*` method to stay compatible across the matrix.
-- `password` (Optional, String) - Password.
+- `password` (Optional, String, Sensitive) - Password.
 - `network` (Optional, String) - Network type (e.g. `tcp,udp`).
 - `iv_check` (Optional, Boolean) - Enable IV check.
 
@@ -218,17 +221,26 @@ Use the block matching your `protocol`. Only one should be specified.
 - `ip` (Optional, String) - IP address.
 - `account` (Optional, Block List) - Same structure as http account.
 
+#### `mixed_settings`
+
+Settings for mixed (HTTP+SOCKS) proxy protocol.
+
+- `auth` (Optional, String) - Authentication type (e.g. `password`, `noauth`).
+- `udp` (Optional, Boolean) - Enable UDP support.
+- `ip` (Optional, String) - IP address for UDP.
+- `account` (Optional, Block List) - Authentication accounts. Same structure as http account.
+
 #### `wireguard_settings`
 
 - `mtu` (Optional, List of Number) - MTU values `[IPv4, IPv6]`.
-- `secret_key` (Optional, String) - Secret key.
+- `secret_key` (Optional, String, Sensitive) - Secret key.
 - `no_kernel_tun` (Optional, Boolean) - Disable kernel TUN.
 - `gateway` (Optional, List of String) - Gateway addresses.
 - `dns` (Optional, List of String) - DNS server addresses.
 - `peer` (Optional, Block List) - WireGuard peers.
-  - `private_key` (Optional, String)
+  - `private_key` (Optional, String, Sensitive)
   - `public_key` (Optional, String)
-  - `pre_shared_key` (Optional, String)
+  - `pre_shared_key` (Optional, String, Sensitive)
   - `allowed_ips` (Optional, List of String)
   - `keep_alive` (Optional, Number)
 - `clients` (Optional, Block List) - WireGuard multi-client peers (3x-ui v3.4.2+). Absent/empty on older panels. Each entry is one client device the server accepts, with its own keypair and traffic limits. Use EITHER `clients` OR the legacy `peer` for an inbound, not both — the panel treats them as separate models and populating both yields undefined behavior.
@@ -289,6 +301,12 @@ Used for both `tunnel` and `dokodemo-door` protocols.
   - `mode` (Optional, String)
   - `no_sse_header` (Optional, Boolean)
   - `keep_alive_interval` (Optional, Number)
+  - `x_padding_bytes` (Optional, String) - xPadding bytes range (e.g. `100-1000`).
+  - `x_padding_obfs_mode` (Optional, Boolean) - Enable xPadding obfuscation mode.
+  - `x_padding_key` (Optional, String) - xPadding encryption key.
+  - `x_padding_header` (Optional, String) - xPadding header name.
+  - `x_padding_placement` (Optional, String) - xPadding placement (e.g. `header`, `body`).
+  - `x_padding_method` (Optional, String) - xPadding method (e.g. `aes`).
 - `kcp_settings` (Optional, Block) - mKCP settings.
   - `mtu` (Optional, Number)
   - `tti` (Optional, Number)
@@ -307,7 +325,7 @@ Used for both `tunnel` and `dokodemo-door` protocols.
   - `xver` (Optional, Number)
   - `target` (Optional, String)
   - `server_names` (Optional, List of String)
-  - `private_key` (Optional, String) - Auto-generated if not specified.
+  - `private_key` (Optional, String, Sensitive) - Auto-generated if not specified.
   - `short_ids` (Optional, List of String) - Auto-generated if not specified.
   - `mldsa65_seed` (Optional, String)
   - `settings` (Optional, Attribute) - Reality inner settings (client-side). Auto-populated if omitted.

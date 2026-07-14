@@ -65,6 +65,7 @@ terraform import threexui_host_group.premium_eu 1234567890123456
 - `mihomo_x25519` (Optional, Boolean) - Use Mihomo X25519 key exchange.
 - `shuffle_host` (Optional, Boolean) - Shuffle the host order in generated links.
 - `hosts` (Optional, List of String) - Explicit host list for this group.
+- `tags` (Optional, List of String) - Tags assigned to this host group.
 
 ## Attribute Reference
 

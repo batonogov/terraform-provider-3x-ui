@@ -71,8 +71,11 @@ resource "threexui_panel_subscription" "settings" {
 - `sub_key_file` (Optional, String) - TLS key file path.
 - `sub_updates` (Optional, Number) - Update interval in hours.
 - `sub_encrypt` (Optional, Boolean) - Encrypt subscription data.
-- `sub_show_info` (Optional, Boolean) - Show info in subscription.
-- `sub_email_in_remark` (Optional, Boolean) - Include the client email in subscription profile names. Default is `true` on 3x-ui v3.0.2+.
+- `sub_show_info` (Optional, Boolean, Deprecated) - Show info in subscription. **Deprecated:** Removed from 3x-ui v3.4.0; accepted but has no effect on v3.4.0+ panels.
+- `sub_email_in_remark` (Optional, Boolean, Deprecated) - Include the client email in subscription profile names. Default is `true` on 3x-ui v3.0.2+. **Deprecated:** Removed from 3x-ui v3.4.0; accepted but has no effect on v3.4.0+ panels.
+- `sub_theme_dir` (Optional, String) - Absolute path to a folder containing a custom subscription page template. Added in 3x-ui v3.3.0; ignored by older panels.
+- `remark_template` (Optional, String) - Subscription remark template (`{{VAR}}` tokens rendered per client, e.g. Jalali date/transport/status). Added in 3x-ui v3.4.0; ignored by older panels.
+- `sub_hide_settings` (Optional, Boolean) - Hide server settings in happ subscription (Happ only). Added in 3x-ui v3.4.0; ignored by older panels.
 
 ### URI
 

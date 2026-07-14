@@ -36,11 +36,12 @@ resource "threexui_panel_general" "settings" {
 - `web_key_file` (Optional, String) - TLS key file path. Default is `""`.
 - `session_max_age` (Optional, Number) - Session max age in minutes. Default is `360`.
 - `trusted_proxy_cidrs` (Optional, String) - Comma-separated trusted reverse proxy IPs/CIDRs used for forwarded headers. Default is `127.0.0.1/32,::1/128` on 3x-ui v3.0.2+.
+- `warp_update_interval` (Optional, Number) - Interval (hours) between Cloudflare WARP / geo auto-updates via Xray-core (0 disables). Added in 3x-ui v3.3.0; ignored by older panels.
 
 ### Display
 
 - `page_size` (Optional, Number) - Items per page. Default is `25`.
-- `remark_model` (Optional, String) - Remark display model. Default is `-ieo`.
+- `remark_model` (Optional, String, Deprecated) - Remark display model. Default is `-ieo`. **Deprecated:** Removed from 3x-ui v3.4.0 (superseded by `remark_template`). Use `remark_template` on v3.4.0+; accepted but has no effect on v3.4.0+ panels.
 - `date_picker` (Optional, String) - Date picker type. Default is `gregorian`.
 - `time_location` (Optional, String) - Timezone. Default is `Local`.
 - `expire_diff` (Optional, Number) - Expiry diff threshold. Default is `0`.
