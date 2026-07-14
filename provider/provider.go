@@ -296,6 +296,7 @@ func (p *ThreeXUIProvider) Resources(_ context.Context) []func() resource.Resour
 		NewXrayBalancersResource,
 		NewXrayReverseResource,
 		NewXrayOutboundsResource,
+		NewXrayObservatoryResource,
 		NewXrayVersionResource,
 	}
 }

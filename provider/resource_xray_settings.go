@@ -27,12 +27,14 @@ type xraySection struct {
 }
 
 var (
-	xraySectionBasics    = xraySection{id: "xray_basics", mode: xraySectionMergeRoot}
-	xraySectionDNS       = xraySection{id: "xray_dns", mode: xraySectionSetPath, path: []string{"dns"}}
-	xraySectionRouting   = xraySection{id: "xray_routing", mode: xraySectionSetPath, path: []string{"routing"}}
-	xraySectionBalancers = xraySection{id: "xray_balancers", mode: xraySectionSetPath, path: []string{"routing", "balancers"}}
-	xraySectionReverse   = xraySection{id: "xray_reverse", mode: xraySectionSetPath, path: []string{"reverse"}}
-	xraySectionOutbounds = xraySection{id: "xray_outbounds", mode: xraySectionSetPath, path: []string{"outbounds"}}
+	xraySectionBasics           = xraySection{id: "xray_basics", mode: xraySectionMergeRoot}
+	xraySectionDNS              = xraySection{id: "xray_dns", mode: xraySectionSetPath, path: []string{"dns"}}
+	xraySectionRouting          = xraySection{id: "xray_routing", mode: xraySectionSetPath, path: []string{"routing"}}
+	xraySectionBalancers        = xraySection{id: "xray_balancers", mode: xraySectionSetPath, path: []string{"routing", "balancers"}}
+	xraySectionReverse          = xraySection{id: "xray_reverse", mode: xraySectionSetPath, path: []string{"reverse"}}
+	xraySectionOutbounds        = xraySection{id: "xray_outbounds", mode: xraySectionSetPath, path: []string{"outbounds"}}
+	xraySectionObservatory      = xraySection{id: "xray_observatory", mode: xraySectionSetPath, path: []string{"observatory"}}
+	xraySectionBurstObservatory = xraySection{id: "xray_observatory", mode: xraySectionSetPath, path: []string{"burstObservatory"}}
 )
 
 type xrayFlattenFunc func(data any) map[string]any
@@ -716,6 +718,168 @@ func (r *XrayOutboundsResource) ImportState(ctx context.Context, _ resource.Impo
 	}
 	state := flattenXrayOutbounds(flat)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+// ---------------------------------------------------------------------------
+// XrayObservatoryResource
+// ---------------------------------------------------------------------------
+
+var (
+	_ resource.Resource                = &XrayObservatoryResource{}
+	_ resource.ResourceWithImportState = &XrayObservatoryResource{}
+)
+
+type XrayObservatoryResource struct{ client *Client }
+
+func NewXrayObservatoryResource() resource.Resource { return &XrayObservatoryResource{} }
+
+func (r *XrayObservatoryResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_xray_observatory"
+}
+
+func (r *XrayObservatoryResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	resp.Schema = xrayObservatorySchema()
+}
+
+func (r *XrayObservatoryResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	c, ok := req.ProviderData.(*Client)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected Resource Configure Type", "Expected *Client")
+		return
+	}
+	r.client = c
+}
+
+// xrayObservatoryApply writes both the "observatory" and "burstObservatory"
+// top-level keys. Unlike other xray resources that use a single xraySection
+// path, this resource manages two independent top-level JSON keys. It performs
+// two mutex-protected read-modify-write cycles (one per key), keeping the
+// existing xrayTemplateMu serialization.
+func (r *XrayObservatoryResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan XrayObservatoryModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	r.applyObservatory(ctx, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	state := r.readObservatory(ctx, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() || state == nil {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *XrayObservatoryResource) Read(ctx context.Context, _ resource.ReadRequest, resp *resource.ReadResponse) {
+	state := r.readObservatory(ctx, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() || state == nil {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *XrayObservatoryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan XrayObservatoryModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	r.applyObservatory(ctx, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	state := r.readObservatory(ctx, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() || state == nil {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+func (r *XrayObservatoryResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
+	resp.State.RemoveResource(ctx)
+}
+
+func (r *XrayObservatoryResource) ImportState(ctx context.Context, _ resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	state := r.readObservatory(ctx, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() || state == nil {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+// applyObservatory writes the observatory and burstObservatory sections.
+// Each is applied as a set-path operation on the top-level JSON key.
+func (r *XrayObservatoryResource) applyObservatory(ctx context.Context, plan *XrayObservatoryModel, diags *diag.Diagnostics) {
+	input := expandXrayObservatory(plan)
+	desired := buildXrayObservatoryJSON(input).(map[string]any)
+
+	// Apply observatory key
+	if obs, ok := desired["observatory"]; ok && !isEmptyXrayValue(obs) {
+		xrayApplyTyped(ctx, map[string]any{"observatory": obs}, diags, r.client, xraySectionObservatory)
+	} else {
+		// If user removed all observatories, clear the key
+		r.clearObservatoryKey(ctx, "observatory", diags)
+	}
+
+	if diags.HasError() {
+		return
+	}
+
+	// Apply burstObservatory key
+	if burst, ok := desired["burstObservatory"]; ok && !isEmptyXrayValue(burst) {
+		xrayApplyTyped(ctx, map[string]any{"burstObservatory": burst}, diags, r.client, xraySectionBurstObservatory)
+	} else {
+		r.clearObservatoryKey(ctx, "burstObservatory", diags)
+	}
+}
+
+// clearObservatoryKey removes a top-level key from the xray template.
+func (r *XrayObservatoryResource) clearObservatoryKey(ctx context.Context, key string, diags *diag.Diagnostics) {
+	xrayTemplateMu.Lock()
+	defer xrayTemplateMu.Unlock()
+
+	current, err := r.client.GetXrayTemplate(ctx)
+	if err != nil {
+		diags.AddError("Failed to get xray template", err.Error())
+		return
+	}
+
+	if _, exists := current[key]; exists {
+		delete(current, key)
+		if err := r.client.UpdateXrayTemplate(ctx, current); err != nil {
+			diags.AddError("Failed to update xray template", err.Error())
+		}
+	}
+}
+
+// readObservatory reads both observatory and burstObservatory from the template.
+func (r *XrayObservatoryResource) readObservatory(ctx context.Context, diags *diag.Diagnostics) *XrayObservatoryModel {
+	current, err := r.client.GetXrayTemplate(ctx)
+	if err != nil {
+		diags.AddError("Failed to get xray template", err.Error())
+		return nil
+	}
+
+	// Build a combined payload for flattenXrayObservatoryToMap
+	payload := map[string]any{}
+	if v, ok := current["observatory"]; ok {
+		payload["observatory"] = v
+	}
+	if v, ok := current["burstObservatory"]; ok {
+		payload["burstObservatory"] = v
+	}
+
+	flat := flattenXrayObservatoryToMap(payload)
+	return flattenXrayObservatory(flat)
 }
 
 // ---------------------------------------------------------------------------
