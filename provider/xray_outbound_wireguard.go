@@ -303,7 +303,7 @@ func expandWireguardOutSettings(m map[string]any) map[string]any {
 		out["domainStrategy"] = v
 	}
 	if v, ok := item["reserved"].([]any); ok && len(v) > 0 {
-		out["reserved"] = expandIntList(v)
+		out["reserved"] = flattenIntList(v)
 	}
 	if v, ok := item["no_kernel_tun"].(bool); ok {
 		out["noKernelTun"] = v
