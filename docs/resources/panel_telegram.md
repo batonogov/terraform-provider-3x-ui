@@ -37,8 +37,10 @@ resource "threexui_panel_telegram" "settings" {
 - `tg_lang` (Optional, String) - Telegram bot language.
 - `tg_run_time` (Optional, String) - Cron expression for periodic reports.
 - `tg_bot_backup` (Optional, Boolean) - Enable periodic backup via Telegram.
-- `tg_bot_login_notify` (Optional, Boolean) - Enable login notifications via Telegram.
+- `tg_bot_login_notify` (Optional, Boolean, Deprecated) - Enable login notifications via Telegram. **Deprecated:** Removed from 3x-ui v3.4.0; accepted but has no effect on v3.4.0+ panels.
 - `tg_cpu` (Optional, Number) - CPU usage threshold for alerts (percentage).
+- `tg_enabled_events` (Optional, String) - Comma-separated event types to send via Telegram (e.g. login, backup, traffic threshold). Added in 3x-ui v3.4.0; ignored by older panels.
+- `tg_memory` (Optional, Number) - Memory usage threshold (%) for Telegram alerts (0-100). Added in 3x-ui v3.4.0; ignored by older panels.
 
 ## Attribute Reference
 

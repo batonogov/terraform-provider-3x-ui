@@ -52,6 +52,8 @@ resource "threexui_xray_dns" "config" {
 - `disable_fallback` (Bool, Optional) - Disable DNS fallback.
 - `disable_fallback_if_match` (Bool, Optional) - Disable fallback if match found.
 - `client_ip` (String, Optional) - Client IP for EDNS.
+- `enable_parallel_query` (Bool, Optional) - Enable parallel DNS query across all configured servers.
+- `use_system_hosts` (Bool, Optional) - Use system hosts file for DNS resolution.
 - `hosts` (Map of String, Optional) - Static DNS host mappings.
 
 ### server (Block, Optional, List)
