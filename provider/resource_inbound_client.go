@@ -379,6 +379,16 @@ func (r *InboundClientResource) Create(ctx context.Context, req resource.CreateR
 	}
 	resolveInboundClientSecretsWO(&plan, config)
 
+	// Ensure _wo_version is known (not Unknown) after Create — Terraform
+	// requires all Computed values to be known after apply. If no _wo is
+	// configured, default to 0.
+	if plan.PasswordWOVersion.IsUnknown() {
+		plan.PasswordWOVersion = types.Int64Value(0)
+	}
+	if plan.SecretWOVersion.IsUnknown() {
+		plan.SecretWOVersion = types.Int64Value(0)
+	}
+
 	inboundID := int(plan.InboundID.ValueInt64())
 
 	inboundClientMu.Lock()
