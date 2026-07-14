@@ -212,11 +212,12 @@ check_support_prose() {
   local basename
   basename=$(basename "$file")
 
-  # The prose paragraph appears before the "| 3x-ui version |" table header.
+  # The prose paragraph appears before the compatibility table header.
   # It must NOT contain individual minor-line globs like "v3.1.x" — the table
-  # is the single source of truth.
+  # is the single source of truth.  Match all locales by looking for any
+  # table row containing "3x-ui" (the table header in every locale).
   local prose
-  prose=$(awk '/^\| .*version.*\|/ {exit} /^$/ {next} {print}' "$file" \
+  prose=$(awk '/^\| .*3x-ui/ {exit} /^$/ {next} {print}' "$file" \
     | grep -iE 'v[0-9]+\.[0-9]+\.x' || true)
 
   if [ -z "$prose" ]; then
