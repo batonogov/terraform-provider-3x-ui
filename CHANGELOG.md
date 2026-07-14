@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.19.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.19.0...v3.19.1) (2026-07-14)
+
+
+### Bug Fixes
+
+* audit easy-wins — hysteria drift, auth Sensitive, SECURITY.md, AGENTS.md ([#350](https://github.com/batonogov/terraform-provider-threexui/issues/350)) ([d900630](https://github.com/batonogov/terraform-provider-threexui/commit/d9006300d7718672d0bcdf8d5217066de5bd59d9))
+* **blocker:** preserve WireGuard multi-client clients[] across the wire ([#342](https://github.com/batonogov/terraform-provider-threexui/issues/342)) ([#348](https://github.com/batonogov/terraform-provider-threexui/issues/348)) ([113c726](https://github.com/batonogov/terraform-provider-threexui/commit/113c726d246717f8210ad742ed42e385fe8a0943))
+
 ## [3.19.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.18.0...v3.19.0) (2026-07-13)
 
 
