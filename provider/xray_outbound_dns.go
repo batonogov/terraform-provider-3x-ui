@@ -154,7 +154,7 @@ func expandOutboundDNSSettings(m map[string]any) map[string]any {
 		out["nonIPQuery"] = v
 	}
 	if v, ok := item["block_types"].([]any); ok && len(v) > 0 {
-		out["blockTypes"] = expandIntList(v)
+		out["blockTypes"] = flattenIntList(v)
 	}
 	if len(out) == 0 {
 		return nil

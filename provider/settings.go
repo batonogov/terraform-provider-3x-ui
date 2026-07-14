@@ -29,7 +29,7 @@ func buildSettingsJSON(item map[string]any, protocol string) string {
 	if v, ok := item["testseed"]; ok {
 		switch ts := v.(type) {
 		case []any:
-			payload["testseed"] = expandIntList(ts)
+			payload["testseed"] = flattenIntList(ts)
 		case []int:
 			payload["testseed"] = ts
 		}
@@ -456,14 +456,6 @@ func flattenStringMap(in map[string]any) map[string]string {
 		if s, ok := v.(string); ok {
 			out[k] = s
 		}
-	}
-	return out
-}
-
-func expandIntList(list []any) []int {
-	out := make([]int, 0, len(list))
-	for _, v := range list {
-		out = append(out, intValue(v))
 	}
 	return out
 }
