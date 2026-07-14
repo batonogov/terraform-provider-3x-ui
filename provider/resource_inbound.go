@@ -257,6 +257,13 @@ func (r *InboundResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	// Acquire inboundClientMu if settings contains clients[] to serialise
+	// with concurrent inbound_client RMW cycles on the same inbound (#343).
+	if settingsHasClients(inbound.Settings) {
+		inboundClientMu.Lock()
+		defer inboundClientMu.Unlock()
+	}
+
 	created, err := r.client.AddInbound(ctx, inbound)
 	if err != nil {
 		if hint := deprecatedProtocolHint(inbound.Protocol); hint != "" {
@@ -420,6 +427,13 @@ func (r *InboundResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 	inbound.ID = id
+
+	// Acquire inboundClientMu if settings contains clients[] to serialise
+	// with concurrent inbound_client RMW cycles on the same inbound (#343).
+	if settingsHasClients(inbound.Settings) {
+		inboundClientMu.Lock()
+		defer inboundClientMu.Unlock()
+	}
 
 	_, err = r.client.UpdateInbound(ctx, inbound)
 	if err != nil {
@@ -881,6 +895,20 @@ func preserveSettingsKey(desired, existing map[string]any, key string) bool {
 	}
 	desired[key] = existingVal
 	return true
+}
+
+// ---------------------------------------------------------------------------
+// settingsHasClients returns true if the inbound settings JSON contains a
+// non-empty clients array. Used to decide whether InboundResource should
+// acquire inboundClientMu (serialising with inbound_client RMW cycles).
+// ---------------------------------------------------------------------------
+func settingsHasClients(settingsJSON string) bool {
+	settings, err := ParseJSONField(settingsJSON)
+	if err != nil || settings == nil {
+		return false
+	}
+	clients, ok := settings["clients"].([]any)
+	return ok && len(clients) > 0
 }
 
 // ---------------------------------------------------------------------------
