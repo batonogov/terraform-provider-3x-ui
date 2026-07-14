@@ -205,6 +205,31 @@ check_taskfile() {
 }
 
 # ---------------------------------------------------------------------------
+# 6. README support-policy prose (no hardcoded count or version globs)
+# ---------------------------------------------------------------------------
+check_support_prose() {
+  local file="$1"
+  local basename
+  basename=$(basename "$file")
+
+  # The prose paragraph appears before the compatibility table header.
+  # It must NOT contain individual minor-line globs like "v3.1.x" — the table
+  # is the single source of truth.  Match all locales by looking for any
+  # table row containing "3x-ui" (the table header in every locale).
+  local prose
+  prose=$(awk '/^\| .*3x-ui/ {exit} /^$/ {next} {print}' "$file" \
+    | grep -iE 'v[0-9]+\.[0-9]+\.x' || true)
+
+  if [ -z "$prose" ]; then
+    echo "$basename prose: OK"
+  else
+    echo "$basename prose: DRIFT — contains version globs before table:"
+    echo "$prose"
+    DRIFT=1
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Run all checks
 # ---------------------------------------------------------------------------
 echo "=== Checking version consistency ==="
@@ -220,6 +245,15 @@ check_readme "$ROOT/README.zh_CN.md"
 check_readme "$ROOT/README.tr_TR.md"
 check_docker_compose
 check_taskfile
+echo ""
+echo "=== Checking support-policy prose ==="
+check_support_prose "$ROOT/README.md"
+check_support_prose "$ROOT/README.ru_RU.md"
+check_support_prose "$ROOT/README.es_ES.md"
+check_support_prose "$ROOT/README.fa_IR.md"
+check_support_prose "$ROOT/README.ar_EG.md"
+check_support_prose "$ROOT/README.zh_CN.md"
+check_support_prose "$ROOT/README.tr_TR.md"
 
 echo ""
 if [ "$DRIFT" -eq 1 ]; then

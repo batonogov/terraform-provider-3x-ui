@@ -11,7 +11,7 @@ The 3x-ui panel evolves quickly, and some releases introduce breaking API change
 
 ## Support policy
 
-The provider officially supports three 3x-ui minor lines: **3.1.x**, **3.2.x**, and **3.3.x**. Every released patch in those lines is exercised by the acceptance matrix on each push to `main` and every pull request. Older lines (2.9.x, 3.0.x and earlier) were dropped from the test matrix in provider v3.4.0.
+The provider officially supports every released patch across all supported 3x-ui minor lines — see the compatibility table in the README. The acceptance matrix exercises each version on each push to `main` and every pull request. Older lines (2.9.x, 3.0.x and earlier) were dropped from the test matrix in provider v3.4.0.
 
 ## Compatibility table
 

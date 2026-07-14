@@ -93,7 +93,7 @@ resource "threexui_inbound_client" "client_a" {
 
 ## Uyumluluk
 
-**Destek politikası:** provider resmi olarak beş 3x-ui minör hattını destekler: **v3.1.x**, **v3.2.x**, **v3.3.x**, **v3.4.x** ve **v3.5.x** — beş hattın tamamındaki her yayımlanan yama, `main`'e yapılan her push'ta ve her pull request'te acceptance test matrisi tarafından sınanır.
+**Destek politikası:** provider resmi olarak desteklenen tüm 3x-ui minör hatlarındaki her yayımlanan yamayı destekler — aşağıdaki uyumluluk tablosuna bakın. Acceptance test matrisi her sürümü `main`'e yapılan her push'ta ve her pull request'te sınar.
 
 | 3x-ui sürümü | Durum |
 | --- | --- |
