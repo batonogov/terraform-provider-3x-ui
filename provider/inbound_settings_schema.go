@@ -79,6 +79,25 @@ type InboundHysteriaSettingsModel struct {
 	Version types.Int64 `tfsdk:"version"`
 }
 
+type InboundMtprotoSettingsModel struct {
+	FakeTlsDomain          types.String                      `tfsdk:"fake_tls_domain"`
+	ProxyProtocolListener  types.Bool                        `tfsdk:"proxy_protocol_listener"`
+	PreferIp               types.String                      `tfsdk:"prefer_ip"`
+	Debug                  types.Bool                        `tfsdk:"debug"`
+	DomainFronting         []InboundMtprotoDomainFrontingModel `tfsdk:"domain_fronting"`
+	OutboundTag            types.String                      `tfsdk:"outbound_tag"`
+	RouteThroughXray       types.Bool                        `tfsdk:"route_through_xray"`
+	RouteXrayPort          types.Int64                       `tfsdk:"route_xray_port"`
+	PublicIpv4             types.String                      `tfsdk:"public_ipv4"`
+	PublicIpv6             types.String                      `tfsdk:"public_ipv6"`
+}
+
+type InboundMtprotoDomainFrontingModel struct {
+	IP            types.String `tfsdk:"ip"`
+	Port          types.Int64  `tfsdk:"port"`
+	ProxyProtocol types.Bool   `tfsdk:"proxy_protocol"`
+}
+
 // Sub-models
 
 type InboundAccountModel struct {
@@ -471,6 +490,113 @@ func inboundSettingsBlockSchemas() map[string]schema.Block {
 				},
 			},
 		},
+		"mtproto_settings": schema.SingleNestedBlock{
+			Description: "Settings for MTProto protocol (3x-ui v3.3.0+). fake_tls_domain is the key field used by the panel to heal per-client FakeTLS secrets.",
+			Attributes: map[string]schema.Attribute{
+				"fake_tls_domain": schema.StringAttribute{
+					Optional:    true,
+					Computed:    true,
+					Description: "FakeTLS domain (default 'www.cloudflare.com'). Used by the panel to rebuild per-client secret domain suffixes.",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"proxy_protocol_listener": schema.BoolAttribute{
+					Optional:    true,
+					Computed:    true,
+					Description: "Enable PROXY protocol listener.",
+					PlanModifiers: []planmodifier.Bool{
+						boolplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"prefer_ip": schema.StringAttribute{
+					Optional:    true,
+					Computed:    true,
+					Description: "IP preference: prefer-ipv6, prefer-ipv4, only-ipv6, or only-ipv4.",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"debug": schema.BoolAttribute{
+					Optional:    true,
+					Computed:    true,
+					Description: "Enable debug mode.",
+					PlanModifiers: []planmodifier.Bool{
+						boolplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"outbound_tag": schema.StringAttribute{
+					Optional:    true,
+					Computed:    true,
+					Description: "Outbound tag for routing.",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"route_through_xray": schema.BoolAttribute{
+					Optional:    true,
+					Computed:    true,
+					Description: "Route traffic through Xray core.",
+					PlanModifiers: []planmodifier.Bool{
+						boolplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"route_xray_port": schema.Int64Attribute{
+					Optional:    true,
+					Computed:    true,
+					Description: "Port for Xray routing.",
+					PlanModifiers: []planmodifier.Int64{
+						int64planmodifier.UseStateForUnknown(),
+					},
+				},
+				"public_ipv4": schema.StringAttribute{
+					Optional:    true,
+					Computed:    true,
+					Description: "Public IPv4 address.",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+				"public_ipv6": schema.StringAttribute{
+					Optional:    true,
+					Computed:    true,
+					Description: "Public IPv6 address.",
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+			},
+			Blocks: map[string]schema.Block{
+				"domain_fronting": schema.ListNestedBlock{
+					Description: "Domain fronting entries.",
+					NestedObject: schema.NestedBlockObject{
+						Attributes: map[string]schema.Attribute{
+							"ip": schema.StringAttribute{
+								Optional: true, Computed: true,
+								Description: "Fronting IP address.",
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
+							},
+							"port": schema.Int64Attribute{
+								Optional: true, Computed: true,
+								Description: "Fronting port.",
+								PlanModifiers: []planmodifier.Int64{
+									int64planmodifier.UseStateForUnknown(),
+								},
+							},
+							"proxy_protocol": schema.BoolAttribute{
+								Optional: true, Computed: true,
+								Description: "Enable PROXY protocol for this fronting entry.",
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -550,6 +676,8 @@ func expandSettingsFromModel(protocol string, m *InboundResourceModel) map[strin
 		return expandDokodemoInboundSettings(protocol, m.DokodemoSettings)
 	case "hysteria", "hysteria2":
 		return expandHysteriaInboundSettings(m.HysteriaSettings)
+	case "mtproto":
+		return expandMtprotoInboundSettings(m.MtprotoSettings)
 	default:
 		return nil
 	}
@@ -787,6 +915,64 @@ func expandHysteriaInboundSettings(m *InboundHysteriaSettingsModel) map[string]a
 	return out
 }
 
+func expandMtprotoInboundSettings(m *InboundMtprotoSettingsModel) map[string]any {
+	if m == nil {
+		return nil
+	}
+	out := map[string]any{}
+	if !m.FakeTlsDomain.IsNull() && !m.FakeTlsDomain.IsUnknown() {
+		out["fake_tls_domain"] = m.FakeTlsDomain.ValueString()
+	}
+	if !m.ProxyProtocolListener.IsNull() && !m.ProxyProtocolListener.IsUnknown() {
+		out["proxy_protocol_listener"] = m.ProxyProtocolListener.ValueBool()
+	}
+	if !m.PreferIp.IsNull() && !m.PreferIp.IsUnknown() {
+		out["prefer_ip"] = m.PreferIp.ValueString()
+	}
+	if !m.Debug.IsNull() && !m.Debug.IsUnknown() {
+		out["debug"] = m.Debug.ValueBool()
+	}
+	if len(m.DomainFronting) > 0 {
+		out["domain_fronting"] = expandMtprotoDomainFrontingFromModel(m.DomainFronting)
+	}
+	if !m.OutboundTag.IsNull() && !m.OutboundTag.IsUnknown() {
+		out["outbound_tag"] = m.OutboundTag.ValueString()
+	}
+	if !m.RouteThroughXray.IsNull() && !m.RouteThroughXray.IsUnknown() {
+		out["route_through_xray"] = m.RouteThroughXray.ValueBool()
+	}
+	if !m.RouteXrayPort.IsNull() && !m.RouteXrayPort.IsUnknown() {
+		out["route_xray_port"] = int(m.RouteXrayPort.ValueInt64())
+	}
+	if !m.PublicIpv4.IsNull() && !m.PublicIpv4.IsUnknown() {
+		out["public_ipv4"] = m.PublicIpv4.ValueString()
+	}
+	if !m.PublicIpv6.IsNull() && !m.PublicIpv6.IsUnknown() {
+		out["public_ipv6"] = m.PublicIpv6.ValueString()
+	}
+	return out
+}
+
+func expandMtprotoDomainFrontingFromModel(list []InboundMtprotoDomainFrontingModel) []any {
+	out := make([]any, 0, len(list))
+	for _, df := range list {
+		entry := map[string]any{}
+		if !df.IP.IsNull() && !df.IP.IsUnknown() {
+			entry["ip"] = df.IP.ValueString()
+		}
+		if !df.Port.IsNull() && !df.Port.IsUnknown() {
+			entry["port"] = int(df.Port.ValueInt64())
+		}
+		if !df.ProxyProtocol.IsNull() && !df.ProxyProtocol.IsUnknown() {
+			entry["proxy_protocol"] = df.ProxyProtocol.ValueBool()
+		}
+		if len(entry) > 0 {
+			out = append(out, entry)
+		}
+	}
+	return out
+}
+
 func expandFallbacksFromModel(list []InboundFallbackModel) []any {
 	out := make([]any, 0, len(list))
 	for _, fb := range list {
@@ -880,6 +1066,8 @@ func flattenSettingsToModel(protocol string, data map[string]any, m *InboundReso
 		m.DokodemoSettings = flattenDokodemoInboundSettings(protocol, data)
 	case "hysteria", "hysteria2":
 		m.HysteriaSettings = flattenHysteriaInboundSettings(data)
+	case "mtproto":
+		m.MtprotoSettings = flattenMtprotoInboundSettings(data)
 	}
 }
 
@@ -1171,6 +1359,90 @@ func flattenHysteriaInboundSettings(data map[string]any) *InboundHysteriaSetting
 		m.Version = types.Int64Null()
 	}
 	return m
+}
+
+func flattenMtprotoInboundSettings(data map[string]any) *InboundMtprotoSettingsModel {
+	if len(data) == 0 {
+		return nil
+	}
+	m := &InboundMtprotoSettingsModel{}
+	if v, ok := data["fake_tls_domain"].(string); ok && v != "" {
+		m.FakeTlsDomain = types.StringValue(v)
+	} else {
+		m.FakeTlsDomain = types.StringNull()
+	}
+	if v, ok := data["proxy_protocol_listener"].(bool); ok {
+		m.ProxyProtocolListener = types.BoolValue(v)
+	} else {
+		m.ProxyProtocolListener = types.BoolNull()
+	}
+	if v, ok := data["prefer_ip"].(string); ok && v != "" {
+		m.PreferIp = types.StringValue(v)
+	} else {
+		m.PreferIp = types.StringNull()
+	}
+	if v, ok := data["debug"].(bool); ok {
+		m.Debug = types.BoolValue(v)
+	} else {
+		m.Debug = types.BoolNull()
+	}
+	if v, ok := data["domain_fronting"].([]any); ok && len(v) > 0 {
+		m.DomainFronting = flattenMtprotoDomainFrontingToModel(v)
+	}
+	if v, ok := data["outbound_tag"].(string); ok && v != "" {
+		m.OutboundTag = types.StringValue(v)
+	} else {
+		m.OutboundTag = types.StringNull()
+	}
+	if v, ok := data["route_through_xray"].(bool); ok {
+		m.RouteThroughXray = types.BoolValue(v)
+	} else {
+		m.RouteThroughXray = types.BoolNull()
+	}
+	if v, ok := data["route_xray_port"]; ok {
+		m.RouteXrayPort = types.Int64Value(int64(intValue(v)))
+	} else {
+		m.RouteXrayPort = types.Int64Null()
+	}
+	if v, ok := data["public_ipv4"].(string); ok && v != "" {
+		m.PublicIpv4 = types.StringValue(v)
+	} else {
+		m.PublicIpv4 = types.StringNull()
+	}
+	if v, ok := data["public_ipv6"].(string); ok && v != "" {
+		m.PublicIpv6 = types.StringValue(v)
+	} else {
+		m.PublicIpv6 = types.StringNull()
+	}
+	return m
+}
+
+func flattenMtprotoDomainFrontingToModel(list []any) []InboundMtprotoDomainFrontingModel {
+	out := make([]InboundMtprotoDomainFrontingModel, 0, len(list))
+	for _, item := range list {
+		raw, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		df := InboundMtprotoDomainFrontingModel{}
+		if v, ok := raw["ip"].(string); ok && v != "" {
+			df.IP = types.StringValue(v)
+		} else {
+			df.IP = types.StringNull()
+		}
+		if v, ok := raw["port"]; ok {
+			df.Port = types.Int64Value(int64(intValue(v)))
+		} else {
+			df.Port = types.Int64Null()
+		}
+		if v, ok := raw["proxy_protocol"].(bool); ok {
+			df.ProxyProtocol = types.BoolValue(v)
+		} else {
+			df.ProxyProtocol = types.BoolNull()
+		}
+		out = append(out, df)
+	}
+	return out
 }
 
 func flattenFallbacksToModel(list []any) []InboundFallbackModel {

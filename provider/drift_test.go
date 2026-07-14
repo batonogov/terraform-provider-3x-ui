@@ -632,9 +632,7 @@ func TestDriftInboundProtocols_GoModel(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	upstreamSkipped := map[string]bool{
-		"mtproto": true, // managed mtg sidecar, not an xray inbound protocol
-	}
+	upstreamSkipped := map[string]bool{}
 	checkMissing(t, upstream, providerHandled, upstreamSkipped,
 		"upstream model.go has protocols not handled by provider: %v")
 	checkRemoved(t, providerHandled, upstreamSet, providerExtras,
@@ -672,9 +670,7 @@ func TestDriftInboundProtocols_JS(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	upstreamSkipped := map[string]bool{
-		"mtproto": true, // managed mtg sidecar, not an xray inbound protocol
-	}
+	upstreamSkipped := map[string]bool{}
 	checkMissing(t, upstream, providerHandled, upstreamSkipped,
 		"upstream inbound.js Protocols has entries not handled by provider: %v")
 	checkRemoved(t, providerHandled, upstreamSet, providerExtras,
@@ -712,9 +708,7 @@ func TestDriftProtocolForms(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	upstreamSkipped := map[string]bool{
-		"mtproto": true, // managed mtg sidecar, not an xray inbound protocol
-	}
+	upstreamSkipped := map[string]bool{}
 	checkMissing(t, upstream, providerBlocks, upstreamSkipped,
 		"upstream protocol form files not handled by provider: %v")
 	checkRemoved(t, providerBlocks, upstreamSet, providerExtras,
