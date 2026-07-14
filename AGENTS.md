@@ -112,7 +112,7 @@ Five resources — `panel_general`, `panel_security`, `panel_telegram`,
 
 ### Write-only secret attributes (Terraform 1.11+ / OpenTofu 1.11+)
 
-Four singleton secrets have write-only (`_wo`) alternatives following the AWS/Azure pattern.
+Five singleton secrets have write-only (`_wo`) alternatives following the AWS/Azure pattern.
 Each secret gets three attributes: old `Sensitive` attr + `WriteOnly` attr + `_wo_version` trigger.
 
 | Resource | Old attr | Write-only | Version trigger |
@@ -155,7 +155,7 @@ has its own `*_schema.go` file.
 ### Xray version (`resource_xray_version.go`)
 
 Separate resource — singleton with ID `"xray_version"`. Calls `InstallXray` + polls
-`waitForXrayVersion` (90×1s) until the version matches; if the panel still reports a
+`waitForXrayVersion` (180×1s) until the version matches; if the panel still reports a
 stale version after 30 attempts it re-issues `InstallXray` once (3x-ui v3.2.6–v3.2.7
 sometimes silently drop the first install, #262). Read treats `"Unknown"` as a
 soft-fail (Warning + preserved state). Delete is a no-op with a warning (removing
@@ -192,8 +192,10 @@ inbounds first. Import is by numeric id (`ImportStatePassthroughID`). `api_token
 and `pinned_cert_sha256` are `Sensitive` (panel returns them raw, no redaction —
 issue #314 R1) with write-only `_wo` variants following the settings-style
 strategy (`api_token_wo`+`_wo_version`, `pinned_cert_sha256_wo`+`_wo_version`;
-`resolveNodeSecretsWO`/`resolveNodeSecretsWOUpdate` + ModifyPlan via the
-shared `modifyPlanWOVersion` generic). Schema lives in `node_schema.go`;
+`resolveNodeSecretsWO`/`resolveNodeSecretsWOUpdate` + an **inlined** ModifyPlan
+(not the shared `modifyPlanWOVersion` generic — the node has two write-only secrets
+and the generic re-reads/overwrites `resp.Plan` on each call, which would erase the
+first `Unknown` mark on the second). Schema lives in `node_schema.go`;
 the typed `Node` model is shared with the `threexui_nodes` data source (`types.go`).
 
 ### Host group (`resource_host_group.go`)
@@ -205,9 +207,10 @@ list aside, create `POST /add`, read `GET /get/:groupId`, update `POST /update/:
 delete `POST /del/:groupId` — all with a **JSON body** (`entity.HostGroup`), not
 form-POST like inbounds/nodes. Create does `POST /add` (server generates
 `groupId` via `random.NumLower(16)` when omitted), then re-reads `/get/:groupId`
-for canonical state. Read treats a missing group (HTTP 200 + `success:false` with a
-gorm "record not found" message, handled via `isAPIRecordNotFound`) as remove-from-
-state. Update `POST /update/:groupId` (delete-then-recreate under transaction) then
+for canonical state. Read treats a missing group (HTTP 200 + `success:false` with an
+explicit `"host group not found"` message — **not** a gorm record-not-found like
+nodes; detected via the separate `isHostGroupNotFound`, not `isAPIRecordNotFound`) as
+remove-from-state. Update `POST /update/:groupId` (delete-then-recreate under transaction) then
 re-read; delete `POST /del/:groupId`. Import is by `groupId`
 (`ImportStatePassthroughID`). `inbound_ids` is Required (`min=1`), `remark` Required,
 `port` 0–65535, `security`/`mihomo_ip_version` enum-validated. No sensitive fields →
@@ -356,7 +359,7 @@ Imperative mood, concise subjects.
   **v3.2.x**, **v3.3.x**, **v3.4.x**, **v3.5.x** (up to v3.5.0).
 - Flaky test quarantine: `skipOnFlakyVersions(t, ...)` / `skipIfFlaky(t)` with
   `THREEXUI_SKIP_FLAKY` env var to skip known-broken upstream versions.
-- Xray-version acc-tests use `waitForXrayVersion(t, ctx, client)` (90×1s retry on
+- Xray-version acc-tests use `waitForXrayVersion(t, ctx, client)` (180×1s retry on
   `ErrXrayVersionUnknown`) — covers both the cold-start race (handled by the
   `_wait-for-xray` + `_warm-xray-version-cache` Taskfile gates, the latter pre-warms
   3x-ui's 15-min GitHub-API cache) and mid-test restarts after `TestAccXray*`

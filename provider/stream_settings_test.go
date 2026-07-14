@@ -350,3 +350,23 @@ func TestKCPSettings_Roundtrip(t *testing.T) {
 		t.Fatalf("expected max_sending_window=128 after roundtrip, got %v", kcp["max_sending_window"])
 	}
 }
+
+// TestFlattenStreamSettings_HysteriaEmptySettingsRetained is a regression test
+// for #341: when network="hysteria" and hysteriaSettings is an empty object
+// (all defaults), the hysteria_settings block must still be retained — otherwise
+// the resource shows perpetual drift (plan re-adds an empty block, refresh drops
+// it again). Previously the fallback compared network to the wrong value
+// ("hysteria2", a v3.0.2/v3.1.0-only protocol name) instead of "hysteria".
+func TestFlattenStreamSettings_HysteriaEmptySettingsRetained(t *testing.T) {
+	out, err := flattenStreamSettings(`{"network":"hysteria","hysteriaSettings":{}}`)
+	if err != nil {
+		t.Fatalf("flattenStreamSettings error: %v", err)
+	}
+	if len(out) == 0 {
+		t.Fatal("expected non-empty result")
+	}
+	first := out[0].(map[string]any)
+	if _, ok := first["hysteria_settings"]; !ok {
+		t.Fatalf("hysteria_settings must be retained for network=hysteria even when empty, got: %#v", first)
+	}
+}

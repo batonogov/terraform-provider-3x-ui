@@ -229,7 +229,7 @@ func TestEmptyNetworkSettingsRoundtrip(t *testing.T) {
 		{"httpupgrade", "httpupgrade", "httpupgrade_settings", "httpupgradeSettings"},
 		{"xhttp", "xhttp", "xhttp_settings", "xhttpSettings"},
 		{"kcp", "kcp", "kcp_settings", "kcpSettings"},
-		{"hysteria_stream", "hysteria2", "hysteria_settings", "hysteriaSettings"},
+		{"hysteria_stream", "hysteria", "hysteria_settings", "hysteriaSettings"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

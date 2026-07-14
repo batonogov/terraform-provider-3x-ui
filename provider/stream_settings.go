@@ -136,7 +136,7 @@ func flattenStreamSettings(stream string) ([]any, error) {
 		}
 	}
 	if v, ok := payload["hysteriaSettings"].(map[string]any); ok {
-		if h := flattenHysteriaStreamSettings(v); len(h) > 0 || network == "hysteria2" {
+		if h := flattenHysteriaStreamSettings(v); len(h) > 0 || network == "hysteria" {
 			out["hysteria_settings"] = []any{h}
 		}
 	}
