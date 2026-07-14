@@ -127,6 +127,27 @@ func TestMaxRetriesValidators(t *testing.T) {
 	}
 }
 
+func TestSubUpdatesValidators(t *testing.T) {
+	v := subUpdatesValidators()
+	valid := []int64{0, 1, 168, 525600}
+	for _, val := range valid {
+		for _, vv := range v {
+			if testInt64Validator(t, vv, val) {
+				t.Errorf("subUpdatesValidators should accept %d", val)
+			}
+		}
+	}
+
+	invalid := []int64{-1, 525601}
+	for _, val := range invalid {
+		for _, vv := range v {
+			if !testInt64Validator(t, vv, val) {
+				t.Errorf("subUpdatesValidators should reject %d", val)
+			}
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Inbound resource validators
 // ---------------------------------------------------------------------------

@@ -48,6 +48,14 @@ func maxRetriesValidators() []validator.Int64 {
 	}
 }
 
+// subUpdatesValidators validates the sub_updates range (0–525600, i.e. up to one year in minutes).
+// The panel widened this from min(1).max(168) to min(0).max(525600) in 3x-ui v3.5.0.
+func subUpdatesValidators() []validator.Int64 {
+	return []validator.Int64{
+		int64validator.Between(0, 525600),
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Inbound resource validators
 // ---------------------------------------------------------------------------

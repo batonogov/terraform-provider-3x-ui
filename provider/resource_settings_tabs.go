@@ -580,7 +580,8 @@ func panelSubscriptionSchema() schema.Schema {
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"sub_updates": schema.Int64Attribute{
-				Optional: true, Computed: true,
+				Optional:   true, Computed: true,
+				Validators: subUpdatesValidators(),
 				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"sub_encrypt": schema.BoolAttribute{
@@ -672,7 +673,7 @@ func panelSubscriptionSchema() schema.Schema {
 			"sub_json_final_mask": schema.StringAttribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "JSON subscription global finalmask — tcp/udp masks and quicParams (3x-ui v3.2.8+).",
+				Description:   "JSON subscription global finalmask — TCP mask type (fragment/sudoku/header-custom/xmc), UDP masks and quicParams (3x-ui v3.2.8+; xmc added in v3.5.0).",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"sub_theme_dir": schema.StringAttribute{
