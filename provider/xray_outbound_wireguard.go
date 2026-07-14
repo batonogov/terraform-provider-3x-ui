@@ -43,6 +43,7 @@ func wireguardSettingsBlock() schema.ListNestedBlock {
 				},
 				"workers": schema.Int64Attribute{
 					Optional: true, Computed: true,
+					DeprecationMessage: "Removed in xray-core v26.6.22 (3x-ui v3.4.0+); xray ignores unknown JSON keys, so existing configs still work but this attribute has no effect.",
 					PlanModifiers: []planmodifier.Int64{
 						int64planmodifier.UseStateForUnknown(),
 					},
