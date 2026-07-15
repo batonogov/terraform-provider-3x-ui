@@ -75,3 +75,5 @@ example2/
 .DS_Store
 .cache
 docs/superpowers/
+.pine/
+.pi-subagents/
