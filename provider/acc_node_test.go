@@ -87,10 +87,12 @@ func TestAccNodeResource(t *testing.T) {
 			},
 			// Import by numeric id (string).
 			{
-				ResourceName:            "threexui_node.test",
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"api_token", "pinned_cert_sha256"},
+				ResourceName:      "threexui_node.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateVerifyIgnore: []string{"api_token", "pinned_cert_sha256",
+					"api_token_wo", "api_token_wo_version",
+					"pinned_cert_sha256_wo", "pinned_cert_sha256_wo_version"},
 			},
 		},
 	})
