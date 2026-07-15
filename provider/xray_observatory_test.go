@@ -471,3 +471,65 @@ func TestExpandBurstObservatoryListEmpty(t *testing.T) {
 		t.Fatal("empty list should return nil")
 	}
 }
+
+// TestFlattenObservatorySubjectSelectorAbsentGuard is a regression test for the
+// zero-value types.List{} bug. When the panel returns an observatory (or burst
+// observatory) entry WITHOUT a subjectSelector field, the flattened
+// SubjectSelector must still be a valid types.List (an empty String list), not
+// an uninitialized zero value — otherwise terraform-plugin-framework raises a
+// "Value Conversion Error" (Expected framework type: ListType[StringType]) when
+// the resource writes state via State.Set.
+func TestFlattenObservatorySubjectSelectorAbsentGuard(t *testing.T) {
+	empty := types.ListValueMust(types.StringType, nil)
+
+	// Observatory entry present, subjectSelector omitted.
+	obs := flattenObservatoryEntryList([]any{map[string]any{"tag": "x"}})
+	if len(obs) != 1 {
+		t.Fatalf("expected 1 observatory entry, got %d", len(obs))
+	}
+	if obs[0].SubjectSelector.IsNull() {
+		t.Fatal("observatory SubjectSelector must be a non-null empty list, not null")
+	}
+	if !obs[0].SubjectSelector.Equal(empty) {
+		t.Fatalf("observatory SubjectSelector must be a valid empty String list when absent, got %#v", obs[0].SubjectSelector)
+	}
+
+	// Burst observatory entry present, subjectSelector omitted.
+	burst := flattenBurstObservatoryList([]any{map[string]any{"tag": "y"}})
+	if len(burst) != 1 {
+		t.Fatalf("expected 1 burst observatory entry, got %d", len(burst))
+	}
+	if burst[0].SubjectSelector.IsNull() {
+		t.Fatal("burst SubjectSelector must be a non-null empty list, not null")
+	}
+	if !burst[0].SubjectSelector.Equal(empty) {
+		t.Fatalf("burst SubjectSelector must be a valid empty String list when absent, got %#v", burst[0].SubjectSelector)
+	}
+}
+
+// TestApplyObservatoryDesiredShape guards the double-wrap fix: the value passed
+// to xrayApplyTyped for a set-path section must be the section content (the
+// tag-keyed object), not re-wrapped with the key. buildXrayObservatoryJSON
+// already returns the content keyed under "observatory"/"burstObservatory", so
+// the value extracted from it (obs/burst) is what gets stored at the path. This
+// test pins the contract by feeding applyXraySection directly.
+func TestApplyObservatoryDesiredShape(t *testing.T) {
+	content := map[string]any{"obs_default": map[string]any{"subjectSelector": []any{"proxy-*"}}}
+
+	root, err := applyXraySection(map[string]any{}, content, xraySectionObservatory)
+	if err != nil {
+		t.Fatalf("applyXraySection failed: %v", err)
+	}
+	// The content must land directly at root["observatory"], NOT double-nested.
+	got, ok := root["observatory"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected root[observatory] to be a map, got %T", root["observatory"])
+	}
+	entry, ok := got["obs_default"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected root[observatory][obs_default] map, got %v", got["obs_default"])
+	}
+	if _, ok := entry["subjectSelector"]; !ok {
+		t.Fatalf("expected subjectSelector preserved at root[observatory][obs_default], got %v", entry)
+	}
+}

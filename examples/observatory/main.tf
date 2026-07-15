@@ -7,17 +7,40 @@ terraform {
 }
 
 provider "threexui" {
-  endpoint = "https://panel.example.com:2053"
+  endpoint = "https://3x-ui.example.com"
   username = "admin"
   password = "admin"
 }
 
-# Configure Xray Observatory to monitor outbound health.
-# The panel stores this as part of the Xray template config.
-resource "threexui_xray_observatory" "main" {
-  observer {
-    subject_selector = ["outbound"]
-    probe_url        = "https://www.google.com/generate_204"
-    probe_interval   = "30s"
+# The threexui_xray_observatory resource manages both the "observatory" and
+# "burstObservatory" sections of the xray-core template. These sections enable
+# outbound latency monitoring so that balancers using strategies like
+# "leastPing" or "leastLoad" can pick the best-performing outbound.
+
+# Basic observatory: probes matching outbounds at a fixed interval.
+resource "threexui_xray_observatory" "example" {
+  observatory {
+    tag                = "obs_default"
+    subject_selector   = ["proxy-*"]
+    probe_url          = "https://www.google.com/generate_204"
+    probe_interval     = "1m"
+    enable_concurrency = true
+  }
+
+  # Burst observatory: performs rapid burst-probes for finer-grained latency
+  # data (xray-core v26.6.27+, 3x-ui v3.4.2+).
+  burst_observatory {
+    tag              = "burst_default"
+    subject_selector = ["proxy-*"]
+
+    ping_config {
+      destination     = "https://www.cloudflare.com/cdn-cgi/trace"
+      interval        = "1m"
+      connect_timeout = "5s"
+      timeout         = "10s"
+      samples         = 3
+      sampling_count  = 2
+      lazy            = true
+    }
   }
 }
