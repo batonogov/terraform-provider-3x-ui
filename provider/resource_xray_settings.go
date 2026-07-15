@@ -818,13 +818,22 @@ func (r *XrayObservatoryResource) ImportState(ctx context.Context, _ resource.Im
 
 // applyObservatory writes the observatory and burstObservatory sections.
 // Each is applied as a set-path operation on the top-level JSON key.
+//
+// xrayApplyTyped stores its `desired` argument verbatim at the section path via
+// setJSONPath(root, section.path, desired). For set-path sections the desired
+// value must therefore be the section CONTENT (e.g. the tag-keyed object), not a
+// map re-wrapped with the key — wrapping it again would double-nest the value
+// (root["observatory"] = {"observatory": {...}}), which the read-back path then
+// cannot decode, leaving subject_selector as an invalid zero-value types.List
+// and raising a framework Value Conversion Error.
 func (r *XrayObservatoryResource) applyObservatory(ctx context.Context, plan *XrayObservatoryModel, diags *diag.Diagnostics) {
 	input := expandXrayObservatory(plan)
 	desired := buildXrayObservatoryJSON(input).(map[string]any)
 
-	// Apply observatory key
+	// Apply observatory key. `obs` is already the tag-keyed object to store at
+	// path ["observatory"], so pass it directly.
 	if obs, ok := desired["observatory"]; ok && !isEmptyXrayValue(obs) {
-		xrayApplyTyped(ctx, map[string]any{"observatory": obs}, diags, r.client, xraySectionObservatory)
+		xrayApplyTyped(ctx, obs, diags, r.client, xraySectionObservatory)
 	} else {
 		// If user removed all observatories, clear the key
 		r.clearObservatoryKey(ctx, "observatory", diags)
@@ -834,9 +843,10 @@ func (r *XrayObservatoryResource) applyObservatory(ctx context.Context, plan *Xr
 		return
 	}
 
-	// Apply burstObservatory key
+	// Apply burstObservatory key. `burst` is the tag-keyed object for path
+	// ["burstObservatory"], passed directly (same rationale as above).
 	if burst, ok := desired["burstObservatory"]; ok && !isEmptyXrayValue(burst) {
-		xrayApplyTyped(ctx, map[string]any{"burstObservatory": burst}, diags, r.client, xraySectionBurstObservatory)
+		xrayApplyTyped(ctx, burst, diags, r.client, xraySectionBurstObservatory)
 	} else {
 		r.clearObservatoryKey(ctx, "burstObservatory", diags)
 	}

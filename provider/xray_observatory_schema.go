@@ -339,6 +339,12 @@ func flattenObservatoryEntryList(list []any) []XrayObservatoryEntry {
 		}
 		if sel, ok := raw["subjectSelector"].([]any); ok {
 			entry.SubjectSelector = flattenStringListToType(sel)
+		} else {
+			// Always store a valid types.List. A zero-value types.List{} cannot be
+			// written to state (terraform-plugin-framework raises a Value
+			// Conversion Error on State.Set); use an empty list when the panel
+			// omits subjectSelector.
+			entry.SubjectSelector = types.ListValueMust(types.StringType, nil)
 		}
 		if v, ok := raw["probeURL"].(string); ok && v != "" {
 			entry.ProbeURL = types.StringValue(v)
@@ -370,6 +376,9 @@ func flattenBurstObservatoryList(list []any) []XrayBurstObservatory {
 		}
 		if sel, ok := raw["subjectSelector"].([]any); ok {
 			entry.SubjectSelector = flattenStringListToType(sel)
+		} else {
+			// Same zero-value guard as the observatory entry flatten path.
+			entry.SubjectSelector = types.ListValueMust(types.StringType, nil)
 		}
 		if pcMap, ok := raw["pingConfig"].(map[string]any); ok && len(pcMap) > 0 {
 			entry.PingConfig = flattenBurstPingConfig(pcMap)
