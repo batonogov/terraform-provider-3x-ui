@@ -157,9 +157,13 @@ Seven xray resources share `resource_xray_settings.go`: `xray_basics`, `xray_dns
 Separate resource — singleton with ID `"xray_version"`. Calls `InstallXray` + polls
 `waitForXrayVersion` (180×1s) until the version matches; if the panel still reports a
 stale version after 30 attempts it re-issues `InstallXray` once (3x-ui v3.2.6–v3.2.7
-sometimes silently drop the first install, #262). Read treats `"Unknown"` as a
-soft-fail (Warning + preserved state). Delete is a no-op with a warning (removing
-from state does NOT revert the installed version).
+sometimes silently drop the first install, #262). If the panel still reports
+`"Unknown"` after `nudgeAfter` (60s) of polling, the provider issues a single
+`RestartXrayService` (bounded by `nudgeTimeout` = 30s context) to prod the core
+into reporting its version — this is a cheap local call (no GitHub download) and
+is non-fatal: the nudge error is silently swallowed and polling continues. Read
+treats `"Unknown"` as a soft-fail (Warning + preserved state). Delete is a no-op
+with a warning (removing from state does NOT revert the installed version).
 
 ### Panel user (`resource_panel_user.go`)
 
