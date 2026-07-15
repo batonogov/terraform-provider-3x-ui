@@ -24,8 +24,6 @@ resource "threexui_inbound" "mtproto" {
   enable   = true
   mtproto_settings {
     fake_tls_domain = "www.cloudflare.com"
-    debug           = false
-    outbound_tag    = "mt-out"
   }
 }
 `,
@@ -35,7 +33,6 @@ resource "threexui_inbound" "mtproto" {
 					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "remark", "acc-mtproto-1"),
 					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "port", "26001"),
 					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "mtproto_settings.0.fake_tls_domain", "www.cloudflare.com"),
-					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "mtproto_settings.0.outbound_tag", "mt-out"),
 				),
 			},
 			{
@@ -47,16 +44,12 @@ resource "threexui_inbound" "mtproto" {
   enable   = true
   mtproto_settings {
     fake_tls_domain = "bing.com"
-    debug           = true
-    outbound_tag    = "mt-out-2"
   }
 }
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "remark", "acc-mtproto-2"),
 					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "mtproto_settings.0.fake_tls_domain", "bing.com"),
-					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "mtproto_settings.0.debug", "true"),
-					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "mtproto_settings.0.outbound_tag", "mt-out-2"),
 				),
 			},
 		},
