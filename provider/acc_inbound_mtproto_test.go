@@ -10,6 +10,7 @@ import (
 // through the 3x-ui panel: create with a fake_tls_domain, then update it and
 // confirm no drift.
 func TestAccInboundMtproto(t *testing.T) {
+	requireMinVersion(t, "v3.3.0") // mtproto_settings typed block added in v3.3.0
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
@@ -32,7 +33,7 @@ resource "threexui_inbound" "mtproto" {
 					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "protocol", "mtproto"),
 					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "remark", "acc-mtproto-1"),
 					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "port", "26001"),
-					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "mtproto_settings.0.fake_tls_domain", "www.cloudflare.com"),
+					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "mtproto_settings.fake_tls_domain", "www.cloudflare.com"),
 				),
 			},
 			{
@@ -49,7 +50,7 @@ resource "threexui_inbound" "mtproto" {
 `,
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "remark", "acc-mtproto-2"),
-					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "mtproto_settings.0.fake_tls_domain", "bing.com"),
+					resource.TestCheckResourceAttr("threexui_inbound.mtproto", "mtproto_settings.fake_tls_domain", "bing.com"),
 				),
 			},
 		},
