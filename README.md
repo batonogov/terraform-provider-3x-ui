@@ -147,6 +147,7 @@ Full documentation is available on the [Terraform Registry](https://registry.ter
 | `threexui_panel_user` | Admin credentials |
 | `threexui_panel_telegram` | Telegram bot integration |
 | `threexui_panel_email` | SMTP/email notifications (v3.4.0+) |
+| `threexui_host_group` | Host group routing (multi-host per inbound) |
 | `threexui_panel_subscription` | Subscription service settings |
 | `threexui_xray_basics` | Basic Xray config (log, policy, api, stats) |
 | `threexui_xray_dns` | DNS servers and hosts |
@@ -154,6 +155,7 @@ Full documentation is available on the [Terraform Registry](https://registry.ter
 | `threexui_xray_balancers` | Load balancers |
 | `threexui_xray_reverse` | Reverse proxy (bridges, portals) |
 | `threexui_xray_outbounds` | Outbound connections |
+| `threexui_xray_observatory` | Xray Observatory / BurstObservatory config |
 | `threexui_xray_version` | Installed Xray core version |
 
 ### Data Sources
