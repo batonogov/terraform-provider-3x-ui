@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.20.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.19.1...v3.20.0) (2026-07-15)
+
+
+### Features
+
+* add typed mtproto_settings block to threexui_inbound ([#335](https://github.com/batonogov/terraform-provider-threexui/issues/335)) ([#361](https://github.com/batonogov/terraform-provider-threexui/issues/361)) ([467bf2d](https://github.com/batonogov/terraform-provider-threexui/commit/467bf2d23105c0aa05e0fd51e9f5e6222b87e870))
+* add write-only variants for inbound_client password/secret ([#358](https://github.com/batonogov/terraform-provider-threexui/issues/358)) ([2a7c444](https://github.com/batonogov/terraform-provider-threexui/commit/2a7c444c9099b8d71a3dd5b806c96ec993713f2d))
+* expose xray Observatory/BurstObservatory as typed resource ([#362](https://github.com/batonogov/terraform-provider-threexui/issues/362)) ([45eebe4](https://github.com/batonogov/terraform-provider-threexui/commit/45eebe49c013dbad9113707dc59a8512fb2c5b08))
+
+
+### Bug Fixes
+
+* acquire inboundClientMu in InboundResource to close race with inbound_client ([#343](https://github.com/batonogov/terraform-provider-threexui/issues/343)) ([#356](https://github.com/batonogov/terraform-provider-threexui/issues/356)) ([52b1a4d](https://github.com/batonogov/terraform-provider-threexui/commit/52b1a4dfd2dd8c58645b7d5a31629ac1fbb88b49))
+* add defensive hysteria2 back-compat for hysteria_settings retention ([#341](https://github.com/batonogov/terraform-provider-threexui/issues/341)) ([#355](https://github.com/batonogov/terraform-provider-threexui/issues/355)) ([ff6e6dc](https://github.com/batonogov/terraform-provider-threexui/commit/ff6e6dc3d17693c3f469704aa8baf876be9e848b))
+* backfill missing attrs in docs, add Deprecated/Sensitive labels ([#344](https://github.com/batonogov/terraform-provider-threexui/issues/344)) ([#357](https://github.com/batonogov/terraform-provider-threexui/issues/357)) ([ddc8829](https://github.com/batonogov/terraform-provider-threexui/commit/ddc882922fd6e514c3790407142ddc8cd2bccffa))
+
 ## [3.19.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.19.0...v3.19.1) (2026-07-14)
 
 
