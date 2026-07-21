@@ -39,7 +39,7 @@ func TestExpandFlatten_VlessOutModel_RoundTrip(t *testing.T) {
 			},
 		},
 		{
-			name: "nulls",
+			name:  "nulls",
 			input: []XrayVlessOutSettings{{}},
 		},
 	}
@@ -730,13 +730,13 @@ func TestExpandFlatten_WireguardOutJSON_RoundTrip(t *testing.T) {
 	data := map[string]any{
 		"wireguard_settings": []any{
 			map[string]any{
-				"mtu":            1280,
-				"secret_key":     "priv",
-				"address":        []any{"172.16.0.1/32"},
-				"workers":        2,
+				"mtu":             1280,
+				"secret_key":      "priv",
+				"address":         []any{"172.16.0.1/32"},
+				"workers":         2,
 				"domain_strategy": "UseIP",
-				"reserved":       []any{float64(10), float64(20)},
-				"no_kernel_tun":  true,
+				"reserved":        []any{float64(10), float64(20)},
+				"no_kernel_tun":   true,
 			},
 		},
 	}

@@ -31,9 +31,9 @@ func TestInboundClientMuSerialisesConcurrentAccess(t *testing.T) {
 // TestSettingsHasClients verifies the helper that gates mutex acquisition.
 func TestSettingsHasClients(t *testing.T) {
 	tests := []struct {
-		name    string
-		json    string
-		want    bool
+		name string
+		json string
+		want bool
 	}{
 		{"empty string", "", false},
 		{"no clients key", `{"port":443}`, false},

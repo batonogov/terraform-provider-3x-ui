@@ -455,8 +455,8 @@ func TestExpandFlatten_StreamSettingsModel_EmptyData(t *testing.T) {
 
 func TestExpandFlatten_StreamSettingsModel_RoundTrip(t *testing.T) {
 	model := &InboundStreamSettingsModel{
-		Network:     types.StringValue("ws"),
-		Security:    types.StringValue("none"),
+		Network:  types.StringValue("ws"),
+		Security: types.StringValue("none"),
 		TCPSettings: &InboundTCPSettingsModel{
 			AcceptProxyProtocol: types.BoolValue(true),
 			HeaderType:          types.StringValue("none"),
