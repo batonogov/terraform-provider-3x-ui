@@ -18,8 +18,8 @@
 Running 3x-ui in production means dozens of inbounds, hundreds of clients, and Xray configuration that is easy to break. With this provider you can:
 
 - **Treat configuration as code** — your inbound list lives in git, every change is reviewed and versioned.
-- **Migrate between servers** — re-create the same setup on a new VPS with one `terraform apply`.
-- **Snapshot the panel** — `terraform state pull` is a full export of inbounds, clients, and settings.
+- **Migrate between servers safely** — restore the panel database to preserve IDs and secrets, then verify it with Terraform.
+- **Back up Terraform state** — `terraform state pull` exports only Terraform-managed objects; pair it with a panel database backup for disaster recovery.
 - **Scale onboarding** — add 100 clients in a single PR instead of 100 panel clicks.
 - **Plan before prod** — `terraform plan` shows exactly what will change before anything ships.
 
@@ -28,7 +28,7 @@ Running 3x-ui in production means dozens of inbounds, hundreds of clients, and X
 | Task | Panel UI | This provider |
 | --- | --- | --- |
 | Add 50 clients | 50 forms, ~30 seconds each | one `for_each`, one `apply` |
-| Migrate to a new server | manual re-entry | `terraform apply` against the new endpoint |
+| Migrate to a new server | manual re-entry | restore the panel database, then verify with `terraform plan` |
 | Audit who has access today | scroll the client list | `git log` on a `.tf` file |
 | Roll back a misconfiguration | restore from a JSON backup | `git revert` + `terraform apply` |
 | Sync staging ↔ production | export/import JSON, fix conflicts | shared module + per-environment vars |
@@ -127,8 +127,8 @@ Newer protocol features are guarded with `requireMinVersion` and skip automatica
 
 In-repo walkthroughs for common operational scenarios:
 
-- [Backup-as-code](docs/guides/backup-as-code.md) — keep your full panel state in git, restore in seconds.
-- [Migrating 3x-ui between servers](docs/guides/server-migration.md) — move an entire panel to a new VPS without re-typing anything.
+- [Backup-as-code](docs/guides/backup-as-code.md) — combine reviewed Terraform configuration with state and panel database backups.
+- [Migrating 3x-ui between servers](docs/guides/server-migration.md) — restore the panel database on a new VPS, then verify it with Terraform.
 - [Onboarding many clients at once](docs/guides/bulk-clients.md) — `for_each` patterns and CSV-driven onboarding.
 
 ## Documentation

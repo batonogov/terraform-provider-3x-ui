@@ -52,9 +52,27 @@ carol@example.com,sales,,200,7
 `main.tf`:
 
 ```hcl
+terraform {
+  required_providers {
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.13"
+    }
+  }
+}
+
 locals {
   raw     = csvdecode(file("${path.module}/clients.csv"))
   clients = { for c in local.raw : c.email => c }
+}
+
+resource "time_offset" "client_expiry" {
+  for_each = {
+    for email, client in local.clients : email => client
+    if client.expiry_days != ""
+  }
+
+  offset_days = tonumber(each.value.expiry_days)
 }
 
 resource "threexui_inbound_client" "from_csv" {
@@ -66,12 +84,19 @@ resource "threexui_inbound_client" "from_csv" {
   flow        = each.value.flow
   total_gb    = tonumber(each.value.total_gb) * 1024 * 1024 * 1024
   expiry_time = each.value.expiry_days != "" ? (
-    timestamp_plus_days(timestamp(), tonumber(each.value.expiry_days))
+    time_offset.client_expiry[each.key].unix * 1000
   ) : 0
 }
 ```
 
 Edit the CSV, commit, `apply`. The diff in the PR shows exactly who is being added or removed.
+
+The `time_offset` resource anchors each expiry when that resource is created and
+exports Unix seconds; multiplying by `1000` matches the provider's
+epoch-millisecond schema. A moving `timestamp()` expression would continually
+extend the expiry on later plans. If the source system already owns expiry
+dates, put an explicit epoch-millisecond value in the CSV instead and omit the
+`time` resource.
 
 ## Pattern 3 — per-team modules
 

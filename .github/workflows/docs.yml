@@ -41,8 +41,15 @@ jobs:
         with:
           terraform_wrapper: false
 
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
       - name: Check examples formatting
         run: terraform fmt -check -recursive examples/
+
+      - name: Validate examples against the current provider schema
+        run: scripts/validate-examples.sh
 
   markdown-lint:
     name: Markdown Lint
