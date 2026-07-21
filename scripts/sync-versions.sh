@@ -163,7 +163,84 @@ check_readme() {
 }
 
 # ---------------------------------------------------------------------------
-# 4. docker-compose.yaml default version
+# 4. Version compatibility guide
+# ---------------------------------------------------------------------------
+get_version_guide_note() {
+  case "$1" in
+    v3.5.0) echo 'Host groups, MTProto multi-client support, Xray `env`, outbound `target_strategy`, and expanded balancer settings.' ;;
+    v3.4.2) echo 'WireGuard multi-client support, `ldap_insecure_skip_verify`, and Xray Observatory/BurstObservatory.' ;;
+    v3.4.1) echo 'Incy subscription routing injection settings.' ;;
+    v3.4.0) echo 'SMTP notifications and expanded Telegram/subscription settings.' ;;
+    v3.3.1) echo 'Live config apply; `panelProxy` replaced by the `panelOutbound` egress bridge.' ;;
+    v3.3.0) echo '`subThemeDir`, `warpUpdateInterval`, MTProto, and the node-sync surface.' ;;
+    v3.2.8) echo 'Latest supported v3.2.x patch.' ;;
+    v3.2.7) echo 'TUN inbound alias.' ;;
+    v3.2.0) echo '`mixed`/`tunnel` replace legacy `socks`/`dokodemo-door`; client `group` and `panelProxy` are available.' ;;
+    v3.1.0) echo 'New client API surface; the provider detects it automatically.' ;;
+    *) echo '' ;;
+  esac
+}
+
+check_version_guide() {
+  local file="$ROOT/docs/guides/version-compatibility.md"
+  local actual_versions
+  actual_versions=$(awk '
+    /<!-- sync-versions:begin -->/ { found=1; next }
+    /<!-- sync-versions:end -->/ { exit }
+    found && /^\| v/ { print $2 }
+  ' FS='|' "$file" | sed 's/^ *//; s/ *$//' | sort)
+
+  local expected_versions
+  expected_versions=$(printf '%s\n' "${VERSIONS[@]}" | sort)
+
+  local guide_drift=0
+  if [ "$actual_versions" = "$expected_versions" ]; then
+    echo "version-compatibility.md table: OK"
+  else
+    echo "version-compatibility.md table: DRIFT DETECTED"
+    diff <(echo "$actual_versions") <(echo "$expected_versions") || true
+    guide_drift=1
+    DRIFT=1
+  fi
+
+  local documented_defaults
+  documented_defaults=$(grep -oE 'THREEXUI_VERSION(=|:-)v[0-9]+\.[0-9]+\.[0-9]+' "$file" \
+    | sed -E 's/THREEXUI_VERSION(=|:-)//' | sort -u)
+  if [ "$documented_defaults" = "$DEFAULT_VERSION" ]; then
+    echo "version-compatibility.md default: OK"
+  else
+    echo "version-compatibility.md default: DRIFT (expected only $DEFAULT_VERSION, got ${documented_defaults:-none})"
+    guide_drift=1
+    DRIFT=1
+  fi
+
+  if [ "$MODE" = "fix" ] && [ "$guide_drift" -eq 1 ]; then
+    local table_block='| 3x-ui version | Status | Notes |'$'\n''| --- | --- | --- |'
+    local v
+    for v in "${VERSIONS_DESC[@]}"; do
+      table_block+=$'\n'"| $v | Tested | $(get_version_guide_note "$v") |"
+    done
+
+    local tmp
+    tmp=$(mktemp)
+    BLOCK="$table_block" awk '
+      BEGIN { block = ENVIRON["BLOCK"] }
+      /<!-- sync-versions:begin -->/ { print; print block; skip=1; next }
+      /<!-- sync-versions:end -->/ { skip=0; print; next }
+      !skip { print }
+    ' "$file" > "$tmp" && mv "$tmp" "$file"
+
+    sed -i.bak -E \
+      -e "s/(THREEXUI_VERSION=)v[0-9]+\.[0-9]+\.[0-9]+/\\1$DEFAULT_VERSION/g" \
+      -e "s/(THREEXUI_VERSION:-)v[0-9]+\.[0-9]+\.[0-9]+/\\1$DEFAULT_VERSION/g" \
+      "$file"
+    rm -f "$file.bak"
+    echo "  -> Fixed version-compatibility.md"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# 5. docker-compose.yaml default version
 # ---------------------------------------------------------------------------
 check_docker_compose() {
   local file="$ROOT/docker-compose.yaml"
@@ -184,7 +261,7 @@ check_docker_compose() {
 }
 
 # ---------------------------------------------------------------------------
-# 5. Taskfile.yml defaults
+# 6. Taskfile.yml defaults
 # ---------------------------------------------------------------------------
 check_taskfile() {
   local file="$ROOT/Taskfile.yml"
@@ -205,7 +282,7 @@ check_taskfile() {
 }
 
 # ---------------------------------------------------------------------------
-# 6. README support-policy prose (no hardcoded count or version globs)
+# 7. README support-policy prose (no hardcoded count or version globs)
 # ---------------------------------------------------------------------------
 check_support_prose() {
   local file="$1"
@@ -243,6 +320,7 @@ check_readme "$ROOT/README.fa_IR.md"
 check_readme "$ROOT/README.ar_EG.md"
 check_readme "$ROOT/README.zh_CN.md"
 check_readme "$ROOT/README.tr_TR.md"
+check_version_guide
 check_docker_compose
 check_taskfile
 echo ""

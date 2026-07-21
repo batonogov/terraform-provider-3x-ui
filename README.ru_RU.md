@@ -116,10 +116,16 @@ resource "threexui_inbound_client" "client_a" {
 
 | Пример | Описание |
 | --- | --- |
-| [Конфиг провайдера через env](examples/provider-env-config/) | Настройка через переменные Terraform и `TF_VAR_*` |
+| [Конфиг провайдера через env](examples/provider-env-config/) | Настройка через поддерживаемые переменные `THREEXUI_*` |
+| [Пользователь панели](examples/panel-user/) | Ротация учётных данных администратора |
+| [Email панели](examples/panel-email/) | Настройка SMTP-уведомлений (v3.4.0+) |
 | [Trojan-инбаунд](examples/trojan-inbound/) | Trojan через WebSocket |
 | [Shadowsocks-инбаунд](examples/shadowsocks-inbound/) | Shadowsocks с AEAD-шифром |
 | [Инбаунд + клиенты](examples/inbound-with-client/) | Полный сценарий: инбаунд + несколько клиентов |
+| [Узел кластера](examples/node/) | Регистрация удалённой панели 3x-ui как узла кластера |
+| [Группа хостов](examples/host-group/) | Массовое управление маршрутизацией хостов (v3.5.0+) |
+| [Xray Observatory](examples/observatory/) | Настройка проверок задержки аутбаундов (v3.4.2+) |
+| [Версия Xray](examples/xray-version/) | Фиксация установленной версии Xray core |
 | [Флот серверов](examples/multi-server/) | Управление несколькими 3x-ui через переиспользуемый модуль и `for_each` |
 | [Импорт существующих ресурсов](examples/import-existing/) | Затащить уже существующие ресурсы 3x-ui в state |
 
@@ -139,7 +145,7 @@ resource "threexui_inbound_client" "client_a" {
 
 | Ресурс | Описание |
 | --- | --- |
-| `threexui_inbound` | Инбаунд (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria; legacy socks/dokodemo-door до 3.2) |
+| `threexui_inbound` | Инбаунд (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria, mtproto; TUN с 3.2.7, MTProto с 3.3.0) |
 | `threexui_inbound_client` | Клиент внутри инбаунда |
 | `threexui_node` | Узел кластера / регистрация multi-node |
 | `threexui_panel_general` | Общие настройки панели |
@@ -147,6 +153,7 @@ resource "threexui_inbound_client" "client_a" {
 | `threexui_panel_user` | Учётные данные администратора |
 | `threexui_panel_telegram` | Интеграция с Telegram-ботом |
 | `threexui_panel_email` | SMTP/email-уведомления (v3.4.0+) |
+| `threexui_host_group` | Маршрутизация групп хостов (несколько хостов на инбаунд) |
 | `threexui_panel_subscription` | Настройки подписочного сервиса |
 | `threexui_xray_basics` | Базовый Xray (log, policy, api, stats) |
 | `threexui_xray_dns` | DNS-серверы и hosts |
@@ -154,6 +161,7 @@ resource "threexui_inbound_client" "client_a" {
 | `threexui_xray_balancers` | Балансировщики |
 | `threexui_xray_reverse` | Reverse-проксирование (bridges, portals) |
 | `threexui_xray_outbounds` | Аутбаунды |
+| `threexui_xray_observatory` | Настройки Xray Observatory / BurstObservatory |
 | `threexui_xray_version` | Установленная версия Xray-ядра |
 
 ### Источники данных

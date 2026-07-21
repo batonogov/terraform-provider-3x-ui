@@ -19,5 +19,7 @@ terraform {
   }
 }
 
-# All attributes are read from THREEXUI_* environment variables.
+# The supported attributes listed above are read from THREEXUI_* environment
+# variables. bootstrap_username, bootstrap_password, and two_factor_code have
+# no environment-variable fallback and must be configured explicitly when used.
 provider "threexui" {}

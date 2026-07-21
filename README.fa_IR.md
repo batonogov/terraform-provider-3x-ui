@@ -122,10 +122,16 @@ resource "threexui_inbound_client" "client_a" {
 
 | مثال | توضیح |
 | --- | --- |
-| [پیکربندی provider با env](examples/provider-env-config/) | پیکربندی با متغیرهای Terraform و `TF_VAR_*` |
+| [پیکربندی provider با env](examples/provider-env-config/) | پیکربندی با متغیرهای پشتیبانی‌شدهٔ `THREEXUI_*` |
+| [کاربر پنل](examples/panel-user/) | چرخش اعتبارنامه‌های مدیر پنل |
+| [ایمیل پنل](examples/panel-email/) | پیکربندی اعلان‌های SMTP (v3.4.0+) |
 | [اینباند Trojan](examples/trojan-inbound/) | Trojan روی WebSocket |
 | [اینباند Shadowsocks](examples/shadowsocks-inbound/) | Shadowsocks با رمزنگاری AEAD |
 | [اینباند + کلاینت‌ها](examples/inbound-with-client/) | جریان کامل: اینباند + چندین کلاینت |
+| [گره کلاستر](examples/node/) | ثبت پنل راه‌دور 3x-ui به‌عنوان گره کلاستر |
+| [گروه هاست](examples/host-group/) | مدیریت مسیریابی گروهی هاست‌ها (v3.5.0+) |
+| [Observatory اکس‌ری](examples/observatory/) | پیکربندی سنجش تأخیر اوت‌باندها (v3.4.2+) |
+| [نسخهٔ Xray](examples/xray-version/) | ثابت‌کردن نسخهٔ نصب‌شدهٔ Xray core |
 | [ناوگان چند سروری](examples/multi-server/) | مدیریت چندین هاست 3x-ui با ماژول و `for_each` |
 | [import منابع موجود](examples/import-existing/) | وارد کردن منابع موجود 3x-ui به state |
 
@@ -145,7 +151,7 @@ resource "threexui_inbound_client" "client_a" {
 
 | Resource | توضیح |
 | --- | --- |
-| `threexui_inbound` | اینباند (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria؛ socks/dokodemo-door در نسخه‌های قبل از 3.2 به‌صورت legacy) |
+| `threexui_inbound` | اینباند (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria, mtproto؛ TUN از 3.2.7 و MTProto از 3.3.0) |
 | `threexui_inbound_client` | کلاینت داخل اینباند |
 | `threexui_node` | گره کلاستر / ثبت multi-node |
 | `threexui_panel_general` | تنظیمات عمومی پنل |
@@ -153,6 +159,7 @@ resource "threexui_inbound_client" "client_a" {
 | `threexui_panel_user` | اعتبارنامه‌های ادمین |
 | `threexui_panel_telegram` | یکپارچه‌سازی با بات تلگرام |
 | `threexui_panel_email` | اعلان‌های SMTP/email (v3.4.0+) |
+| `threexui_host_group` | مسیریابی گروه هاست‌ها (چند هاست برای هر اینباند) |
 | `threexui_panel_subscription` | تنظیمات سرویس subscription |
 | `threexui_xray_basics` | پیکربندی پایهٔ Xray (log, policy, api, stats) |
 | `threexui_xray_dns` | سرورها و hostهای DNS |
@@ -160,6 +167,7 @@ resource "threexui_inbound_client" "client_a" {
 | `threexui_xray_balancers` | بالانسرها |
 | `threexui_xray_reverse` | پروکسی معکوس (bridges, portals) |
 | `threexui_xray_outbounds` | اوت‌باندها |
+| `threexui_xray_observatory` | پیکربندی Xray Observatory / BurstObservatory |
 | `threexui_xray_version` | نسخهٔ Xray core نصب‌شده |
 
 ### Data Sources

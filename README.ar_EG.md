@@ -122,10 +122,16 @@ resource "threexui_inbound_client" "client_a" {
 
 | المثال | الوصف |
 | --- | --- |
-| [إعداد Provider من env](examples/provider-env-config/) | إعداد الـ provider عن طريق متغيرات Terraform و `TF_VAR_*` |
+| [إعداد Provider من env](examples/provider-env-config/) | إعداد الـ provider بمتغيرات `THREEXUI_*` المدعومة |
+| [مستخدم اللوحة](examples/panel-user/) | تدوير بيانات اعتماد مسؤول اللوحة |
+| [بريد اللوحة](examples/panel-email/) | إعداد إشعارات SMTP (v3.4.0+) |
 | [Trojan inbound](examples/trojan-inbound/) | Trojan فوق WebSocket |
 | [Shadowsocks inbound](examples/shadowsocks-inbound/) | Shadowsocks بتشفير AEAD |
 | [Inbound + عملاء](examples/inbound-with-client/) | تدفق كامل: inbound + كذا عميل |
+| [عقدة الكتلة](examples/node/) | تسجيل لوحة 3x-ui بعيدة كعقدة |
+| [مجموعة hosts](examples/host-group/) | إدارة توجيه hosts بالجملة (v3.5.0+) |
+| [Xray Observatory](examples/observatory/) | إعداد فحوصات زمن وصول outbounds (v3.4.2+) |
+| [إصدار Xray](examples/xray-version/) | تثبيت إصدار Xray core المُثبّت |
 | [أسطول متعدد السيرفرات](examples/multi-server/) | إدارة كذا 3x-ui من خلال module و `for_each` |
 | [Import موارد موجودة](examples/import-existing/) | جلب موارد 3x-ui الموجودة فعلًا للـ state |
 
@@ -145,7 +151,7 @@ resource "threexui_inbound_client" "client_a" {
 
 | Resource | الوصف |
 | --- | --- |
-| `threexui_inbound` | inbound (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria؛ socks/dokodemo-door legacy قبل 3.2) |
+| `threexui_inbound` | inbound (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria, mtproto؛ TUN من 3.2.7 وMTProto من 3.3.0) |
 | `threexui_inbound_client` | عميل داخل inbound |
 | `threexui_node` | عقدة الكتلة / تسجيل multi-node |
 | `threexui_panel_general` | إعدادات اللوحة العامة |
@@ -153,6 +159,7 @@ resource "threexui_inbound_client" "client_a" {
 | `threexui_panel_user` | بيانات اعتماد المسؤول |
 | `threexui_panel_telegram` | تكامل بوت تليجرام |
 | `threexui_panel_email` | إشعارات SMTP/email (v3.4.0+) |
+| `threexui_host_group` | توجيه مجموعات hosts (أكثر من host لكل inbound) |
 | `threexui_panel_subscription` | إعدادات خدمة الاشتراك |
 | `threexui_xray_basics` | إعدادات Xray الأساسية (log, policy, api, stats) |
 | `threexui_xray_dns` | سيرفرات و hosts الـ DNS |
@@ -160,6 +167,7 @@ resource "threexui_inbound_client" "client_a" {
 | `threexui_xray_balancers` | الـ balancers |
 | `threexui_xray_reverse` | reverse proxy (bridges, portals) |
 | `threexui_xray_outbounds` | outbounds |
+| `threexui_xray_observatory` | إعداد Xray Observatory / BurstObservatory |
 | `threexui_xray_version` | إصدار Xray core المثبّت |
 
 ### Data Sources
