@@ -80,16 +80,16 @@ type InboundHysteriaSettingsModel struct {
 }
 
 type InboundMtprotoSettingsModel struct {
-	FakeTlsDomain          types.String                      `tfsdk:"fake_tls_domain"`
-	ProxyProtocolListener  types.Bool                        `tfsdk:"proxy_protocol_listener"`
-	PreferIp               types.String                      `tfsdk:"prefer_ip"`
-	Debug                  types.Bool                        `tfsdk:"debug"`
-	DomainFronting         []InboundMtprotoDomainFrontingModel `tfsdk:"domain_fronting"`
-	OutboundTag            types.String                      `tfsdk:"outbound_tag"`
-	RouteThroughXray       types.Bool                        `tfsdk:"route_through_xray"`
-	RouteXrayPort          types.Int64                       `tfsdk:"route_xray_port"`
-	PublicIpv4             types.String                      `tfsdk:"public_ipv4"`
-	PublicIpv6             types.String                      `tfsdk:"public_ipv6"`
+	FakeTlsDomain         types.String                        `tfsdk:"fake_tls_domain"`
+	ProxyProtocolListener types.Bool                          `tfsdk:"proxy_protocol_listener"`
+	PreferIp              types.String                        `tfsdk:"prefer_ip"`
+	Debug                 types.Bool                          `tfsdk:"debug"`
+	DomainFronting        []InboundMtprotoDomainFrontingModel `tfsdk:"domain_fronting"`
+	OutboundTag           types.String                        `tfsdk:"outbound_tag"`
+	RouteThroughXray      types.Bool                          `tfsdk:"route_through_xray"`
+	RouteXrayPort         types.Int64                         `tfsdk:"route_xray_port"`
+	PublicIpv4            types.String                        `tfsdk:"public_ipv4"`
+	PublicIpv6            types.String                        `tfsdk:"public_ipv6"`
 }
 
 type InboundMtprotoDomainFrontingModel struct {

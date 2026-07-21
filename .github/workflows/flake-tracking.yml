@@ -93,4 +93,4 @@ jobs:
           done
           BODY="## CI Flake Rate Report — Week of $WEEK\n\n| Version | Result |\n| --- | --- |\n$RESULTS\n\n_Triggered by scheduled workflow._"
           echo -e "$BODY" > report.md
-          gh issue create --title "CI Flake Rate Report — Week of $WEEK" --body-file report.md --label "ci" || true
+          gh issue create --title "CI Flake Rate Report — Week of $WEEK" --body-file report.md --label "github_actions"

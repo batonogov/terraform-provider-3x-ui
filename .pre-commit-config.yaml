@@ -38,6 +38,7 @@ repos:
         name: markdownlint
         entry: markdownlint-cli2
         language: system
+        pass_filenames: false
         types: [markdown]
 
   # Common hooks for any files.

@@ -86,6 +86,8 @@ jobs:
         run: govulncheck ./...
 
       - run: task fmt
+      - name: Verify gofmt produced no changes
+        run: git diff --exit-code -- main.go provider
       - run: task vet
       - run: task lint
       - run: task build
@@ -164,16 +166,13 @@ jobs:
           retry_on: error
           command: task test:acc
 
-      - name: Capture 3x-ui container logs
-        if: failure()
-        run: docker compose logs 3xui > 3xui-container.log 2>&1
-
       - name: Upload container logs
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: 3xui-container-logs-acceptance
-          path: 3xui-container.log
+          path: .pi/artifacts/3xui-container.log
+          include-hidden-files: true
           retention-days: 7
 
   acceptance-tests-postgres:
@@ -216,16 +215,13 @@ jobs:
           retry_on: error
           command: task test:acc:postgres
 
-      - name: Capture container logs
-        if: failure()
-        run: docker compose --profile postgres logs > 3xui-container.log 2>&1
-
       - name: Upload container logs
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: 3xui-container-logs-postgres
-          path: 3xui-container.log
+          path: .pi/artifacts/3xui-container.log
+          include-hidden-files: true
           retention-days: 7
 
   acceptance-matrix-prepare:
@@ -290,14 +286,11 @@ jobs:
           retry_on: error
           command: task test:acc:compat
 
-      - name: Capture 3x-ui container logs
-        if: failure()
-        run: docker compose logs 3xui > 3xui-container.log 2>&1
-
       - name: Upload container logs
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: 3xui-container-logs-${{ matrix.version }}
-          path: 3xui-container.log
+          path: .pi/artifacts/3xui-container.log
+          include-hidden-files: true
           retention-days: 7

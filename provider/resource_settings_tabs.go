@@ -580,8 +580,8 @@ func panelSubscriptionSchema() schema.Schema {
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"sub_updates": schema.Int64Attribute{
-				Optional:   true, Computed: true,
-				Validators: subUpdatesValidators(),
+				Optional: true, Computed: true,
+				Validators:    subUpdatesValidators(),
 				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"sub_encrypt": schema.BoolAttribute{

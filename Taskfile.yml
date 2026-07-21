@@ -30,8 +30,14 @@ tasks:
       THREEXUI_VERSION: '{{.THREEXUI_VERSION | default "v3.5.0"}}'
     cmds:
       - docker compose down -v 2>/dev/null || true
-      - docker compose up --detach --wait --quiet-pull
       - defer: docker compose down
+      # Deferred commands run in reverse order: capture failure logs first.
+      - defer: |
+          {{if .EXIT_CODE}}
+          mkdir -p .pi/artifacts
+          docker compose logs 3xui > .pi/artifacts/3xui-container.log 2>&1
+          {{end}}
+      - docker compose up --detach --wait --quiet-pull
       - task: _wait-for-xray
       - task: _warm-xray-version-cache
       - >-
@@ -54,8 +60,14 @@ tasks:
     cmds:
       - echo "Running tests against 3x-ui {{.THREEXUI_VERSION}} at http://localhost:2053"
       - docker compose down -v 2>/dev/null || true
-      - docker compose up --detach --wait --quiet-pull
       - defer: docker compose down
+      # Deferred commands run in reverse order: capture failure logs first.
+      - defer: |
+          {{if .EXIT_CODE}}
+          mkdir -p .pi/artifacts
+          docker compose logs 3xui > .pi/artifacts/3xui-container.log 2>&1
+          {{end}}
+      - docker compose up --detach --wait --quiet-pull
       - task: _wait-for-xray
       - task: _warm-xray-version-cache
       - >-
@@ -77,8 +89,14 @@ tasks:
       THREEXUI_VERSION: '{{.THREEXUI_VERSION | default "v3.5.0"}}'
     cmds:
       - docker compose down -v 2>/dev/null || true
-      - XUI_DB_TYPE=postgres XUI_DB_DSN=postgres://xui:xui@postgres:5432/xui?sslmode=disable docker compose --profile postgres up --detach --wait --quiet-pull
       - defer: docker compose --profile postgres down -v
+      # Deferred commands run in reverse order: capture failure logs first.
+      - defer: |
+          {{if .EXIT_CODE}}
+          mkdir -p .pi/artifacts
+          docker compose --profile postgres logs > .pi/artifacts/3xui-container.log 2>&1
+          {{end}}
+      - XUI_DB_TYPE=postgres XUI_DB_DSN=postgres://xui:xui@postgres:5432/xui?sslmode=disable docker compose --profile postgres up --detach --wait --quiet-pull
       - task: _wait-for-xray
       - task: _warm-xray-version-cache
       - >-
