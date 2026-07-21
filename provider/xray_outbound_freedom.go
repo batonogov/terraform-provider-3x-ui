@@ -43,7 +43,7 @@ func freedomSettingsBlock() schema.ListNestedBlock {
 				},
 			},
 			Blocks: map[string]schema.Block{
-				"fragment": schema.ListNestedBlock{
+				"fragment": singletonListNestedBlock(schema.ListNestedBlock{
 					NestedObject: schema.NestedBlockObject{
 						Attributes: map[string]schema.Attribute{
 							"packets": schema.StringAttribute{
@@ -66,7 +66,7 @@ func freedomSettingsBlock() schema.ListNestedBlock {
 							},
 						},
 					},
-				},
+				}),
 				"noises": schema.ListNestedBlock{
 					NestedObject: schema.NestedBlockObject{
 						Attributes: map[string]schema.Attribute{

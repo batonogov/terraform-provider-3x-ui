@@ -92,7 +92,8 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed: true,
+				Computed:  true,
+				Sensitive: true,
 			},
 			"inbound_id": schema.Int64Attribute{
 				Required: true,
@@ -101,8 +102,9 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 				},
 			},
 			"client_id": schema.StringAttribute{
-				Optional: true,
-				Computed: true,
+				Optional:  true,
+				Computed:  true,
+				Sensitive: true,
 				PlanModifiers: []planmodifier.String{
 					// client_id is Computed and usually omitted from config. Keep the prior
 					// state value instead of going unknown on an unrelated change (e.g. a

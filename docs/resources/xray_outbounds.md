@@ -124,14 +124,14 @@ Each outbound should have exactly one `*_settings` block matching its `protocol`
 
 - `address` (String, Optional) - Server address.
 - `port` (Int, Optional) - Server port.
-- `id` (String, Optional) - VMess user ID (UUID).
+- `id` (String, Optional, Sensitive) - VMess user ID (UUID credential).
 - `security` (String, Optional) - Encryption method.
 
 #### vless_settings (Block, Optional, Max: 1)
 
 - `address` (String, Optional) - Server address.
 - `port` (Int, Optional) - Server port.
-- `id` (String, Optional) - VLESS user ID (UUID).
+- `id` (String, Optional, Sensitive) - VLESS user ID (UUID credential).
 - `flow` (String, Optional) - Flow control (e.g. `xtls-rprx-vision`).
 - `encryption` (String, Optional) - Encryption method.
 - `reverse_tag` (String, Optional) - VLESS reverse tag. Stored in 3x-ui as `reverse.tag` and available on 3x-ui v2.9.4+.

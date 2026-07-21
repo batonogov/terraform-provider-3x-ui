@@ -23,9 +23,10 @@ func TestInboundClientResource_Schema(t *testing.T) {
 			t.Fatalf("attribute %q missing from inbound_client schema", attr)
 		}
 	}
-	// secret must be Sensitive (FakeTLS key).
-	if !resp.Schema.Attributes["secret"].IsSensitive() {
-		t.Fatal("secret attribute must be Sensitive")
+	for _, name := range []string{"id", "client_id", "secret"} {
+		if !resp.Schema.Attributes[name].IsSensitive() {
+			t.Errorf("%s attribute must be Sensitive", name)
+		}
 	}
 }
 

@@ -29,20 +29,21 @@ Please include:
 
 ## Sensitive Data Handled by the Provider
 
-The 3x-ui panel issues and stores secrets that this provider reads and writes. The following fields are marked `Sensitive` in the schema and are never logged in plaintext:
+The 3x-ui panel issues and stores secrets that this provider reads and writes. The following fields are marked `Sensitive` in the schema so Terraform redacts their values from ordinary CLI output:
 
 | Surface | Sensitive fields |
 | --- | --- |
 | Provider config | `password`, `bootstrap_password`, `two_factor_code` |
-| `threexui_inbound` (`stream_settings.reality_settings`) | `private_key`, auto-generated short IDs |
+| `threexui_inbound` (`stream_settings.reality_settings`) | `private_key`, `short_ids`, `mldsa65_seed` |
 | `threexui_inbound` (`wireguard_settings`) | `secret_key`, peer `private_key`/`pre_shared_key`, multi-client `clients[].private_key`/`clients[].pre_shared_key` (3x-ui v3.4.2+) |
-| `threexui_inbound_client` | client `id` (UUID), `password` (trojan/ss), `auth` (hysteria) |
-| `threexui_panel_general` | LDAP `bind_password` |
-| `threexui_panel_telegram` | `bot_token`, `chat_id` |
+| `threexui_inbound_client` | `id` (contains the client UUID), `client_id`, `password` (trojan/ss), `auth` (hysteria), `secret` (MTProto) |
+| `threexui_panel_general` | `ldap_password` |
+| `threexui_panel_telegram` | `tg_bot_token` |
 | `threexui_panel_email` | `smtp_password` |
-| `threexui_panel_user` | `old_password`, `new_password` |
-| `threexui_node` | `api_token` / `api_token_wo`, `pinned_cert_sha256` / `pinned_cert_sha256_wo` |
-| `threexui_xray_outbounds` | per-protocol credentials (e.g. `password`, `users[].password`) |
+| `threexui_panel_security` | `two_factor_token` |
+| `threexui_panel_user` | `password` |
+| `threexui_node` | `api_token`, `pinned_cert_sha256` |
+| `threexui_xray_outbounds` | per-protocol credentials (`vless_settings.id`, `vmess_settings.id`, password/pass fields, WireGuard keys) |
 | Data sources | `threexui_inbounds.inbounds`, `threexui_nodes.nodes` (`apiToken`, `pinnedCertSha256`), `threexui_settings.json`, `threexui_xray_config.json` (full payloads) |
 
 ## Protecting Terraform State
@@ -56,7 +57,7 @@ Terraform state stores **all** sensitive values in plaintext, regardless of the 
 
 ## Write-Only Arguments (Terraform 1.11+ / OpenTofu 1.11+)
 
-Starting with provider v3.13.0, resources that manage secrets offer write-only (`_wo`) attribute alternatives. Write-only values are sent to the 3x-ui panel but **never stored** in Terraform plan or state artifacts. Requires Terraform ≥ 1.11 or OpenTofu ≥ 1.11; on earlier versions, `_wo` attributes fall back to plain `Sensitive` behaviour and the secret is persisted in state.
+Starting with provider v3.13.0, resources that manage secrets offer write-only (`_wo`) attribute alternatives. Write-only values are sent to the 3x-ui panel but **never stored** in Terraform plan or state artifacts. They require Terraform ≥ 1.11 or OpenTofu ≥ 1.11. Older runtimes reject a configured `_wo` value because they do not advertise write-only-attribute support; use the corresponding plain `Sensitive` attribute when an upgrade is not possible.
 
 | Resource | Write-only attribute | Version trigger |
 | --- | --- | --- |

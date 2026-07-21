@@ -33,6 +33,7 @@ func vmessSettingsBlock() schema.ListNestedBlock {
 				},
 				"id": schema.StringAttribute{
 					Optional: true, Computed: true,
+					Sensitive: true,
 					PlanModifiers: []planmodifier.String{
 						stringplanmodifier.UseStateForUnknown(),
 					},

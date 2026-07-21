@@ -73,9 +73,11 @@ resource "threexui_inbound_client" "hysteria_user" {
 
 - `inbound_id` (Required, Number, ForceNew) - The ID of the inbound this client belongs to. Changing this forces a new resource.
 - `email` (Required, String) - Unique email identifier for the client. Required by 3x-ui to avoid database errors.
-- `client_id` (Optional, String, ForceNew) - UUID for the client. Auto-generated if not provided. Changing this forces a new resource.
+- `client_id` (Optional, String, Sensitive, ForceNew) - UUID credential for the client. Auto-generated if not provided. Changing this forces a new resource.
 - `security` (Optional, String) - Security type.
 - `password` (Optional, String, Sensitive) - Client password (used by trojan/shadowsocks).
+- `password_wo` (Optional, String, Write-Only) - Write-only client password. Requires Terraform/OpenTofu 1.11+. Use `password_wo_version` to trigger later updates without storing the password in plan or state.
+- `password_wo_version` (Optional, Number) - Increment this value when `password_wo` changes. It can only be configured together with `password_wo`.
 - `flow` (Optional, String) - Flow control (e.g. `xtls-rprx-vision`).
 - `reverse_tag` (Optional, String) - VLESS reverse tag. Stored in 3x-ui as `reverse.tag` and available on 3x-ui v2.9.4+.
 - `auth` (Optional, String, Sensitive) - Auth password for Hysteria clients. Used as client identifier instead of UUID.
@@ -88,11 +90,15 @@ resource "threexui_inbound_client" "hysteria_user" {
 - `reset` (Optional, Number) - Traffic reset period in days. `0` means never (default).
 - `group` (Optional, String) - Client group name. Available on 3x-ui v3.2.0+.
 - `secret` (Optional, String, Sensitive) - MTProto FakeTLS secret, per-client (3x-ui v3.5.0+, `mtg-multi` engine). Format: `"ee"` + 32 hex chars (random middle) + hex-encoded domain suffix. The panel rebuilds the domain suffix from the inbound's `fakeTlsDomain` on save, so only the random middle must be stable across applies. Setting a domain suffix that differs from the inbound's `fakeTlsDomain` causes drift after the first apply (the panel heals it) — leave unset to let the panel generate it. Leave unset for non-MTProto clients.
+- `secret_wo` (Optional, String, Write-Only) - Write-only MTProto FakeTLS secret. Requires Terraform/OpenTofu 1.11+. Use `secret_wo_version` to trigger later updates without storing the secret in plan or state.
+- `secret_wo_version` (Optional, Number) - Increment this value when `secret_wo` changes. It can only be configured together with `secret_wo`.
 - `ad_tag` (Optional, String) - MTProto advertising tag from @MTProxybot, per-client (3x-ui v3.5.0+). Must be exactly 32 hex characters. Leave unset for non-MTProto clients.
 - `restart_xray` (Optional, Boolean) - Restart Xray core after create, update, or delete operations. Default is `false`.
 - `sub_id` (Optional, String) - Subscription ID used for subscription URLs. Auto-generated if not provided. Set this to preserve existing subscription links when restoring from backup.
 
 ## Read-Only Attributes
+
+- `id` (String, Sensitive) - Composite resource identifier in `inbound_id:client_id` format. It is sensitive because it embeds the client UUID credential.
 
 ## Usage: Subscription URLs
 
@@ -133,7 +139,7 @@ output "subscription_urls" {
 
 ## Attribute Reference
 
-All arguments are also exported as attributes.
+All non-write-only arguments are also exported as attributes. Values supplied through `password_wo` or `secret_wo` are deliberately absent from plan and state; only their version triggers are persisted. On Terraform/OpenTofu versions before 1.11, configure the corresponding plain `password` or `secret` attribute instead.
 
 ## Import
 

@@ -112,7 +112,7 @@ Five resources — `panel_general`, `panel_security`, `panel_telegram`,
 
 ### Write-only secret attributes (Terraform 1.11+ / OpenTofu 1.11+)
 
-Five singleton secrets have write-only (`_wo`) alternatives following the AWS/Azure pattern.
+Managed secrets have write-only (`_wo`) alternatives following the AWS/Azure pattern.
 Each secret gets three attributes: old `Sensitive` attr + `WriteOnly` attr + `_wo_version` trigger.
 
 | Resource | Old attr | Write-only | Version trigger |
@@ -123,7 +123,10 @@ Each secret gets three attributes: old `Sensitive` attr + `WriteOnly` attr + `_w
 | `panel_email` | `smtp_password` | `smtp_password_wo` | `smtp_password_wo_version` |
 | `panel_general` | `ldap_password` | `ldap_password_wo` | `ldap_password_wo_version` |
 | `threexui_node` | `api_token`, `pinned_cert_sha256` | `api_token_wo`, `pinned_cert_sha256_wo` | `api_token_wo_version`, `pinned_cert_sha256_wo_version` |
+| `threexui_inbound_client` | `password`, `secret` | `password_wo`, `secret_wo` | `password_wo_version`, `secret_wo_version` |
 
+- `_wo` values require Terraform/OpenTofu 1.11+. Older runtimes reject a configured
+  write-only value; users on those versions must keep using the plain `Sensitive` attr.
 - `PreferWriteOnlyAttribute` validator warns on TF >= 1.11 when using old attr.
 - `int64validator.AlsoRequires` enforces that `*_wo_version` can only be set with `*_wo`.
 - Write-only values read from `req.Config` (not plan/state — framework nulls them).
@@ -136,6 +139,11 @@ Each secret gets three attributes: old `Sensitive` attr + `WriteOnly` attr + `_w
     on `woVersionTriggered` so Terraform accepts a new sensitive value from Apply.
     Needed because flatten reads the masked value back, which would otherwise be
     rejected as "inconsistent values for sensitive".
+  - **inbound_client**: `resolveInboundClientSecretsWO` copies `password_wo` and
+    `secret_wo` from config on Create; `resolveInboundClientSecretsWOUpdate` only
+    copies them when their version trigger changes. Its inlined ModifyPlan marks
+    each corresponding plain attr Unknown independently, following the two-secret
+    node pattern.
 - Version trigger: `resolveXxxWOUpdate` only sends the `_wo` value when
   `woVersionTriggered(plan, state)` (version changes, or first use when state has none).
 
@@ -144,6 +152,12 @@ Each secret gets three attributes: old `Sensitive` attr + `WriteOnly` attr + `_w
 Seven xray resources share `resource_xray_settings.go`: `xray_basics`, `xray_dns`,
 `xray_routing`, `xray_balancers`, `xray_reverse`, `xray_outbounds`,
 `xray_observatory`. Each section has its own `*_schema.go` file.
+
+List-backed nested blocks that model one JSON object use
+`singletonListNestedBlock` (`listvalidator.SizeAtMost(1)`). Keep collection blocks
+such as outbounds, balancers, policy levels, costs, Freedom noises/final rules,
+WireGuard peers, and observatory entries repeatable. This prevents accepted extra
+blocks from being silently dropped by expand functions that read element zero.
 
 | Mode | Resource | Behavior |
 | --- | --- | --- |

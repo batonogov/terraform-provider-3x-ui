@@ -95,7 +95,7 @@ func xrayBasicsSchema() schema.Schema {
 			},
 		},
 		Blocks: map[string]schema.Block{
-			"log": schema.ListNestedBlock{
+			"log": singletonListNestedBlock(schema.ListNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"loglevel": schema.StringAttribute{
@@ -124,11 +124,11 @@ func xrayBasicsSchema() schema.Schema {
 						},
 					},
 				},
-			},
-			"policy": schema.ListNestedBlock{
+			}),
+			"policy": singletonListNestedBlock(schema.ListNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Blocks: map[string]schema.Block{
-						"system": schema.ListNestedBlock{
+						"system": singletonListNestedBlock(schema.ListNestedBlock{
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"stats_inbound_downlink": schema.BoolAttribute{
@@ -157,7 +157,7 @@ func xrayBasicsSchema() schema.Schema {
 									},
 								},
 							},
-						},
+						}),
 						"level": schema.ListNestedBlock{
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
@@ -211,8 +211,8 @@ func xrayBasicsSchema() schema.Schema {
 						},
 					},
 				},
-			},
-			"api": schema.ListNestedBlock{
+			}),
+			"api": singletonListNestedBlock(schema.ListNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"tag": schema.StringAttribute{
@@ -228,13 +228,13 @@ func xrayBasicsSchema() schema.Schema {
 						},
 					},
 				},
-			},
-			"stats": schema.ListNestedBlock{
+			}),
+			"stats": singletonListNestedBlock(schema.ListNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{},
 				},
-			},
-			"metrics": schema.ListNestedBlock{
+			}),
+			"metrics": singletonListNestedBlock(schema.ListNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"tag": schema.StringAttribute{
@@ -251,7 +251,7 @@ func xrayBasicsSchema() schema.Schema {
 						},
 					},
 				},
-			},
+			}),
 			"env": schema.ListNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
