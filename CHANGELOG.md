@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.20.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.20.0...v3.20.1) (2026-07-21)
+
+
+### Bug Fixes
+
+* align schema security contracts ([#399](https://github.com/batonogov/terraform-provider-threexui/issues/399)) ([69fcc45](https://github.com/batonogov/terraform-provider-threexui/commit/69fcc45e71b90f5e25ac3d97d356688faeea9643))
+
 ## [3.20.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.19.1...v3.20.0) (2026-07-15)
 
 
