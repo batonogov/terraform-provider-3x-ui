@@ -131,7 +131,7 @@ func xrayObservatorySchema() schema.Schema {
 						},
 					},
 					Blocks: map[string]schema.Block{
-						"ping_config": schema.ListNestedBlock{
+						"ping_config": singletonListNestedBlock(schema.ListNestedBlock{
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"destination": schema.StringAttribute{
@@ -192,7 +192,7 @@ func xrayObservatorySchema() schema.Schema {
 									},
 								},
 							},
-						},
+						}),
 					},
 				},
 			},

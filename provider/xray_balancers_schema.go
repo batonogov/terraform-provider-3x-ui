@@ -89,7 +89,7 @@ func xrayBalancersSchema() schema.Schema {
 						},
 					},
 					Blocks: map[string]schema.Block{
-						"strategy": schema.ListNestedBlock{
+						"strategy": singletonListNestedBlock(schema.ListNestedBlock{
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"type": schema.StringAttribute{
@@ -97,7 +97,7 @@ func xrayBalancersSchema() schema.Schema {
 									},
 								},
 								Blocks: map[string]schema.Block{
-									"settings": schema.ListNestedBlock{
+									"settings": singletonListNestedBlock(schema.ListNestedBlock{
 										NestedObject: schema.NestedBlockObject{
 											Attributes: map[string]schema.Attribute{
 												"expected": schema.Int64Attribute{
@@ -156,10 +156,10 @@ func xrayBalancersSchema() schema.Schema {
 												},
 											},
 										},
-									},
+									}),
 								},
 							},
-						},
+						}),
 					},
 				},
 			},

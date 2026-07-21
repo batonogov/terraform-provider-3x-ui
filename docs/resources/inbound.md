@@ -326,8 +326,8 @@ Used for both `tunnel` and `dokodemo-door` protocols.
   - `target` (Optional, String)
   - `server_names` (Optional, List of String)
   - `private_key` (Optional, String, Sensitive) - Auto-generated if not specified.
-  - `short_ids` (Optional, List of String) - Auto-generated if not specified.
-  - `mldsa65_seed` (Optional, String)
+  - `short_ids` (Optional, List of String, Sensitive) - Auto-generated if not specified.
+  - `mldsa65_seed` (Optional, String, Sensitive) - Private ML-DSA-65 seed material.
   - `settings` (Optional, Attribute) - Reality inner settings (client-side). Auto-populated if omitted.
     - `public_key` (Optional, String) - Auto-generated if not specified.
     - `fingerprint` (Optional, String)

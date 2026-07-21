@@ -218,6 +218,7 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 					},
 					"short_ids": schema.ListAttribute{
 						Optional: true, Computed: true,
+						Sensitive:   true,
 						ElementType: types.StringType,
 						Description: "Short IDs (auto-generated if empty).",
 						PlanModifiers: []planmodifier.List{
@@ -226,6 +227,7 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 					},
 					"mldsa65_seed": schema.StringAttribute{
 						Optional: true, Computed: true,
+						Sensitive: true,
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
 						},

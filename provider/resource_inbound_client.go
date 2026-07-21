@@ -33,9 +33,9 @@ var inboundClientMu sync.Mutex
 // ---------------------------------------------------------------------------
 
 var (
-	_ resource.Resource                   = &InboundClientResource{}
-	_ resource.ResourceWithImportState    = &InboundClientResource{}
-	_ resource.ResourceWithModifyPlan     = &InboundClientResource{}
+	_ resource.Resource                = &InboundClientResource{}
+	_ resource.ResourceWithImportState = &InboundClientResource{}
+	_ resource.ResourceWithModifyPlan  = &InboundClientResource{}
 )
 
 // ---------------------------------------------------------------------------
@@ -92,7 +92,8 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed: true,
+				Computed:  true,
+				Sensitive: true,
 			},
 			"inbound_id": schema.Int64Attribute{
 				Required: true,
@@ -101,8 +102,9 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 				},
 			},
 			"client_id": schema.StringAttribute{
-				Optional: true,
-				Computed: true,
+				Optional:  true,
+				Computed:  true,
+				Sensitive: true,
 				PlanModifiers: []planmodifier.String{
 					// client_id is Computed and usually omitted from config. Keep the prior
 					// state value instead of going unknown on an unrelated change (e.g. a
@@ -136,14 +138,14 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 				},
 			},
 			"password_wo": schema.StringAttribute{
-				Optional:   true,
-				Sensitive:  true,
-				WriteOnly:  true,
+				Optional:    true,
+				Sensitive:   true,
+				WriteOnly:   true,
 				Description: "Write-only password for trojan/shadowsocks clients. Use password_wo_version to trigger updates.",
 			},
 			"password_wo_version": schema.Int64Attribute{
-				Optional:   true,
-				Computed:   true,
+				Optional:    true,
+				Computed:    true,
 				Description: "Increment to trigger password update when using password_wo.",
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
@@ -260,14 +262,14 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 				},
 			},
 			"secret_wo": schema.StringAttribute{
-				Optional:   true,
-				Sensitive:  true,
-				WriteOnly:  true,
+				Optional:    true,
+				Sensitive:   true,
+				WriteOnly:   true,
 				Description: "Write-only MTProto FakeTLS secret (3x-ui v3.5.0+). Use secret_wo_version to trigger updates.",
 			},
 			"secret_wo_version": schema.Int64Attribute{
-				Optional:   true,
-				Computed:   true,
+				Optional:    true,
+				Computed:    true,
 				Description: "Increment to trigger secret update when using secret_wo.",
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
