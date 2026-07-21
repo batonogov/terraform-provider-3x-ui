@@ -6,10 +6,12 @@ on:
     paths:
       - "docs/**"
       - "examples/**"
-      - "README.md"
+      - "README*.md"
       - "CONTRIBUTING.md"
       - ".github/**"
       - ".pre-commit-config.yaml"
+      - "scripts/check-readme-parity.sh"
+      - "scripts/sync-versions.sh"
       - "provider/**/*.go"
       - go.mod
       - go.sum
@@ -18,10 +20,12 @@ on:
     paths:
       - "docs/**"
       - "examples/**"
-      - "README.md"
+      - "README*.md"
       - "CONTRIBUTING.md"
       - ".github/**"
       - ".pre-commit-config.yaml"
+      - "scripts/check-readme-parity.sh"
+      - "scripts/sync-versions.sh"
       - "provider/**/*.go"
       - go.mod
       - go.sum
@@ -62,8 +66,14 @@ jobs:
         with:
           globs: |
             docs/**/*.md
-            README.md
+            README*.md
             CONTRIBUTING.md
+
+      - name: Check localized README table parity
+        run: scripts/check-readme-parity.sh
+
+      - name: Check version documentation consistency
+        run: scripts/sync-versions.sh check
 
   yaml-lint:
     name: YAML Lint
@@ -102,3 +112,9 @@ jobs:
 
       - name: Validate docs against provider schema
         run: tfplugindocs validate --provider-name threexui
+
+      - name: Check hand-written schema sections
+        run: >-
+          go test ./provider
+          -run 'TestDocumentedSchemaSections|TestInboundProtocolDescriptionListsVersionedProtocols'
+          -count=1

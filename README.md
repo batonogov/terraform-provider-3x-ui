@@ -116,10 +116,16 @@ Newer protocol features are guarded with `requireMinVersion` and skip automatica
 
 | Example | Description |
 | --- | --- |
-| [Provider with env config](examples/provider-env-config/) | Configure the provider using Terraform variables and `TF_VAR_*` environment variables |
+| [Provider with env config](examples/provider-env-config/) | Configure the provider using supported `THREEXUI_*` environment variables |
+| [Panel user](examples/panel-user/) | Rotate panel administrator credentials |
+| [Panel email](examples/panel-email/) | Configure SMTP notifications (v3.4.0+) |
 | [Trojan inbound](examples/trojan-inbound/) | Trojan protocol with WebSocket transport |
 | [Shadowsocks inbound](examples/shadowsocks-inbound/) | Shadowsocks with AEAD cipher |
 | [Inbound with clients](examples/inbound-with-client/) | Complete workflow: inbound + multiple clients |
+| [Cluster node](examples/node/) | Register a remote 3x-ui panel as a cluster node |
+| [Host group](examples/host-group/) | Manage bulk host routing (v3.5.0+) |
+| [Xray observatory](examples/observatory/) | Configure outbound latency probes (v3.4.2+) |
+| [Xray version](examples/xray-version/) | Pin the installed Xray core version |
 | [Multi-server fleet](examples/multi-server/) | Manage many 3x-ui hosts via a reusable module + `for_each` |
 | [Import existing resources](examples/import-existing/) | Import existing 3x-ui resources into Terraform state |
 
@@ -139,7 +145,7 @@ Full documentation is available on the [Terraform Registry](https://registry.ter
 
 | Resource | Description |
 | --- | --- |
-| `threexui_inbound` | Inbound proxy (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria; legacy socks/dokodemo-door before 3.2) |
+| `threexui_inbound` | Inbound proxy (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria, mtproto; TUN 3.2.7+, MTProto 3.3.0+) |
 | `threexui_inbound_client` | Client within an inbound |
 | `threexui_node` | Cluster node / multi-node registration |
 | `threexui_panel_general` | General panel settings |

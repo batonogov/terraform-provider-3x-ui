@@ -13,7 +13,7 @@ config:
 
 globs:
   - "docs/**/*.md"
-  - "README.md"
+  - "README*.md"
   - "CONTRIBUTING.md"
 
 ignores:

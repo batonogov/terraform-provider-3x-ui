@@ -49,7 +49,7 @@ The provider authenticates to the 3x-ui panel using username and password. These
 
 ### Environment Variables
 
-All provider attributes can be set via `THREEXUI_*` environment variables. When both HCL configuration and environment variables are present, the HCL value takes precedence.
+The following provider attributes can be set via `THREEXUI_*` environment variables. When both HCL configuration and an environment variable are present, the HCL value takes precedence.
 
 | Attribute | Environment Variable | Default |
 | --- | --- | --- |
@@ -60,6 +60,8 @@ All provider attributes can be set via `THREEXUI_*` environment variables. When 
 | `insecure_skip_verify` | `THREEXUI_INSECURE_SKIP_VERIFY` | `false` |
 | `request_timeout` | `THREEXUI_REQUEST_TIMEOUT` | `30s` |
 | `max_retries` | `THREEXUI_MAX_RETRIES` | `1` |
+
+`bootstrap_username`, `bootstrap_password`, and `two_factor_code` intentionally have no environment-variable fallback. Configure them explicitly in the provider block (usually through sensitive Terraform input variables) when bootstrap authentication or 2FA is required.
 
 Minimal configuration using environment variables:
 
@@ -74,7 +76,7 @@ export THREEXUI_PASSWORD="secret"
 terraform apply
 ```
 
-Precedence order: explicit HCL > `THREEXUI_*` environment variable > built-in default.
+For the attributes in the table, precedence is: explicit HCL > `THREEXUI_*` environment variable > built-in default.
 
 For first-run bootstrap of a fresh panel, you can configure `bootstrap_username` and `bootstrap_password` in addition to the steady-state `username` and `password`. Use this together with `threexui_panel_user` to rotate the panel to the steady-state credentials during the same apply. On 3x-ui v2.9.x, failed logins can expose the submitted password in panel logs or Telegram login notifications, so the provider tries bootstrap credentials before the steady-state credentials. On 3x-ui v3.x, the provider tries steady-state credentials first and falls back to bootstrap credentials only if the panel rejects them. The provider does not silently try `admin`/`admin`; bootstrap credentials must be configured explicitly.
 

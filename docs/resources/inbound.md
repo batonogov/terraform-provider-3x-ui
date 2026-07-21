@@ -7,7 +7,7 @@ description: |-
 
 # threexui_inbound (Resource)
 
-Manages an inbound proxy in the 3x-ui panel. Supports protocols: vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, and hysteria. For older panels, the provider also preserves legacy `socks`, `dokodemo-door`, and `hysteria2` values from imported state; on 3x-ui v3.2.0+ use `mixed`, `tunnel`, and `hysteria` with `version = 2` for new configurations.
+Manages an inbound proxy in the 3x-ui panel. Supports protocols: vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria, and mtproto. For older panels, the provider also preserves legacy `socks`, `dokodemo-door`, and `hysteria2` values from imported state; on 3x-ui v3.2.0+ use `mixed`, `tunnel`, and `hysteria` with `version = 2` for new configurations. TUN requires v3.2.7+, and MTProto requires v3.3.0+.
 
 ## Example Usage
 
@@ -159,12 +159,28 @@ resource "threexui_inbound" "hysteria" {
 }
 ```
 
+### MTProto
+
+```hcl
+resource "threexui_inbound" "mtproto" {
+  port     = 443
+  protocol = "mtproto"
+  enable   = true
+  remark   = "MTProto FakeTLS"
+
+  mtproto_settings {
+    fake_tls_domain = "www.cloudflare.com"
+    prefer_ip       = "prefer-ipv4"
+  }
+}
+```
+
 ## Argument Reference
 
 ### Top-level
 
 - `port` (Required, Number) - Port number for the inbound.
-- `protocol` (Required, String) - Protocol type (`vless`, `vmess`, `trojan`, `shadowsocks`, `http`, `mixed`, `wireguard`, `tunnel`, `hysteria`). Legacy `socks` and `dokodemo-door` are available only on panels before 3x-ui v3.2.0; use `mixed` and `tunnel` on v3.2.0+. `tun` is also available on 3x-ui v3.5.0+.
+- `protocol` (Required, String) - Protocol type (`vless`, `vmess`, `trojan`, `shadowsocks`, `http`, `mixed`, `wireguard`, `tunnel`, `tun`, `hysteria`, `mtproto`). Legacy `socks` and `dokodemo-door` are available only on panels before 3x-ui v3.2.0; use `mixed` and `tunnel` on v3.2.0+. `tun` is a tunnel alias available on v3.2.7+, and `mtproto` is available on v3.3.0+.
 - `enable` (Optional, Boolean) - Whether the inbound is enabled. Default is `true`.
 - `remark` (Optional, String) - A label/name for the inbound.
 - `listen` (Optional, String) - Listen address.
@@ -275,6 +291,27 @@ Used for both `tunnel` and `dokodemo-door` protocols.
 #### `hysteria_settings`
 
 - `version` (Optional, Number) - Hysteria version (1 or 2, default 2).
+
+#### `mtproto_settings` (Optional, Block)
+
+Typed MTProto server settings available on 3x-ui v3.3.0+. On v3.5.0+, per-client FakeTLS `secret` and optional `ad_tag` values are managed by `threexui_inbound_client`; the panel heals their domain suffix from `fake_tls_domain`.
+
+- `fake_tls_domain` (Optional+Computed, String) - FakeTLS domain. The panel default is `www.cloudflare.com`.
+- `proxy_protocol_listener` (Optional+Computed, Boolean) - Enable the PROXY protocol listener.
+- `prefer_ip` (Optional+Computed, String) - IP preference: `prefer-ipv6`, `prefer-ipv4`, `only-ipv6`, or `only-ipv4`.
+- `debug` (Optional+Computed, Boolean) - Enable MTProto debug mode.
+- `outbound_tag` (Optional+Computed, String) - Outbound tag used for routing.
+- `route_through_xray` (Optional+Computed, Boolean) - Route MTProto traffic through Xray core.
+- `route_xray_port` (Optional+Computed, Number) - Xray routing port.
+- `public_ipv4` (Optional+Computed, String) - Public IPv4 address advertised by the service.
+- `public_ipv6` (Optional+Computed, String) - Public IPv6 address advertised by the service.
+- `domain_fronting` (Optional, Block List) - Domain-fronting listeners.
+
+##### `domain_fronting` (Optional, Block List)
+
+- `ip` (Optional+Computed, String) - Fronting IP address.
+- `port` (Optional+Computed, Number) - Fronting port.
+- `proxy_protocol` (Optional+Computed, Boolean) - Enable PROXY protocol for this listener.
 
 ### `stream_settings` Block
 

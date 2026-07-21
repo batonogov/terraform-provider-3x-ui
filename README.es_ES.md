@@ -116,10 +116,16 @@ Las funciones de protocolos nuevos están protegidas con `requireMinVersion` y s
 
 | Ejemplo | Descripción |
 | --- | --- |
-| [Proveedor con env](examples/provider-env-config/) | Configurar el proveedor con variables y `TF_VAR_*` |
+| [Proveedor con env](examples/provider-env-config/) | Configurar el proveedor con variables `THREEXUI_*` compatibles |
+| [Usuario del panel](examples/panel-user/) | Rotar las credenciales del administrador |
+| [Email del panel](examples/panel-email/) | Configurar notificaciones SMTP (v3.4.0+) |
 | [Inbound Trojan](examples/trojan-inbound/) | Trojan sobre WebSocket |
 | [Inbound Shadowsocks](examples/shadowsocks-inbound/) | Shadowsocks con cifrado AEAD |
 | [Inbound + clientes](examples/inbound-with-client/) | Flujo completo: inbound + varios clientes |
+| [Nodo del clúster](examples/node/) | Registrar un panel 3x-ui remoto como nodo |
+| [Grupo de hosts](examples/host-group/) | Gestionar el enrutamiento masivo de hosts (v3.5.0+) |
+| [Observatorio Xray](examples/observatory/) | Configurar sondas de latencia de outbounds (v3.4.2+) |
+| [Versión de Xray](examples/xray-version/) | Fijar la versión instalada de Xray core |
 | [Flota multi-servidor](examples/multi-server/) | Múltiples hosts 3x-ui con un módulo y `for_each` |
 | [Importar recursos existentes](examples/import-existing/) | Importar recursos 3x-ui ya creados al estado |
 
@@ -139,7 +145,7 @@ La documentación completa está en el [Terraform Registry](https://registry.ter
 
 | Recurso | Descripción |
 | --- | --- |
-| `threexui_inbound` | Inbound (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria; socks/dokodemo-door legacy antes de 3.2) |
+| `threexui_inbound` | Inbound (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria, mtproto; TUN 3.2.7+, MTProto 3.3.0+) |
 | `threexui_inbound_client` | Cliente dentro de un inbound |
 | `threexui_node` | Nodo del clúster / registro multi-node |
 | `threexui_panel_general` | Ajustes generales del panel |
@@ -147,6 +153,7 @@ La documentación completa está en el [Terraform Registry](https://registry.ter
 | `threexui_panel_user` | Credenciales de administrador |
 | `threexui_panel_telegram` | Integración con bot de Telegram |
 | `threexui_panel_email` | Notificaciones SMTP/email (v3.4.0+) |
+| `threexui_host_group` | Enrutamiento de grupos de hosts (varios hosts por inbound) |
 | `threexui_panel_subscription` | Ajustes del servicio de suscripción |
 | `threexui_xray_basics` | Configuración base de Xray (log, policy, api, stats) |
 | `threexui_xray_dns` | Servidores y hosts DNS |
@@ -154,6 +161,7 @@ La documentación completa está en el [Terraform Registry](https://registry.ter
 | `threexui_xray_balancers` | Balanceadores |
 | `threexui_xray_reverse` | Proxy inverso (bridges, portals) |
 | `threexui_xray_outbounds` | Outbounds |
+| `threexui_xray_observatory` | Configuración de Xray Observatory / BurstObservatory |
 | `threexui_xray_version` | Versión del núcleo Xray instalada |
 
 ### Data sources

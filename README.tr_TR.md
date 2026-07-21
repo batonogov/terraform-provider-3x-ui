@@ -116,10 +116,16 @@ Daha yeni protokol özellikleri `requireMinVersion` ile korunur ve eski sürüml
 
 | Örnek | Açıklama |
 | --- | --- |
-| [Provider ile ortam yapılandırması](examples/provider-env-config/) | Terraform değişkenleri ve `TF_VAR_*` ortam değişkenleri ile provider'ı yapılandırma |
+| [Provider ile ortam yapılandırması](examples/provider-env-config/) | Desteklenen `THREEXUI_*` ortam değişkenleriyle provider yapılandırması |
+| [Panel kullanıcısı](examples/panel-user/) | Panel yöneticisi kimlik bilgilerini döndürme |
+| [Panel e-postası](examples/panel-email/) | SMTP bildirimlerini yapılandırma (v3.4.0+) |
 | [Trojan inbound](examples/trojan-inbound/) | WebSocket taşıma ile Trojan protokolü |
 | [Shadowsocks inbound](examples/shadowsocks-inbound/) | AEAD şifreleme ile Shadowsocks |
 | [İstemcili inbound](examples/inbound-with-client/) | Tam iş akışı: inbound + birden fazla istemci |
+| [Küme düğümü](examples/node/) | Uzak bir 3x-ui panelini küme düğümü olarak kaydetme |
+| [Host grubu](examples/host-group/) | Toplu host yönlendirmesini yönetme (v3.5.0+) |
+| [Xray Observatory](examples/observatory/) | Outbound gecikme problarını yapılandırma (v3.4.2+) |
+| [Xray sürümü](examples/xray-version/) | Kurulu Xray core sürümünü sabitleme |
 | [Çok sunuculu filo](examples/multi-server/) | Yeniden kullanılabilir modül + `for_each` ile birden fazla 3x-ui barındırmasını yönetme |
 | [Mevcut kaynakları içe aktarma](examples/import-existing/) | Mevcut 3x-ui kaynaklarını Terraform state'ine aktarma |
 
@@ -139,7 +145,7 @@ Tam belgeler [Terraform Registry](https://registry.terraform.io/providers/batono
 
 | Kaynak | Açıklama |
 | --- | --- |
-| `threexui_inbound` | Inbound proxy (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, hysteria; 3.2 öncesi legacy socks/dokodemo-door) |
+| `threexui_inbound` | Inbound proxy (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria, mtproto; TUN 3.2.7+, MTProto 3.3.0+) |
 | `threexui_inbound_client` | Bir inbound içindeki istemci |
 | `threexui_node` | Küme düğümü / multi-node kaydı |
 | `threexui_panel_general` | Genel panel ayarları |
@@ -147,6 +153,7 @@ Tam belgeler [Terraform Registry](https://registry.terraform.io/providers/batono
 | `threexui_panel_user` | Yönetici kimlik bilgileri |
 | `threexui_panel_telegram` | Telegram bot entegrasyonu |
 | `threexui_panel_email` | SMTP/email bildirimleri (v3.4.0+) |
+| `threexui_host_group` | Host grubu yönlendirmesi (inbound başına birden fazla host) |
 | `threexui_panel_subscription` | Abonelik hizmeti ayarları |
 | `threexui_xray_basics` | Temel Xray yapılandırması (log, policy, api, stats) |
 | `threexui_xray_dns` | DNS sunucuları ve hosts |
@@ -154,6 +161,7 @@ Tam belgeler [Terraform Registry](https://registry.terraform.io/providers/batono
 | `threexui_xray_balancers` | Yük dengeleyiciler |
 | `threexui_xray_reverse` | Ters proxy (bridges, portals) |
 | `threexui_xray_outbounds` | Outbound bağlantılar |
+| `threexui_xray_observatory` | Xray Observatory / BurstObservatory yapılandırması |
 | `threexui_xray_version` | Yüklü Xray çekirdek sürümü |
 
 ### Veri Kaynakları

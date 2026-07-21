@@ -116,10 +116,16 @@ resource "threexui_inbound_client" "client_a" {
 
 | 示例 | 说明 |
 | --- | --- |
-| [通过环境变量配置 provider](examples/provider-env-config/) | 通过 Terraform 变量和 `TF_VAR_*` 配置 |
+| [通过环境变量配置 provider](examples/provider-env-config/) | 通过支持的 `THREEXUI_*` 环境变量配置 |
+| [面板用户](examples/panel-user/) | 轮换面板管理员凭据 |
+| [面板邮件](examples/panel-email/) | 配置 SMTP 通知 (v3.4.0+) |
 | [Trojan inbound](examples/trojan-inbound/) | Trojan 走 WebSocket |
 | [Shadowsocks inbound](examples/shadowsocks-inbound/) | Shadowsocks AEAD 加密 |
 | [inbound + 客户端](examples/inbound-with-client/) | 完整流程:inbound + 多个客户端 |
+| [集群节点](examples/node/) | 将远程 3x-ui 面板注册为集群节点 |
+| [主机组](examples/host-group/) | 管理批量主机路由 (v3.5.0+) |
+| [Xray Observatory](examples/observatory/) | 配置 outbound 延迟探测 (v3.4.2+) |
+| [Xray 版本](examples/xray-version/) | 固定已安装的 Xray core 版本 |
 | [多服务器集群](examples/multi-server/) | 通过模块 + `for_each` 管理多台 3x-ui |
 | [导入已有资源](examples/import-existing/) | 把已有的 3x-ui 资源拉进 state |
 
@@ -139,7 +145,7 @@ resource "threexui_inbound_client" "client_a" {
 
 | Resource | 说明 |
 | --- | --- |
-| `threexui_inbound` | inbound 代理(vless、vmess、trojan、shadowsocks、http、mixed、wireguard、tunnel、hysteria；3.2 之前兼容 legacy socks/dokodemo-door) |
+| `threexui_inbound` | inbound 代理(vless、vmess、trojan、shadowsocks、http、mixed、wireguard、tunnel、tun、hysteria、mtproto；TUN 3.2.7+，MTProto 3.3.0+) |
 | `threexui_inbound_client` | inbound 内的客户端 |
 | `threexui_node` | 集群节点 / multi-node 注册 |
 | `threexui_panel_general` | 面板通用设置 |
@@ -147,6 +153,7 @@ resource "threexui_inbound_client" "client_a" {
 | `threexui_panel_user` | 管理员凭据 |
 | `threexui_panel_telegram` | Telegram bot 集成 |
 | `threexui_panel_email` | SMTP/email 通知 (v3.4.0+) |
+| `threexui_host_group` | 主机组路由（每个 inbound 可有多个主机） |
 | `threexui_panel_subscription` | 订阅服务设置 |
 | `threexui_xray_basics` | Xray 基础配置(log、policy、api、stats) |
 | `threexui_xray_dns` | DNS 服务器和 hosts |
@@ -154,6 +161,7 @@ resource "threexui_inbound_client" "client_a" {
 | `threexui_xray_balancers` | 负载均衡 |
 | `threexui_xray_reverse` | 反向代理(bridges、portals) |
 | `threexui_xray_outbounds` | outbound |
+| `threexui_xray_observatory` | Xray Observatory / BurstObservatory 配置 |
 | `threexui_xray_version` | 已安装的 Xray core 版本 |
 
 ### Data Sources
