@@ -2,99 +2,110 @@
 page_title: "Migrating a 3x-ui panel to a new server"
 subcategory: "Guides"
 description: |-
-  Move an entire 3x-ui panel — inbounds, clients, settings, Xray config — to a new VPS without re-typing anything.
+  Move a 3x-ui panel to a new server by restoring its database, then verify the restored objects with Terraform.
 ---
 
 # Migrating 3x-ui between servers
 
-Migrating a populated 3x-ui panel by hand is painful: every inbound, every client UUID, every Reality key, every routing rule has to be re-entered, and the QR codes you already shipped to users must keep working.
+To preserve existing client links, generated keys, resource IDs, and panel-only
+data, migrate the 3x-ui database and server-side assets. Terraform then verifies
+that the restored panel still matches the managed configuration.
 
-With Terraform, the migration is a two-line change.
+Changing only the provider endpoint while retaining state is not a migration
+mechanism: the state contains remote IDs from the source, and refresh can fail
+when those IDs do not exist on an empty destination.
 
 ## Prerequisites
 
-- Source panel (the one being retired) is reachable.
-- Destination panel (the new VPS) is reachable and has 3x-ui installed but **empty**.
-- Your panel is already managed by this provider — see [Backup-as-code](backup-as-code.md) if it isn't yet.
+- The source panel is reachable and changes can be paused during the backup.
+- The destination can run a compatible 3x-ui version and database engine.
+- You can back up and restore the panel database and referenced server files.
+- Terraform reports a clean plan against the source.
 
-## Step 1 — confirm clean state on the source
+## Step 1 — freeze changes and confirm state
+
+Pause UI and Terraform changes, then confirm that the source matches the
+configuration:
 
 ```bash
 terraform plan
-# expected: "No changes. Your infrastructure matches the configuration."
+# Expected: "No changes. Your infrastructure matches the configuration."
 ```
 
-If `plan` shows drift, resolve it before migrating. You do not want to carry surprises forward.
+Resolve unexplained drift before taking the migration backup.
 
-## Step 2 — point the provider at the new host
+## Step 2 — back up the source
 
-In `terraform.tfvars`:
+Create all of the following before changing the destination:
+
+- an engine-appropriate backup of the complete 3x-ui database;
+- copies of TLS certificates and other files referenced by panel settings;
+- a backup of the encrypted Terraform backend/state;
+- the exact 3x-ui version and database configuration used by the source.
+
+Test that the database backup can be restored. `terraform state pull` is useful
+for backing up Terraform state, but it is not a substitute for the panel
+database: it includes only Terraform-managed objects and omits write-only
+secrets and server-side data.
+
+## Step 3 — restore the destination
+
+1. Keep the destination private while restoring it.
+2. Restore the database with the procedure for its database engine.
+3. Restore certificates and mounted files at the paths expected by the panel.
+4. Start a compatible 3x-ui version and verify panel health.
+
+The restored database retains inbound IDs, client UUIDs, subscription IDs,
+generated keys, settings, and other panel records.
+
+## Step 4 — verify with Terraform
+
+Update the provider variables to use the destination:
 
 ```hcl
 endpoint = "https://new-host.example.com:2053"
 username = "admin"
-password = "newpanel-temporary"
+password = "restored-panel-password"
 ```
 
-Or, equivalently, swap the values via environment variables:
+Then refresh and review:
 
 ```bash
-export TF_VAR_endpoint="https://new-host.example.com:2053"
-export TF_VAR_password="newpanel-temporary"
+terraform plan
 ```
 
-## Step 3 — apply against the new host
+Because the destination was restored from the source database, the IDs in
+Terraform state should resolve there. A clean plan is the migration gate. Paths
+such as `web_cert_file` may require an intentional update if the destination
+uses a different filesystem layout.
 
-```bash
-terraform apply
-```
+## Step 5 — validate clients and cut over
 
-Terraform sees the new panel as empty, the state as full, and creates every resource from scratch.
+Before changing DNS, test representative client links, subscriptions, Reality
+and WireGuard connections, panel login, and any external integrations. Lower
+DNS TTL as appropriate, switch traffic to the destination, and monitor it.
 
-What is preserved verbatim:
+Keep the source stopped but recoverable, together with the tested backup, until
+the rollback window has elapsed. Retire it only after the destination has been
+verified.
 
-- Inbound `port`, `remark`, `protocol`
-- Client UUIDs and emails (links and QR codes still work)
-- Reality `private_key` / `public_key` / `short_ids`
-- WireGuard `secret_key` / `public_key`
-- Routing rules, DNS hosts, outbound chains
-- Telegram bot token, subscription path, panel base path
+## Alternative — rebuild instead of preserving the database
 
-What you may need to redo manually:
+If new IDs and regenerated secrets are acceptable, use a separate backend key
+or a fresh Terraform workspace and apply the configuration as a new deployment.
+Do not reuse the source state against an empty destination.
 
-- TLS certificates if `web_cert_file` / `web_key_file` reference filesystem paths on the old host. Either copy the files or switch to a different cert source on the new host.
-- LDAP password if you stored it outside Terraform.
+To preserve selected identities during a rebuild, explicitly configure them:
+client UUIDs, subscription IDs, protocol passwords, Reality keys/short IDs, and
+WireGuard keys. Supply write-only values again from a secret manager. Computed
+or panel-generated values that are not in configuration are not guaranteed to
+survive this path.
 
-## Step 4 — flip DNS
-
-Once `terraform apply` finishes successfully, point your DNS records at the new VPS. Sessions on the old host will keep working until you take it down.
-
-## Step 5 — retire the old host
-
-After a grace period:
-
-```bash
-ssh old-host "docker compose down -v"
-```
-
-The Terraform state still describes only one panel — the live one — so no further changes are needed.
-
-## Variations
-
-### Active/active staging ↔ production
-
-Use the [multi-server example](https://github.com/batonogov/terraform-provider-threexui/tree/main/examples/multi-server) to manage both panels from a single config and copy state selectively with `terraform state mv`.
-
-### Cutover with zero downtime
-
-1. Apply against the new panel (Step 3).
-2. Lower DNS TTL.
-3. Flip DNS.
-4. Drain old panel after TTL expires.
-
-The provider has no opinions about the network layer — anything you can do with two endpoints, you can do with two `provider` blocks (via aliases) or two workspaces.
+The [multi-server example](https://github.com/batonogov/terraform-provider-threexui/tree/main/examples/multi-server)
+shows the static provider-alias pattern for managing source and destination as
+separate deployments during a staged rebuild.
 
 ## Related
 
-- [Backup-as-code](backup-as-code.md) — the pattern this guide assumes you already use.
-- [Bulk client onboarding](bulk-clients.md) — once migrated, scale the panel without manual work.
+- [Backup-as-code](backup-as-code.md) — understand the separate roles of configuration, state, and database backups.
+- [Bulk client onboarding](bulk-clients.md) — manage larger client sets declaratively.

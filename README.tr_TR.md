@@ -18,8 +18,8 @@
 Üretimde 3x-ui çalıştırmak, düzinelerce inbound, yüzlerce istemci ve kolayca bozulabilecek bir Xray yapılandırması anlamına gelir. Bu provider ile şunları yapabilirsiniz:
 
 - **Yapılandırmayı kod olarak yönetin** — inbound listeniz git'te saklanır, her değişiklik gözden geçirilir ve sürümlenir.
-- **Sunucular arasında taşıyın** — yeni bir VPS üzerinde aynı kurulumu tek bir `terraform apply` ile yeniden oluşturun.
-- **Panel anlık görüntüsü** — `terraform state pull`, inbound'ların, istemcilerin ve ayarların tam bir dışa aktarımıdır.
+- **Sunucular arasında güvenle taşıyın** — kimlikleri ve sırları korumak için panel veritabanını geri yükleyin, ardından Terraform ile doğrulayın.
+- **Terraform state'i yedekleyin** — `terraform state pull` yalnızca Terraform'un yönettiği nesneleri dışa aktarır; felaket kurtarma için panel veritabanını da yedekleyin.
 - **Onboarding'i ölçeklendirin** — 100 panel tıklaması yerine tek bir PR ile 100 istemci ekleyin.
 - **Üretime göndermeden önce planlayın** — `terraform plan`, herhangi bir şey gönderilmeden önce nelerin değişeceğini tam olarak gösterir.
 
@@ -28,7 +28,7 @@
 | Görev | Panel UI | Bu provider |
 | --- | --- | --- |
 | 50 istemci eklemek | 50 form, her biri ~30 saniye | bir `for_each`, bir `apply` |
-| Yeni sunucuya taşımak | manuel yeniden giriş | yeni endpoint'e karşı `terraform apply` |
+| Yeni sunucuya taşımak | manuel yeniden giriş | panel veritabanını geri yükleyip `terraform plan` ile doğrulamak |
 | Bugün kimin erişimi olduğunu denetlemek | istemci listesini kaydırmak | bir `.tf` dosyasında `git log` |
 | Yanlış yapılandırmayı geri almak | JSON yedekten geri yükleme | `git revert` + `terraform apply` |
 | Staging ↔ Production senkronizasyonu | JSON dışa/içe aktarma, çakışmaları çözme | paylaşılan modül + ortam değişkenleri |
@@ -127,8 +127,8 @@ Daha yeni protokol özellikleri `requireMinVersion` ile korunur ve eski sürüml
 
 Yaygın operasyonel senaryolar için repo içindeki adım adım kılavuzlar:
 
-- [Kod olarak yedekleme](docs/guides/backup-as-code.md) — tam panel durumunuzu git'te saklayın, saniyeler içinde geri yükleyin.
-- [3x-ui'ı sunucular arasında taşıma](docs/guides/server-migration.md) — tüm paneli yeni bir VPS'e hiçbir şeyi yeniden yazmadan taşıyın.
+- [Kod olarak yedekleme](docs/guides/backup-as-code.md) — gözden geçirilmiş Terraform yapılandırmasını state ve panel veritabanı yedekleriyle birleştirin.
+- [3x-ui'ı sunucular arasında taşıma](docs/guides/server-migration.md) — panel veritabanını yeni VPS'e geri yükleyip Terraform ile doğrulayın.
 - [Birçok istemciyi aynı anda ekleme](docs/guides/bulk-clients.md) — `for_each` desenleri ve CSV ile onboarding.
 
 ## Belgeler

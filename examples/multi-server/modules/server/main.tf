@@ -1,54 +1,21 @@
-# Per-server module: configures the provider and manages resources
-# for a single 3x-ui instance.
+# Reusable per-server resources. Provider credentials stay in the root module;
+# callers pass one statically declared provider alias as threexui.target.
 
 terraform {
   required_providers {
     threexui = {
-      source  = "batonogov/threexui"
-      version = "~> 3.0"
+      source                = "batonogov/threexui"
+      version               = "~> 3.0"
+      configuration_aliases = [threexui.target]
     }
   }
-}
-
-variable "endpoint" {
-  description = "Base URL of the 3x-ui panel."
-  type        = string
-}
-
-variable "base_path" {
-  description = "Base path configured in 3x-ui (webBasePath)."
-  type        = string
-  default     = "/"
-}
-
-variable "username" {
-  description = "3x-ui username."
-  type        = string
-}
-
-variable "password" {
-  description = "3x-ui password."
-  type        = string
-  sensitive   = true
-}
-
-variable "insecure_skip_verify" {
-  description = "Skip TLS certificate verification."
-  type        = bool
-  default     = false
-}
-
-provider "threexui" {
-  endpoint             = var.endpoint
-  base_path            = var.base_path
-  username             = var.username
-  password             = var.password
-  insecure_skip_verify = var.insecure_skip_verify
 }
 
 # --- Resources for this server ---
 
 resource "threexui_inbound" "vless" {
+  provider = threexui.target
+
   port     = 443
   protocol = "vless"
   enable   = true
@@ -78,6 +45,8 @@ resource "threexui_inbound" "vless" {
 }
 
 resource "threexui_inbound_client" "user1" {
+  provider = threexui.target
+
   inbound_id = threexui_inbound.vless.id
   email      = "user1@example.com"
   enable     = true

@@ -18,8 +18,8 @@
 Operar 3x-ui en producción significa decenas de inbounds, cientos de clientes y una configuración de Xray que se rompe con facilidad. Con este proveedor puedes:
 
 - **Tratar la configuración como código** — tu lista de inbounds vive en git, cada cambio se revisa y se versiona.
-- **Migrar entre servidores** — reproduce el mismo entorno en un VPS nuevo con un solo `terraform apply`.
-- **Hacer un snapshot del panel** — `terraform state pull` es una exportación completa de inbounds, clientes y ajustes.
+- **Migrar entre servidores de forma segura** — restaura la base de datos del panel para conservar IDs y secretos, y verifícala con Terraform.
+- **Respaldar el estado de Terraform** — `terraform state pull` exporta solo los objetos gestionados por Terraform; acompáñalo con un respaldo de la base de datos del panel.
 - **Onboarding masivo** — añade 100 clientes en un único PR en lugar de 100 clics en el panel.
 - **Plan antes de producción** — `terraform plan` muestra exactamente lo que va a cambiar antes de aplicarlo.
 
@@ -28,7 +28,7 @@ Operar 3x-ui en producción significa decenas de inbounds, cientos de clientes y
 | Tarea | Panel UI | Este proveedor |
 | --- | --- | --- |
 | Añadir 50 clientes | 50 formularios, ~30 s cada uno | un `for_each`, un `apply` |
-| Migrar a un servidor nuevo | reintroducir todo a mano | `terraform apply` contra el nuevo endpoint |
+| Migrar a un servidor nuevo | reintroducir todo a mano | restaurar la base de datos y verificar con `terraform plan` |
 | Auditar quién tiene acceso | recorrer la lista de clientes | `git log` sobre un `.tf` |
 | Revertir un cambio incorrecto | restaurar desde un backup JSON | `git revert` + `terraform apply` |
 | Sincronizar staging ↔ producción | exportar/importar JSON, resolver conflictos | módulo compartido + variables por entorno |
@@ -127,8 +127,8 @@ Las funciones de protocolos nuevos están protegidas con `requireMinVersion` y s
 
 Walkthroughs en el propio repo para escenarios habituales:
 
-- [Backup-as-code](docs/guides/backup-as-code.md) — mantén el estado completo del panel en git, restaura en segundos.
-- [Migración entre servidores](docs/guides/server-migration.md) — mueve el panel a un VPS nuevo sin reescribir nada.
+- [Backup-as-code](docs/guides/backup-as-code.md) — combina configuración Terraform revisada con respaldos del estado y de la base de datos.
+- [Migración entre servidores](docs/guides/server-migration.md) — restaura la base de datos en un VPS nuevo y verifícala con Terraform.
 - [Onboarding masivo de clientes](docs/guides/bulk-clients.md) — patrones `for_each` y onboarding desde CSV.
 
 ## Documentación

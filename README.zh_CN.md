@@ -18,8 +18,8 @@
 在生产环境跑 3x-ui,意味着要维护几十个 inbound、几百个客户端,以及一份很容易跑偏的 Xray 配置。用这个 provider 可以:
 
 - **配置即代码** —— inbound 列表存在 git 里,每次变更都经过 review、可追溯。
-- **跨服务器迁移** —— 用一条 `terraform apply` 在新 VPS 上重建同样的环境。
-- **面板快照** —— `terraform state pull` 就是 inbound、客户端、设置的完整导出。
+- **安全地跨服务器迁移** —— 恢复面板数据库以保留 ID 和密钥，然后用 Terraform 校验。
+- **备份 Terraform state** —— `terraform state pull` 只导出由 Terraform 管理的对象；灾难恢复还需要面板数据库备份。
 - **批量上线** —— 一个 PR 加 100 个客户端,而不是在面板里点 100 次。
 - **上线前预演** —— `terraform plan` 在执行前清楚地告诉你会改什么。
 
@@ -28,7 +28,7 @@
 | 任务 | 面板 UI | 本 provider |
 | --- | --- | --- |
 | 添加 50 个客户端 | 50 个表单,每个约 30 秒 | 一个 `for_each`,一次 `apply` |
-| 迁移到新服务器 | 手动重新输入 | `terraform apply` 指向新 endpoint |
+| 迁移到新服务器 | 手动重新输入 | 恢复面板数据库，然后用 `terraform plan` 校验 |
 | 审计当前谁有访问权 | 翻客户端列表 | 对 `.tf` 文件 `git log` |
 | 回滚错误改动 | 从 JSON 备份恢复 | `git revert` + `terraform apply` |
 | 同步 staging ↔ 生产 | 导出/导入 JSON,手动调和 | 共享模块 + 按环境变量 |
@@ -127,8 +127,8 @@ resource "threexui_inbound_client" "client_a" {
 
 仓库内的常见运维场景指南:
 
-- [备份即代码](docs/guides/backup-as-code.md) —— 把整套面板状态存在 git 里,几秒钟就能恢复。
-- [跨服务器迁移 3x-ui](docs/guides/server-migration.md) —— 不重新输入任何东西就能把面板搬到新 VPS。
+- [备份即代码](docs/guides/backup-as-code.md) —— 将经过审查的 Terraform 配置与 state、面板数据库备份结合使用。
+- [跨服务器迁移 3x-ui](docs/guides/server-migration.md) —— 在新 VPS 上恢复面板数据库，再用 Terraform 校验。
 - [批量上线客户端](docs/guides/bulk-clients.md) —— `for_each` 模式和基于 CSV 的批量上线。
 
 ## 文档

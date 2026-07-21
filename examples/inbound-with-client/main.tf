@@ -60,8 +60,8 @@ resource "threexui_inbound_client" "bob" {
   enable     = true
   flow       = "xtls-rprx-vision"
 
-  # Limit total traffic to 50 GB.
-  total_gb = 50
+  # The 3x-ui API stores this quota in bytes (50 GiB here).
+  total_gb = 50 * 1024 * 1024 * 1024
 }
 
 # Use the subscription URL from the client output.

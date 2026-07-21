@@ -36,7 +36,7 @@ resource "threexui_inbound_client" "user1" {
   inbound_id  = threexui_inbound.vless.id
   email       = "user1@example.com"
   enable      = true
-  total_gb    = 10
+  total_gb    = 10 * 1024 * 1024 * 1024 # 10 GiB; the API value is bytes
   expiry_time = 1735689600000
   comment     = "Main account"
 }
@@ -80,7 +80,7 @@ resource "threexui_inbound_client" "hysteria_user" {
 - `reverse_tag` (Optional, String) - VLESS reverse tag. Stored in 3x-ui as `reverse.tag` and available on 3x-ui v2.9.4+.
 - `auth` (Optional, String, Sensitive) - Auth password for Hysteria clients. Used as client identifier instead of UUID.
 - `limit_ip` (Optional, Number) - Maximum concurrent connections.
-- `total_gb` (Optional, Number) - Traffic limit in GB.
+- `total_gb` (Optional, Number) - Traffic quota in bytes. The name mirrors the 3x-ui API field, but the API does not convert gigabytes; for example, use `10 * 1024 * 1024 * 1024` for 10 GiB.
 - `expiry_time` (Optional, Number) - Expiry time as Unix timestamp in milliseconds.
 - `enable` (Optional, Boolean) - Whether the client is enabled.
 - `tg_id` (Optional, Number) - Telegram user ID for bot notifications.

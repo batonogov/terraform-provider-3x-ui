@@ -251,8 +251,8 @@ Settings for mixed (HTTP+SOCKS) proxy protocol.
   - `keep_alive` (Optional, Number)
   - `email` (Optional, String) - the panel requires a non-empty unique email (keys traffic counters on it); set it even though it is Optional in the schema.
   - `limit_ip` (Optional, Number)
-  - `total_gb` (Optional, Number)
-  - `expiry_time` (Optional, Number)
+  - `total_gb` (Optional, Number) - traffic quota in bytes (the field name mirrors the 3x-ui API).
+  - `expiry_time` (Optional, Number) - Unix timestamp in milliseconds.
   - `enable` (Optional, Boolean)
   - `tg_id` (Optional, Number)
   - `sub_id` (Optional, String)
