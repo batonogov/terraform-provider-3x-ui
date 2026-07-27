@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.21.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.20.1...v3.21.0) (2026-07-27)
+
+
+### Features
+
+* expose REALITY minClientVer/maxClientVer/maxTimediff on reality_settings ([#409](https://github.com/batonogov/terraform-provider-threexui/issues/409)) ([14f9b40](https://github.com/batonogov/terraform-provider-threexui/commit/14f9b40572d777ffe5b32e25cc458c43894f8141))
+
 ## [3.20.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.20.0...v3.20.1) (2026-07-21)
 
 
