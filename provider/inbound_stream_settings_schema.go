@@ -221,21 +221,24 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 					},
 					"min_client_ver": schema.StringAttribute{
 						Optional: true, Computed: true,
-						Description: "Minimum client Xray version the REALITY server accepts (e.g. '26.3.27'); empty disables the check. Xray 26.7.x defaults this to 26.3.27, which rejects clients that do not report a matching version (e.g. sing-box).",
+						Description: "Minimum client Xray version the REALITY server accepts, as 'major.minor.patch' (e.g. '26.3.27'). Omitting it does NOT disable the gate: Xray 26.7.x substitutes 26.3.27 for an unset value and rejects clients reporting an older or absent version (e.g. sing-box). Set '0.0.0' to remove the lower bound.",
+						Validators:  realityClientVerValidators(),
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
 					"max_client_ver": schema.StringAttribute{
 						Optional: true, Computed: true,
-						Description: "Maximum client Xray version the REALITY server accepts; empty disables the check.",
+						Description: "Maximum client Xray version the REALITY server accepts, as 'major.minor.patch'. Unset means no upper bound.",
+						Validators:  realityClientVerValidators(),
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
 					"max_timediff": schema.Int64Attribute{
 						Optional: true, Computed: true,
-						Description: "Maximum allowed time difference with the client, in milliseconds (0 disables the check).",
+						Description: "Maximum allowed time difference with the client, in milliseconds. 0 disables the check.",
+						Validators:  realityMaxTimediffValidators(),
 						PlanModifiers: []planmodifier.Int64{
 							int64planmodifier.UseStateForUnknown(),
 						},

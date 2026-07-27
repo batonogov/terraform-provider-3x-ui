@@ -125,6 +125,30 @@ func xhttpModeValidators() []validator.String {
 	}
 }
 
+// realityClientVerValidators validates REALITY min_client_ver / max_client_ver.
+// Xray parses the value as up to three dot-separated bytes and rejects a
+// component above 255 (infra/conf/transport_security.go). An empty string is
+// deliberately not accepted: Xray substitutes its own default for it, so the
+// way to leave a bound unset is to omit the attribute.
+func realityClientVerValidators() []validator.String {
+	component := `(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])`
+	return []validator.String{
+		stringvalidator.RegexMatches(
+			regexp.MustCompile(`^`+component+`(\.`+component+`){0,2}$`),
+			"must be one to three dot-separated numbers in the range 0-255 "+
+				"(e.g. 26.3.27); omit the attribute to leave the bound unset",
+		),
+	}
+}
+
+// realityMaxTimediffValidators validates REALITY max_timediff.
+// Xray models the field as uint64 (transport/internet/reality/config.proto).
+func realityMaxTimediffValidators() []validator.Int64 {
+	return []validator.Int64{
+		int64validator.AtLeast(0),
+	}
+}
+
 // tproxyValidators validates sockopt tproxy enum values.
 func tproxyValidators() []validator.String {
 	return []validator.String{
