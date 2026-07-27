@@ -329,6 +329,49 @@ func TestXHTTPModeValidators(t *testing.T) {
 	}
 }
 
+func TestRealityClientVerValidators(t *testing.T) {
+	v := realityClientVerValidators()
+	valid := []string{"0.0.0", "26.3.27", "1.0", "255.255.255", "0"}
+	for _, val := range valid {
+		for _, vv := range v {
+			if testStringValidator(t, vv, val) {
+				t.Errorf("realityClientVerValidators should accept %q", val)
+			}
+		}
+	}
+
+	// The empty string is rejected on purpose: Xray replaces it with its own
+	// default (26.3.27 on 26.7.x) instead of disabling the gate, so "" would
+	// silently mean the opposite of what a user writing it expects.
+	invalid := []string{"", "256.0.0", "26.3.27.1", "v26.3.27", "26.x", "26..3"}
+	for _, val := range invalid {
+		for _, vv := range v {
+			if !testStringValidator(t, vv, val) {
+				t.Errorf("realityClientVerValidators should reject %q", val)
+			}
+		}
+	}
+}
+
+func TestRealityMaxTimediffValidators(t *testing.T) {
+	v := realityMaxTimediffValidators()
+	for _, val := range []int64{0, 1, 60000} {
+		for _, vv := range v {
+			if testInt64Validator(t, vv, val) {
+				t.Errorf("realityMaxTimediffValidators should accept %d", val)
+			}
+		}
+	}
+
+	for _, val := range []int64{-1, -60000} {
+		for _, vv := range v {
+			if !testInt64Validator(t, vv, val) {
+				t.Errorf("realityMaxTimediffValidators should reject %d", val)
+			}
+		}
+	}
+}
+
 func TestTproxyValidators(t *testing.T) {
 	v := tproxyValidators()
 	valid := []string{"off", "redirect", "tproxy"}

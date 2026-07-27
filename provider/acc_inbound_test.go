@@ -315,6 +315,110 @@ resource "threexui_inbound" "reality" {
 					resource.TestCheckResourceAttr("threexui_inbound.reality", "protocol", "vless"),
 				),
 			},
+			// Add the client-version gate. "0.0.0" is the only way to remove the
+			// lower bound — Xray 26.7.x substitutes its own 26.3.27 default for an
+			// unset minClientVer.
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "reality" {
+  port     = 25007
+  protocol = "vless"
+  remark   = "acc-reality"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target         = "google.com:443"
+      server_names   = ["google.com"]
+      min_client_ver = "0.0.0"
+      max_client_ver = "255.255.255"
+      max_timediff   = 60000
+    }
+  }
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.reality",
+						"stream_settings.reality_settings.min_client_ver", "0.0.0"),
+					resource.TestCheckResourceAttr("threexui_inbound.reality",
+						"stream_settings.reality_settings.max_client_ver", "255.255.255"),
+					resource.TestCheckResourceAttr("threexui_inbound.reality",
+						"stream_settings.reality_settings.max_timediff", "60000"),
+				),
+			},
+			// Update in place: a concrete lower bound, and max_timediff back to the
+			// disabling zero. The zero must survive as a concrete value rather than
+			// collapsing to null, which would leave a permanent diff.
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "reality" {
+  port     = 25007
+  protocol = "vless"
+  remark   = "acc-reality"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target         = "google.com:443"
+      server_names   = ["google.com"]
+      min_client_ver = "26.3.27"
+      max_client_ver = "255.255.255"
+      max_timediff   = 0
+    }
+  }
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.reality",
+						"stream_settings.reality_settings.min_client_ver", "26.3.27"),
+					resource.TestCheckResourceAttr("threexui_inbound.reality",
+						"stream_settings.reality_settings.max_timediff", "0"),
+				),
+			},
+			// Dropping the attributes from the configuration is NOT a clear. These
+			// are Optional+Computed with UseStateForUnknown — the same contract the
+			// rest of the reality block relies on for import to stay driftless — so
+			// an unconfigured value resolves to the prior state. Pin that down: the
+			// plan must stay empty and the values must survive, which is why the
+			// documented way to widen a bound is the extreme value (0.0.0 /
+			// 255.255.255 / 0), not deletion.
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "reality" {
+  port     = 25007
+  protocol = "vless"
+  remark   = "acc-reality"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
+  }
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.reality",
+						"stream_settings.reality_settings.min_client_ver", "26.3.27"),
+					resource.TestCheckResourceAttr("threexui_inbound.reality",
+						"stream_settings.reality_settings.max_client_ver", "255.255.255"),
+					resource.TestCheckResourceAttr("threexui_inbound.reality",
+						"stream_settings.reality_settings.max_timediff", "0"),
+				),
+			},
 		},
 	})
 }

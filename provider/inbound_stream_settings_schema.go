@@ -40,14 +40,17 @@ type InboundExternalProxyModel struct {
 }
 
 type InboundRealitySettingsModel struct {
-	Show        types.Bool   `tfsdk:"show"`
-	Xver        types.Int64  `tfsdk:"xver"`
-	Target      types.String `tfsdk:"target"`
-	ServerNames types.List   `tfsdk:"server_names"` // list of string
-	PrivateKey  types.String `tfsdk:"private_key"`
-	ShortIDs    types.List   `tfsdk:"short_ids"` // list of string
-	Mldsa65Seed types.String `tfsdk:"mldsa65_seed"`
-	Settings    types.Object `tfsdk:"settings"` // realityInnerSettingsAttrTypes
+	Show         types.Bool   `tfsdk:"show"`
+	Xver         types.Int64  `tfsdk:"xver"`
+	Target       types.String `tfsdk:"target"`
+	ServerNames  types.List   `tfsdk:"server_names"` // list of string
+	PrivateKey   types.String `tfsdk:"private_key"`
+	MinClientVer types.String `tfsdk:"min_client_ver"`
+	MaxClientVer types.String `tfsdk:"max_client_ver"`
+	MaxTimediff  types.Int64  `tfsdk:"max_timediff"`
+	ShortIDs     types.List   `tfsdk:"short_ids"` // list of string
+	Mldsa65Seed  types.String `tfsdk:"mldsa65_seed"`
+	Settings     types.Object `tfsdk:"settings"` // realityInnerSettingsAttrTypes
 }
 
 // realityInnerSettingsAttrTypes defines the attribute types for the
@@ -214,6 +217,30 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 						Description: "Reality private key (auto-generated if empty).",
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"min_client_ver": schema.StringAttribute{
+						Optional: true, Computed: true,
+						Description: "Minimum client Xray version the REALITY server accepts, as 'major.minor.patch' (e.g. '26.3.27'). Never configuring it does NOT disable the gate: Xray 26.7.x substitutes 26.3.27 for an unset value and rejects clients reporting an older or absent version (e.g. sing-box). Set '0.0.0' — the canonical spelling; '0' and '0.0' are zero-filled to the same version — to remove the lower bound. Like every Optional+Computed attribute here, removing it from the configuration keeps the last applied value rather than clearing it; change the bound by setting the value you want.",
+						Validators:  realityClientVerValidators(),
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"max_client_ver": schema.StringAttribute{
+						Optional: true, Computed: true,
+						Description: "Maximum client Xray version the REALITY server accepts, as 'major.minor.patch'. Never configuring it means no upper bound; once set, use '255.255.255' to widen it back to every version, since removing the attribute keeps the last applied value.",
+						Validators:  realityClientVerValidators(),
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"max_timediff": schema.Int64Attribute{
+						Optional: true, Computed: true,
+						Description: "Maximum allowed time difference with the client, in milliseconds. 0 disables the check, and is also how the check is turned back off once set — removing the attribute keeps the last applied value.",
+						Validators:  realityMaxTimediffValidators(),
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
 						},
 					},
 					"short_ids": schema.ListAttribute{
@@ -675,6 +702,15 @@ func expandRealitySettingsFromModel(m *InboundRealitySettingsModel) map[string]a
 	if !m.PrivateKey.IsNull() && !m.PrivateKey.IsUnknown() {
 		out["private_key"] = m.PrivateKey.ValueString()
 	}
+	if !m.MinClientVer.IsNull() && !m.MinClientVer.IsUnknown() {
+		out["min_client_ver"] = m.MinClientVer.ValueString()
+	}
+	if !m.MaxClientVer.IsNull() && !m.MaxClientVer.IsUnknown() {
+		out["max_client_ver"] = m.MaxClientVer.ValueString()
+	}
+	if !m.MaxTimediff.IsNull() && !m.MaxTimediff.IsUnknown() {
+		out["max_timediff"] = m.MaxTimediff.ValueInt64()
+	}
 	if !m.ShortIDs.IsNull() && !m.ShortIDs.IsUnknown() {
 		out["short_ids"] = typesListToAnySlice(m.ShortIDs)
 	}
@@ -1031,6 +1067,21 @@ func flattenRealitySettingsToModel(data map[string]any) *InboundRealitySettingsM
 		m.PrivateKey = types.StringValue(v)
 	} else {
 		m.PrivateKey = types.StringNull()
+	}
+	if v, ok := data["min_client_ver"].(string); ok && v != "" {
+		m.MinClientVer = types.StringValue(v)
+	} else {
+		m.MinClientVer = types.StringNull()
+	}
+	if v, ok := data["max_client_ver"].(string); ok && v != "" {
+		m.MaxClientVer = types.StringValue(v)
+	} else {
+		m.MaxClientVer = types.StringNull()
+	}
+	if v, ok := data["max_timediff"]; ok {
+		m.MaxTimediff = types.Int64Value(int64Value(v))
+	} else {
+		m.MaxTimediff = types.Int64Null()
 	}
 	if v, ok := data["short_ids"]; ok {
 		m.ShortIDs = anySliceToTypesList(v)

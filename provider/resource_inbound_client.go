@@ -898,6 +898,26 @@ func intValue(v any) int {
 	}
 }
 
+// int64Value is intValue without the platform-width narrowing. `int` is 32 bits
+// on the 386 and arm release targets, so intValue silently wraps values above
+// 2^31-1 there; use this for any field the upstream schema models as a 64-bit
+// integer. Note that a value decoded from JSON arrives as float64 and so is
+// still only exact up to 2^53 — this removes the overflow, not that ceiling.
+func int64Value(v any) int64 {
+	switch val := v.(type) {
+	case int:
+		return int64(val)
+	case int64:
+		return val
+	case float64:
+		return int64(val)
+	case float32:
+		return int64(val)
+	default:
+		return 0
+	}
+}
+
 func boolValue(v any) bool {
 	b, _ := v.(bool)
 	return b
