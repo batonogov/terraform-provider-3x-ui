@@ -383,6 +383,42 @@ resource "threexui_inbound" "reality" {
 						"stream_settings.reality_settings.max_timediff", "0"),
 				),
 			},
+			// Dropping the attributes from the configuration is NOT a clear. These
+			// are Optional+Computed with UseStateForUnknown — the same contract the
+			// rest of the reality block relies on for import to stay driftless — so
+			// an unconfigured value resolves to the prior state. Pin that down: the
+			// plan must stay empty and the values must survive, which is why the
+			// documented way to widen a bound is the extreme value (0.0.0 /
+			// 255.255.255 / 0), not deletion.
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "reality" {
+  port     = 25007
+  protocol = "vless"
+  remark   = "acc-reality"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
+  }
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.reality",
+						"stream_settings.reality_settings.min_client_ver", "26.3.27"),
+					resource.TestCheckResourceAttr("threexui_inbound.reality",
+						"stream_settings.reality_settings.max_client_ver", "255.255.255"),
+					resource.TestCheckResourceAttr("threexui_inbound.reality",
+						"stream_settings.reality_settings.max_timediff", "0"),
+				),
+			},
 		},
 	})
 }

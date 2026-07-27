@@ -363,9 +363,9 @@ Typed MTProto server settings available on 3x-ui v3.3.0+. On v3.5.0+, per-client
   - `target` (Optional, String)
   - `server_names` (Optional, List of String)
   - `private_key` (Optional, String, Sensitive) - Auto-generated if not specified.
-  - `min_client_ver` (Optional, String) - Minimum client Xray version the REALITY server accepts, as `major.minor.patch` (e.g. `26.3.27`). Leaving it unset is **not** the same as disabling the gate: Xray 26.7.x substitutes `26.3.27` for an empty value, rejecting clients that report an older or absent version (e.g. sing-box). Set `0.0.0` to remove the lower bound. Each component must be in `0-255`; an empty string is rejected.
-  - `max_client_ver` (Optional, String) - Maximum client Xray version the REALITY server accepts, as `major.minor.patch`. Unset means no upper bound.
-  - `max_timediff` (Optional, Number) - Maximum allowed time difference with the client, in milliseconds. `0` disables the check.
+  - `min_client_ver` (Optional, String) - Minimum client Xray version the REALITY server accepts, as `major.minor.patch` (e.g. `26.3.27`). Never configuring it is **not** the same as disabling the gate: Xray 26.7.x substitutes `26.3.27` for an empty value, rejecting clients that report an older or absent version (e.g. sing-box). Set `0.0.0` to remove the lower bound — that is the canonical spelling, and `0` / `0.0` are zero-filled to the same version. One to three components, each in `0-255`; an empty string is rejected. See the note on widening a bound below.
+  - `max_client_ver` (Optional, String) - Maximum client Xray version the REALITY server accepts, as `major.minor.patch`. Never configuring it means no upper bound; once set, `255.255.255` widens it back to every version.
+  - `max_timediff` (Optional, Number) - Maximum allowed time difference with the client, in milliseconds. `0` disables the check, and is also how it is turned back off once set.
   - `short_ids` (Optional, List of String, Sensitive) - Auto-generated if not specified.
   - `mldsa65_seed` (Optional, String, Sensitive) - Private ML-DSA-65 seed material.
   - `settings` (Optional, Attribute) - Reality inner settings (client-side). Auto-populated if omitted.
@@ -374,6 +374,15 @@ Typed MTProto server settings available on 3x-ui v3.3.0+. On v3.5.0+, per-client
     - `server_name` (Optional, String)
     - `spider_x` (Optional, String)
     - `mldsa65_verify` (Optional, String)
+
+  > **Widening a REALITY version bound.** Every attribute in this block is
+  > `Optional+Computed`, so an attribute removed from the configuration keeps its
+  > last applied value — that is what lets an imported inbound stay driftless when
+  > the configuration omits server-populated fields. Deleting `min_client_ver`
+  > therefore does not restore the Xray default. Set the extreme value instead:
+  > `min_client_ver = "0.0.0"` for no lower bound, `max_client_ver = "255.255.255"`
+  > for no upper bound, `max_timediff = 0` for no time check.
+
 - `external_proxy` (Optional, Block List) - External proxy entries.
   - `dest` (Optional, String)
   - `port` (Optional, Number)
