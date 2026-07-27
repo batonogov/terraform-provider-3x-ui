@@ -56,3 +56,35 @@ func TestFlattenRealitySettingsToModel_ClientVerAbsent(t *testing.T) {
 			m.MinClientVer, m.MaxClientVer, m.MaxTimediff)
 	}
 }
+
+// "0.0.0" is the documented way to remove the REALITY lower bound: Xray only
+// skips the gate for a literal zero version, and replaces an empty minClientVer
+// with its own default. The value therefore has to survive both conversion
+// layers unchanged — typed model -> snake_case map -> panel JSON and back.
+func TestRealitySettings_ZeroVersionRoundTrip(t *testing.T) {
+	in := &InboundRealitySettingsModel{
+		Target:       types.StringValue("example.com:443"),
+		MinClientVer: types.StringValue("0.0.0"),
+		MaxClientVer: types.StringValue("255.255.255"),
+		MaxTimediff:  types.Int64Value(0),
+	}
+
+	wire := expandRealitySettings([]any{expandRealitySettingsFromModel(in)})
+	if wire["minClientVer"] != "0.0.0" {
+		t.Fatalf("minClientVer lost on the wire: %v", wire["minClientVer"])
+	}
+
+	out := flattenRealitySettingsToModel(flattenRealitySettings(wire))
+	if got := out.MinClientVer.ValueString(); got != "0.0.0" {
+		t.Fatalf("MinClientVer: want 0.0.0, got %q", got)
+	}
+	if got := out.MaxClientVer.ValueString(); got != "255.255.255" {
+		t.Fatalf("MaxClientVer: want 255.255.255, got %q", got)
+	}
+	// max_timediff = 0 disables the time check; it must stay a concrete zero
+	// rather than collapsing to null, which would break the Optional+Computed
+	// contract on the next plan.
+	if out.MaxTimediff.IsNull() || out.MaxTimediff.ValueInt64() != 0 {
+		t.Fatalf("MaxTimediff: want 0, got %v", out.MaxTimediff)
+	}
+}
