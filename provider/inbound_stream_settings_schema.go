@@ -40,14 +40,17 @@ type InboundExternalProxyModel struct {
 }
 
 type InboundRealitySettingsModel struct {
-	Show        types.Bool   `tfsdk:"show"`
-	Xver        types.Int64  `tfsdk:"xver"`
-	Target      types.String `tfsdk:"target"`
-	ServerNames types.List   `tfsdk:"server_names"` // list of string
-	PrivateKey  types.String `tfsdk:"private_key"`
-	ShortIDs    types.List   `tfsdk:"short_ids"` // list of string
-	Mldsa65Seed types.String `tfsdk:"mldsa65_seed"`
-	Settings    types.Object `tfsdk:"settings"` // realityInnerSettingsAttrTypes
+	Show         types.Bool   `tfsdk:"show"`
+	Xver         types.Int64  `tfsdk:"xver"`
+	Target       types.String `tfsdk:"target"`
+	ServerNames  types.List   `tfsdk:"server_names"` // list of string
+	PrivateKey   types.String `tfsdk:"private_key"`
+	MinClientVer types.String `tfsdk:"min_client_ver"`
+	MaxClientVer types.String `tfsdk:"max_client_ver"`
+	MaxTimediff  types.Int64  `tfsdk:"max_timediff"`
+	ShortIDs     types.List   `tfsdk:"short_ids"` // list of string
+	Mldsa65Seed  types.String `tfsdk:"mldsa65_seed"`
+	Settings     types.Object `tfsdk:"settings"` // realityInnerSettingsAttrTypes
 }
 
 // realityInnerSettingsAttrTypes defines the attribute types for the
@@ -214,6 +217,27 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 						Description: "Reality private key (auto-generated if empty).",
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"min_client_ver": schema.StringAttribute{
+						Optional: true, Computed: true,
+						Description: "Minimum client Xray version the REALITY server accepts (e.g. '26.3.27'); empty disables the check. Xray 26.7.x defaults this to 26.3.27, which rejects clients that do not report a matching version (e.g. sing-box).",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"max_client_ver": schema.StringAttribute{
+						Optional: true, Computed: true,
+						Description: "Maximum client Xray version the REALITY server accepts; empty disables the check.",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"max_timediff": schema.Int64Attribute{
+						Optional: true, Computed: true,
+						Description: "Maximum allowed time difference with the client, in milliseconds (0 disables the check).",
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
 						},
 					},
 					"short_ids": schema.ListAttribute{
@@ -675,6 +699,15 @@ func expandRealitySettingsFromModel(m *InboundRealitySettingsModel) map[string]a
 	if !m.PrivateKey.IsNull() && !m.PrivateKey.IsUnknown() {
 		out["private_key"] = m.PrivateKey.ValueString()
 	}
+	if !m.MinClientVer.IsNull() && !m.MinClientVer.IsUnknown() {
+		out["min_client_ver"] = m.MinClientVer.ValueString()
+	}
+	if !m.MaxClientVer.IsNull() && !m.MaxClientVer.IsUnknown() {
+		out["max_client_ver"] = m.MaxClientVer.ValueString()
+	}
+	if !m.MaxTimediff.IsNull() && !m.MaxTimediff.IsUnknown() {
+		out["max_timediff"] = int(m.MaxTimediff.ValueInt64())
+	}
 	if !m.ShortIDs.IsNull() && !m.ShortIDs.IsUnknown() {
 		out["short_ids"] = typesListToAnySlice(m.ShortIDs)
 	}
@@ -1031,6 +1064,21 @@ func flattenRealitySettingsToModel(data map[string]any) *InboundRealitySettingsM
 		m.PrivateKey = types.StringValue(v)
 	} else {
 		m.PrivateKey = types.StringNull()
+	}
+	if v, ok := data["min_client_ver"].(string); ok && v != "" {
+		m.MinClientVer = types.StringValue(v)
+	} else {
+		m.MinClientVer = types.StringNull()
+	}
+	if v, ok := data["max_client_ver"].(string); ok && v != "" {
+		m.MaxClientVer = types.StringValue(v)
+	} else {
+		m.MaxClientVer = types.StringNull()
+	}
+	if v, ok := data["max_timediff"]; ok {
+		m.MaxTimediff = types.Int64Value(int64(intValue(v)))
+	} else {
+		m.MaxTimediff = types.Int64Null()
 	}
 	if v, ok := data["short_ids"]; ok {
 		m.ShortIDs = anySliceToTypesList(v)
