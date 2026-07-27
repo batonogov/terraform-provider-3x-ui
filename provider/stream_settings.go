@@ -243,7 +243,7 @@ func expandRealitySettings(list []any) map[string]any {
 		rs["maxClientVer"] = v
 	}
 	if v, ok := item["max_timediff"]; ok {
-		rs["maxTimediff"] = intValue(v)
+		rs["maxTimediff"] = int64Value(v)
 	}
 	if v, ok := item["short_ids"]; ok {
 		if list, ok := v.([]any); ok {
@@ -327,8 +327,20 @@ func flattenRealitySettings(in map[string]any) map[string]any {
 	if v, ok := in["maxClientVer"].(string); ok {
 		out["max_client_ver"] = v
 	}
-	if v, ok := in["maxTimediff"]; ok {
-		out["max_timediff"] = intValue(v)
+	// xray-core declares the field as `maxTimeDiff`
+	// (infra/conf/transport_security.go); the panel's own schema writes
+	// `maxTimediff` (frontend/src/schemas/protocols/security/reality.ts) and
+	// binds the canonical spelling only because encoding/json falls back to a
+	// case-insensitive match. 3x-ui stores streamSettings as opaque JSON text,
+	// so an inbound authored by external tooling keeps whichever spelling it
+	// was written with. Reading just one would import the other as null and
+	// drop it from the JSON on the next update — silently disabling the gate.
+	// Accept both, canonical first, mirroring the panel's own dest -> target
+	// aliasing for the same class of problem.
+	if v, ok := in["maxTimeDiff"]; ok {
+		out["max_timediff"] = int64Value(v)
+	} else if v, ok := in["maxTimediff"]; ok {
+		out["max_timediff"] = int64Value(v)
 	}
 	if v, ok := in["shortIds"].([]any); ok {
 		out["short_ids"] = v

@@ -221,7 +221,7 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 					},
 					"min_client_ver": schema.StringAttribute{
 						Optional: true, Computed: true,
-						Description: "Minimum client Xray version the REALITY server accepts, as 'major.minor.patch' (e.g. '26.3.27'). Omitting it does NOT disable the gate: Xray 26.7.x substitutes 26.3.27 for an unset value and rejects clients reporting an older or absent version (e.g. sing-box). Set '0.0.0' to remove the lower bound.",
+						Description: "Minimum client Xray version the REALITY server accepts, as 'major.minor.patch' (e.g. '26.3.27'). Never configuring it does NOT disable the gate: Xray 26.7.x substitutes 26.3.27 for an unset value and rejects clients reporting an older or absent version (e.g. sing-box). Set '0.0.0' — the canonical spelling; '0' and '0.0' are zero-filled to the same version — to remove the lower bound. Like every Optional+Computed attribute here, removing it from the configuration keeps the last applied value rather than clearing it; change the bound by setting the value you want.",
 						Validators:  realityClientVerValidators(),
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
@@ -229,7 +229,7 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 					},
 					"max_client_ver": schema.StringAttribute{
 						Optional: true, Computed: true,
-						Description: "Maximum client Xray version the REALITY server accepts, as 'major.minor.patch'. Unset means no upper bound.",
+						Description: "Maximum client Xray version the REALITY server accepts, as 'major.minor.patch'. Never configuring it means no upper bound; once set, use '255.255.255' to widen it back to every version, since removing the attribute keeps the last applied value.",
 						Validators:  realityClientVerValidators(),
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
@@ -237,7 +237,7 @@ func inboundStreamSettingsBlockSchema() schema.SingleNestedBlock {
 					},
 					"max_timediff": schema.Int64Attribute{
 						Optional: true, Computed: true,
-						Description: "Maximum allowed time difference with the client, in milliseconds. 0 disables the check.",
+						Description: "Maximum allowed time difference with the client, in milliseconds. 0 disables the check, and is also how the check is turned back off once set — removing the attribute keeps the last applied value.",
 						Validators:  realityMaxTimediffValidators(),
 						PlanModifiers: []planmodifier.Int64{
 							int64planmodifier.UseStateForUnknown(),
@@ -709,7 +709,7 @@ func expandRealitySettingsFromModel(m *InboundRealitySettingsModel) map[string]a
 		out["max_client_ver"] = m.MaxClientVer.ValueString()
 	}
 	if !m.MaxTimediff.IsNull() && !m.MaxTimediff.IsUnknown() {
-		out["max_timediff"] = int(m.MaxTimediff.ValueInt64())
+		out["max_timediff"] = m.MaxTimediff.ValueInt64()
 	}
 	if !m.ShortIDs.IsNull() && !m.ShortIDs.IsUnknown() {
 		out["short_ids"] = typesListToAnySlice(m.ShortIDs)
@@ -1079,7 +1079,7 @@ func flattenRealitySettingsToModel(data map[string]any) *InboundRealitySettingsM
 		m.MaxClientVer = types.StringNull()
 	}
 	if v, ok := data["max_timediff"]; ok {
-		m.MaxTimediff = types.Int64Value(int64(intValue(v)))
+		m.MaxTimediff = types.Int64Value(int64Value(v))
 	} else {
 		m.MaxTimediff = types.Int64Null()
 	}
