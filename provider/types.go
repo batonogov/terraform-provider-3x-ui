@@ -19,6 +19,7 @@ type Inbound struct {
 	Enable               bool            `json:"enable"`
 	ExpiryTime           int64           `json:"expiryTime"`
 	TrafficReset         string          `json:"trafficReset"`
+	TrafficResetDay      int             `json:"trafficResetDay"`
 	LastTrafficResetTime int64           `json:"lastTrafficResetTime"`
 	ClientStats          []ClientTraffic `json:"clientStats"`
 
@@ -97,9 +98,10 @@ type ClientTraffic struct {
 //
 // Managed fields (user-editable via the threexui_node resource, see M2) are the
 // top block; the rest are observed state populated by the central panel's
-// heartbeat probes. ApiToken and PinnedCertSha256 are sensitive and returned
-// raw by the panel (no redaction layer), so callers must keep them marked
-// Sensitive in Terraform schemas.
+// heartbeat probes. ApiToken and PinnedCertSha256 are sensitive. Since 3x-ui
+// v3.6.0 (#5613) ApiToken is write-only — the API never returns it.
+// PinnedCertSha256 is returned raw by the panel (no redaction layer), so callers
+// must keep it marked Sensitive in Terraform schemas.
 //
 // Available since 3x-ui v3.0.2; /panel/api/nodes has no legacy fallback path.
 type Node struct {

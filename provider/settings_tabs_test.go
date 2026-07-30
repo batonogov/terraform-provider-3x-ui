@@ -756,6 +756,8 @@ func TestExpandPanelEmail(t *testing.T) {
 		SmtpUsername:       typeStringValue("user"),
 		SmtpPassword:       typeStringValue("plain-secret"),
 		SmtpTo:             typeStringValue("ops@example.com"),
+		SmtpFrom:           typeStringValue("noreply@example.com"),
+		SmtpFromName:       typeStringValue("3x-ui Bot"),
 		SmtpEncryptionType: typeStringValue("starttls"),
 		SmtpEnabledEvents:  typeStringValue("login,backup"),
 		SmtpCPU:            typeInt64Value(90),
@@ -780,6 +782,12 @@ func TestExpandPanelEmail(t *testing.T) {
 	}
 	if got["smtpTo"] != "ops@example.com" {
 		t.Fatalf("smtpTo: %v", got["smtpTo"])
+	}
+	if got["smtpFrom"] != "noreply@example.com" {
+		t.Fatalf("smtpFrom: %v", got["smtpFrom"])
+	}
+	if got["smtpFromName"] != "3x-ui Bot" {
+		t.Fatalf("smtpFromName: %v", got["smtpFromName"])
 	}
 	if got["smtpEncryptionType"] != "starttls" {
 		t.Fatalf("smtpEncryptionType: %v", got["smtpEncryptionType"])
@@ -817,6 +825,8 @@ func TestFlattenPanelEmail(t *testing.T) {
 		"smtpUsername":       "user",
 		"smtpPassword":       "returned-secret",
 		"smtpTo":             "ops@example.com",
+		"smtpFrom":           "noreply@example.com",
+		"smtpFromName":       "3x-ui Bot",
 		"smtpEncryptionType": "starttls",
 		"smtpEnabledEvents":  "login,backup",
 		"smtpCpu":            float64(90),
@@ -843,6 +853,12 @@ func TestFlattenPanelEmail(t *testing.T) {
 	}
 	if m.SmtpTo.ValueString() != "ops@example.com" {
 		t.Fatalf("smtpTo: %s", m.SmtpTo.ValueString())
+	}
+	if m.SmtpFrom.ValueString() != "noreply@example.com" {
+		t.Fatalf("smtpFrom: %s", m.SmtpFrom.ValueString())
+	}
+	if m.SmtpFromName.ValueString() != "3x-ui Bot" {
+		t.Fatalf("smtpFromName: %s", m.SmtpFromName.ValueString())
 	}
 	if m.SmtpEncryptionType.ValueString() != "starttls" {
 		t.Fatalf("smtpEncryptionType: %s", m.SmtpEncryptionType.ValueString())
@@ -953,6 +969,89 @@ func TestFlattenPanelSubscription_v341Fields(t *testing.T) {
 	}
 	if m.SubIncyRoutingRules.ValueString() != "vless://incy-rule" {
 		t.Fatalf("subIncyRoutingRules: %s", m.SubIncyRoutingRules.ValueString())
+	}
+}
+
+// TestExpandPanelSubscription_v360Fields covers the v3.6.0 subscription
+// auto-detection fields.
+func TestExpandPanelSubscription_v360Fields(t *testing.T) {
+	m := &PanelSubscriptionModel{
+		SubJsonAutoDetect:      typeBoolValue(true),
+		SubJsonAlwaysArray:     typeBoolValue(true),
+		SubJsonUserAgentRegex:  typeStringValue("v2ray.*"),
+		SubClashAutoDetect:     typeBoolValue(true),
+		SubClashUserAgentRegex: typeStringValue("clash.*"),
+	}
+	got := expandPanelSubscription(m)
+	if got["subJsonAutoDetect"] != true {
+		t.Fatalf("subJsonAutoDetect: %v", got["subJsonAutoDetect"])
+	}
+	if got["subJsonAlwaysArray"] != true {
+		t.Fatalf("subJsonAlwaysArray: %v", got["subJsonAlwaysArray"])
+	}
+	if got["subJsonUserAgentRegex"] != "v2ray.*" {
+		t.Fatalf("subJsonUserAgentRegex: %v", got["subJsonUserAgentRegex"])
+	}
+	if got["subClashAutoDetect"] != true {
+		t.Fatalf("subClashAutoDetect: %v", got["subClashAutoDetect"])
+	}
+	if got["subClashUserAgentRegex"] != "clash.*" {
+		t.Fatalf("subClashUserAgentRegex: %v", got["subClashUserAgentRegex"])
+	}
+}
+
+func TestFlattenPanelSubscription_v360Fields(t *testing.T) {
+	in := map[string]any{
+		"subJsonAutoDetect":      true,
+		"subJsonAlwaysArray":     true,
+		"subJsonUserAgentRegex":  "v2ray.*",
+		"subClashAutoDetect":     true,
+		"subClashUserAgentRegex": "clash.*",
+	}
+	m := flattenPanelSubscription(in)
+	if !m.SubJsonAutoDetect.ValueBool() {
+		t.Fatalf("subJsonAutoDetect")
+	}
+	if !m.SubJsonAlwaysArray.ValueBool() {
+		t.Fatalf("subJsonAlwaysArray")
+	}
+	if m.SubJsonUserAgentRegex.ValueString() != "v2ray.*" {
+		t.Fatalf("subJsonUserAgentRegex: %s", m.SubJsonUserAgentRegex.ValueString())
+	}
+	if !m.SubClashAutoDetect.ValueBool() {
+		t.Fatalf("subClashAutoDetect")
+	}
+	if m.SubClashUserAgentRegex.ValueString() != "clash.*" {
+		t.Fatalf("subClashUserAgentRegex: %s", m.SubClashUserAgentRegex.ValueString())
+	}
+}
+
+// TestExpandPanelGeneral_v360Fields covers the v3.6.0 general fields.
+func TestExpandPanelGeneral_v360Fields(t *testing.T) {
+	m := &PanelGeneralModel{
+		SubShowIdentityOnAllLinks: typeBoolValue(true),
+		OutboundDownThreshold:     typeInt64Value(5),
+	}
+	got := expandPanelGeneral(m)
+	if got["subShowIdentityOnAllLinks"] != true {
+		t.Fatalf("subShowIdentityOnAllLinks: %v", got["subShowIdentityOnAllLinks"])
+	}
+	if got["outboundDownThreshold"] != 5 {
+		t.Fatalf("outboundDownThreshold: %v", got["outboundDownThreshold"])
+	}
+}
+
+func TestFlattenPanelGeneral_v360Fields(t *testing.T) {
+	in := map[string]any{
+		"subShowIdentityOnAllLinks": true,
+		"outboundDownThreshold":     float64(5),
+	}
+	m := flattenPanelGeneral(in)
+	if !m.SubShowIdentityOnAllLinks.ValueBool() {
+		t.Fatalf("subShowIdentityOnAllLinks")
+	}
+	if m.OutboundDownThreshold.ValueInt64() != 5 {
+		t.Fatalf("outboundDownThreshold: %d", m.OutboundDownThreshold.ValueInt64())
 	}
 }
 

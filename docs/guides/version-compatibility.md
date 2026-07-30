@@ -18,6 +18,7 @@ The provider officially supports every released patch across all supported 3x-ui
 <!-- sync-versions:begin -->
 | 3x-ui version | Status | Notes |
 | --- | --- | --- |
+| v3.6.0 | Tested | Node `apiToken` becomes write-only ([3x-ui #5613](https://github.com/MHSanaei/3x-ui/pull/5613)); xray-core v26.7.28. |
 | v3.5.0 | Tested | Host groups, MTProto multi-client support, Xray `env`, outbound `target_strategy`, and expanded balancer settings. |
 | v3.4.2 | Tested | WireGuard multi-client support, `ldap_insecure_skip_verify`, and Xray Observatory/BurstObservatory. |
 | v3.4.1 | Tested | Incy subscription routing injection settings. |
@@ -86,6 +87,26 @@ See [v3.0.0+ CSRF-protected requests](#v300--csrf-protected-requests) above. Thi
 
 Inbound objects gained a `nodeId` field for the multi-node feature introduced in v3.0.0. The provider ignores this field in single-panel setups.
 
+### v3.6.0 — Node `apiToken` is write-only
+
+Starting with 3x-ui v3.6.0 ([#5613](https://github.com/MHSanaei/3x-ui/pull/5613)), the node API token is **write-only**: the panel no longer returns `apiToken` on `GET /panel/api/nodes`. The token must be stored at creation time.
+
+The provider handles this transparently for `terraform apply` — the configured value is preserved in state across reads. However, `terraform import` cannot recover the token because the panel cannot echo it back. After importing a `threexui_node` resource on v3.6.0+, set `api_token` (or `api_token_wo`) in your configuration and run `terraform apply` to persist it:
+
+```hcl
+import {
+  to = threexui_node.example
+  id = "1"
+}
+
+resource "threexui_node" "example" {
+  name      = "de-fra-1"
+  address   = "node1.example.com"
+  port      = 2053
+  api_token = "your-token-here" # must be provided — panel won't return it
+}
+```
+
 ## Version-aware test skipping
 
 The provider's acceptance test suite uses `requireMinVersion(t, "vX.Y.Z")` to skip tests that rely on features not present in older 3x-ui versions. This is intentional: the same test binary runs against every supported version, and feature-gated tests are skipped automatically based on the `THREEXUI_VERSION` environment variable.
@@ -115,13 +136,13 @@ The provider communicates with whatever 3x-ui version is running on your host. T
 
 ```bash
 # Set the 3x-ui image tag
-export THREEXUI_VERSION=v3.5.0
+export THREEXUI_VERSION=v3.6.0
 
 # Start the container
 docker compose up -d
 ```
 
-In `docker-compose.yaml`, the image tag is parameterized via `${THREEXUI_VERSION:-v3.5.0}`, so omitting the variable defaults to the latest tested version.
+In `docker-compose.yaml`, the image tag is parameterized via `${THREEXUI_VERSION:-v3.6.0}`, so omitting the variable defaults to the latest tested version.
 
 For the Terraform provider itself, use the latest release from the [Terraform Registry](https://registry.terraform.io/providers/batonogov/threexui). The single provider binary supports all 3x-ui versions listed in the compatibility table above.
 

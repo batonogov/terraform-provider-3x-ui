@@ -167,6 +167,7 @@ check_readme() {
 # ---------------------------------------------------------------------------
 get_version_guide_note() {
   case "$1" in
+    v3.6.0) echo 'Node `apiToken` becomes write-only ([3x-ui #5613](https://github.com/MHSanaei/3x-ui/pull/5613)); xray-core v26.7.28.' ;;
     v3.5.0) echo 'Host groups, MTProto multi-client support, Xray `env`, outbound `target_strategy`, and expanded balancer settings.' ;;
     v3.4.2) echo 'WireGuard multi-client support, `ldap_insecure_skip_verify`, and Xray Observatory/BurstObservatory.' ;;
     v3.4.1) echo 'Incy subscription routing injection settings.' ;;
@@ -218,7 +219,13 @@ check_version_guide() {
     local table_block='| 3x-ui version | Status | Notes |'$'\n''| --- | --- | --- |'
     local v
     for v in "${VERSIONS_DESC[@]}"; do
-      table_block+=$'\n'"| $v | Tested | $(get_version_guide_note "$v") |"
+      local note
+      note=$(get_version_guide_note "$v")
+      if [ -n "$note" ]; then
+        table_block+=$'\n'"| $v | Tested | $note |"
+      else
+        table_block+=$'\n'"| $v | Tested | |"
+      fi
     done
 
     local tmp
