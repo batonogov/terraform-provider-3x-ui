@@ -299,6 +299,8 @@ type PanelEmailModel struct {
 	SmtpPasswordWO        types.String `tfsdk:"smtp_password_wo"`
 	SmtpPasswordWOVersion types.Int64  `tfsdk:"smtp_password_wo_version"`
 	SmtpTo                types.String `tfsdk:"smtp_to"`
+	SmtpFrom              types.String `tfsdk:"smtp_from"`
+	SmtpFromName          types.String `tfsdk:"smtp_from_name"`
 	SmtpEncryptionType    types.String `tfsdk:"smtp_encryption_type"`
 	SmtpEnabledEvents     types.String `tfsdk:"smtp_enabled_events"`
 	SmtpCPU               types.Int64  `tfsdk:"smtp_cpu"`
@@ -362,6 +364,16 @@ func panelEmailSchema() schema.Schema {
 				Description:   "Comma-separated recipient email addresses.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
+			"smtp_from": schema.StringAttribute{
+				Optional: true, Computed: true,
+				Description:   "SMTP From address (RFC 5322). 3x-ui v3.6.0+.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"smtp_from_name": schema.StringAttribute{
+				Optional: true, Computed: true,
+				Description:   "SMTP From display name. 3x-ui v3.6.0+.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
 			"smtp_encryption_type": schema.StringAttribute{
 				Optional: true, Computed: true,
 				Description:   "SMTP encryption: none, starttls, or tls.",
@@ -408,6 +420,12 @@ func expandPanelEmail(m *PanelEmailModel) map[string]any {
 	if !m.SmtpTo.IsNull() && !m.SmtpTo.IsUnknown() {
 		payload["smtpTo"] = m.SmtpTo.ValueString()
 	}
+	if !m.SmtpFrom.IsNull() && !m.SmtpFrom.IsUnknown() {
+		payload["smtpFrom"] = m.SmtpFrom.ValueString()
+	}
+	if !m.SmtpFromName.IsNull() && !m.SmtpFromName.IsUnknown() {
+		payload["smtpFromName"] = m.SmtpFromName.ValueString()
+	}
 	if !m.SmtpEncryptionType.IsNull() && !m.SmtpEncryptionType.IsUnknown() {
 		payload["smtpEncryptionType"] = m.SmtpEncryptionType.ValueString()
 	}
@@ -445,6 +463,12 @@ func flattenPanelEmail(in map[string]any) *PanelEmailModel {
 	if v, ok := in["smtpTo"]; ok {
 		m.SmtpTo = types.StringValue(stringValue(v))
 	}
+	if v, ok := in["smtpFrom"]; ok {
+		m.SmtpFrom = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["smtpFromName"]; ok {
+		m.SmtpFromName = types.StringValue(stringValue(v))
+	}
 	if v, ok := in["smtpEncryptionType"]; ok {
 		m.SmtpEncryptionType = types.StringValue(stringValue(v))
 	}
@@ -461,43 +485,48 @@ func flattenPanelEmail(in map[string]any) *PanelEmailModel {
 }
 
 type PanelSubscriptionModel struct {
-	ID                    types.String `tfsdk:"id"`
-	SubEnable             types.Bool   `tfsdk:"sub_enable"`
-	SubJsonEnable         types.Bool   `tfsdk:"sub_json_enable"`
-	SubTitle              types.String `tfsdk:"sub_title"`
-	SubSupportURL         types.String `tfsdk:"sub_support_url"`
-	SubProfileURL         types.String `tfsdk:"sub_profile_url"`
-	SubAnnounce           types.String `tfsdk:"sub_announce"`
-	SubEnableRouting      types.Bool   `tfsdk:"sub_enable_routing"`
-	SubRoutingRules       types.String `tfsdk:"sub_routing_rules"`
-	SubListen             types.String `tfsdk:"sub_listen"`
-	SubPort               types.Int64  `tfsdk:"sub_port"`
-	SubPath               types.String `tfsdk:"sub_path"`
-	SubDomain             types.String `tfsdk:"sub_domain"`
-	SubCertFile           types.String `tfsdk:"sub_cert_file"`
-	SubKeyFile            types.String `tfsdk:"sub_key_file"`
-	SubUpdates            types.Int64  `tfsdk:"sub_updates"`
-	SubEncrypt            types.Bool   `tfsdk:"sub_encrypt"`
-	SubShowInfo           types.Bool   `tfsdk:"sub_show_info"`
-	SubEmailInRemark      types.Bool   `tfsdk:"sub_email_in_remark"`
-	SubURI                types.String `tfsdk:"sub_uri"`
-	SubJsonPath           types.String `tfsdk:"sub_json_path"`
-	SubJsonURI            types.String `tfsdk:"sub_json_uri"`
-	SubJsonFragment       types.String `tfsdk:"sub_json_fragment"`
-	SubJsonNoises         types.String `tfsdk:"sub_json_noises"`
-	SubJsonMux            types.String `tfsdk:"sub_json_mux"`
-	SubJsonRules          types.String `tfsdk:"sub_json_rules"`
-	SubClashEnable        types.Bool   `tfsdk:"sub_clash_enable"`
-	SubClashPath          types.String `tfsdk:"sub_clash_path"`
-	SubClashURI           types.String `tfsdk:"sub_clash_uri"`
-	SubClashEnableRouting types.Bool   `tfsdk:"sub_clash_enable_routing"`
-	SubClashRules         types.String `tfsdk:"sub_clash_rules"`
-	SubJsonFinalMask      types.String `tfsdk:"sub_json_final_mask"`
-	SubThemeDir           types.String `tfsdk:"sub_theme_dir"`
-	RemarkTemplate        types.String `tfsdk:"remark_template"`
-	SubHideSettings       types.Bool   `tfsdk:"sub_hide_settings"`
-	SubIncyEnableRouting  types.Bool   `tfsdk:"sub_incy_enable_routing"`
-	SubIncyRoutingRules   types.String `tfsdk:"sub_incy_routing_rules"`
+	ID                     types.String `tfsdk:"id"`
+	SubEnable              types.Bool   `tfsdk:"sub_enable"`
+	SubJsonEnable          types.Bool   `tfsdk:"sub_json_enable"`
+	SubTitle               types.String `tfsdk:"sub_title"`
+	SubSupportURL          types.String `tfsdk:"sub_support_url"`
+	SubProfileURL          types.String `tfsdk:"sub_profile_url"`
+	SubAnnounce            types.String `tfsdk:"sub_announce"`
+	SubEnableRouting       types.Bool   `tfsdk:"sub_enable_routing"`
+	SubRoutingRules        types.String `tfsdk:"sub_routing_rules"`
+	SubListen              types.String `tfsdk:"sub_listen"`
+	SubPort                types.Int64  `tfsdk:"sub_port"`
+	SubPath                types.String `tfsdk:"sub_path"`
+	SubDomain              types.String `tfsdk:"sub_domain"`
+	SubCertFile            types.String `tfsdk:"sub_cert_file"`
+	SubKeyFile             types.String `tfsdk:"sub_key_file"`
+	SubUpdates             types.Int64  `tfsdk:"sub_updates"`
+	SubEncrypt             types.Bool   `tfsdk:"sub_encrypt"`
+	SubShowInfo            types.Bool   `tfsdk:"sub_show_info"`
+	SubEmailInRemark       types.Bool   `tfsdk:"sub_email_in_remark"`
+	SubURI                 types.String `tfsdk:"sub_uri"`
+	SubJsonPath            types.String `tfsdk:"sub_json_path"`
+	SubJsonURI             types.String `tfsdk:"sub_json_uri"`
+	SubJsonFragment        types.String `tfsdk:"sub_json_fragment"`
+	SubJsonNoises          types.String `tfsdk:"sub_json_noises"`
+	SubJsonMux             types.String `tfsdk:"sub_json_mux"`
+	SubJsonRules           types.String `tfsdk:"sub_json_rules"`
+	SubJsonAutoDetect      types.Bool   `tfsdk:"sub_json_auto_detect"`
+	SubJsonAlwaysArray     types.Bool   `tfsdk:"sub_json_always_array"`
+	SubJsonUserAgentRegex  types.String `tfsdk:"sub_json_user_agent_regex"`
+	SubClashEnable         types.Bool   `tfsdk:"sub_clash_enable"`
+	SubClashPath           types.String `tfsdk:"sub_clash_path"`
+	SubClashURI            types.String `tfsdk:"sub_clash_uri"`
+	SubClashEnableRouting  types.Bool   `tfsdk:"sub_clash_enable_routing"`
+	SubClashRules          types.String `tfsdk:"sub_clash_rules"`
+	SubClashAutoDetect     types.Bool   `tfsdk:"sub_clash_auto_detect"`
+	SubClashUserAgentRegex types.String `tfsdk:"sub_clash_user_agent_regex"`
+	SubJsonFinalMask       types.String `tfsdk:"sub_json_final_mask"`
+	SubThemeDir            types.String `tfsdk:"sub_theme_dir"`
+	RemarkTemplate         types.String `tfsdk:"remark_template"`
+	SubHideSettings        types.Bool   `tfsdk:"sub_hide_settings"`
+	SubIncyEnableRouting   types.Bool   `tfsdk:"sub_incy_enable_routing"`
+	SubIncyRoutingRules    types.String `tfsdk:"sub_incy_routing_rules"`
 }
 
 func panelSubscriptionSchema() schema.Schema {
@@ -640,6 +669,24 @@ func panelSubscriptionSchema() schema.Schema {
 				Optional: true, Computed: true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
+			"sub_json_auto_detect": schema.BoolAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "Auto-detect JSON subscription format by User-Agent. 3x-ui v3.6.0+.",
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"sub_json_always_array": schema.BoolAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "Always output JSON subscription as an array. 3x-ui v3.6.0+.",
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"sub_json_user_agent_regex": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "User-Agent regex for JSON subscription auto-detection. 3x-ui v3.6.0+.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
 			"sub_clash_enable": schema.BoolAttribute{
 				Optional:      true,
 				Computed:      true,
@@ -668,6 +715,18 @@ func panelSubscriptionSchema() schema.Schema {
 				Optional:      true,
 				Computed:      true,
 				Description:   "Clash/Mihomo global routing rules (3x-ui v3.2.8+).",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_clash_auto_detect": schema.BoolAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "Auto-detect Clash subscription format by User-Agent. 3x-ui v3.6.0+.",
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"sub_clash_user_agent_regex": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "User-Agent regex for Clash subscription auto-detection. 3x-ui v3.6.0+.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"sub_json_final_mask": schema.StringAttribute{
@@ -781,6 +840,15 @@ func expandPanelSubscription(m *PanelSubscriptionModel) map[string]any {
 	if !m.SubJsonRules.IsNull() && !m.SubJsonRules.IsUnknown() {
 		payload["subJsonRules"] = m.SubJsonRules.ValueString()
 	}
+	if !m.SubJsonAutoDetect.IsNull() && !m.SubJsonAutoDetect.IsUnknown() {
+		payload["subJsonAutoDetect"] = m.SubJsonAutoDetect.ValueBool()
+	}
+	if !m.SubJsonAlwaysArray.IsNull() && !m.SubJsonAlwaysArray.IsUnknown() {
+		payload["subJsonAlwaysArray"] = m.SubJsonAlwaysArray.ValueBool()
+	}
+	if !m.SubJsonUserAgentRegex.IsNull() && !m.SubJsonUserAgentRegex.IsUnknown() {
+		payload["subJsonUserAgentRegex"] = m.SubJsonUserAgentRegex.ValueString()
+	}
 	if !m.SubClashEnable.IsNull() && !m.SubClashEnable.IsUnknown() {
 		payload["subClashEnable"] = m.SubClashEnable.ValueBool()
 	}
@@ -795,6 +863,12 @@ func expandPanelSubscription(m *PanelSubscriptionModel) map[string]any {
 	}
 	if !m.SubClashRules.IsNull() && !m.SubClashRules.IsUnknown() {
 		payload["subClashRules"] = m.SubClashRules.ValueString()
+	}
+	if !m.SubClashAutoDetect.IsNull() && !m.SubClashAutoDetect.IsUnknown() {
+		payload["subClashAutoDetect"] = m.SubClashAutoDetect.ValueBool()
+	}
+	if !m.SubClashUserAgentRegex.IsNull() && !m.SubClashUserAgentRegex.IsUnknown() {
+		payload["subClashUserAgentRegex"] = m.SubClashUserAgentRegex.ValueString()
 	}
 	if !m.SubJsonFinalMask.IsNull() && !m.SubJsonFinalMask.IsUnknown() {
 		payload["subJsonFinalMask"] = m.SubJsonFinalMask.ValueString()
@@ -900,6 +974,15 @@ func flattenPanelSubscription(in map[string]any) *PanelSubscriptionModel {
 	if v, ok := in["subJsonRules"]; ok {
 		m.SubJsonRules = types.StringValue(stringValue(v))
 	}
+	if v, ok := in["subJsonAutoDetect"]; ok {
+		m.SubJsonAutoDetect = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["subJsonAlwaysArray"]; ok {
+		m.SubJsonAlwaysArray = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["subJsonUserAgentRegex"]; ok {
+		m.SubJsonUserAgentRegex = types.StringValue(stringValue(v))
+	}
 	if v, ok := in["subClashEnable"]; ok {
 		m.SubClashEnable = types.BoolValue(boolValue(v))
 	}
@@ -918,6 +1001,12 @@ func flattenPanelSubscription(in map[string]any) *PanelSubscriptionModel {
 	}
 	if v, ok := in["subClashRules"]; ok {
 		m.SubClashRules = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subClashAutoDetect"]; ok {
+		m.SubClashAutoDetect = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["subClashUserAgentRegex"]; ok {
+		m.SubClashUserAgentRegex = types.StringValue(stringValue(v))
 	}
 	if v, ok := in["subJsonFinalMask"]; ok {
 		m.SubJsonFinalMask = types.StringValue(stringValue(v))
@@ -1006,6 +1095,8 @@ type PanelGeneralModel struct {
 	WebKeyFile                  types.String `tfsdk:"web_key_file"`
 	ExternalTrafficInformEnable types.Bool   `tfsdk:"external_traffic_inform_enable"`
 	ExternalTrafficInformURI    types.String `tfsdk:"external_traffic_inform_uri"`
+	SubShowIdentityOnAllLinks   types.Bool   `tfsdk:"sub_show_identity_on_all_links"`
+	OutboundDownThreshold       types.Int64  `tfsdk:"outbound_down_threshold"`
 	RestartXrayOnClientDisable  types.Bool   `tfsdk:"restart_xray_on_client_disable"`
 	LDAPEnable                  types.Bool   `tfsdk:"ldap_enable"`
 	LDAPHost                    types.String `tfsdk:"ldap_host"`
@@ -1116,6 +1207,19 @@ func panelGeneralSchema() schema.Schema {
 			"external_traffic_inform_uri": schema.StringAttribute{
 				Optional: true, Computed: true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_show_identity_on_all_links": schema.BoolAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "Add identity tokens to every subscription link. 3x-ui v3.6.0+.",
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"outbound_down_threshold": schema.Int64Attribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "Consecutive-failure threshold before outbound.down alert fires (1-100). 3x-ui v3.6.0+.",
+				Validators:    []validator.Int64{int64validator.Between(1, 100)},
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"restart_xray_on_client_disable": schema.BoolAttribute{
 				Optional:    true,
@@ -1305,6 +1409,12 @@ func expandPanelGeneral(m *PanelGeneralModel) map[string]any {
 	if !m.ExternalTrafficInformURI.IsNull() && !m.ExternalTrafficInformURI.IsUnknown() {
 		payload["externalTrafficInformURI"] = m.ExternalTrafficInformURI.ValueString()
 	}
+	if !m.SubShowIdentityOnAllLinks.IsNull() && !m.SubShowIdentityOnAllLinks.IsUnknown() {
+		payload["subShowIdentityOnAllLinks"] = m.SubShowIdentityOnAllLinks.ValueBool()
+	}
+	if !m.OutboundDownThreshold.IsNull() && !m.OutboundDownThreshold.IsUnknown() {
+		payload["outboundDownThreshold"] = int(m.OutboundDownThreshold.ValueInt64())
+	}
 	if !m.RestartXrayOnClientDisable.IsNull() && !m.RestartXrayOnClientDisable.IsUnknown() {
 		payload["restartXrayOnClientDisable"] = m.RestartXrayOnClientDisable.ValueBool()
 	}
@@ -1436,6 +1546,12 @@ func flattenPanelGeneral(in map[string]any) *PanelGeneralModel {
 	}
 	if v, ok := in["externalTrafficInformURI"]; ok {
 		m.ExternalTrafficInformURI = types.StringValue(stringValue(v))
+	}
+	if v, ok := in["subShowIdentityOnAllLinks"]; ok {
+		m.SubShowIdentityOnAllLinks = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["outboundDownThreshold"]; ok {
+		m.OutboundDownThreshold = types.Int64Value(int64(intValue(v)))
 	}
 	if v, ok := in["restartXrayOnClientDisable"]; ok {
 		m.RestartXrayOnClientDisable = types.BoolValue(boolValue(v))

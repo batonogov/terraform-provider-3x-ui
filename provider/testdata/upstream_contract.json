@@ -75,6 +75,7 @@
     "tag",
     "total",
     "trafficReset",
+    "trafficResetDay",
     "up"
   ],
   "client_fields": [

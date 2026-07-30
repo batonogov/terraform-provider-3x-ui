@@ -19,6 +19,7 @@ type Inbound struct {
 	Enable               bool            `json:"enable"`
 	ExpiryTime           int64           `json:"expiryTime"`
 	TrafficReset         string          `json:"trafficReset"`
+	TrafficResetDay      int             `json:"trafficResetDay"`
 	LastTrafficResetTime int64           `json:"lastTrafficResetTime"`
 	ClientStats          []ClientTraffic `json:"clientStats"`
 

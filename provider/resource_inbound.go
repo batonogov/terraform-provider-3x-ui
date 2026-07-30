@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -21,6 +22,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -45,6 +47,7 @@ type InboundResourceModel struct {
 	Enable               types.Bool   `tfsdk:"enable"`
 	ExpiryTime           types.Int64  `tfsdk:"expiry_time"`
 	TrafficReset         types.String `tfsdk:"traffic_reset"`
+	TrafficResetDay      types.Int64  `tfsdk:"traffic_reset_day"`
 	LastTrafficResetTime types.Int64  `tfsdk:"last_traffic_reset_time"`
 	Listen               types.String `tfsdk:"listen"`
 	Port                 types.Int64  `tfsdk:"port"`
@@ -149,6 +152,15 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Default:     stringdefault.StaticString("never"),
 				Description: "Traffic reset interval (e.g. 'never', 'hourly', 'daily', 'weekly', 'monthly').",
 				Validators:  trafficResetValidators(),
+			},
+			"traffic_reset_day": schema.Int64Attribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     int64default.StaticInt64(1),
+				Description: "Day of month (1-31) for monthly traffic resets. Only effective when traffic_reset = 'monthly'. 3x-ui v3.6.0+.",
+				Validators: []validator.Int64{
+					int64validator.Between(1, 31),
+				},
 			},
 			"last_traffic_reset_time": schema.Int64Attribute{
 				Computed:    true,
@@ -623,6 +635,7 @@ func expandInboundFromModel(m *InboundResourceModel) *Inbound {
 		Enable:               m.Enable.ValueBool(),
 		ExpiryTime:           m.ExpiryTime.ValueInt64(),
 		TrafficReset:         m.TrafficReset.ValueString(),
+		TrafficResetDay:      int(m.TrafficResetDay.ValueInt64()),
 		LastTrafficResetTime: m.LastTrafficResetTime.ValueInt64(),
 		Listen:               m.Listen.ValueString(),
 		Port:                 int(m.Port.ValueInt64()),
@@ -665,6 +678,7 @@ func inboundToModel(inbound *Inbound, failHard bool) (*InboundResourceModel, dia
 		Enable:               types.BoolValue(inbound.Enable),
 		ExpiryTime:           types.Int64Value(inbound.ExpiryTime),
 		TrafficReset:         types.StringValue(inbound.TrafficReset),
+		TrafficResetDay:      types.Int64Value(int64(inbound.TrafficResetDay)),
 		LastTrafficResetTime: types.Int64Value(inbound.LastTrafficResetTime),
 		Listen:               stringValueOrNull(inbound.Listen),
 		Port:                 types.Int64Value(int64(inbound.Port)),
