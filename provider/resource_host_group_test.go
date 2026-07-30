@@ -783,6 +783,9 @@ func TestIsHostGroupNotFound(t *testing.T) {
 	if !isHostGroupNotFound(failResponseErr("obtain (host group not found)")) {
 		t.Fatal("host group not found message must match")
 	}
+	if !isHostGroupNotFound(failResponseErr("Failed to load host (host not found\n)")) {
+		t.Fatal("v3.6.0 'host not found' message must match")
+	}
 	if isHostGroupNotFound(failResponseErr("some other error")) {
 		t.Fatal("unrelated error must not match")
 	}

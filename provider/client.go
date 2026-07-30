@@ -690,15 +690,20 @@ func (c *Client) GetHostGroup(ctx context.Context, groupID string) (*HostGroup, 
 	return &out, nil
 }
 
-// isHostGroupNotFound detects the panel's "host group not found" sentinel.
+// isHostGroupNotFound detects the panel's "host not found" sentinel.
 // Unlike nodes (gorm.ErrRecordNotFound → "record not found"), host groups use
-// an explicit common.NewError("host group not found"), which the generic
-// isAPIRecordNotFound does not match.
+// an explicit common.NewError, which the generic isAPIRecordNotFound does not
+// match. The message changed across 3x-ui versions:
+//   - v3.5.x: "host group not found"
+//   - v3.6.0: "Failed to load host (host not found"
+// Both variants are matched here.
 func isHostGroupNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(strings.ToLower(err.Error()), "host group not found")
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "host group not found") ||
+		strings.Contains(msg, "host not found")
 }
 
 // UpdateHostGroup updates a host group (POST /panel/api/hosts/update/:groupId,
