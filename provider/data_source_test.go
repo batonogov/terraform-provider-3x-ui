@@ -241,8 +241,9 @@ func TestNodesDataSource_Read_ApiTokenWriteOnly(t *testing.T) {
 	}
 	// apiToken must be empty (write-only in v3.6.0+ — the key still appears
 	// in the JSON because the Go struct has the tag, but the value is "").
-	if contains(state.Nodes.ValueString(), `"apiToken":"abcdef"`) {
-		t.Fatalf("apiToken should be empty on v3.6.0+, got %s", state.Nodes.ValueString())
+	raw := state.Nodes.ValueString()
+	if !contains(raw, `"apiToken":""`) {
+		t.Fatalf("apiToken should be empty on v3.6.0+, got %s", raw)
 	}
 }
 

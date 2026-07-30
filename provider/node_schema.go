@@ -133,7 +133,10 @@ func nodeResourceSchema() schema.Schema {
 				},
 				Description: "Bearer API token used by the central panel to authenticate to the node's web API. " +
 					"Required unless tls_verify_mode is 'mtls' (mTLS nodes authenticate via client certificate). " +
-					"The panel returns this value raw without redaction, so it is marked Sensitive. " +
+					"Marked Sensitive. Since 3x-ui v3.6.0 the panel no longer returns this value on read " +
+					"(write-only, #5613); the provider preserves the configured value in state. " +
+					"After terraform import on v3.6.0+ you must set api_token (or api_token_wo) manually " +
+					"because the panel cannot echo it back. " +
 					"Prefer the write-only api_token_wo (Terraform 1.11+ / OpenTofu 1.11+).",
 			},
 			"api_token_wo": schema.StringAttribute{

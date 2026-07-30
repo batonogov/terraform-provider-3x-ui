@@ -87,6 +87,26 @@ See [v3.0.0+ CSRF-protected requests](#v300--csrf-protected-requests) above. Thi
 
 Inbound objects gained a `nodeId` field for the multi-node feature introduced in v3.0.0. The provider ignores this field in single-panel setups.
 
+### v3.6.0 — Node `apiToken` is write-only
+
+Starting with 3x-ui v3.6.0 ([#5613](https://github.com/MHSanaei/3x-ui/pull/5613)), the node API token is **write-only**: the panel no longer returns `apiToken` on `GET /panel/api/nodes`. The token must be stored at creation time.
+
+The provider handles this transparently for `terraform apply` — the configured value is preserved in state across reads. However, `terraform import` cannot recover the token because the panel cannot echo it back. After importing a `threexui_node` resource on v3.6.0+, set `api_token` (or `api_token_wo`) in your configuration and run `terraform apply` to persist it:
+
+```hcl
+import {
+  to = threexui_node.example
+  id = "1"
+}
+
+resource "threexui_node" "example" {
+  name      = "de-fra-1"
+  address   = "node1.example.com"
+  port      = 2053
+  api_token = "your-token-here" # must be provided — panel won't return it
+}
+```
+
 ## Version-aware test skipping
 
 The provider's acceptance test suite uses `requireMinVersion(t, "vX.Y.Z")` to skip tests that rely on features not present in older 3x-ui versions. This is intentional: the same test binary runs against every supported version, and feature-gated tests are skipped automatically based on the `THREEXUI_VERSION` environment variable.
