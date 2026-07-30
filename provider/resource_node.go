@@ -258,8 +258,10 @@ func parseNodeID(id string) (int, error) {
 // the plain fields before Create. Write-only values live only in req.Config
 // (the framework nulls them in plan/state), so without this the panel would
 // never receive the new secret on first apply. The settings-style strategy
-// applies because the panel returns secrets raw (#314 R1) and flatten reads
-// them back, which would otherwise clash with a null plan value.
+// applies because the panel returns pinnedCertSha256 raw (#314 R1) and flatten
+// reads it back, which would otherwise clash with a null plan value.
+// apiToken is write-only since v3.6.0 (#5613) and is never echoed back, but
+// the same preserve-on-empty logic handles it.
 func resolveNodeSecretsWO(plan *NodeResourceModel, config NodeResourceModel) {
 	if !config.ApiTokenWO.IsNull() && !config.ApiTokenWO.IsUnknown() {
 		plan.ApiToken = config.ApiTokenWO
@@ -312,8 +314,10 @@ func nodeFromModel(m *NodeResourceModel) *Node {
 // flattenNodeToModel copies a Node into the model (managed + observed state).
 // Managed attributes are overwritten from the remote so that drift is detected;
 // sensitive managed attributes (api_token, pinned_cert_sha256) are preserved
-// from the current model when the remote returns them empty, since the panel
-// never redacts (per #314 R1) an empty value means "unset".
+// from the current model when the remote returns them empty. Since 3x-ui v3.6.0
+// (#5613) the apiToken is write-only and always empty on read; the preserve-
+// on-empty logic means the state value from Create/Update survives. An empty
+// pinned_cert_sha256 also means "unset".
 func flattenNodeToModel(n *Node, m *NodeResourceModel) {
 	if n == nil {
 		return

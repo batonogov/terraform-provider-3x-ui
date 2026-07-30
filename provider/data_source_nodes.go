@@ -38,7 +38,7 @@ func (d *NodesDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, 
 			"nodes": schema.StringAttribute{
 				Computed:    true,
 				Sensitive:   true,
-				Description: "JSON array of cluster node objects (3x-ui multi-node surface, GET /panel/api/nodes). Marked Sensitive because the payload includes each node's apiToken and pinnedCertSha256, which the panel returns raw without redaction. The array is the full node tree, including transitive sub-nodes surfaced from downstream panels (objects with id == 0 and transitive == true, which are read-only projections).",
+				Description: "JSON array of cluster node objects (3x-ui multi-node surface, GET /panel/api/nodes). Marked Sensitive because the payload may include each node's pinnedCertSha256, which the panel returns raw. Starting with 3x-ui v3.6.0 (#5613) the apiToken is write-only and is no longer returned on GET. The array is the full node tree, including transitive sub-nodes surfaced from downstream panels (objects with id == 0 and transitive == true, which are read-only projections).",
 			},
 		},
 	}
@@ -63,10 +63,12 @@ func (d *NodesDataSource) Read(ctx context.Context, _ datasource.ReadRequest, re
 		return
 	}
 
-	// The nodes payload intentionally includes each node's apiToken/pinnedCertSha256
-	// (raw, no upstream redaction); the `nodes` attribute is Sensitive so Terraform
-	// never prints it. G117 flags marshaling a struct with a secret-named field —
-	// exposure here is by design, matching the existing threexui_inbounds pattern.
+	// The nodes payload may include each node's pinnedCertSha256 (raw, no
+	// upstream redaction); the `nodes` attribute is Sensitive so Terraform
+	// never prints it. Since 3x-ui v3.6.0 (#5613) the apiToken is write-only
+	// and omitted from the response. G117 flags marshaling a struct with a
+	// secret-named field — exposure here is by design, matching the existing
+	// threexui_inbounds pattern.
 	payload, err := json.Marshal(nodes) //nolint:gosec // G117: intentional, attr is Sensitive
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to marshal cluster nodes", err.Error())

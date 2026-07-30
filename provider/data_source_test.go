@@ -194,9 +194,55 @@ func TestNodesDataSource_Read(t *testing.T) {
 	if state.Nodes.IsNull() {
 		t.Fatal("expected nodes to be set")
 	}
-	// Raw payload must contain the sensitive apiToken (Sensitive attr, not redacted).
+	// Raw payload must contain the sensitive apiToken on pre-v3.6.0 panels.
 	if !contains(state.Nodes.ValueString(), "secret-token") {
 		t.Fatalf("expected raw payload to contain apiToken, got %s", state.Nodes.ValueString())
+	}
+}
+
+// TestNodesDataSource_Read_ApiTokenWriteOnly covers 3x-ui v3.6.0+ (#5613) where
+// the node API token is write-only: the list response omits apiToken entirely.
+func TestNodesDataSource_Read_ApiTokenWriteOnly(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/panel/api/nodes/list" {
+			w.Write(okResponse([]any{
+				map[string]any{
+					"id":               1,
+					"name":             "de-fra-1",
+					"address":          "node1.example.com",
+					"port":             2053,
+					"enable":           true,
+					"pinnedCertSha256": "abcdef",
+					"guid":             "11111111-1111-1111-1111-111111111111",
+					"status":           "online",
+					"transitive":       false,
+					// apiToken intentionally omitted — write-only since v3.6.0
+				},
+			}))
+			return
+		}
+		dsHandler(w, r)
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	ds := &NodesDataSource{client: client}
+	resp := newDSReadResponse(t, ds)
+	ds.Read(context.Background(), datasource.ReadRequest{}, &resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected errors: %v", resp.Diagnostics)
+	}
+
+	var state NodesDataSourceModel
+	resp.State.Get(context.Background(), &state)
+	if state.Nodes.IsNull() {
+		t.Fatal("expected nodes to be set")
+	}
+	// apiToken must be empty (write-only in v3.6.0+ — the key still appears
+	// in the JSON because the Go struct has the tag, but the value is "").
+	if contains(state.Nodes.ValueString(), `"apiToken":"abcdef"`) {
+		t.Fatalf("apiToken should be empty on v3.6.0+, got %s", state.Nodes.ValueString())
 	}
 }
 
