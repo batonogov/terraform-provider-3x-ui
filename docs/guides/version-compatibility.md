@@ -27,8 +27,8 @@ The provider officially supports every released patch across all supported 3x-ui
 | v3.3.0 | Tested | `subThemeDir`, `warpUpdateInterval`, MTProto, and the node-sync surface. |
 | v3.2.8 | Tested | Latest supported v3.2.x patch. |
 | v3.2.7 | Tested | TUN inbound alias. |
-| v3.2.6 | Tested |  |
-| v3.2.5 | Tested |  |
+| v3.2.6 | Tested | |
+| v3.2.5 | Tested | |
 | v3.2.0 | Tested | `mixed`/`tunnel` replace legacy `socks`/`dokodemo-door`; client `group` and `panelProxy` are available. |
 | v3.1.0 | Tested | New client API surface; the provider detects it automatically. |
 <!-- sync-versions:end -->
