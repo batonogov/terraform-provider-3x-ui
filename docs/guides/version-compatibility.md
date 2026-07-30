@@ -18,6 +18,7 @@ The provider officially supports every released patch across all supported 3x-ui
 <!-- sync-versions:begin -->
 | 3x-ui version | Status | Notes |
 | --- | --- | --- |
+| v3.6.0 | Tested | Node `apiToken` becomes write-only ([3x-ui #5613](https://github.com/MHSanaei/3x-ui/pull/5613)); xray-core v26.7.28. |
 | v3.5.0 | Tested | Host groups, MTProto multi-client support, Xray `env`, outbound `target_strategy`, and expanded balancer settings. |
 | v3.4.2 | Tested | WireGuard multi-client support, `ldap_insecure_skip_verify`, and Xray Observatory/BurstObservatory. |
 | v3.4.1 | Tested | Incy subscription routing injection settings. |
@@ -26,8 +27,8 @@ The provider officially supports every released patch across all supported 3x-ui
 | v3.3.0 | Tested | `subThemeDir`, `warpUpdateInterval`, MTProto, and the node-sync surface. |
 | v3.2.8 | Tested | Latest supported v3.2.x patch. |
 | v3.2.7 | Tested | TUN inbound alias. |
-| v3.2.6 | Tested | |
-| v3.2.5 | Tested | |
+| v3.2.6 | Tested |  |
+| v3.2.5 | Tested |  |
 | v3.2.0 | Tested | `mixed`/`tunnel` replace legacy `socks`/`dokodemo-door`; client `group` and `panelProxy` are available. |
 | v3.1.0 | Tested | New client API surface; the provider detects it automatically. |
 <!-- sync-versions:end -->
@@ -115,13 +116,13 @@ The provider communicates with whatever 3x-ui version is running on your host. T
 
 ```bash
 # Set the 3x-ui image tag
-export THREEXUI_VERSION=v3.5.0
+export THREEXUI_VERSION=v3.6.0
 
 # Start the container
 docker compose up -d
 ```
 
-In `docker-compose.yaml`, the image tag is parameterized via `${THREEXUI_VERSION:-v3.5.0}`, so omitting the variable defaults to the latest tested version.
+In `docker-compose.yaml`, the image tag is parameterized via `${THREEXUI_VERSION:-v3.6.0}`, so omitting the variable defaults to the latest tested version.
 
 For the Terraform provider itself, use the latest release from the [Terraform Registry](https://registry.terraform.io/providers/batonogov/threexui). The single provider binary supports all 3x-ui versions listed in the compatibility table above.
 
