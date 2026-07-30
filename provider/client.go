@@ -696,6 +696,7 @@ func (c *Client) GetHostGroup(ctx context.Context, groupID string) (*HostGroup, 
 // match. The message changed across 3x-ui versions:
 //   - v3.5.x: "host group not found"
 //   - v3.6.0: "Failed to load host (host not found"
+//
 // Both variants are matched here.
 func isHostGroupNotFound(err error) bool {
 	if err == nil {
