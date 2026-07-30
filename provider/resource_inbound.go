@@ -156,9 +156,9 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"traffic_reset_day": schema.Int64Attribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Day of month (1-31) for monthly traffic resets. Only effective when traffic_reset = 'monthly'. 3x-ui v3.6.0+; older panels report 0.",
+				Description: "Day of month (1-31) for monthly traffic resets. Only effective when traffic_reset = 'monthly'. 3x-ui v3.6.0+; older panels report 0 (unsupported).",
 				Validators: []validator.Int64{
-					int64validator.Between(1, 31),
+					int64validator.Between(0, 31),
 				},
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),

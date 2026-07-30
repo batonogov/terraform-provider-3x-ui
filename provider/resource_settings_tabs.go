@@ -1217,8 +1217,8 @@ func panelGeneralSchema() schema.Schema {
 			"outbound_down_threshold": schema.Int64Attribute{
 				Optional:      true,
 				Computed:      true,
-				Description:   "Consecutive-failure threshold before outbound.down alert fires (1-100). 3x-ui v3.6.0+.",
-				Validators:    []validator.Int64{int64validator.Between(1, 100)},
+				Description:   "Consecutive-failure threshold before outbound.down alert fires (1-100). 3x-ui v3.6.0+; older panels report 0 (unsupported).",
+				Validators:    []validator.Int64{int64validator.Between(0, 100)},
 				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"restart_xray_on_client_disable": schema.BoolAttribute{
