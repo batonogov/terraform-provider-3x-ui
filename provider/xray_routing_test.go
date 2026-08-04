@@ -190,26 +190,29 @@ func strList(vs ...string) types.List {
 }
 
 func TestReconcileRoutingPlan_StripsStaleCarryForward(t *testing.T) {
-	ruDomains := strList("geosite:category-ru", "ru")
+	ruDomains := strList("geosite:category-ru")
 	geoipPrivate := strList("geoip:private")
 	geoipCN := strList("geoip:cn")
 
+	// Config (step 2): [0] RU-domains→blocked, [1] geoip:cn→direct.
 	config := XrayRoutingModel{
 		ID:             types.StringValue("xray_routing"),
 		DomainStrategy: types.StringValue("AsIs"),
 		Rule: []XrayRoutingRule{
-			{Type: types.StringValue("field"), OutboundTag: types.StringValue("direct"), Domain: ruDomains},
+			{Type: types.StringValue("field"), OutboundTag: types.StringValue("blocked"), Domain: ruDomains},
 			{Type: types.StringValue("field"), OutboundTag: types.StringValue("direct"), IP: geoipCN},
 		},
 	}
 	// Plan after schema plan modifiers: each new rule inherited stale fields
-	// from the prior rule at the same index. The provider must not write these.
+	// from the prior rule at the same index. Rule 0 gained stale ip:geoip:private
+	// (from prior index-0), rule 1 gained stale domain:geosite:category-ru
+	// (from prior index-1). The provider must not write these.
 	plan := XrayRoutingModel{
 		ID:             types.StringValue("xray_routing"),
 		DomainStrategy: types.StringValue("AsIs"),
 		Rule: []XrayRoutingRule{
-			{Type: types.StringValue("field"), OutboundTag: types.StringValue("direct"), Domain: ruDomains, IP: geoipPrivate},
-			{Type: types.StringValue("field"), OutboundTag: types.StringValue("direct"), IP: geoipCN, Network: types.StringValue("tcp,udp")},
+			{Type: types.StringValue("field"), OutboundTag: types.StringValue("blocked"), Domain: ruDomains, IP: geoipPrivate},
+			{Type: types.StringValue("field"), OutboundTag: types.StringValue("direct"), IP: geoipCN, Domain: ruDomains},
 		},
 	}
 
@@ -295,7 +298,10 @@ func routingRaw(t *testing.T, schemaResp resource.SchemaResponse, ruleListVal tf
 // TestXrayRoutingResource_ModifyPlan_StripsStaleCarryForward drives the full
 // ModifyPlan path (decode plan/config → reconcile → set plan) to ensure the
 // plugin-framework plan modifiers' carried-forward values are erased before
-// the resource writes them to the panel.
+// the resource writes them to the panel. The state/index mapping mirrors the
+// acceptance test: step1 [ip:private→direct, domain:category-ru→blocked,
+// network:tcp,udp→blocked] → step2 [domain:category-ru→blocked,
+// ip:geoip:cn→direct, network:tcp,udp→blocked].
 func TestXrayRoutingResource_ModifyPlan_StripsStaleCarryForward(t *testing.T) {
 	r := &XrayRoutingResource{}
 	ctx := context.Background()
@@ -305,23 +311,24 @@ func TestXrayRoutingResource_ModifyPlan_StripsStaleCarryForward(t *testing.T) {
 	ruleListType := objType.AttributeTypes["rule"].(tftypes.List)
 	ruleObjType := ruleListType.ElementType.(tftypes.Object)
 
-	// Config: clean 2-rule list — RU-domains→direct, geoip:cn→direct.
+	// Config (step 2): clean 2-rule list — domain→blocked, ip:geoip:cn→direct.
 	cfgRules := tftypes.NewValue(ruleListType, []tftypes.Value{
-		rtRuleValue(t, ruleObjType, "direct", "", []string{"geosite:category-ru", "ru"}, nil),
+		rtRuleValue(t, ruleObjType, "blocked", "", []string{"geosite:category-ru"}, nil),
 		rtRuleValue(t, ruleObjType, "direct", "", nil, []string{"geoip:cn"}),
 	})
 	// Plan: the schema plan modifiers carried the prior state's per-index
-	// fields into the new rules — rule 0 gained stale ip:geoip:private and
-	// rule 1 gained stale network:"tcp,udp".
+	// fields into the new rules — rule 0 gained stale ip:geoip:private (from
+	// prior index-0) and rule 1 gained stale domain:geosite:category-ru (from
+	// prior index-1).
 	planRules := tftypes.NewValue(ruleListType, []tftypes.Value{
-		rtRuleValue(t, ruleObjType, "direct", "", []string{"geosite:category-ru", "ru"}, []string{"geoip:private"}),
-		rtRuleValue(t, ruleObjType, "direct", "tcp,udp", nil, []string{"geoip:cn"}),
+		rtRuleValue(t, ruleObjType, "blocked", "", []string{"geosite:category-ru"}, []string{"geoip:private"}),
+		rtRuleValue(t, ruleObjType, "direct", "", []string{"geosite:category-ru"}, []string{"geoip:cn"}),
 	})
-	// State: the prior 3-rule list (only needs to be non-null for ModifyPlan's guard).
+	// State: the prior 3-rule list mirroring step 1.
 	stateRules := tftypes.NewValue(ruleListType, []tftypes.Value{
 		rtRuleValue(t, ruleObjType, "direct", "", nil, []string{"geoip:private"}),
-		rtRuleValue(t, ruleObjType, "direct", "", []string{"geosite:category-ru", "ru"}, nil),
-		rtRuleValue(t, ruleObjType, "proxy", "tcp,udp", nil, nil),
+		rtRuleValue(t, ruleObjType, "blocked", "", []string{"geosite:category-ru"}, nil),
+		rtRuleValue(t, ruleObjType, "blocked", "tcp,udp", nil, nil),
 	})
 
 	plan := tfsdk.Plan{Schema: schemaResp.Schema, Raw: routingRaw(t, schemaResp, planRules)}
@@ -346,9 +353,9 @@ func TestXrayRoutingResource_ModifyPlan_StripsStaleCarryForward(t *testing.T) {
 	if out.Rule[0].Domain.IsNull() {
 		t.Fatal("rule 0 must keep its configured domain")
 	}
-	// rule 1 must keep its configured ip and must NOT carry the stale network.
-	if !out.Rule[1].Network.IsNull() {
-		t.Fatalf("rule 1 must not inherit stale network:tcp,udp, got %v", out.Rule[1].Network)
+	// rule 1 must keep its configured ip and must NOT carry the stale domain.
+	if !out.Rule[1].Domain.IsNull() {
+		t.Fatalf("rule 1 must not inherit stale domain:geosite:category-ru, got %v", out.Rule[1].Domain)
 	}
 	if out.Rule[1].IP.IsNull() {
 		t.Fatal("rule 1 must keep its configured ip:geoip:cn")
@@ -374,5 +381,202 @@ func TestXrayRoutingResource_ModifyPlan_NoOpOnCreate(t *testing.T) {
 	}
 	if !resp.Plan.Raw.IsNull() {
 		t.Fatalf("ModifyPlan must not rewrite the plan on Create, got %v", resp.Plan.Raw)
+	}
+}
+
+// TestXrayRoutingResource_ModifyPlan_NoOpWhenPlanMirrorsConfig ensures
+// ModifyPlan does not rewrite the plan when reconcileRoutingPlan reports no
+// change (plan already mirrors config) — covers the reconcile-false branch.
+func TestXrayRoutingResource_ModifyPlan_NoOpWhenPlanMirrorsConfig(t *testing.T) {
+	r := &XrayRoutingResource{}
+	ctx := context.Background()
+	var schemaResp resource.SchemaResponse
+	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	objType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	ruleListType := objType.AttributeTypes["rule"].(tftypes.List)
+	ruleObjType := ruleListType.ElementType.(tftypes.Object)
+
+	rules := tftypes.NewValue(ruleListType, []tftypes.Value{
+		rtRuleValue(t, ruleObjType, "direct", "", nil, []string{"geoip:private"}),
+	})
+	plan := tfsdk.Plan{Schema: schemaResp.Schema, Raw: routingRaw(t, schemaResp, rules)}
+	config := tfsdk.Config{Schema: schemaResp.Schema, Raw: routingRaw(t, schemaResp, rules)}
+	state := tfsdk.State{Schema: schemaResp.Schema, Raw: routingRaw(t, schemaResp, rules)}
+
+	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Schema: schemaResp.Schema, Raw: tftypes.NewValue(objType, nil)}}
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, Config: config, State: state}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error: %v", resp.Diagnostics)
+	}
+	// Plan must not have been rewritten — resp.Plan.Raw stays the sentinel null.
+	if !resp.Plan.Raw.IsNull() {
+		t.Fatalf("ModifyPlan must not rewrite the plan when reconcile is a no-op, got %v", resp.Plan.Raw)
+	}
+}
+
+// TestXrayRoutingResource_ModifyPlan_SkipsUnknownRuleCollection ensures
+// ModifyPlan defers to the schema plan modifiers when the configured `rule`
+// collection is itself unknown (e.g. a computed `dynamic` block whose
+// for_each is not yet known). Decoding an unknown list into []XrayRoutingRule
+// would raise a Value Conversion Error (hashicorp/terraform-plugin-framework#1025);
+// the guard reads `rule` as types.List and returns early when IsUnknown().
+func TestXrayRoutingResource_ModifyPlan_SkipsUnknownRuleCollection(t *testing.T) {
+	r := &XrayRoutingResource{}
+	ctx := context.Background()
+	var schemaResp resource.SchemaResponse
+	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	objType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	ruleListType := objType.AttributeTypes["rule"].(tftypes.List)
+	ruleObjType := ruleListType.ElementType.(tftypes.Object)
+
+	// Config with an unknown `rule` collection (simulates a computed dynamic block).
+	unknownRules := tftypes.NewValue(ruleListType, tftypes.UnknownValue)
+	cfgRaw := routingRaw(t, schemaResp, unknownRules)
+
+	// Plan and State are concrete and non-null so the first guard passes.
+	planRules := tftypes.NewValue(ruleListType, []tftypes.Value{
+		rtRuleValue(t, ruleObjType, "direct", "", nil, []string{"geoip:private"}),
+	})
+	stateRules := tftypes.NewValue(ruleListType, []tftypes.Value{
+		rtRuleValue(t, ruleObjType, "direct", "", nil, []string{"geoip:private"}),
+	})
+
+	plan := tfsdk.Plan{Schema: schemaResp.Schema, Raw: routingRaw(t, schemaResp, planRules)}
+	config := tfsdk.Config{Schema: schemaResp.Schema, Raw: cfgRaw}
+	state := tfsdk.State{Schema: schemaResp.Schema, Raw: routingRaw(t, schemaResp, stateRules)}
+
+	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Schema: schemaResp.Schema, Raw: routingRaw(t, schemaResp, planRules)}}
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, Config: config, State: state}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("ModifyPlan must not error on an unknown rule collection: %v", resp.Diagnostics)
+	}
+	// Plan must be unchanged — the guard returned without reconciling.
+	var out XrayRoutingModel
+	resp.Plan.Get(ctx, &out)
+	if len(out.Rule) != 1 {
+		t.Fatalf("expected 1 rule (unchanged plan), got %d", len(out.Rule))
+	}
+}
+
+// TestXrayRoutingResource_ModifyPlan_ConfigDecodeError ensures ModifyPlan
+// bails gracefully (no panic) when Config.GetAttribute("rule") fails — here
+// the Config Raw is an Object whose `rule` value is a String (wrong type), so
+// ValueFromTerraform raises a Value Conversion Error. Covers the GetAttribute
+// HasError guard.
+func TestXrayRoutingResource_ModifyPlan_ConfigDecodeError(t *testing.T) {
+	r := &XrayRoutingResource{}
+	ctx := context.Background()
+	var schemaResp resource.SchemaResponse
+	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	objType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	ruleListType := objType.AttributeTypes["rule"].(tftypes.List)
+
+	// Build a Config Object with a custom type where `rule` is String instead
+	// of List — tftypes.NewValue validates, so we need a matching Object type.
+	customAttrTypes := make(map[string]tftypes.Type, len(objType.AttributeTypes))
+	for k, v := range objType.AttributeTypes {
+		customAttrTypes[k] = v
+	}
+	customAttrTypes["rule"] = tftypes.String
+	customObjType := tftypes.Object{AttributeTypes: customAttrTypes}
+
+	customVals := make(map[string]tftypes.Value, len(customAttrTypes))
+	for k, ty := range customAttrTypes {
+		switch k {
+		case "rule":
+			customVals[k] = tftypes.NewValue(tftypes.String, "not-a-list")
+		case "id":
+			customVals[k] = tftypes.NewValue(tftypes.String, "xray_routing")
+		default:
+			customVals[k] = tftypes.NewValue(ty, nil)
+		}
+	}
+	badCfgRaw := tftypes.NewValue(customObjType, customVals)
+
+	// Valid Plan and State (non-null).
+	planRules := tftypes.NewValue(ruleListType, []tftypes.Value{})
+	plan := tfsdk.Plan{Schema: schemaResp.Schema, Raw: routingRaw(t, schemaResp, planRules)}
+	state := tfsdk.State{Schema: schemaResp.Schema, Raw: routingRaw(t, schemaResp, planRules)}
+	badConfig := tfsdk.Config{Schema: schemaResp.Schema, Raw: badCfgRaw}
+
+	resp := &resource.ModifyPlanResponse{Plan: plan}
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, Config: badConfig, State: state}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected diagnostics error when Config rule has the wrong type")
+	}
+}
+
+// TestXrayRoutingResource_ModifyPlan_ConfigGetDecodeError ensures ModifyPlan
+// bails gracefully when GetAttribute("rule") succeeds but Config.Get fails —
+// here `rule` is a valid List but `id` is a Number (schema expects String),
+// so decoding the whole Object into XrayRoutingModel raises a Value
+// Conversion Error. Covers the Config.Get HasError guard.
+func TestXrayRoutingResource_ModifyPlan_ConfigGetDecodeError(t *testing.T) {
+	r := &XrayRoutingResource{}
+	ctx := context.Background()
+	var schemaResp resource.SchemaResponse
+	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	objType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	ruleListType := objType.AttributeTypes["rule"].(tftypes.List)
+
+	// Build a Config Object with a custom type where `rule` is a valid List
+	// (so GetAttribute succeeds) but `id` is Bool (schema expects String).
+	customAttrTypes := make(map[string]tftypes.Type, len(objType.AttributeTypes))
+	for k, v := range objType.AttributeTypes {
+		customAttrTypes[k] = v
+	}
+	customAttrTypes["id"] = tftypes.Bool
+	customObjType := tftypes.Object{AttributeTypes: customAttrTypes}
+
+	customVals := make(map[string]tftypes.Value, len(customAttrTypes))
+	for k, ty := range customAttrTypes {
+		switch k {
+		case "rule":
+			customVals[k] = tftypes.NewValue(ruleListType, []tftypes.Value{})
+		case "id":
+			customVals[k] = tftypes.NewValue(tftypes.Bool, true)
+		case "domain_strategy":
+			customVals[k] = tftypes.NewValue(tftypes.String, "AsIs")
+		default:
+			customVals[k] = tftypes.NewValue(ty, nil)
+		}
+	}
+	badCfgRaw := tftypes.NewValue(customObjType, customVals)
+
+	// Valid Plan and State (non-null).
+	planRules := tftypes.NewValue(ruleListType, []tftypes.Value{})
+	plan := tfsdk.Plan{Schema: schemaResp.Schema, Raw: routingRaw(t, schemaResp, planRules)}
+	state := tfsdk.State{Schema: schemaResp.Schema, Raw: routingRaw(t, schemaResp, planRules)}
+	badConfig := tfsdk.Config{Schema: schemaResp.Schema, Raw: badCfgRaw}
+
+	resp := &resource.ModifyPlanResponse{Plan: plan}
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, Config: badConfig, State: state}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected diagnostics error when Config.Get fails to decode")
+	}
+}
+
+// TestXrayRoutingResource_ModifyPlan_PlanDecodeError ensures ModifyPlan bails
+// gracefully (no panic) when Plan.Raw has the wrong tftypes type and Plan.Get
+// cannot decode into XrayRoutingModel. Config is valid with a known rule list
+// so the GetAttribute + IsUnknown guards pass first.
+func TestXrayRoutingResource_ModifyPlan_PlanDecodeError(t *testing.T) {
+	r := &XrayRoutingResource{}
+	ctx := context.Background()
+	var schemaResp resource.SchemaResponse
+	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	objType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	ruleListType := objType.AttributeTypes["rule"].(tftypes.List)
+
+	// Valid Config with a known rule list, valid State (non-null), bad Plan.
+	cfgRules := tftypes.NewValue(ruleListType, []tftypes.Value{})
+	config := tfsdk.Config{Schema: schemaResp.Schema, Raw: routingRaw(t, schemaResp, cfgRules)}
+	state := tfsdk.State{Schema: schemaResp.Schema, Raw: routingRaw(t, schemaResp, cfgRules)}
+	badPlan := tfsdk.Plan{Schema: schemaResp.Schema, Raw: tftypes.NewValue(tftypes.String, "not-an-object")}
+
+	resp := &resource.ModifyPlanResponse{Plan: badPlan}
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: badPlan, Config: config, State: state}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected diagnostics error when Plan.Raw has the wrong type")
 	}
 }

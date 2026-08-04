@@ -9,7 +9,9 @@ import (
 	"sync"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	resourcepath "github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var xrayTemplateMu sync.Mutex
@@ -448,8 +450,23 @@ func (r *XrayRoutingResource) ImportState(ctx context.Context, _ resource.Import
 // always authoritative and this override never drops a real value.
 //
 // Create (no prior state) and Delete (null plan) have nothing to reconcile.
+// When the configured `rule` collection is itself unknown (e.g. a computed
+// `dynamic` block whose `for_each` is not yet known), defer to the schema plan
+// modifiers — decoding an unknown list into `[]XrayRoutingRule` raises a
+// Value Conversion Error (hashicorp/terraform-plugin-framework#1025).
 func (r *XrayRoutingResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return
+	}
+	// Read `rule` as types.List to tolerate an unknown collection. Decoding
+	// into []XrayRoutingRule via req.Config.Get would fail with a Value
+	// Conversion Error if the whole list is unknown.
+	var ruleAttr types.List
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, resourcepath.Root("rule"), &ruleAttr)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if ruleAttr.IsUnknown() {
 		return
 	}
 	var plan, config XrayRoutingModel
