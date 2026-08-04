@@ -130,6 +130,66 @@ func TestAccXrayRouting(t *testing.T) {
 	})
 }
 
+// TestAccXrayRoutingRulesReorderNoFieldBleed is the regression test for the
+// stale carry-forward bug: when a `rule` list is reordered or shortened, the
+// Optional+Computed nested attributes with UseStateForUnknown must NOT copy
+// the prior rule's unset fields into the new rule occupying the same index.
+//
+// Step 1 lays down [private→direct, RU-domains→direct, catch→proxy]. Step 2
+// reorders+removes+adds to [RU-domains→direct, geoip:cn→direct, catch→proxy].
+// Before the fix, Step 2's plan carried `ip:[geoip:private]` onto the
+// RU-domains rule (index 0) and `network:"tcp,udp"` onto the geoip:cn rule
+// (index 1), and those merged rules were written to the panel. The checks
+// assert each rule carries only its configured matchers.
+func TestAccXrayRoutingRulesReorderNoFieldBleed(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + testAccXrayRoutingReorderConfigStep1(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.#", "3"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.0.outbound_tag", "direct"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.0.ip.0", "geoip:private"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.1.outbound_tag", "blocked"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.1.domain.0", "geosite:category-ru"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.2.outbound_tag", "blocked"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.2.network", "tcp,udp"),
+				),
+			},
+			{
+				Config: testAccProviderConfig() + testAccXrayRoutingReorderConfigStep2(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.#", "3"),
+					// rule 0: RU-domains→blocked — must keep its domain and NOT
+					// inherit the stale ip:geoip:private from the prior index-0 rule.
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.0.outbound_tag", "blocked"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.0.domain.0", "geosite:category-ru"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.0.domain.#", "1"),
+					resource.TestCheckNoResourceAttr("threexui_xray_routing.test", "rule.0.ip"),
+					// rule 1: geoip:cn→direct — must keep its ip and NOT inherit
+					// the stale network:"tcp,udp" from the prior index-1 rule.
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.1.outbound_tag", "direct"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.1.ip.0", "geoip:cn"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.1.ip.#", "1"),
+					resource.TestCheckNoResourceAttr("threexui_xray_routing.test", "rule.1.network"),
+					// rule 2: catch→blocked — network only.
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.2.outbound_tag", "blocked"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.2.network", "tcp,udp"),
+				),
+			},
+			// Idempotency after the reorder — plan must be stable, proving the
+			// reconciled rule list round-trips through the panel without drift.
+			{
+				Config:             testAccProviderConfig() + testAccXrayRoutingReorderConfigStep2(),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
 func TestAccXrayBalancers(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -502,6 +562,65 @@ resource "threexui_xray_outbounds" "test" {
   outbound {
     tag      = "dns-out"
     protocol = "dns"
+  }
+}
+`
+}
+
+// testAccXrayRoutingReorderConfigStep1 lays down three rules that each use a
+// different matcher (ip / domain / network) so Step 2's reorder can exercise
+// the per-index carry-forward of unset fields across rules.
+func testAccXrayRoutingReorderConfigStep1() string {
+	return `
+resource "threexui_xray_routing" "test" {
+  domain_strategy = "AsIs"
+
+  rule {
+    type         = "field"
+    ip           = ["geoip:private"]
+    outbound_tag = "direct"
+  }
+
+  rule {
+    type         = "field"
+    domain       = ["geosite:category-ru"]
+    outbound_tag = "blocked"
+  }
+
+  rule {
+    type         = "field"
+    network      = "tcp,udp"
+    outbound_tag = "blocked"
+  }
+}
+`
+}
+
+// testAccXrayRoutingReorderConfigStep2 reorders (domain rule moves to index 0),
+// removes (private rule gone), and adds (geoip:cn at index 1). Before the fix,
+// index 0 inherited the stale ip:geoip:private and index 1 inherited the stale
+// network:"tcp,udp" from the prior state at those indices.
+func testAccXrayRoutingReorderConfigStep2() string {
+	return `
+resource "threexui_xray_routing" "test" {
+  domain_strategy = "AsIs"
+
+  rule {
+    type         = "field"
+    domain       = ["geosite:category-ru"]
+    outbound_tag = "blocked"
+  }
+
+  rule {
+    type         = "field"
+    ip           = ["geoip:cn"]
+    outbound_tag = "direct"
+  }
+
+  rule {
+    type         = "field"
+    network      = "tcp,udp"
+    outbound_tag = "blocked"
   }
 }
 `

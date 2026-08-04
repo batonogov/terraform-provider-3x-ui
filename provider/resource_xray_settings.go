@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -321,6 +322,7 @@ func (r *XrayDNSResource) ImportState(ctx context.Context, _ resource.ImportStat
 var (
 	_ resource.Resource                = &XrayRoutingResource{}
 	_ resource.ResourceWithImportState = &XrayRoutingResource{}
+	_ resource.ResourceWithModifyPlan  = &XrayRoutingResource{}
 )
 
 type XrayRoutingResource struct{ client *Client }
@@ -421,6 +423,60 @@ func (r *XrayRoutingResource) ImportState(ctx context.Context, _ resource.Import
 	}
 	state := flattenXrayRouting(flat)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+// ModifyPlan keeps the practitioner's configuration authoritative for the
+// routing rule list, defeating a stale carry-forward bug in the schema plan
+// modifiers.
+//
+// The nested `rule` block attributes are Optional + Computed with
+// stringplanmodifier/listplanmodifier.UseStateForUnknown (added by #228 to
+// silence "(known after apply)" drift after import). Because ListNestedBlock
+// elements are matched by index, that modifier copies the prior rule's unset
+// fields into the new rule occupying the same index whenever rules are
+// removed or reordered — bleeding stale matchers across rules. On a reorder
+// from [private→direct, RU-domains→direct, catch→proxy] to
+// [RU-domains→direct, geoip:cn→direct, catch→proxy] the carried fields put
+// `ip:[geoip:private]` on the RU-domains rule and `network:"tcp,udp"` on the
+// geoip:cn rule, then those merged rules get written to the panel on apply.
+//
+// Overriding the planned `rule` list with the configured one removes the
+// carry-forward while leaving truly unchanged rules (config == plan)
+// untouched. The panel echoes the routing template verbatim on save and the
+// provider filters the panel-managed `api` and `xui-dns-allow` rules on read,
+// so there are no legitimate computed-only routing fields: configuration is
+// always authoritative and this override never drops a real value.
+//
+// Create (no prior state) and Delete (null plan) have nothing to reconcile.
+func (r *XrayRoutingResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return
+	}
+	var plan, config XrayRoutingModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if reconcileRoutingPlan(&plan, config) {
+		resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	}
+}
+
+// reconcileRoutingPlan rewrites the planned routing rules to mirror the
+// configuration, returning whether the plan changed. It is the unit-testable
+// core of XrayRoutingResource.ModifyPlan: when the plan the schema plan
+// modifiers produced carries stale per-index state that configuration does
+// not, override it with the configured rule list.
+func reconcileRoutingPlan(plan *XrayRoutingModel, config XrayRoutingModel) bool {
+	if reflect.DeepEqual(plan.Rule, config.Rule) {
+		return false
+	}
+	plan.Rule = config.Rule
+	return true
 }
 
 // ---------------------------------------------------------------------------
