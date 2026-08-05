@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.22.2](https://github.com/batonogov/terraform-provider-threexui/compare/v3.22.1...v3.22.2) (2026-08-05)
+
+
+### Bug Fixes
+
+* default balancer baselines to typed null ([#423](https://github.com/batonogov/terraform-provider-threexui/issues/423)) ([4714f7c](https://github.com/batonogov/terraform-provider-threexui/commit/4714f7cb189ed20c4a173a70b01620f2915f5a46))
+* keep DNS server fields with configured entries ([#425](https://github.com/batonogov/terraform-provider-threexui/issues/425)) ([7997614](https://github.com/batonogov/terraform-provider-threexui/commit/79976146b47ff2163bc82f36830bb8306771c9c5))
+* keep omitted xray basics log absent ([#422](https://github.com/batonogov/terraform-provider-threexui/issues/422)) ([0e4c7f7](https://github.com/batonogov/terraform-provider-threexui/commit/0e4c7f7753de50c3b74244ca68ad119773aec57d)), closes [#208](https://github.com/batonogov/terraform-provider-threexui/issues/208)
+* **node:** handle unknown inbound tags in planning ([#424](https://github.com/batonogov/terraform-provider-threexui/issues/424)) ([f7d1b10](https://github.com/batonogov/terraform-provider-threexui/commit/f7d1b107b6dc6c7949128799957b131408183b2a))
+* prevent xray outbound field bleed ([#426](https://github.com/batonogov/terraform-provider-threexui/issues/426)) ([e6419c5](https://github.com/batonogov/terraform-provider-threexui/commit/e6419c51e52a146bed34305ae57d7ef273f157dc))
+* reconcile xray policy levels by id ([#427](https://github.com/batonogov/terraform-provider-threexui/issues/427)) ([372a184](https://github.com/batonogov/terraform-provider-threexui/commit/372a18491ba7f6197a4a61f27c61cb5d3259835a))
+
 ## [3.22.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.22.0...v3.22.1) (2026-08-05)
 
 
