@@ -321,34 +321,27 @@ func (r *XrayDNSResource) ImportState(ctx context.Context, _ resource.ImportStat
 // ModifyPlan keeps configured DNS server blocks authoritative. Nested
 // Optional+Computed attributes use UseStateForUnknown, which otherwise carries
 // values from the prior occupant of the same list index when servers are
-// reordered. Read the collection as types.List first so an unknown dynamic
-// collection or unknown object element is not decoded into the native
-// []XrayDNSServer model.
+// reordered. Keep the collection as a framework types.List so unknown object
+// elements and partial unknown leaves remain representable while known siblings
+// are still reconciled.
 func (r *XrayDNSResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
 		return
 	}
 
-	var serverAttr types.List
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, resourcepath.Root("server"), &serverAttr)...)
-	if resp.Diagnostics.HasError() || serverAttr.IsUnknown() {
-		return
-	}
-	for _, server := range serverAttr.Elements() {
-		if server.IsUnknown() {
-			return
-		}
-	}
-
-	var config, plan XrayDNSModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() || reflect.DeepEqual(plan.Server, config.Server) {
+	var configured types.List
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, resourcepath.Root("server"), &configured)...)
+	if resp.Diagnostics.HasError() || configured.IsUnknown() {
 		return
 	}
 
-	plan.Server = config.Server
-	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	var planned types.List
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, resourcepath.Root("server"), &planned)...)
+	if resp.Diagnostics.HasError() || planned.Equal(configured) {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, resourcepath.Root("server"), configured)...)
 }
 
 // ---------------------------------------------------------------------------

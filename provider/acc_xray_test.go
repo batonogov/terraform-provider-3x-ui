@@ -120,7 +120,10 @@ func testAccCheckXrayConfigDNSServersNoStaleFields(dataSourceName string) resour
 			if sparse["address"] != "1.1.1.1" {
 				return fmt.Errorf("remote DNS server 0 has unexpected address %v", sparse["address"])
 			}
-			for _, field := range []string{"port", "domains", "skipFallback"} {
+			for _, field := range []string{
+				"port", "domains", "expectedIPs", "unexpectedIPs", "skipFallback",
+				"queryStrategy", "disableCache", "finalQuery",
+			} {
 				if value, exists := sparse[field]; exists {
 					return fmt.Errorf("remote DNS server 0 must not have stale %s, got %v", field, value)
 				}
@@ -132,8 +135,16 @@ func testAccCheckXrayConfigDNSServersNoStaleFields(dataSourceName string) resour
 		if !ok {
 			return fmt.Errorf("remote DNS server 1 has unexpected type %T", servers[1])
 		}
-		if rich["address"] != "8.8.8.8" || intValue(rich["port"]) != 5353 || rich["skipFallback"] != true {
+		if rich["address"] != "8.8.8.8" || intValue(rich["port"]) != 5353 ||
+			rich["skipFallback"] != true || rich["queryStrategy"] != "UseIPv4" ||
+			rich["disableCache"] != true || rich["finalQuery"] != true {
 			return fmt.Errorf("remote DNS server 1 lost configured fields: %v", rich)
+		}
+		for _, field := range []string{"domains", "expectedIPs", "unexpectedIPs"} {
+			values, ok := rich[field].([]any)
+			if !ok || len(values) != 1 {
+				return fmt.Errorf("remote DNS server 1 lost configured %s: field=%v server=%v", field, rich[field], rich)
+			}
 		}
 		return nil
 	}
@@ -150,7 +161,12 @@ func TestAccXrayDNSServersReorderNoFieldBleed(t *testing.T) {
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.address", "8.8.8.8"),
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.port", "5353"),
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.domains.0", "geosite:cn"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.expect_ips.0", "geoip:cn"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.unexpected_ips.0", "geoip:private"),
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.skip_fallback", "true"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.query_strategy", "UseIPv4"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.disable_cache", "true"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.final_query", "true"),
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.address", "1.1.1.1"),
 				),
 			},
@@ -161,11 +177,21 @@ func TestAccXrayDNSServersReorderNoFieldBleed(t *testing.T) {
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.address", "1.1.1.1"),
 					resource.TestCheckNoResourceAttr("threexui_xray_dns.test", "server.0.port"),
 					resource.TestCheckNoResourceAttr("threexui_xray_dns.test", "server.0.domains"),
+					resource.TestCheckNoResourceAttr("threexui_xray_dns.test", "server.0.expect_ips"),
+					resource.TestCheckNoResourceAttr("threexui_xray_dns.test", "server.0.unexpected_ips"),
 					resource.TestCheckNoResourceAttr("threexui_xray_dns.test", "server.0.skip_fallback"),
+					resource.TestCheckNoResourceAttr("threexui_xray_dns.test", "server.0.query_strategy"),
+					resource.TestCheckNoResourceAttr("threexui_xray_dns.test", "server.0.disable_cache"),
+					resource.TestCheckNoResourceAttr("threexui_xray_dns.test", "server.0.final_query"),
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.address", "8.8.8.8"),
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.port", "5353"),
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.domains.0", "geosite:cn"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.expect_ips.0", "geoip:cn"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.unexpected_ips.0", "geoip:private"),
 					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.skip_fallback", "true"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.query_strategy", "UseIPv4"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.disable_cache", "true"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.final_query", "true"),
 					testAccCheckXrayConfigDNSServersNoStaleFields("data.threexui_xray_config.current"),
 				),
 			},
@@ -639,10 +665,15 @@ func testAccXrayDNSReorderConfigStep1() string {
 	return `
 resource "threexui_xray_dns" "test" {
   server {
-    address       = "8.8.8.8"
-    port          = 5353
-    domains       = ["geosite:cn"]
-    skip_fallback = true
+    address        = "8.8.8.8"
+    port           = 5353
+    domains        = ["geosite:cn"]
+    expect_ips     = ["geoip:cn"]
+    unexpected_ips = ["geoip:private"]
+    skip_fallback  = true
+    query_strategy = "UseIPv4"
+    disable_cache  = true
+    final_query    = true
   }
 
   server {
@@ -660,10 +691,15 @@ resource "threexui_xray_dns" "test" {
   }
 
   server {
-    address       = "8.8.8.8"
-    port          = 5353
-    domains       = ["geosite:cn"]
-    skip_fallback = true
+    address        = "8.8.8.8"
+    port           = 5353
+    domains        = ["geosite:cn"]
+    expect_ips     = ["geoip:cn"]
+    unexpected_ips = ["geoip:private"]
+    skip_fallback  = true
+    query_strategy = "UseIPv4"
+    disable_cache  = true
+    final_query    = true
   }
 }
 
