@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -951,7 +952,20 @@ func flattenBasicsPolicyLevels(in map[string]any) []any {
 	for k := range in {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	sort.SliceStable(keys, func(i, j int) bool {
+		left, leftErr := strconv.Atoi(keys[i])
+		right, rightErr := strconv.Atoi(keys[j])
+		if leftErr == nil && rightErr == nil {
+			return left < right
+		}
+		if leftErr == nil {
+			return true
+		}
+		if rightErr == nil {
+			return false
+		}
+		return keys[i] < keys[j]
+	})
 
 	out := make([]any, 0, len(in))
 	for _, key := range keys {

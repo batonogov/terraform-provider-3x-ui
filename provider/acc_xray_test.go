@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -67,6 +68,100 @@ func TestAccXrayBasicsEmpty(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestAccXrayBasicsPolicyLevelReorderNoFieldBleed(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + testAccXrayBasicsPolicyLevelsConfig(),
+				Check:  testAccCheckXrayBasicsPolicyLevelsExact("threexui_xray_basics.test"),
+			},
+			{
+				Config: testAccProviderConfig() + testAccXrayBasicsPolicyLevelsReversedConfig(),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckXrayBasicsPolicyLevelsExact("threexui_xray_basics.test"),
+					testAccCheckRawXrayBasicsPolicyLevels(),
+				),
+			},
+			{
+				Config:             testAccProviderConfig() + testAccXrayBasicsPolicyLevelsReversedConfig(),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+func testAccCheckXrayBasicsPolicyLevelsExact(resourceName string) resource.TestCheckFunc {
+	return func(state *terraform.State) error {
+		resourceState, ok := state.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("resource %s not found in state", resourceName)
+		}
+		attributes := resourceState.Primary.Attributes
+		if got := attributes["policy.0.level.#"]; got != "2" {
+			return fmt.Errorf("expected two policy levels, got %q", got)
+		}
+		expected := map[string]string{
+			"policy.0.level.0.id":        "0",
+			"policy.0.level.0.handshake": "17",
+			"policy.0.level.0.conn_idle": "300",
+			"policy.0.level.1.id":        "1",
+			"policy.0.level.1.handshake": "4",
+			"policy.0.level.1.conn_idle": "123",
+		}
+		for name, want := range expected {
+			if got := attributes[name]; got != want {
+				return fmt.Errorf("%s: got %q, want %q", name, got, want)
+			}
+		}
+		return nil
+	}
+}
+
+func testAccCheckRawXrayBasicsPolicyLevels() resource.TestCheckFunc {
+	return func(_ *terraform.State) error {
+		client, err := testAccClientFromEnv()
+		if err != nil {
+			return fmt.Errorf("client init failed: %w", err)
+		}
+		template, err := client.GetXrayTemplate(context.Background())
+		if err != nil {
+			return fmt.Errorf("read raw xray template: %w", err)
+		}
+		policy, ok := template["policy"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("raw xray template has no policy object")
+		}
+		levels, ok := policy["levels"].(map[string]any)
+		if !ok || len(levels) != 2 {
+			return fmt.Errorf("raw xray policy must contain exactly two levels, got %#v", policy["levels"])
+		}
+		level0, ok := levels["0"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("raw xray policy level 0 is missing")
+		}
+		level1, ok := levels["1"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("raw xray policy level 1 is missing")
+		}
+		if value, exists := level0["handshake"]; !exists || intValue(value) != 17 {
+			return fmt.Errorf("raw level 0 handshake: got %v, want 17", value)
+		}
+		if value, exists := level0["connIdle"]; !exists || intValue(value) != 300 {
+			return fmt.Errorf("raw level 0 connIdle: got %v, want default 300", value)
+		}
+		if value, exists := level1["connIdle"]; !exists || intValue(value) != 123 {
+			return fmt.Errorf("raw level 1 connIdle: got %v, want 123", value)
+		}
+		if value, exists := level1["handshake"]; !exists || intValue(value) != 4 {
+			return fmt.Errorf("raw level 1 handshake: got %v, want default 4", value)
+		}
+		return nil
+	}
 }
 
 func TestAccXrayDNS(t *testing.T) {
@@ -681,6 +776,50 @@ resource "threexui_xray_basics" "test" {
 func testAccXrayBasicsEmptyConfig() string {
 	return `
 resource "threexui_xray_basics" "test" {}
+`
+}
+
+func testAccXrayBasicsPolicyLevelsConfig() string {
+	return `
+resource "threexui_xray_basics" "test" {
+  log {
+    loglevel = "warning"
+  }
+
+  policy {
+    level {
+      id        = 0
+      handshake = 17
+    }
+
+    level {
+      id        = 1
+      conn_idle = 123
+    }
+  }
+}
+`
+}
+
+func testAccXrayBasicsPolicyLevelsReversedConfig() string {
+	return `
+resource "threexui_xray_basics" "test" {
+  log {
+    loglevel = "warning"
+  }
+
+  policy {
+    level {
+      id        = 1
+      conn_idle = 123
+    }
+
+    level {
+      id        = 0
+      handshake = 17
+    }
+  }
+}
 `
 }
 

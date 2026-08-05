@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"sync"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	resourcepath "github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -112,6 +114,7 @@ func xrayReadSection(
 var (
 	_ resource.Resource                = &XrayBasicsResource{}
 	_ resource.ResourceWithImportState = &XrayBasicsResource{}
+	_ resource.ResourceWithModifyPlan  = &XrayBasicsResource{}
 )
 
 type XrayBasicsResource struct{ client *Client }
@@ -203,6 +206,175 @@ func (r *XrayBasicsResource) Update(ctx context.Context, req resource.UpdateRequ
 	state := flattenXrayBasics(flat)
 	alignBasicsBlocksWithPlan(state, &plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+// ModifyPlan reconciles configured policy levels by the numeric ID used as the
+// remote map key instead of by list index. Explicit config remains authoritative;
+// omitted computed leaves come from state for the same ID (or remain unknown for
+// a new ID), and the result is sorted like flattenBasicsPolicyLevels.
+func (r *XrayBasicsResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var configuredPolicy types.List
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, resourcepath.Root("policy"), &configuredPolicy)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	priorPolicy := types.ListNull(configuredPolicy.ElementType(ctx))
+	if !req.State.Raw.IsNull() {
+		resp.Diagnostics.Append(req.State.GetAttribute(ctx, resourcepath.Root("policy"), &priorPolicy)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
+	canonicalPolicy, safe, diags := canonicalizeBasicsPolicy(ctx, configuredPolicy, priorPolicy)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() || !safe {
+		return
+	}
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, resourcepath.Root("policy"), canonicalPolicy)...)
+}
+
+// canonicalizeBasicsPolicy returns a policy value whose level objects are
+// matched to prior state and sorted by known numeric ID. It intentionally
+// operates on framework values so unknown leaves remain representable and keeps
+// omitted non-level policy siblings from prior state. Structural unknowns,
+// omitted level collections, and unknown IDs defer to the proposed plan.
+func canonicalizeBasicsPolicy(ctx context.Context, policy, priorPolicy types.List) (types.List, bool, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	if policy.IsNull() || policy.IsUnknown() {
+		return policy, false, diags
+	}
+
+	priorPoliciesByIndex := make(map[int]types.Object)
+	priorLevelsByID := make(map[int64]types.Object)
+	if !priorPolicy.IsNull() && !priorPolicy.IsUnknown() {
+		for i, priorPolicyElement := range priorPolicy.Elements() {
+			priorPolicyObject, ok := priorPolicyElement.(types.Object)
+			if !ok || priorPolicyObject.IsNull() || priorPolicyObject.IsUnknown() {
+				continue
+			}
+			priorPoliciesByIndex[i] = priorPolicyObject
+			priorLevels, ok := priorPolicyObject.Attributes()["level"].(types.List)
+			if !ok || priorLevels.IsNull() || priorLevels.IsUnknown() {
+				continue
+			}
+			for _, priorLevelElement := range priorLevels.Elements() {
+				priorLevel, ok := priorLevelElement.(types.Object)
+				if !ok || priorLevel.IsNull() || priorLevel.IsUnknown() {
+					continue
+				}
+				id, ok := priorLevel.Attributes()["id"].(types.Int64)
+				if ok && !id.IsNull() && !id.IsUnknown() {
+					priorLevelsByID[id.ValueInt64()] = priorLevel
+				}
+			}
+		}
+	}
+
+	policyElements := policy.Elements()
+	canonicalPolicies := make([]attr.Value, len(policyElements))
+	for i, element := range policyElements {
+		policyObject, ok := element.(types.Object)
+		if !ok || policyObject.IsNull() || policyObject.IsUnknown() {
+			return policy, false, diags
+		}
+
+		policyAttributes := policyObject.Attributes()
+		levels, ok := policyAttributes["level"].(types.List)
+		if !ok || levels.IsNull() || levels.IsUnknown() {
+			return policy, false, diags
+		}
+
+		canonicalAttributes := make(map[string]attr.Value, len(policyAttributes))
+		for name, value := range policyAttributes {
+			canonicalAttributes[name] = value
+			if name == "level" || !value.IsNull() {
+				continue
+			}
+			if priorPolicyObject, ok := priorPoliciesByIndex[i]; ok {
+				if priorValue, ok := priorPolicyObject.Attributes()[name]; ok {
+					canonicalAttributes[name] = priorValue
+				}
+			}
+		}
+
+		identifiedLevels := make([]struct {
+			id    int64
+			value attr.Value
+		}, len(levels.Elements()))
+		for j, levelElement := range levels.Elements() {
+			levelObject, ok := levelElement.(types.Object)
+			if !ok || levelObject.IsNull() || levelObject.IsUnknown() {
+				return policy, false, diags
+			}
+			id, ok := levelObject.Attributes()["id"].(types.Int64)
+			if !ok || id.IsNull() || id.IsUnknown() {
+				return policy, false, diags
+			}
+
+			levelAttributes := make(map[string]attr.Value, len(levelObject.Attributes()))
+			for name, value := range levelObject.Attributes() {
+				levelAttributes[name] = value
+				if name == "id" || !value.IsNull() {
+					continue
+				}
+				if priorLevel, ok := priorLevelsByID[id.ValueInt64()]; ok {
+					if priorValue, ok := priorLevel.Attributes()[name]; ok {
+						levelAttributes[name] = priorValue
+						continue
+					}
+				}
+				switch value.(type) {
+				case types.Int64:
+					levelAttributes[name] = types.Int64Unknown()
+				case types.Bool:
+					levelAttributes[name] = types.BoolUnknown()
+				default:
+					return policy, false, diags
+				}
+			}
+			canonicalLevel, levelDiags := types.ObjectValue(levelObject.AttributeTypes(ctx), levelAttributes)
+			diags.Append(levelDiags...)
+			if diags.HasError() {
+				return policy, false, diags
+			}
+			identifiedLevels[j].id = id.ValueInt64()
+			identifiedLevels[j].value = canonicalLevel
+		}
+
+		sort.SliceStable(identifiedLevels, func(left, right int) bool {
+			return identifiedLevels[left].id < identifiedLevels[right].id
+		})
+		levelElements := make([]attr.Value, len(identifiedLevels))
+		for j, level := range identifiedLevels {
+			levelElements[j] = level.value
+		}
+
+		canonicalLevels, levelDiags := types.ListValue(levels.ElementType(ctx), levelElements)
+		diags.Append(levelDiags...)
+		if diags.HasError() {
+			return policy, false, diags
+		}
+		canonicalAttributes["level"] = canonicalLevels
+		canonicalPolicy, policyDiags := types.ObjectValue(policyObject.AttributeTypes(ctx), canonicalAttributes)
+		diags.Append(policyDiags...)
+		if diags.HasError() {
+			return policy, false, diags
+		}
+		canonicalPolicies[i] = canonicalPolicy
+	}
+
+	canonical, policyDiags := types.ListValue(policy.ElementType(ctx), canonicalPolicies)
+	diags.Append(policyDiags...)
+	if diags.HasError() {
+		return policy, false, diags
+	}
+	return canonical, true, diags
 }
 
 func (r *XrayBasicsResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
