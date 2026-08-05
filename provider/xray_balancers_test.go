@@ -247,27 +247,49 @@ func TestFlattenBalancerStrategySettingsIntExpected(t *testing.T) {
 	}
 }
 
-func TestFlattenBalancerStrategySettingsBaselinesDefaultToTypedNull(t *testing.T) {
-	tests := map[string]map[string]any{
-		"absent": {"expected": 2},
-		"empty":  {"expected": 2, "baselines": []any{}},
+func TestFlattenBalancerStrategySettingsBaselinesPreservesPresence(t *testing.T) {
+	tests := map[string]struct {
+		settings map[string]any
+		wantNull bool
+	}{
+		"absent": {settings: map[string]any{"expected": 2}, wantNull: true},
+		"empty":  {settings: map[string]any{"expected": 2, "baselines": []any{}}, wantNull: false},
 	}
 
-	for name, settings := range tests {
+	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			res := flattenBalancerStrategySettings(map[string]any{"settings": settings})
+			res := flattenBalancerStrategySettings(map[string]any{"settings": tc.settings})
 			if len(res) != 1 {
 				t.Fatalf("expected 1 settings block, got %d", len(res))
 			}
 
 			baselines := res[0].Baselines
-			if !baselines.IsNull() {
-				t.Fatalf("expected baselines to be null, got %s", baselines)
+			if baselines.IsNull() != tc.wantNull {
+				t.Fatalf("baselines null = %t, want %t: %s", baselines.IsNull(), tc.wantNull, baselines)
 			}
 			if got := baselines.ElementType(context.Background()); !got.Equal(types.StringType) {
 				t.Fatalf("expected baselines element type %s, got %s", types.StringType, got)
 			}
+			if !tc.wantNull && len(baselines.Elements()) != 0 {
+				t.Fatalf("expected explicit empty baselines, got %s", baselines)
+			}
 		})
+	}
+}
+
+func TestExpandBalancerStrategySettingsPreservesExplicitEmptyBaselines(t *testing.T) {
+	settings := []XrayBalancerStrategySettings{{
+		Expected:  types.Int64Value(2),
+		Baselines: types.ListValueMust(types.StringType, []attr.Value{}),
+	}}
+
+	got := expandBalancerStrategySettings(settings)
+	baselines, ok := got["baselines"].([]any)
+	if !ok {
+		t.Fatalf("expected explicit baselines array on wire, got %#v", got["baselines"])
+	}
+	if len(baselines) != 0 {
+		t.Fatalf("expected empty baselines array, got %#v", baselines)
 	}
 }
 
