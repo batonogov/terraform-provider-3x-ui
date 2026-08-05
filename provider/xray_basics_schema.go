@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -296,6 +297,8 @@ func alignBasicsBlocksWithPlan(state, plan *XrayBasicsModel) {
 			}
 			if len(planPol.Level) == 0 {
 				statePol.Level = nil
+			} else {
+				statePol.Level = alignBasicsPolicyLevelsByID(statePol.Level, planPol.Level)
 			}
 		}
 	}
@@ -311,6 +314,36 @@ func alignBasicsBlocksWithPlan(state, plan *XrayBasicsModel) {
 	if len(plan.Env) == 0 {
 		state.Env = nil
 	}
+}
+
+func alignBasicsPolicyLevelsByID(state, reference []XrayBasicsPolicyLevel) []XrayBasicsPolicyLevel {
+	if len(state) < 2 || len(reference) == 0 {
+		return state
+	}
+
+	aligned := make([]XrayBasicsPolicyLevel, 0, len(state))
+	used := make([]bool, len(state))
+	for _, referenceLevel := range reference {
+		if referenceLevel.ID.IsNull() || referenceLevel.ID.IsUnknown() {
+			continue
+		}
+		for i, stateLevel := range state {
+			if used[i] || stateLevel.ID.IsNull() || stateLevel.ID.IsUnknown() {
+				continue
+			}
+			if stateLevel.ID.ValueInt64() == referenceLevel.ID.ValueInt64() {
+				aligned = append(aligned, stateLevel)
+				used[i] = true
+				break
+			}
+		}
+	}
+	for i, stateLevel := range state {
+		if !used[i] {
+			aligned = append(aligned, stateLevel)
+		}
+	}
+	return aligned
 }
 
 // ---------------------------------------------------------------------------
@@ -942,6 +975,23 @@ func flattenBasicsPolicySystem(in map[string]any) map[string]any {
 	return out
 }
 
+// basicsPolicyLevelKeyLess orders numeric remote policy IDs numerically before
+// any malformed non-numeric keys, which remain deterministic lexically.
+func basicsPolicyLevelKeyLess(leftKey, rightKey string) bool {
+	left, leftErr := strconv.Atoi(leftKey)
+	right, rightErr := strconv.Atoi(rightKey)
+	if leftErr == nil && rightErr == nil {
+		return left < right
+	}
+	if leftErr == nil {
+		return true
+	}
+	if rightErr == nil {
+		return false
+	}
+	return leftKey < rightKey
+}
+
 // flattenBasicsPolicyLevels converts Xray policy.levels map to TF level blocks.
 func flattenBasicsPolicyLevels(in map[string]any) []any {
 	if len(in) == 0 {
@@ -951,7 +1001,9 @@ func flattenBasicsPolicyLevels(in map[string]any) []any {
 	for k := range in {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	sort.SliceStable(keys, func(i, j int) bool {
+		return basicsPolicyLevelKeyLess(keys[i], keys[j])
+	})
 
 	out := make([]any, 0, len(in))
 	for _, key := range keys {
