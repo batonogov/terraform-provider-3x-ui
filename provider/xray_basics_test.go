@@ -201,6 +201,27 @@ func TestAlignBasicsBlocksWithPlanKeepsEnv(t *testing.T) {
 	}
 }
 
+func TestAlignBasicsBlocksWithPlanOrdersPolicyLevelsByID(t *testing.T) {
+	state := &XrayBasicsModel{Policy: []XrayBasicsPolicy{{Level: []XrayBasicsPolicyLevel{
+		{ID: types.Int64Value(0), Handshake: types.Int64Value(17)},
+		{ID: types.Int64Value(1), ConnIdle: types.Int64Value(123)},
+	}}}}
+	plan := &XrayBasicsModel{Policy: []XrayBasicsPolicy{{Level: []XrayBasicsPolicyLevel{
+		{ID: types.Int64Value(1)},
+		{ID: types.Int64Value(0)},
+	}}}}
+
+	alignBasicsBlocksWithPlan(state, plan)
+
+	levels := state.Policy[0].Level
+	if levels[0].ID.ValueInt64() != 1 || levels[1].ID.ValueInt64() != 0 {
+		t.Fatalf("state levels must follow plan ID order, got [%d, %d]", levels[0].ID.ValueInt64(), levels[1].ID.ValueInt64())
+	}
+	if levels[0].ConnIdle.ValueInt64() != 123 || levels[1].Handshake.ValueInt64() != 17 {
+		t.Fatalf("state level values must stay attached to their IDs, got %#v", levels)
+	}
+}
+
 func basicsLevelRaw(t *testing.T, levelType tftypes.Object, id int64, fields map[string]tftypes.Value) tftypes.Value {
 	t.Helper()
 	return basicsLevelRawWithID(t, levelType, tftypes.NewValue(tftypes.Number, id), fields)
@@ -249,7 +270,7 @@ func basicsRaw(t *testing.T, schemaResp resource.SchemaResponse, policyList tfty
 	return tftypes.NewValue(resourceType, values)
 }
 
-func TestXrayBasicsResourceModifyPlanCanonicalizesReorderedConfiguredLevels(t *testing.T) {
+func TestXrayBasicsResourceModifyPlanReconcilesReorderedConfiguredLevels(t *testing.T) {
 	ctx := context.Background()
 	r := &XrayBasicsResource{}
 	modifier, ok := any(r).(resource.ResourceWithModifyPlan)
@@ -314,21 +335,21 @@ func TestXrayBasicsResourceModifyPlanCanonicalizesReorderedConfiguredLevels(t *t
 		t.Fatalf("expected one policy with two levels, got %#v", got.Policy)
 	}
 	levels := got.Policy[0].Level
-	if levels[0].ID.ValueInt64() != 0 || levels[1].ID.ValueInt64() != 1 {
-		t.Fatalf("planned levels must be canonicalized by ID, got [%d, %d]", levels[0].ID.ValueInt64(), levels[1].ID.ValueInt64())
+	if levels[0].ID.ValueInt64() != 1 || levels[1].ID.ValueInt64() != 0 {
+		t.Fatalf("planned levels must preserve config order, got [%d, %d]", levels[0].ID.ValueInt64(), levels[1].ID.ValueInt64())
 	}
-	if levels[0].Handshake.ValueInt64() != 17 || levels[0].ConnIdle.ValueInt64() != 300 {
-		t.Fatalf("level 0 must keep its own configured value and same-ID default, got %#v", levels[0])
+	if levels[0].ConnIdle.ValueInt64() != 123 || levels[0].Handshake.ValueInt64() != 4 {
+		t.Fatalf("level 1 must keep its own configured value and same-ID default, got %#v", levels[0])
 	}
-	if levels[1].ConnIdle.ValueInt64() != 123 || levels[1].Handshake.ValueInt64() != 4 {
-		t.Fatalf("level 1 must keep its own configured value and same-ID default, got %#v", levels[1])
+	if levels[1].Handshake.ValueInt64() != 17 || levels[1].ConnIdle.ValueInt64() != 300 {
+		t.Fatalf("level 0 must keep its own configured value and same-ID default, got %#v", levels[1])
 	}
 	if len(got.Policy[0].System) != 1 || !got.Policy[0].System[0].StatsInboundDownlink.ValueBool() {
 		t.Fatalf("omitted policy system sibling must be preserved from state, got %#v", got.Policy[0].System)
 	}
 }
 
-func TestXrayBasicsResourceModifyPlanCanonicalizesReverseOrderOnCreate(t *testing.T) {
+func TestXrayBasicsResourceModifyPlanPreservesReverseOrderOnCreate(t *testing.T) {
 	ctx := context.Background()
 	r := &XrayBasicsResource{}
 	modifier := any(r).(resource.ResourceWithModifyPlan)
@@ -364,12 +385,68 @@ func TestXrayBasicsResourceModifyPlanCanonicalizesReverseOrderOnCreate(t *testin
 		t.Fatalf("cannot decode modified plan: %v", resp.Diagnostics)
 	}
 	levels := got.Policy[0].Level
-	if levels[0].ID.ValueInt64() != 0 || levels[1].ID.ValueInt64() != 2 {
-		t.Fatalf("create plan levels must be canonicalized by ID, got [%d, %d]", levels[0].ID.ValueInt64(), levels[1].ID.ValueInt64())
+	if levels[0].ID.ValueInt64() != 2 || levels[1].ID.ValueInt64() != 0 {
+		t.Fatalf("create plan levels must preserve config order, got [%d, %d]", levels[0].ID.ValueInt64(), levels[1].ID.ValueInt64())
 	}
-	if !levels[0].ConnIdle.IsUnknown() || !levels[1].Handshake.IsUnknown() ||
-		!levels[0].StatsUserUplink.IsUnknown() || !levels[1].StatsUserDownlink.IsUnknown() {
+	if !levels[0].Handshake.IsUnknown() || !levels[1].ConnIdle.IsUnknown() ||
+		!levels[0].StatsUserDownlink.IsUnknown() || !levels[1].StatsUserUplink.IsUnknown() {
 		t.Fatalf("omitted computed level fields must remain unknown, got %#v", levels)
+	}
+}
+
+func TestXrayBasicsResourceModifyPlanReconcilesKnownSiblingWithUnknownLevelID(t *testing.T) {
+	ctx := context.Background()
+	r := &XrayBasicsResource{}
+	modifier := any(r).(resource.ResourceWithModifyPlan)
+
+	var schemaResp resource.SchemaResponse
+	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	resourceType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	policyListType := resourceType.AttributeTypes["policy"].(tftypes.List)
+	policyType := policyListType.ElementType.(tftypes.Object)
+	levelListType := policyType.AttributeTypes["level"].(tftypes.List)
+	levelType := levelListType.ElementType.(tftypes.Object)
+	intValue := func(value int64) tftypes.Value {
+		return tftypes.NewValue(tftypes.Number, value)
+	}
+	unknownID := tftypes.NewValue(tftypes.Number, tftypes.UnknownValue)
+
+	configuredLevels := tftypes.NewValue(levelListType, []tftypes.Value{
+		basicsLevelRawWithID(t, levelType, unknownID, map[string]tftypes.Value{"handshake": intValue(17)}),
+		basicsLevelRaw(t, levelType, 1, map[string]tftypes.Value{"conn_idle": intValue(123)}),
+	})
+	pollutedLevels := tftypes.NewValue(levelListType, []tftypes.Value{
+		basicsLevelRawWithID(t, levelType, unknownID, map[string]tftypes.Value{"handshake": intValue(17)}),
+		basicsLevelRaw(t, levelType, 1, map[string]tftypes.Value{"handshake": intValue(17), "conn_idle": intValue(123)}),
+	})
+	priorLevels := tftypes.NewValue(levelListType, []tftypes.Value{
+		basicsLevelRaw(t, levelType, 0, map[string]tftypes.Value{"handshake": intValue(17), "conn_idle": intValue(300)}),
+		basicsLevelRaw(t, levelType, 1, map[string]tftypes.Value{"handshake": intValue(4), "conn_idle": intValue(123)}),
+	})
+	policyList := func(levels tftypes.Value) tftypes.Value {
+		return tftypes.NewValue(policyListType, []tftypes.Value{basicsPolicyRaw(t, policyType, levels)})
+	}
+	plan := tfsdk.Plan{Schema: schemaResp.Schema, Raw: basicsRaw(t, schemaResp, policyList(pollutedLevels))}
+	config := tfsdk.Config{Schema: schemaResp.Schema, Raw: basicsRaw(t, schemaResp, policyList(configuredLevels))}
+	state := tfsdk.State{Schema: schemaResp.Schema, Raw: basicsRaw(t, schemaResp, policyList(priorLevels))}
+	resp := &resource.ModifyPlanResponse{Plan: plan}
+
+	modifier.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, Config: config, State: state}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected ModifyPlan diagnostics: %v", resp.Diagnostics)
+	}
+
+	var got XrayBasicsModel
+	resp.Diagnostics.Append(resp.Plan.Get(ctx, &got)...)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("cannot decode modified plan: %v", resp.Diagnostics)
+	}
+	levels := got.Policy[0].Level
+	if !levels[0].ID.IsUnknown() {
+		t.Fatalf("unknown level ID must remain unknown, got %#v", levels[0].ID)
+	}
+	if levels[1].ID.ValueInt64() != 1 || levels[1].Handshake.ValueInt64() != 4 {
+		t.Fatalf("known id=1 sibling must keep its same-ID handshake=4, got %#v", levels[1])
 	}
 }
 
@@ -404,16 +481,6 @@ func TestXrayBasicsResourceModifyPlanPreservesUnknownPolicyShapes(t *testing.T) 
 		"level collection": tftypes.NewValue(policyListType, []tftypes.Value{
 			basicsPolicyRaw(t, policyType, tftypes.NewValue(levelListType, tftypes.UnknownValue)),
 		}),
-		"level element": tftypes.NewValue(policyListType, []tftypes.Value{
-			basicsPolicyRaw(t, policyType, tftypes.NewValue(levelListType, []tftypes.Value{
-				tftypes.NewValue(levelType, tftypes.UnknownValue),
-			})),
-		}),
-		"level id": tftypes.NewValue(policyListType, []tftypes.Value{
-			basicsPolicyRaw(t, policyType, tftypes.NewValue(levelListType, []tftypes.Value{
-				basicsLevelRawWithID(t, levelType, tftypes.NewValue(tftypes.Number, tftypes.UnknownValue), nil),
-			})),
-		}),
 	}
 
 	for name, configuredPolicy := range tests {
@@ -429,6 +496,50 @@ func TestXrayBasicsResourceModifyPlanPreservesUnknownPolicyShapes(t *testing.T) 
 			}
 		})
 	}
+
+	t.Run("level element stays unresolved", func(t *testing.T) {
+		configuredPolicy := tftypes.NewValue(policyListType, []tftypes.Value{
+			basicsPolicyRaw(t, policyType, tftypes.NewValue(levelListType, []tftypes.Value{
+				tftypes.NewValue(levelType, tftypes.UnknownValue),
+			})),
+		})
+		config := tfsdk.Config{Schema: schemaResp.Schema, Raw: basicsRaw(t, schemaResp, configuredPolicy)}
+		resp := &resource.ModifyPlanResponse{Plan: plan}
+		modifier.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, Config: config, State: state}, resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("unknown level element must not produce diagnostics: %v", resp.Diagnostics)
+		}
+		var policyValue types.List
+		resp.Diagnostics.Append(resp.Plan.GetAttribute(ctx, resourcepath.Root("policy"), &policyValue)...)
+		policyObject := policyValue.Elements()[0].(types.Object)
+		levels := policyObject.Attributes()["level"].(types.List)
+		if !levels.Elements()[0].(types.Object).IsUnknown() {
+			t.Fatalf("unknown level element must remain unresolved, got %v", levels.Elements()[0])
+		}
+	})
+
+	t.Run("level id stays unresolved", func(t *testing.T) {
+		configuredPolicy := tftypes.NewValue(policyListType, []tftypes.Value{
+			basicsPolicyRaw(t, policyType, tftypes.NewValue(levelListType, []tftypes.Value{
+				basicsLevelRawWithID(t, levelType, tftypes.NewValue(tftypes.Number, tftypes.UnknownValue), nil),
+			})),
+		})
+		config := tfsdk.Config{Schema: schemaResp.Schema, Raw: basicsRaw(t, schemaResp, configuredPolicy)}
+		resp := &resource.ModifyPlanResponse{Plan: plan}
+		modifier.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, Config: config, State: state}, resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatalf("unknown level ID must not produce diagnostics: %v", resp.Diagnostics)
+		}
+		var policyValue types.List
+		resp.Diagnostics.Append(resp.Plan.GetAttribute(ctx, resourcepath.Root("policy"), &policyValue)...)
+		policyObject := policyValue.Elements()[0].(types.Object)
+		levels := policyObject.Attributes()["level"].(types.List)
+		level := levels.Elements()[0].(types.Object)
+		if !level.Attributes()["id"].(types.Int64).IsUnknown() ||
+			!level.Attributes()["handshake"].(types.Int64).IsUnknown() {
+			t.Fatalf("unknown-ID level must remain unresolved without positional state, got %v", level)
+		}
+	})
 
 	priorTests := map[string]tftypes.Value{
 		"unknown policy object": tftypes.NewValue(policyListType, []tftypes.Value{
@@ -525,11 +636,11 @@ func TestXrayBasicsResourceModifyPlanSortsWithUnknownNonIDLeaf(t *testing.T) {
 		t.Fatalf("cannot decode modified plan: %v", resp.Diagnostics)
 	}
 	levels := got.Policy[0].Level
-	if levels[0].ID.ValueInt64() != 0 || levels[1].ID.ValueInt64() != 1 {
-		t.Fatalf("levels with known IDs must still be sorted, got [%d, %d]", levels[0].ID.ValueInt64(), levels[1].ID.ValueInt64())
+	if levels[0].ID.ValueInt64() != 1 || levels[1].ID.ValueInt64() != 0 {
+		t.Fatalf("levels with known IDs must preserve config order, got [%d, %d]", levels[0].ID.ValueInt64(), levels[1].ID.ValueInt64())
 	}
-	if !levels[1].Handshake.IsUnknown() {
-		t.Fatalf("configured unknown handshake must replace stale planned value, got %v", levels[1].Handshake)
+	if !levels[0].Handshake.IsUnknown() {
+		t.Fatalf("configured unknown handshake must replace stale planned value, got %v", levels[0].Handshake)
 	}
 }
 

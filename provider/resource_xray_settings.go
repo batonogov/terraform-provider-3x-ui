@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"sort"
 	"sync"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -211,7 +210,7 @@ func (r *XrayBasicsResource) Update(ctx context.Context, req resource.UpdateRequ
 // ModifyPlan reconciles configured policy levels by the numeric ID used as the
 // remote map key instead of by list index. Explicit config remains authoritative;
 // omitted computed leaves come from state for the same ID (or remain unknown for
-// a new ID), and the result is sorted like flattenBasicsPolicyLevels.
+// a new ID), while configured list order is preserved for Terraform plan validity.
 func (r *XrayBasicsResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.Plan.Raw.IsNull() {
 		return
@@ -234,11 +233,12 @@ func (r *XrayBasicsResource) ModifyPlan(ctx context.Context, req resource.Modify
 	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, resourcepath.Root("policy"), canonicalPolicy)...)
 }
 
-// canonicalizeBasicsPolicy returns a policy value whose level objects are
-// matched to prior state and sorted by known numeric ID. It intentionally
+// canonicalizeBasicsPolicy returns a policy list whose configured levels are
+// matched to prior state by known numeric ID without changing configured order. It intentionally
 // operates on framework values so unknown leaves remain representable and keeps
 // omitted non-level policy siblings from prior state. Structural unknowns,
-// omitted level collections, and unknown IDs defer to the proposed plan.
+// omitted level collections defer to the proposed plan. Unknown level objects
+// and IDs stay in place while known siblings are still reconciled by ID.
 func canonicalizeBasicsPolicy(ctx context.Context, policy, priorPolicy types.List) (types.List, bool) {
 	if policy.IsNull() || policy.IsUnknown() {
 		return policy, false
@@ -297,19 +297,21 @@ func canonicalizeBasicsPolicy(ctx context.Context, policy, priorPolicy types.Lis
 			}
 		}
 
-		identifiedLevels := make([]struct {
-			id    int64
-			value attr.Value
-		}, len(levels.Elements()))
+		levelElements := make([]attr.Value, len(levels.Elements()))
 		for j, levelElement := range levels.Elements() {
 			levelObject, ok := levelElement.(types.Object)
-			if !ok || levelObject.IsNull() || levelObject.IsUnknown() {
+			if !ok {
 				return policy, false
+			}
+			if levelObject.IsNull() || levelObject.IsUnknown() {
+				levelElements[j] = levelElement
+				continue
 			}
 			id, ok := levelObject.Attributes()["id"].(types.Int64)
-			if !ok || id.IsNull() || id.IsUnknown() {
+			if !ok {
 				return policy, false
 			}
+			idKnown := !id.IsNull() && !id.IsUnknown()
 
 			levelAttributes := make(map[string]attr.Value, len(levelObject.Attributes()))
 			for name, value := range levelObject.Attributes() {
@@ -317,10 +319,12 @@ func canonicalizeBasicsPolicy(ctx context.Context, policy, priorPolicy types.Lis
 				if name == "id" || !value.IsNull() {
 					continue
 				}
-				if priorLevel, ok := priorLevelsByID[id.ValueInt64()]; ok {
-					if priorValue, ok := priorLevel.Attributes()[name]; ok {
-						levelAttributes[name] = priorValue
-						continue
+				if idKnown {
+					if priorLevel, ok := priorLevelsByID[id.ValueInt64()]; ok {
+						if priorValue, ok := priorLevel.Attributes()[name]; ok {
+							levelAttributes[name] = priorValue
+							continue
+						}
 					}
 				}
 				switch value.(type) {
@@ -333,16 +337,7 @@ func canonicalizeBasicsPolicy(ctx context.Context, policy, priorPolicy types.Lis
 				}
 			}
 			canonicalLevel := types.ObjectValueMust(levelObject.AttributeTypes(ctx), levelAttributes)
-			identifiedLevels[j].id = id.ValueInt64()
-			identifiedLevels[j].value = canonicalLevel
-		}
-
-		sort.SliceStable(identifiedLevels, func(left, right int) bool {
-			return identifiedLevels[left].id < identifiedLevels[right].id
-		})
-		levelElements := make([]attr.Value, len(identifiedLevels))
-		for j, level := range identifiedLevels {
-			levelElements[j] = level.value
+			levelElements[j] = canonicalLevel
 		}
 
 		canonicalLevels := types.ListValueMust(levels.ElementType(ctx), levelElements)

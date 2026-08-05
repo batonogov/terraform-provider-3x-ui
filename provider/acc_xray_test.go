@@ -77,12 +77,12 @@ func TestAccXrayBasicsPolicyLevelReorderNoFieldBleed(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccProviderConfig() + testAccXrayBasicsPolicyLevelsConfig(),
-				Check:  testAccCheckXrayBasicsPolicyLevelsExact("threexui_xray_basics.test"),
+				Check:  testAccCheckXrayBasicsPolicyLevelsNoFieldBleed("threexui_xray_basics.test"),
 			},
 			{
 				Config: testAccProviderConfig() + testAccXrayBasicsPolicyLevelsReversedConfig(),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckXrayBasicsPolicyLevelsExact("threexui_xray_basics.test"),
+					testAccCheckXrayBasicsPolicyLevelsNoFieldBleed("threexui_xray_basics.test"),
 					testAccCheckRawXrayBasicsPolicyLevels(),
 				),
 			},
@@ -95,7 +95,29 @@ func TestAccXrayBasicsPolicyLevelReorderNoFieldBleed(t *testing.T) {
 	})
 }
 
-func testAccCheckXrayBasicsPolicyLevelsExact(resourceName string) resource.TestCheckFunc {
+func TestAccXrayBasicsPolicyLevelMixedKnownUnknownIDNoFieldBleed(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{Config: testAccProviderConfig() + testAccXrayBasicsPolicyLevelsConfig()},
+			{
+				Config: testAccProviderConfig() + testAccXrayBasicsPolicyLevelsMixedUnknownConfig(),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckXrayBasicsMixedPolicyLevels("threexui_xray_basics.test"),
+					testAccCheckRawXrayBasicsMixedPolicyLevels(),
+				),
+			},
+			{
+				Config:             testAccProviderConfig() + testAccXrayBasicsPolicyLevelsMixedUnknownConfig(),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+func testAccCheckXrayBasicsPolicyLevelsNoFieldBleed(resourceName string) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
 		resourceState, ok := state.RootModule().Resources[resourceName]
 		if !ok {
@@ -105,18 +127,32 @@ func testAccCheckXrayBasicsPolicyLevelsExact(resourceName string) resource.TestC
 		if got := attributes["policy.0.level.#"]; got != "2" {
 			return fmt.Errorf("expected two policy levels, got %q", got)
 		}
-		expected := map[string]string{
-			"policy.0.level.0.id":        "0",
-			"policy.0.level.0.handshake": "17",
-			"policy.0.level.0.conn_idle": "300",
-			"policy.0.level.1.id":        "1",
-			"policy.0.level.1.handshake": "4",
-			"policy.0.level.1.conn_idle": "123",
-		}
-		for name, want := range expected {
-			if got := attributes[name]; got != want {
-				return fmt.Errorf("%s: got %q, want %q", name, got, want)
+		seen := map[string]bool{}
+		for i := 0; i < 2; i++ {
+			prefix := fmt.Sprintf("policy.0.level.%d", i)
+			switch id := attributes[prefix+".id"]; id {
+			case "0":
+				seen[id] = true
+				if got := attributes[prefix+".handshake"]; got != "17" {
+					return fmt.Errorf("policy level 0 handshake: got %q, want 17", got)
+				}
+				if got := attributes[prefix+".conn_idle"]; got == "123" {
+					return fmt.Errorf("policy level 0 inherited conn_idle=123 from level 1")
+				}
+			case "1":
+				seen[id] = true
+				if got := attributes[prefix+".conn_idle"]; got != "123" {
+					return fmt.Errorf("policy level 1 conn_idle: got %q, want 123", got)
+				}
+				if got := attributes[prefix+".handshake"]; got == "17" {
+					return fmt.Errorf("policy level 1 inherited handshake=17 from level 0")
+				}
+			default:
+				return fmt.Errorf("unexpected policy level ID %q at index %d", id, i)
 			}
+		}
+		if !seen["0"] || !seen["1"] {
+			return fmt.Errorf("expected policy level IDs 0 and 1, got %#v", seen)
 		}
 		return nil
 	}
@@ -151,14 +187,97 @@ func testAccCheckRawXrayBasicsPolicyLevels() resource.TestCheckFunc {
 		if value, exists := level0["handshake"]; !exists || intValue(value) != 17 {
 			return fmt.Errorf("raw level 0 handshake: got %v, want 17", value)
 		}
-		if value, exists := level0["connIdle"]; !exists || intValue(value) != 300 {
-			return fmt.Errorf("raw level 0 connIdle: got %v, want default 300", value)
+		if value, exists := level0["connIdle"]; exists && intValue(value) == 123 {
+			return fmt.Errorf("raw level 0 inherited connIdle=123 from level 1")
 		}
 		if value, exists := level1["connIdle"]; !exists || intValue(value) != 123 {
 			return fmt.Errorf("raw level 1 connIdle: got %v, want 123", value)
 		}
-		if value, exists := level1["handshake"]; !exists || intValue(value) != 4 {
-			return fmt.Errorf("raw level 1 handshake: got %v, want default 4", value)
+		if value, exists := level1["handshake"]; exists && intValue(value) == 17 {
+			return fmt.Errorf("raw level 1 inherited handshake=17 from level 0")
+		}
+		return nil
+	}
+}
+
+func testAccCheckXrayBasicsMixedPolicyLevels(resourceName string) resource.TestCheckFunc {
+	return func(state *terraform.State) error {
+		resourceState, ok := state.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("resource %s not found in state", resourceName)
+		}
+		attributes := resourceState.Primary.Attributes
+		if got := attributes["policy.0.level.#"]; got != "2" {
+			return fmt.Errorf("expected two policy levels, got %q", got)
+		}
+		seen := map[string]bool{}
+		for i := 0; i < 2; i++ {
+			prefix := fmt.Sprintf("policy.0.level.%d", i)
+			switch id := attributes[prefix+".id"]; id {
+			case "1":
+				seen[id] = true
+				if got := attributes[prefix+".conn_idle"]; got != "123" {
+					return fmt.Errorf("policy level 1 conn_idle: got %q, want 123", got)
+				}
+				if got := attributes[prefix+".handshake"]; got == "17" {
+					return fmt.Errorf("policy level 1 inherited handshake=17 from prior level 0")
+				}
+			case "0":
+				seen[id] = true
+				if got := attributes[prefix+".handshake"]; got != "33" {
+					return fmt.Errorf("policy level 0 handshake: got %q, want 33", got)
+				}
+				if got := attributes[prefix+".conn_idle"]; got == "123" {
+					return fmt.Errorf("policy level 0 inherited conn_idle=123 from prior level 1")
+				}
+			default:
+				return fmt.Errorf("unexpected mixed policy level ID %q at index %d", id, i)
+			}
+		}
+		if !seen["1"] || !seen["0"] {
+			return fmt.Errorf("expected mixed policy level IDs 1 and 0, got %#v", seen)
+		}
+		return nil
+	}
+}
+
+func testAccCheckRawXrayBasicsMixedPolicyLevels() resource.TestCheckFunc {
+	return func(_ *terraform.State) error {
+		client, err := testAccClientFromEnv()
+		if err != nil {
+			return fmt.Errorf("client init failed: %w", err)
+		}
+		template, err := client.GetXrayTemplate(context.Background())
+		if err != nil {
+			return fmt.Errorf("read raw xray template: %w", err)
+		}
+		policy, ok := template["policy"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("raw xray template has no policy object")
+		}
+		levels, ok := policy["levels"].(map[string]any)
+		if !ok || len(levels) != 2 {
+			return fmt.Errorf("raw xray policy must contain exactly two levels, got %#v", policy["levels"])
+		}
+		level1, ok := levels["1"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("raw xray policy level 1 is missing")
+		}
+		level0, ok := levels["0"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("raw xray policy level 0 is missing")
+		}
+		if value, exists := level1["connIdle"]; !exists || intValue(value) != 123 {
+			return fmt.Errorf("raw level 1 connIdle: got %v, want 123", value)
+		}
+		if value, exists := level1["handshake"]; exists && intValue(value) == 17 {
+			return fmt.Errorf("raw level 1 inherited handshake=17 from prior level 0")
+		}
+		if value, exists := level0["handshake"]; !exists || intValue(value) != 33 {
+			return fmt.Errorf("raw level 0 handshake: got %v, want 33", value)
+		}
+		if value, exists := level0["connIdle"]; exists && intValue(value) == 123 {
+			return fmt.Errorf("raw level 0 inherited connIdle=123 from prior level 1")
 		}
 		return nil
 	}
@@ -817,6 +936,32 @@ resource "threexui_xray_basics" "test" {
     level {
       id        = 0
       handshake = 17
+    }
+  }
+}
+`
+}
+
+func testAccXrayBasicsPolicyLevelsMixedUnknownConfig() string {
+	return `
+resource "terraform_data" "new_level" {
+  input = 0
+}
+
+resource "threexui_xray_basics" "test" {
+  log {
+    loglevel = "warning"
+  }
+
+  policy {
+    level {
+      id        = 1
+      conn_idle = 123
+    }
+
+    level {
+      id        = terraform_data.new_level.output
+      handshake = 33
     }
   }
 }

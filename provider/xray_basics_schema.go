@@ -297,6 +297,8 @@ func alignBasicsBlocksWithPlan(state, plan *XrayBasicsModel) {
 			}
 			if len(planPol.Level) == 0 {
 				statePol.Level = nil
+			} else {
+				statePol.Level = alignBasicsPolicyLevelsByID(statePol.Level, planPol.Level)
 			}
 		}
 	}
@@ -312,6 +314,36 @@ func alignBasicsBlocksWithPlan(state, plan *XrayBasicsModel) {
 	if len(plan.Env) == 0 {
 		state.Env = nil
 	}
+}
+
+func alignBasicsPolicyLevelsByID(state, reference []XrayBasicsPolicyLevel) []XrayBasicsPolicyLevel {
+	if len(state) < 2 || len(reference) == 0 {
+		return state
+	}
+
+	aligned := make([]XrayBasicsPolicyLevel, 0, len(state))
+	used := make([]bool, len(state))
+	for _, referenceLevel := range reference {
+		if referenceLevel.ID.IsNull() || referenceLevel.ID.IsUnknown() {
+			continue
+		}
+		for i, stateLevel := range state {
+			if used[i] || stateLevel.ID.IsNull() || stateLevel.ID.IsUnknown() {
+				continue
+			}
+			if stateLevel.ID.ValueInt64() == referenceLevel.ID.ValueInt64() {
+				aligned = append(aligned, stateLevel)
+				used[i] = true
+				break
+			}
+		}
+	}
+	for i, stateLevel := range state {
+		if !used[i] {
+			aligned = append(aligned, stateLevel)
+		}
+	}
+	return aligned
 }
 
 // ---------------------------------------------------------------------------
