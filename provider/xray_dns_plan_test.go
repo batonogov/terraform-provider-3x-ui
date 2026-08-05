@@ -161,3 +161,75 @@ func TestXrayDNSResourceModifyPlanSkipsUnknownServerCollection(t *testing.T) {
 		t.Fatalf("ModifyPlan must defer an unknown server collection: %v", resp.Diagnostics)
 	}
 }
+
+func TestXrayDNSResourceModifyPlanSkipsNullPlanOrState(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	r := &XrayDNSResource{}
+	var schemaResp resource.SchemaResponse
+	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+
+	objType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	serverListType := objType.AttributeTypes["server"].(tftypes.List)
+	serverObjType := serverListType.ElementType.(tftypes.Object)
+	servers := tftypes.NewValue(serverListType, []tftypes.Value{
+		dnsServerPlanValue(t, serverObjType, "8.8.8.8", nil, nil, nil),
+	})
+	knownRaw := dnsPlanRaw(t, schemaResp, servers)
+	nullRaw := tftypes.NewValue(objType, nil)
+
+	for _, tc := range []struct {
+		name     string
+		planRaw  tftypes.Value
+		stateRaw tftypes.Value
+	}{
+		{name: "null plan", planRaw: nullRaw, stateRaw: knownRaw},
+		{name: "null state", planRaw: knownRaw, stateRaw: nullRaw},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			plan := tfsdk.Plan{Schema: schemaResp.Schema, Raw: tc.planRaw}
+			config := tfsdk.Config{Schema: schemaResp.Schema, Raw: knownRaw}
+			state := tfsdk.State{Schema: schemaResp.Schema, Raw: tc.stateRaw}
+			resp := &resource.ModifyPlanResponse{Plan: plan}
+
+			r.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, Config: config, State: state}, resp)
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("ModifyPlan must skip null plan/state: %v", resp.Diagnostics)
+			}
+		})
+	}
+}
+
+func TestXrayDNSResourceModifyPlanNoOpWhenServersAlreadyMatch(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	r := &XrayDNSResource{}
+	var schemaResp resource.SchemaResponse
+	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+
+	objType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	serverListType := objType.AttributeTypes["server"].(tftypes.List)
+	serverObjType := serverListType.ElementType.(tftypes.Object)
+	servers := tftypes.NewValue(serverListType, []tftypes.Value{
+		dnsServerPlanValue(t, serverObjType, "8.8.8.8", nil, nil, nil),
+	})
+	raw := dnsPlanRaw(t, schemaResp, servers)
+	plan := tfsdk.Plan{Schema: schemaResp.Schema, Raw: raw}
+	config := tfsdk.Config{Schema: schemaResp.Schema, Raw: raw}
+	state := tfsdk.State{Schema: schemaResp.Schema, Raw: raw}
+	resp := &resource.ModifyPlanResponse{Plan: plan}
+
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, Config: config, State: state}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected ModifyPlan diagnostics: %v", resp.Diagnostics)
+	}
+
+	var got XrayDNSModel
+	resp.Diagnostics.Append(resp.Plan.Get(ctx, &got)...)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("failed to decode unchanged plan: %v", resp.Diagnostics)
+	}
+	if len(got.Server) != 1 || got.Server[0].Address.ValueString() != "8.8.8.8" {
+		t.Fatalf("matching server plan changed unexpectedly: %#v", got.Server)
+	}
+}
