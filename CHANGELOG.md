@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.22.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.22.0...v3.22.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* prevent routing rule field bleed when rules are removed or reordered ([#415](https://github.com/batonogov/terraform-provider-threexui/issues/415)) ([7b8aa6e](https://github.com/batonogov/terraform-provider-threexui/commit/7b8aa6e079c734948e8ce94d0bcd0a0f9011d1ff))
+
 ## [3.22.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.21.0...v3.22.0) (2026-07-30)
 
 
