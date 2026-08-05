@@ -225,6 +225,7 @@ func (r *XrayBasicsResource) ImportState(ctx context.Context, _ resource.ImportS
 var (
 	_ resource.Resource                = &XrayDNSResource{}
 	_ resource.ResourceWithImportState = &XrayDNSResource{}
+	_ resource.ResourceWithModifyPlan  = &XrayDNSResource{}
 )
 
 type XrayDNSResource struct{ client *Client }
@@ -315,6 +316,32 @@ func (r *XrayDNSResource) ImportState(ctx context.Context, _ resource.ImportStat
 	}
 	state := flattenXrayDNS(flat)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+// ModifyPlan keeps configured DNS server blocks authoritative. Nested
+// Optional+Computed attributes use UseStateForUnknown, which otherwise carries
+// values from the prior occupant of the same list index when servers are
+// reordered. Keep the collection as a framework types.List so unknown object
+// elements and partial unknown leaves remain representable while known siblings
+// are still reconciled.
+func (r *XrayDNSResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return
+	}
+
+	var configured types.List
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, resourcepath.Root("server"), &configured)...)
+	if resp.Diagnostics.HasError() || configured.IsUnknown() {
+		return
+	}
+
+	var planned types.List
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, resourcepath.Root("server"), &planned)...)
+	if resp.Diagnostics.HasError() || planned.Equal(configured) {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, resourcepath.Root("server"), configured)...)
 }
 
 // ---------------------------------------------------------------------------
