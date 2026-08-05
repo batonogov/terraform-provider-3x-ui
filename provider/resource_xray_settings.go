@@ -728,6 +728,7 @@ func (r *XrayReverseResource) ImportState(ctx context.Context, _ resource.Import
 var (
 	_ resource.Resource                = &XrayOutboundsResource{}
 	_ resource.ResourceWithImportState = &XrayOutboundsResource{}
+	_ resource.ResourceWithModifyPlan  = &XrayOutboundsResource{}
 )
 
 type XrayOutboundsResource struct{ client *Client }
@@ -818,6 +819,38 @@ func (r *XrayOutboundsResource) ImportState(ctx context.Context, _ resource.Impo
 	}
 	state := flattenXrayOutbounds(flat)
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+// ModifyPlan keeps each configured outbound object authoritative during an
+// update. outbound is a ListNestedBlock, and every optional top-level field and
+// every optional descendant of mux/protocol-specific blocks is also Computed
+// with UseStateForUnknown. Terraform correlates those descendants by list index,
+// so a reorder can otherwise copy values from the old occupant into a different
+// outbound and Update will persist the polluted object.
+//
+// Work with the framework list value rather than []XrayOutboundEntry. Besides
+// preserving partially unknown leaves, this safely represents both a wholly
+// unknown outbound collection and known collections containing unknown object
+// elements. A wholly unknown collection is left to the schema plan modifiers;
+// otherwise the complete configured list replaces any index-polluted plan.
+func (r *XrayOutboundsResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return
+	}
+
+	var configured types.List
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, resourcepath.Root("outbound"), &configured)...)
+	if resp.Diagnostics.HasError() || configured.IsUnknown() {
+		return
+	}
+
+	var planned types.List
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, resourcepath.Root("outbound"), &planned)...)
+	if resp.Diagnostics.HasError() || planned.Equal(configured) {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, resourcepath.Root("outbound"), configured)...)
 }
 
 // ---------------------------------------------------------------------------
