@@ -93,6 +93,91 @@ func TestAccXrayDNS(t *testing.T) {
 	})
 }
 
+func testAccCheckXrayConfigDNSServersNoStaleFields(dataSourceName string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[dataSourceName]
+		if !ok {
+			return fmt.Errorf("data source %s not found in state", dataSourceName)
+		}
+		var cfg map[string]any
+		if err := json.Unmarshal([]byte(rs.Primary.Attributes["json"]), &cfg); err != nil {
+			return fmt.Errorf("cannot parse xray config JSON: %w", err)
+		}
+		dns, ok := cfg["dns"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("xray config has no dns section")
+		}
+		servers, ok := dns["servers"].([]any)
+		if !ok || len(servers) != 2 {
+			return fmt.Errorf("expected 2 remote DNS servers, got %v", dns["servers"])
+		}
+		switch sparse := servers[0].(type) {
+		case string:
+			if sparse != "1.1.1.1" {
+				return fmt.Errorf("remote DNS server 0 has unexpected address %q", sparse)
+			}
+		case map[string]any:
+			if sparse["address"] != "1.1.1.1" {
+				return fmt.Errorf("remote DNS server 0 has unexpected address %v", sparse["address"])
+			}
+			for _, field := range []string{"port", "domains", "skipFallback"} {
+				if value, exists := sparse[field]; exists {
+					return fmt.Errorf("remote DNS server 0 must not have stale %s, got %v", field, value)
+				}
+			}
+		default:
+			return fmt.Errorf("remote DNS server 0 has unexpected type %T", servers[0])
+		}
+		rich, ok := servers[1].(map[string]any)
+		if !ok {
+			return fmt.Errorf("remote DNS server 1 has unexpected type %T", servers[1])
+		}
+		if rich["address"] != "8.8.8.8" || intValue(rich["port"]) != 5353 || rich["skipFallback"] != true {
+			return fmt.Errorf("remote DNS server 1 lost configured fields: %v", rich)
+		}
+		return nil
+	}
+}
+
+func TestAccXrayDNSServersReorderNoFieldBleed(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + testAccXrayDNSReorderConfigStep1(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.address", "8.8.8.8"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.port", "5353"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.domains.0", "geosite:cn"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.skip_fallback", "true"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.address", "1.1.1.1"),
+				),
+			},
+			{
+				Config: testAccProviderConfig() + testAccXrayDNSReorderConfigStep2(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.#", "2"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.0.address", "1.1.1.1"),
+					resource.TestCheckNoResourceAttr("threexui_xray_dns.test", "server.0.port"),
+					resource.TestCheckNoResourceAttr("threexui_xray_dns.test", "server.0.domains"),
+					resource.TestCheckNoResourceAttr("threexui_xray_dns.test", "server.0.skip_fallback"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.address", "8.8.8.8"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.port", "5353"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.domains.0", "geosite:cn"),
+					resource.TestCheckResourceAttr("threexui_xray_dns.test", "server.1.skip_fallback", "true"),
+					testAccCheckXrayConfigDNSServersNoStaleFields("data.threexui_xray_config.current"),
+				),
+			},
+			{
+				Config:             testAccProviderConfig() + testAccXrayDNSReorderConfigStep2(),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
 func TestAccXrayRouting(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -546,6 +631,44 @@ resource "threexui_xray_dns" "test" {
   server {
     address = "1.1.1.1"
   }
+}
+`
+}
+
+func testAccXrayDNSReorderConfigStep1() string {
+	return `
+resource "threexui_xray_dns" "test" {
+  server {
+    address       = "8.8.8.8"
+    port          = 5353
+    domains       = ["geosite:cn"]
+    skip_fallback = true
+  }
+
+  server {
+    address = "1.1.1.1"
+  }
+}
+`
+}
+
+func testAccXrayDNSReorderConfigStep2() string {
+	return `
+resource "threexui_xray_dns" "test" {
+  server {
+    address = "1.1.1.1"
+  }
+
+  server {
+    address       = "8.8.8.8"
+    port          = 5353
+    domains       = ["geosite:cn"]
+    skip_fallback = true
+  }
+}
+
+data "threexui_xray_config" "current" {
+  depends_on = [threexui_xray_dns.test]
 }
 `
 }
