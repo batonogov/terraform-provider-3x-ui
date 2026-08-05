@@ -143,6 +143,19 @@ func TestExtractXraySectionIncludesEnv(t *testing.T) {
 	}
 }
 
+func TestAlignBasicsBlocksWithPlanClearsLog(t *testing.T) {
+	state := &XrayBasicsModel{
+		Log: []XrayBasicsLog{{Loglevel: types.StringValue("warning")}},
+	}
+	plan := &XrayBasicsModel{}
+
+	alignBasicsBlocksWithPlan(state, plan)
+
+	if state.Log != nil {
+		t.Fatalf("expected state.Log to be nil after align (plan has no log), got %v", state.Log)
+	}
+}
+
 // TestAlignBasicsBlocksWithPlanClearsEnv verifies the drift-prevention path:
 // when the plan has no env block but the state does, alignBasicsBlocksWithPlan
 // nils out state.Env so Terraform does not raise "was absent, but now present".
