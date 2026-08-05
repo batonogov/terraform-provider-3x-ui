@@ -48,6 +48,27 @@ func TestAccXrayBasics(t *testing.T) {
 	})
 }
 
+func TestAccXrayBasicsEmpty(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + testAccXrayBasicsEmptyConfig(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_xray_basics.test", "id", "xray_basics"),
+					resource.TestCheckResourceAttr("threexui_xray_basics.test", "log.#", "0"),
+				),
+			},
+			{
+				Config:             testAccProviderConfig() + testAccXrayBasicsEmptyConfig(),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
 func TestAccXrayDNS(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -513,6 +534,12 @@ resource "threexui_xray_basics" "test" {
 
   stats {}
 }
+`
+}
+
+func testAccXrayBasicsEmptyConfig() string {
+	return `
+resource "threexui_xray_basics" "test" {}
 `
 }
 

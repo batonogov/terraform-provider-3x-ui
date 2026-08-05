@@ -282,6 +282,9 @@ func xrayBasicsSchema() schema.Schema {
 // ---------------------------------------------------------------------------
 
 func alignBasicsBlocksWithPlan(state, plan *XrayBasicsModel) {
+	if len(plan.Log) == 0 {
+		state.Log = nil
+	}
 	if len(plan.Policy) == 0 {
 		state.Policy = nil
 	} else {
