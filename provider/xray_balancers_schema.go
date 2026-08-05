@@ -399,9 +399,10 @@ func expandBalancerStrategySettings(settings []XrayBalancerStrategySettings) map
 				bl = append(bl, sv.ValueString())
 			}
 		}
-		if len(bl) > 0 {
-			out["baselines"] = bl
-		}
+		// Preserve an explicitly configured empty list. Omitting this key would
+		// make the panel read-back indistinguishable from a null value and cause
+		// Terraform to reject the post-apply state.
+		out["baselines"] = bl
 	}
 	if len(st.Costs) > 0 {
 		costs := make([]any, 0, len(st.Costs))
@@ -503,7 +504,9 @@ func flattenBalancerStrategySettings(in map[string]any) []XrayBalancerStrategySe
 	if !ok || len(settingsRaw) == 0 {
 		return nil
 	}
-	st := XrayBalancerStrategySettings{}
+	st := XrayBalancerStrategySettings{
+		Baselines: types.ListNull(types.StringType),
+	}
 	if v, ok := settingsRaw["expected"]; ok {
 		switch n := v.(type) {
 		case float64:
@@ -522,7 +525,7 @@ func flattenBalancerStrategySettings(in map[string]any) []XrayBalancerStrategySe
 			st.Tolerance = types.Float64Value(f)
 		}
 	}
-	if v, ok := settingsRaw["baselines"].([]any); ok && len(v) > 0 {
+	if v, ok := settingsRaw["baselines"].([]any); ok {
 		vals := make([]attr.Value, 0, len(v))
 		for _, b := range v {
 			if s, ok := b.(string); ok {

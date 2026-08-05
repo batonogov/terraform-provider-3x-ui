@@ -385,6 +385,36 @@ func TestAccXrayBalancers(t *testing.T) {
 	})
 }
 
+func TestAccXrayBalancersBaselinesPresence(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + testAccXrayBalancersBaselinesConfig(false),
+				Check: resource.TestCheckResourceAttr(
+					"threexui_xray_balancers.baselines",
+					"balancer.0.strategy.0.settings.0.baselines.#",
+					"0",
+				),
+			},
+			{
+				Config: testAccProviderConfig() + testAccXrayBalancersBaselinesConfig(true),
+				Check: resource.TestCheckResourceAttr(
+					"threexui_xray_balancers.baselines",
+					"balancer.0.strategy.0.settings.0.baselines.#",
+					"0",
+				),
+			},
+			{
+				Config:             testAccProviderConfig() + testAccXrayBalancersBaselinesConfig(true),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
 func TestAccXrayReverse(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -639,6 +669,29 @@ resource "threexui_xray_balancers" "test" {
   }
 }
 `
+}
+
+func testAccXrayBalancersBaselinesConfig(explicitEmpty bool) string {
+	baselines := ""
+	if explicitEmpty {
+		baselines = "        baselines = []\n"
+	}
+	return fmt.Sprintf(`
+resource "threexui_xray_balancers" "baselines" {
+  balancer {
+    tag      = "review-baselines"
+    selector = ["direct"]
+
+    strategy {
+      type = "leastPing"
+
+      settings {
+        expected = 2
+%s      }
+    }
+  }
+}
+`, baselines)
 }
 
 func testAccXrayReverseConfig() string {
