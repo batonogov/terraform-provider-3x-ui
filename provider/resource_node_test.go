@@ -980,7 +980,7 @@ func setPlanValue(t *testing.T, r *NodeResource, plan tfsdk.Plan, key, val strin
 
 // modifyPlanFixture builds a Plan/State pair for ModifyPlan tests, with the
 // given *_wo_version values for both secrets and a concrete api_token.
-func modifyPlanFixture(t *testing.T, r *NodeResource, apiWOVer, pinWOVer, stateAPIWOVer, statePinWOVer int64) (tfsdk.Plan, tfsdk.State) {
+func modifyPlanFixture(t *testing.T, r *NodeResource, apiWOVer, pinWOVer int64) (tfsdk.Plan, tfsdk.State) {
 	t.Helper()
 	var schemaResp resource.SchemaResponse
 	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
@@ -1016,7 +1016,7 @@ func modifyPlanFixture(t *testing.T, r *NodeResource, apiWOVer, pinWOVer, stateA
 	}
 
 	plan := build(apiWOVer, pinWOVer)
-	state := build(stateAPIWOVer, statePinWOVer)
+	state := build(1, 1)
 	return plan, tfsdk.State(state)
 }
 
@@ -1027,7 +1027,7 @@ func modifyPlanFixture(t *testing.T, r *NodeResource, apiWOVer, pinWOVer, stateA
 func TestNodeResource_ModifyPlan_BothSecretsTriggered(t *testing.T) {
 	r := &NodeResource{}
 	ctx := context.Background()
-	plan, st := modifyPlanFixture(t, r, 2, 2, 1, 1) // both bumped
+	plan, st := modifyPlanFixture(t, r, 2, 2) // both bumped
 
 	var schemaResp resource.SchemaResponse
 	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
@@ -1051,7 +1051,7 @@ func TestNodeResource_ModifyPlan_BothSecretsTriggered(t *testing.T) {
 func TestNodeResource_ModifyPlan_UnknownInboundTagsWithBothSecretsTriggered(t *testing.T) {
 	r := &NodeResource{}
 	ctx := context.Background()
-	plan, st := modifyPlanFixture(t, r, 2, 2, 1, 1)
+	plan, st := modifyPlanFixture(t, r, 2, 2)
 
 	diags := plan.SetAttribute(ctx, path.Root("inbound_tags"), types.ListUnknown(types.StringType))
 	if diags.HasError() {
@@ -1091,7 +1091,7 @@ func TestNodeResource_ModifyPlan_SingleSecretTriggered(t *testing.T) {
 	r := &NodeResource{}
 	ctx := context.Background()
 	// Only api_token_wo_version bumps; pinned stays the same.
-	plan, st := modifyPlanFixture(t, r, 2, 1, 1, 1)
+	plan, st := modifyPlanFixture(t, r, 2, 1)
 
 	var schemaResp resource.SchemaResponse
 	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
@@ -1116,7 +1116,7 @@ func TestNodeResource_ModifyPlan_NoTrigger(t *testing.T) {
 	r := &NodeResource{}
 	ctx := context.Background()
 	// No version change at all — ModifyPlan must be a no-op.
-	plan, st := modifyPlanFixture(t, r, 1, 1, 1, 1)
+	plan, st := modifyPlanFixture(t, r, 1, 1)
 
 	var schemaResp resource.SchemaResponse
 	r.Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
