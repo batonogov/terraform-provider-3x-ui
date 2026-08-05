@@ -378,3 +378,31 @@ func TestXrayOutboundsResource_ModifyPlan_PreservesPartialUnknownLeaf(t *testing
 	)
 	assertXrayOutboundListEqual(t, plan, tfsdk.Config{Schema: schemaResp.Schema, Raw: xrayOutboundsRaw(t, schemaResp, configList, false)})
 }
+
+func TestXrayOutboundsResource_ModifyPlan_PreservesNullLifecyclePlans(t *testing.T) {
+	ctx := context.Background()
+	outboundsResource := NewXrayOutboundsResource()
+	var schemaResp resource.SchemaResponse
+	outboundsResource.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	topType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	outboundListType := topType.AttributeTypes["outbound"].(tftypes.List)
+	emptyList := tftypes.NewValue(outboundListType, []tftypes.Value{})
+	knownRaw := xrayOutboundsRaw(t, schemaResp, emptyList, false)
+	nullRaw := tftypes.NewValue(topType, nil)
+
+	tests := []struct {
+		name              string
+		planRaw, stateRaw tftypes.Value
+	}{
+		{name: "destroy plan", planRaw: nullRaw, stateRaw: knownRaw},
+		{name: "create state", planRaw: knownRaw, stateRaw: nullRaw},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			plan := runXrayOutboundsModifyPlan(t, schemaResp, test.planRaw, knownRaw, test.stateRaw)
+			if !plan.Raw.Equal(test.planRaw) {
+				t.Fatalf("lifecycle plan must remain unchanged\n got: %s\nwant: %s", plan.Raw, test.planRaw)
+			}
+		})
+	}
+}
