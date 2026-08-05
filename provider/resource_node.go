@@ -62,23 +62,22 @@ func (r *NodeResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRe
 	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
 		return
 	}
-	var plan, state NodeResourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+
+	var planAPITokenVersion, stateAPITokenVersion types.Int64
+	var planPinnedCertVersion, statePinnedCertVersion types.Int64
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("api_token_wo_version"), &planAPITokenVersion)...)
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("api_token_wo_version"), &stateAPITokenVersion)...)
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("pinned_cert_sha256_wo_version"), &planPinnedCertVersion)...)
+	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("pinned_cert_sha256_wo_version"), &statePinnedCertVersion)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	changed := false
-	if woVersionTriggered(plan.ApiTokenWOVersion, state.ApiTokenWOVersion) {
-		plan.ApiToken = types.StringUnknown()
-		changed = true
+
+	if woVersionTriggered(planAPITokenVersion, stateAPITokenVersion) {
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("api_token"), types.StringUnknown())...)
 	}
-	if woVersionTriggered(plan.PinnedCertSha256WOVersion, state.PinnedCertSha256WOVersion) {
-		plan.PinnedCertSha256 = types.StringUnknown()
-		changed = true
-	}
-	if changed {
-		resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	if woVersionTriggered(planPinnedCertVersion, statePinnedCertVersion) {
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("pinned_cert_sha256"), types.StringUnknown())...)
 	}
 }
 

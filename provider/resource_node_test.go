@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -1044,6 +1045,45 @@ func TestNodeResource_ModifyPlan_BothSecretsTriggered(t *testing.T) {
 	}
 	if !out.PinnedCertSha256.IsUnknown() {
 		t.Fatalf("expected pinned_cert_sha256 marked Unknown on simultaneous rotation, got %v", out.PinnedCertSha256)
+	}
+}
+
+func TestNodeResource_ModifyPlan_UnknownInboundTagsWithBothSecretsTriggered(t *testing.T) {
+	r := &NodeResource{}
+	ctx := context.Background()
+	plan, st := modifyPlanFixture(t, r, 2, 2, 1, 1)
+
+	diags := plan.SetAttribute(ctx, path.Root("inbound_tags"), types.ListUnknown(types.StringType))
+	if diags.HasError() {
+		t.Fatalf("failed to build unknown inbound_tags plan: %v", diags)
+	}
+
+	resp := &resource.ModifyPlanResponse{Plan: plan}
+	r.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, State: st}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("ModifyPlan must accept an unknown inbound_tags list: %v", resp.Diagnostics)
+	}
+
+	var inboundTags types.List
+	resp.Diagnostics.Append(resp.Plan.GetAttribute(ctx, path.Root("inbound_tags"), &inboundTags)...)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("failed to read inbound_tags from the modified plan: %v", resp.Diagnostics)
+	}
+	if !inboundTags.IsUnknown() {
+		t.Fatalf("inbound_tags must remain unknown, got %v", inboundTags)
+	}
+
+	var apiToken, pinnedCertSha256 types.String
+	resp.Diagnostics.Append(resp.Plan.GetAttribute(ctx, path.Root("api_token"), &apiToken)...)
+	resp.Diagnostics.Append(resp.Plan.GetAttribute(ctx, path.Root("pinned_cert_sha256"), &pinnedCertSha256)...)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("failed to read rotated secrets from the modified plan: %v", resp.Diagnostics)
+	}
+	if !apiToken.IsUnknown() {
+		t.Fatalf("api_token must be unknown on simultaneous rotation, got %v", apiToken)
+	}
+	if !pinnedCertSha256.IsUnknown() {
+		t.Fatalf("pinned_cert_sha256 must be unknown on simultaneous rotation, got %v", pinnedCertSha256)
 	}
 }
 
