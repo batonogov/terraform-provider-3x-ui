@@ -1,9 +1,12 @@
 package provider
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
 func TestAccXrayBasics(t *testing.T) {
@@ -123,6 +126,200 @@ func TestAccXrayRouting(t *testing.T) {
 			// Idempotency
 			{
 				Config:             testAccProviderConfig() + testAccXrayRoutingConfigUpdated(),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+// testCheckRoutingRulesExact asserts that each rule in the Terraform state
+// carries only its configured matchers and none of the stale carry-forward
+// fields. presentMatchers lists the attributes expected to be set for each
+// rule; every other matcher in allMatchers must be absent.
+//
+// Terraform's flatmap stores list attributes as `rule.N.matcher.#` and
+// `rule.N.matcher.0`, not as a bare `rule.N.matcher` key. The function
+// accounts for this by checking the `.#` count suffix for list-type
+// matchers and the bare key for string-type matchers.
+func testCheckRoutingRulesExact(resourceName string, presentMatchers [][]string) resource.TestCheckFunc {
+	// List-type matchers use `.#` in flatmap; string-type use a bare key.
+	listMatchers := map[string]bool{
+		"domain": true, "ip": true, "source": true, "user": true,
+		"inbound_tag": true, "protocol": true,
+	}
+	allMatchers := []string{"domain", "ip", "port", "source_port", "network", "source", "user", "inbound_tag", "protocol", "attrs", "balancer_tag"}
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("resource %s not found in state", resourceName)
+		}
+		for i, present := range presentMatchers {
+			presentSet := make(map[string]bool, len(present))
+			for _, m := range present {
+				presentSet[m] = true
+			}
+			for _, m := range allMatchers {
+				if listMatchers[m] {
+					countKey := fmt.Sprintf("rule.%d.%s.#", i, m)
+					count := rs.Primary.Attributes[countKey]
+					if presentSet[m] {
+						if count == "" || count == "0" {
+							return fmt.Errorf("%s.rule.%d.%s should be present but count is %q", resourceName, i, m, count)
+						}
+						continue
+					}
+					if count != "" && count != "0" {
+						return fmt.Errorf("%s.rule.%d.%s should be absent (stale carry-forward) but count is %q", resourceName, i, m, count)
+					}
+				} else {
+					key := fmt.Sprintf("rule.%d.%s", i, m)
+					val, exists := rs.Primary.Attributes[key]
+					if presentSet[m] {
+						if !exists || val == "" {
+							return fmt.Errorf("%s.%s should be present but is absent/empty", resourceName, key)
+						}
+						continue
+					}
+					if exists && val != "" {
+						return fmt.Errorf("%s.%s should be absent (stale carry-forward) but is %q", resourceName, key, val)
+					}
+				}
+			}
+		}
+		return nil
+	}
+}
+
+// testAccCheckXrayConfigRoutingRulesNoStaleFields reads the raw xray template
+// from the threexui_xray_config data source and asserts the panel DB carries
+// no stale carry-forward fields — verifying the remote payload, not just the
+// Terraform state.
+func testAccCheckXrayConfigRoutingRulesNoStaleFields(dataSourceName string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[dataSourceName]
+		if !ok {
+			return fmt.Errorf("data source %s not found in state", dataSourceName)
+		}
+		val := rs.Primary.Attributes["json"]
+		if val == "" {
+			return fmt.Errorf("%s.json is empty", dataSourceName)
+		}
+		var cfg map[string]any
+		if err := json.Unmarshal([]byte(val), &cfg); err != nil {
+			return fmt.Errorf("cannot parse xray config JSON: %w", err)
+		}
+		routing, ok := cfg["routing"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("xray config has no routing section")
+		}
+		rules, ok := routing["rules"].([]any)
+		if !ok {
+			return fmt.Errorf("routing has no rules array")
+		}
+		var userRules []map[string]any
+		for _, r := range rules {
+			rm, ok := r.(map[string]any)
+			if !ok {
+				continue
+			}
+			if out, _ := rm["outboundTag"].(string); out == "api" {
+				continue
+			}
+			userRules = append(userRules, rm)
+		}
+		if len(userRules) != 3 {
+			return fmt.Errorf("expected 3 user routing rules in remote payload, got %d", len(userRules))
+		}
+		if _, has := userRules[0]["ip"]; has {
+			return fmt.Errorf("remote rule 0 must not have ip (stale carry-forward), got %v", userRules[0]["ip"])
+		}
+		if _, has := userRules[0]["domain"]; !has {
+			return fmt.Errorf("remote rule 0 must have domain")
+		}
+		if _, has := userRules[1]["domain"]; has {
+			return fmt.Errorf("remote rule 1 must not have domain (stale carry-forward), got %v", userRules[1]["domain"])
+		}
+		if _, has := userRules[1]["ip"]; !has {
+			return fmt.Errorf("remote rule 1 must have ip")
+		}
+		if _, has := userRules[2]["domain"]; has {
+			return fmt.Errorf("remote rule 2 must not have domain (stale carry-forward), got %v", userRules[2]["domain"])
+		}
+		if _, has := userRules[2]["ip"]; has {
+			return fmt.Errorf("remote rule 2 must not have ip (stale carry-forward), got %v", userRules[2]["ip"])
+		}
+		if _, has := userRules[2]["network"]; !has {
+			return fmt.Errorf("remote rule 2 must have network")
+		}
+		return nil
+	}
+}
+
+// TestAccXrayRoutingRulesReorderNoFieldBleed is the regression test for the
+// stale carry-forward bug: when a `rule` list is reordered or shortened, the
+// Optional+Computed nested attributes with UseStateForUnknown must NOT copy
+// the prior rule's unset fields into the new rule occupying the same index.
+//
+// Step 1 lays down [ip:private→direct, domain:category-ru→blocked,
+// network:tcp,udp→blocked]. Step 2 reorders+removes to
+// [domain:category-ru→blocked, ip:geoip:cn→direct, network:tcp,udp→blocked].
+// Before the fix, Step 2's plan carried `ip:[geoip:private]` onto the
+// domain rule (index 0) and `domain:geosite:category-ru` onto the ip rule
+// (index 1), and those merged rules were written to the panel. The checks
+// assert each rule carries only its configured matchers, both in the
+// Terraform state and the raw panel payload.
+func TestAccXrayRoutingRulesReorderNoFieldBleed(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + testAccXrayRoutingReorderConfigStep1(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.#", "3"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.0.outbound_tag", "direct"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.0.ip.0", "geoip:private"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.1.outbound_tag", "blocked"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.1.domain.0", "geosite:category-ru"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.2.outbound_tag", "blocked"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.2.network", "tcp,udp"),
+				),
+			},
+			{
+				Config: testAccProviderConfig() + testAccXrayRoutingReorderConfigStep2(),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.#", "3"),
+					// rule 0: RU-domains→blocked — must keep its domain and NOT
+					// inherit the stale ip:geoip:private from the prior index-0 rule.
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.0.outbound_tag", "blocked"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.0.domain.0", "geosite:category-ru"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.0.domain.#", "1"),
+					// rule 1: geoip:cn→direct — must keep its ip and NOT inherit
+					// the stale domain:geosite:category-ru from the prior index-1 rule.
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.1.outbound_tag", "direct"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.1.ip.0", "geoip:cn"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.1.ip.#", "1"),
+					// rule 2: catch→blocked — network only.
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.2.outbound_tag", "blocked"),
+					resource.TestCheckResourceAttr("threexui_xray_routing.test", "rule.2.network", "tcp,udp"),
+					// Complete omitted-matcher check: every field NOT configured
+					// for a rule must be absent — no stale carry-forward from
+					// the prior rule at the same index.
+					testCheckRoutingRulesExact("threexui_xray_routing.test", [][]string{
+						{"type", "outbound_tag", "domain"},  // rule 0
+						{"type", "outbound_tag", "ip"},      // rule 1
+						{"type", "outbound_tag", "network"}, // rule 2
+					}),
+					// Raw remote payload: verify the panel DB itself has no
+					// stale fields, not just the Terraform state.
+					testAccCheckXrayConfigRoutingRulesNoStaleFields("data.threexui_xray_config.current"),
+				),
+			},
+			// Idempotency after the reorder — plan must be stable, proving the
+			// reconciled rule list round-trips through the panel without drift.
+			{
+				Config:             testAccProviderConfig() + testAccXrayRoutingReorderConfigStep2(),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: false,
 			},
@@ -503,6 +700,69 @@ resource "threexui_xray_outbounds" "test" {
     tag      = "dns-out"
     protocol = "dns"
   }
+}
+`
+}
+
+// testAccXrayRoutingReorderConfigStep1 lays down three rules that each use a
+// different matcher (ip / domain / network) so Step 2's reorder can exercise
+// the per-index carry-forward of unset fields across rules.
+func testAccXrayRoutingReorderConfigStep1() string {
+	return `
+resource "threexui_xray_routing" "test" {
+  domain_strategy = "AsIs"
+
+  rule {
+    type         = "field"
+    ip           = ["geoip:private"]
+    outbound_tag = "direct"
+  }
+
+  rule {
+    type         = "field"
+    domain       = ["geosite:category-ru"]
+    outbound_tag = "blocked"
+  }
+
+  rule {
+    type         = "field"
+    network      = "tcp,udp"
+    outbound_tag = "blocked"
+  }
+}
+`
+}
+
+// testAccXrayRoutingReorderConfigStep2 reorders (domain rule moves to index 0),
+// removes (private rule gone), and adds (geoip:cn at index 1). Before the fix,
+// index 0 inherited the stale ip:geoip:private and index 1 inherited the stale
+// network:"tcp,udp" from the prior state at those indices.
+func testAccXrayRoutingReorderConfigStep2() string {
+	return `
+resource "threexui_xray_routing" "test" {
+  domain_strategy = "AsIs"
+
+  rule {
+    type         = "field"
+    domain       = ["geosite:category-ru"]
+    outbound_tag = "blocked"
+  }
+
+  rule {
+    type         = "field"
+    ip           = ["geoip:cn"]
+    outbound_tag = "direct"
+  }
+
+  rule {
+    type         = "field"
+    network      = "tcp,udp"
+    outbound_tag = "blocked"
+  }
+}
+
+data "threexui_xray_config" "current" {
+  depends_on = [threexui_xray_routing.test]
 }
 `
 }
