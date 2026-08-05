@@ -428,6 +428,28 @@ func TestXrayBasicsResourceModifyPlanPreservesUnknownPolicyShapes(t *testing.T) 
 			}
 		})
 	}
+
+	priorTests := map[string]tftypes.Value{
+		"unknown policy object": tftypes.NewValue(policyListType, []tftypes.Value{
+			tftypes.NewValue(policyType, tftypes.UnknownValue),
+		}),
+		"unknown level element": tftypes.NewValue(policyListType, []tftypes.Value{
+			basicsPolicyRaw(t, policyType, tftypes.NewValue(levelListType, []tftypes.Value{
+				tftypes.NewValue(levelType, tftypes.UnknownValue),
+			})),
+		}),
+	}
+	for name, priorPolicy := range priorTests {
+		t.Run("prior "+name, func(t *testing.T) {
+			config := tfsdk.Config{Schema: schemaResp.Schema, Raw: basicsRaw(t, schemaResp, knownPolicyList)}
+			priorState := tfsdk.State{Schema: schemaResp.Schema, Raw: basicsRaw(t, schemaResp, priorPolicy)}
+			resp := &resource.ModifyPlanResponse{Plan: plan}
+			modifier.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan, Config: config, State: priorState}, resp)
+			if resp.Diagnostics.HasError() {
+				t.Fatalf("%s must be ignored without diagnostics: %v", name, resp.Diagnostics)
+			}
+		})
+	}
 }
 
 func TestXrayBasicsResourceModifyPlanSortsWithUnknownNonIDLeaf(t *testing.T) {
@@ -517,6 +539,26 @@ func TestXrayBasicsResourceModifyPlanPreservesOmittedPolicy(t *testing.T) {
 	}
 }
 
+func TestXrayBasicsResourceModifyPlanPreservesNullDestroyPlan(t *testing.T) {
+	ctx := context.Background()
+	r := &XrayBasicsResource{}
+	modifier := any(r).(resource.ResourceWithModifyPlan)
+
+	var schemaResp resource.SchemaResponse
+	r.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	resourceType := schemaResp.Schema.Type().TerraformType(ctx)
+	plan := tfsdk.Plan{Schema: schemaResp.Schema, Raw: tftypes.NewValue(resourceType, nil)}
+	resp := &resource.ModifyPlanResponse{Plan: plan}
+
+	modifier.ModifyPlan(ctx, resource.ModifyPlanRequest{Plan: plan}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("null destroy plan must not produce diagnostics: %v", resp.Diagnostics)
+	}
+	if !resp.Plan.Raw.IsNull() {
+		t.Fatalf("null destroy plan must remain null, got %s", resp.Plan.Raw)
+	}
+}
+
 func TestFlattenBasicsPolicyLevelsSortsIDsNumerically(t *testing.T) {
 	levels := flattenBasicsPolicyLevels(map[string]any{
 		"10": map[string]any{"connIdle": 10},
@@ -533,5 +575,25 @@ func TestFlattenBasicsPolicyLevelsSortsIDsNumerically(t *testing.T) {
 	want := []int{1, 2, 10}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("flattened level IDs must use numeric order, got %v, want %v", got, want)
+	}
+}
+
+func TestFlattenBasicsPolicyLevelsSortsNumericBeforeNonnumericKeys(t *testing.T) {
+	levels := flattenBasicsPolicyLevels(map[string]any{
+		"10":    map[string]any{"connIdle": 10},
+		"two":   map[string]any{"connIdle": 22},
+		"1":     map[string]any{"connIdle": 1},
+		"alpha": map[string]any{"connIdle": 11},
+	})
+	if len(levels) != 4 {
+		t.Fatalf("expected four flattened levels, got %d", len(levels))
+	}
+	got := make([]int, len(levels))
+	for i, level := range levels {
+		got[i] = level.(map[string]any)["conn_idle"].(int)
+	}
+	want := []int{1, 10, 11, 22}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("numeric keys must sort before lexical keys, got %v, want %v", got, want)
 	}
 }
