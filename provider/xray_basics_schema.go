@@ -943,6 +943,23 @@ func flattenBasicsPolicySystem(in map[string]any) map[string]any {
 	return out
 }
 
+// basicsPolicyLevelKeyLess orders numeric remote policy IDs numerically before
+// any malformed non-numeric keys, which remain deterministic lexically.
+func basicsPolicyLevelKeyLess(leftKey, rightKey string) bool {
+	left, leftErr := strconv.Atoi(leftKey)
+	right, rightErr := strconv.Atoi(rightKey)
+	if leftErr == nil && rightErr == nil {
+		return left < right
+	}
+	if leftErr == nil {
+		return true
+	}
+	if rightErr == nil {
+		return false
+	}
+	return leftKey < rightKey
+}
+
 // flattenBasicsPolicyLevels converts Xray policy.levels map to TF level blocks.
 func flattenBasicsPolicyLevels(in map[string]any) []any {
 	if len(in) == 0 {
@@ -953,18 +970,7 @@ func flattenBasicsPolicyLevels(in map[string]any) []any {
 		keys = append(keys, k)
 	}
 	sort.SliceStable(keys, func(i, j int) bool {
-		left, leftErr := strconv.Atoi(keys[i])
-		right, rightErr := strconv.Atoi(keys[j])
-		if leftErr == nil && rightErr == nil {
-			return left < right
-		}
-		if leftErr == nil {
-			return true
-		}
-		if rightErr == nil {
-			return false
-		}
-		return keys[i] < keys[j]
+		return basicsPolicyLevelKeyLess(keys[i], keys[j])
 	})
 
 	out := make([]any, 0, len(in))

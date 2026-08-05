@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	resourcepath "github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -433,6 +434,9 @@ func TestXrayBasicsResourceModifyPlanPreservesUnknownPolicyShapes(t *testing.T) 
 		"unknown policy object": tftypes.NewValue(policyListType, []tftypes.Value{
 			tftypes.NewValue(policyType, tftypes.UnknownValue),
 		}),
+		"unknown level collection": tftypes.NewValue(policyListType, []tftypes.Value{
+			basicsPolicyRaw(t, policyType, tftypes.NewValue(levelListType, tftypes.UnknownValue)),
+		}),
 		"unknown level element": tftypes.NewValue(policyListType, []tftypes.Value{
 			basicsPolicyRaw(t, policyType, tftypes.NewValue(levelListType, []tftypes.Value{
 				tftypes.NewValue(levelType, tftypes.UnknownValue),
@@ -449,6 +453,25 @@ func TestXrayBasicsResourceModifyPlanPreservesUnknownPolicyShapes(t *testing.T) 
 				t.Fatalf("%s must be ignored without diagnostics: %v", name, resp.Diagnostics)
 			}
 		})
+	}
+}
+
+func TestCanonicalizeBasicsPolicyDefersUnsupportedNullLeafType(t *testing.T) {
+	ctx := context.Background()
+	levelTypes := map[string]attr.Type{"id": types.Int64Type, "future": types.StringType}
+	level := types.ObjectValueMust(levelTypes, map[string]attr.Value{
+		"id": types.Int64Value(1), "future": types.StringNull(),
+	})
+	levelType := types.ObjectType{AttrTypes: levelTypes}
+	levels := types.ListValueMust(levelType, []attr.Value{level})
+	policyTypes := map[string]attr.Type{"level": types.ListType{ElemType: levelType}}
+	policy := types.ObjectValueMust(policyTypes, map[string]attr.Value{"level": levels})
+	policyType := types.ObjectType{AttrTypes: policyTypes}
+	policies := types.ListValueMust(policyType, []attr.Value{policy})
+
+	got, safe := canonicalizeBasicsPolicy(ctx, policies, types.ListNull(policyType))
+	if safe || !got.Equal(policies) {
+		t.Fatalf("unsupported future null leaf must defer to proposed plan, safe=%t got=%v", safe, got)
 	}
 }
 
@@ -595,5 +618,27 @@ func TestFlattenBasicsPolicyLevelsSortsNumericBeforeNonnumericKeys(t *testing.T)
 	want := []int{1, 10, 11, 22}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("numeric keys must sort before lexical keys, got %v, want %v", got, want)
+	}
+}
+
+func TestBasicsPolicyLevelKeyLess(t *testing.T) {
+	tests := []struct {
+		name        string
+		left, right string
+		want        bool
+	}{
+		{name: "numeric ascending", left: "1", right: "2", want: true},
+		{name: "numeric descending", left: "2", right: "1", want: false},
+		{name: "numeric before lexical", left: "1", right: "alpha", want: true},
+		{name: "lexical after numeric", left: "alpha", right: "1", want: false},
+		{name: "lexical ascending", left: "alpha", right: "beta", want: true},
+		{name: "lexical descending", left: "beta", right: "alpha", want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := basicsPolicyLevelKeyLess(test.left, test.right); got != test.want {
+				t.Fatalf("basicsPolicyLevelKeyLess(%q, %q) = %t, want %t", test.left, test.right, got, test.want)
+			}
+		})
 	}
 }

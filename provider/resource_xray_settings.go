@@ -219,21 +219,16 @@ func (r *XrayBasicsResource) ModifyPlan(ctx context.Context, req resource.Modify
 
 	var configuredPolicy types.List
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, resourcepath.Root("policy"), &configuredPolicy)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	// The path and destination type are fixed by this resource's schema;
+	// structural null and unknown values are handled by canonicalizeBasicsPolicy.
 
 	priorPolicy := types.ListNull(configuredPolicy.ElementType(ctx))
 	if !req.State.Raw.IsNull() {
 		resp.Diagnostics.Append(req.State.GetAttribute(ctx, resourcepath.Root("policy"), &priorPolicy)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
 	}
 
-	canonicalPolicy, safe, diags := canonicalizeBasicsPolicy(ctx, configuredPolicy, priorPolicy)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() || !safe {
+	canonicalPolicy, safe := canonicalizeBasicsPolicy(ctx, configuredPolicy, priorPolicy)
+	if !safe {
 		return
 	}
 	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, resourcepath.Root("policy"), canonicalPolicy)...)
@@ -244,10 +239,9 @@ func (r *XrayBasicsResource) ModifyPlan(ctx context.Context, req resource.Modify
 // operates on framework values so unknown leaves remain representable and keeps
 // omitted non-level policy siblings from prior state. Structural unknowns,
 // omitted level collections, and unknown IDs defer to the proposed plan.
-func canonicalizeBasicsPolicy(ctx context.Context, policy, priorPolicy types.List) (types.List, bool, diag.Diagnostics) {
-	var diags diag.Diagnostics
+func canonicalizeBasicsPolicy(ctx context.Context, policy, priorPolicy types.List) (types.List, bool) {
 	if policy.IsNull() || policy.IsUnknown() {
-		return policy, false, diags
+		return policy, false
 	}
 
 	priorPoliciesByIndex := make(map[int]types.Object)
@@ -281,13 +275,13 @@ func canonicalizeBasicsPolicy(ctx context.Context, policy, priorPolicy types.Lis
 	for i, element := range policyElements {
 		policyObject, ok := element.(types.Object)
 		if !ok || policyObject.IsNull() || policyObject.IsUnknown() {
-			return policy, false, diags
+			return policy, false
 		}
 
 		policyAttributes := policyObject.Attributes()
 		levels, ok := policyAttributes["level"].(types.List)
 		if !ok || levels.IsNull() || levels.IsUnknown() {
-			return policy, false, diags
+			return policy, false
 		}
 
 		canonicalAttributes := make(map[string]attr.Value, len(policyAttributes))
@@ -310,11 +304,11 @@ func canonicalizeBasicsPolicy(ctx context.Context, policy, priorPolicy types.Lis
 		for j, levelElement := range levels.Elements() {
 			levelObject, ok := levelElement.(types.Object)
 			if !ok || levelObject.IsNull() || levelObject.IsUnknown() {
-				return policy, false, diags
+				return policy, false
 			}
 			id, ok := levelObject.Attributes()["id"].(types.Int64)
 			if !ok || id.IsNull() || id.IsUnknown() {
-				return policy, false, diags
+				return policy, false
 			}
 
 			levelAttributes := make(map[string]attr.Value, len(levelObject.Attributes()))
@@ -335,14 +329,10 @@ func canonicalizeBasicsPolicy(ctx context.Context, policy, priorPolicy types.Lis
 				case types.Bool:
 					levelAttributes[name] = types.BoolUnknown()
 				default:
-					return policy, false, diags
+					return policy, false
 				}
 			}
-			canonicalLevel, levelDiags := types.ObjectValue(levelObject.AttributeTypes(ctx), levelAttributes)
-			diags.Append(levelDiags...)
-			if diags.HasError() {
-				return policy, false, diags
-			}
+			canonicalLevel := types.ObjectValueMust(levelObject.AttributeTypes(ctx), levelAttributes)
 			identifiedLevels[j].id = id.ValueInt64()
 			identifiedLevels[j].value = canonicalLevel
 		}
@@ -355,26 +345,13 @@ func canonicalizeBasicsPolicy(ctx context.Context, policy, priorPolicy types.Lis
 			levelElements[j] = level.value
 		}
 
-		canonicalLevels, levelDiags := types.ListValue(levels.ElementType(ctx), levelElements)
-		diags.Append(levelDiags...)
-		if diags.HasError() {
-			return policy, false, diags
-		}
+		canonicalLevels := types.ListValueMust(levels.ElementType(ctx), levelElements)
 		canonicalAttributes["level"] = canonicalLevels
-		canonicalPolicy, policyDiags := types.ObjectValue(policyObject.AttributeTypes(ctx), canonicalAttributes)
-		diags.Append(policyDiags...)
-		if diags.HasError() {
-			return policy, false, diags
-		}
+		canonicalPolicy := types.ObjectValueMust(policyObject.AttributeTypes(ctx), canonicalAttributes)
 		canonicalPolicies[i] = canonicalPolicy
 	}
 
-	canonical, policyDiags := types.ListValue(policy.ElementType(ctx), canonicalPolicies)
-	diags.Append(policyDiags...)
-	if diags.HasError() {
-		return policy, false, diags
-	}
-	return canonical, true, diags
+	return types.ListValueMust(policy.ElementType(ctx), canonicalPolicies), true
 }
 
 func (r *XrayBasicsResource) Delete(ctx context.Context, _ resource.DeleteRequest, resp *resource.DeleteResponse) {
