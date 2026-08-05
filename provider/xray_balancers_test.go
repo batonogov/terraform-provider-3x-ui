@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -243,6 +244,30 @@ func TestFlattenBalancerStrategySettingsIntExpected(t *testing.T) {
 	}
 	if len(st.Costs) != 1 || !st.Costs[0].Regexp.ValueBool() {
 		t.Fatalf("expected 1 cost with regexp=true, got %+v", st.Costs)
+	}
+}
+
+func TestFlattenBalancerStrategySettingsBaselinesDefaultToTypedNull(t *testing.T) {
+	tests := map[string]map[string]any{
+		"absent": {"expected": 2},
+		"empty":  {"expected": 2, "baselines": []any{}},
+	}
+
+	for name, settings := range tests {
+		t.Run(name, func(t *testing.T) {
+			res := flattenBalancerStrategySettings(map[string]any{"settings": settings})
+			if len(res) != 1 {
+				t.Fatalf("expected 1 settings block, got %d", len(res))
+			}
+
+			baselines := res[0].Baselines
+			if !baselines.IsNull() {
+				t.Fatalf("expected baselines to be null, got %s", baselines)
+			}
+			if got := baselines.ElementType(context.Background()); !got.Equal(types.StringType) {
+				t.Fatalf("expected baselines element type %s, got %s", types.StringType, got)
+			}
+		})
 	}
 }
 

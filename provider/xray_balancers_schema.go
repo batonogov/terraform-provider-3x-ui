@@ -503,7 +503,9 @@ func flattenBalancerStrategySettings(in map[string]any) []XrayBalancerStrategySe
 	if !ok || len(settingsRaw) == 0 {
 		return nil
 	}
-	st := XrayBalancerStrategySettings{}
+	st := XrayBalancerStrategySettings{
+		Baselines: types.ListNull(types.StringType),
+	}
 	if v, ok := settingsRaw["expected"]; ok {
 		switch n := v.(type) {
 		case float64:
