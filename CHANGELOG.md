@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.22.3](https://github.com/batonogov/terraform-provider-threexui/compare/v3.22.2...v3.22.3) (2026-08-15)
+
+
+### Bug Fixes
+
+* complete v3.6.0 version-addition procedure (contract, drift gate, docs) ([#435](https://github.com/batonogov/terraform-provider-threexui/issues/435)) ([7eb9678](https://github.com/batonogov/terraform-provider-threexui/commit/7eb96786e7ee8f9113606e110320c6584f5404f2))
+
 ## [3.22.2](https://github.com/batonogov/terraform-provider-threexui/compare/v3.22.1...v3.22.2) (2026-08-05)
 
 
