@@ -899,6 +899,14 @@ func TestDriftAllSettingFields(t *testing.T) {
 		"smtpUsername": true, "smtpPassword": true, "smtpTo": true,
 		"smtpEncryptionType": true, "smtpEnabledEvents": true,
 		"smtpCpu": true, "smtpMemory": true,
+		// v3.6.0 SMTP From header (threexui_panel_email)
+		"smtpFrom": true, "smtpFromName": true,
+		// v3.6.0 subscription format auto-detection (threexui_panel_subscription)
+		"subJsonAutoDetect": true, "subJsonAlwaysArray": true,
+		"subJsonUserAgentRegex": true, "subClashAutoDetect": true,
+		"subClashUserAgentRegex": true,
+		// v3.6.0 panel_general
+		"subShowIdentityOnAllLinks": true, "outboundDownThreshold": true,
 	}
 
 	// Fields intentionally not managed by the provider.

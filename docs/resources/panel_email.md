@@ -39,6 +39,8 @@ resource "threexui_panel_email" "settings" {
 - `smtp_password_wo` (Optional, String, WriteOnly) - Write-only version of `smtp_password`. Not persisted in state. Terraform 1.11+ / OpenTofu 1.11+.
 - `smtp_password_wo_version` (Optional, Number) - Increment to trigger re-send of `smtp_password_wo`. Must be set together with `smtp_password_wo`.
 - `smtp_to` (Optional, String) - Comma-separated recipient email addresses.
+- `smtp_from` (Optional, String) - SMTP From address (RFC 5322). Added in 3x-ui v3.6.0; ignored by older panels.
+- `smtp_from_name` (Optional, String) - SMTP From display name. Added in 3x-ui v3.6.0; ignored by older panels.
 - `smtp_encryption_type` (Optional, String) - SMTP encryption: `none`, `starttls`, or `tls`.
 - `smtp_enabled_events` (Optional, String) - Comma-separated event types to send via email.
 - `smtp_cpu` (Optional, Number) - CPU usage threshold (%) for email alerts (0-100).
