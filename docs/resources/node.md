@@ -44,7 +44,7 @@ terraform import threexui_node.fra1 7
 - `remark` (Optional, String) - Free-form note.
 - `scheme` (Optional, String) - `http` or `https`. Defaults to `https`.
 - `base_path` (Optional, String) - Node web API base path. Defaults to `/`.
-- `api_token` (Optional, String, Sensitive) - Bearer API token the central panel uses to authenticate to the node. Required unless `tls_verify_mode` is `mtls`. The panel returns this raw without redaction. Prefer the write-only `api_token_wo` on TF 1.11+.
+- `api_token` (Optional, String, Sensitive) - Bearer API token the central panel uses to authenticate to the node. Required unless `tls_verify_mode` is `mtls`. Since 3x-ui v3.6.0 the panel no longer returns this value on read (write-only, 3x-ui #5613); the provider preserves the configured value in state, and after `terraform import` on v3.6.0+ you must set it manually because the panel cannot echo it back. Prefer the write-only `api_token_wo` on TF 1.11+.
 - `api_token_wo` (Optional, String, Write-Only) - Write-only node API token (Terraform 1.11+ / OpenTofu 1.11+). Pair with `api_token_wo_version` to rotate.
 - `api_token_wo_version` (Optional, Number) - Increment to rotate `api_token_wo`. Each change sends the current `_wo` value to the panel; requires `api_token_wo`.
 - `enable` (Optional, Bool) - Whether the node is enabled. Defaults to `true`.

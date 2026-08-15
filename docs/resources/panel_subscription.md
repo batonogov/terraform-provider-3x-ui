@@ -92,6 +92,9 @@ resource "threexui_panel_subscription" "settings" {
   - **Deprecated in 3x-ui v3.2.8** — replaced by `sub_clash_rules`.
 - `sub_json_mux` (Optional, String) - JSON mux settings.
 - `sub_json_rules` (Optional, String) - JSON rules.
+- `sub_json_auto_detect` (Optional, Boolean) - Auto-detect JSON subscription format by User-Agent. Added in 3x-ui v3.6.0; ignored by older panels.
+- `sub_json_always_array` (Optional, Boolean) - Always output the JSON subscription as an array. Added in 3x-ui v3.6.0; ignored by older panels.
+- `sub_json_user_agent_regex` (Optional, String) - User-Agent regex for JSON subscription auto-detection. Added in 3x-ui v3.6.0; ignored by older panels.
 
 ### Clash / Mihomo
 
@@ -100,6 +103,8 @@ resource "threexui_panel_subscription" "settings" {
 - `sub_clash_uri` (Optional, String) - Clash/Mihomo subscription server URI.
 - `sub_clash_enable_routing` (Optional, Boolean) - Enable global routing rules for Clash/Mihomo subscriptions. Available since 3x-ui v3.2.8.
 - `sub_clash_rules` (Optional, String) - Clash/Mihomo global routing rules. Available since 3x-ui v3.2.8.
+- `sub_clash_auto_detect` (Optional, Boolean) - Auto-detect Clash subscription format by User-Agent. Added in 3x-ui v3.6.0; ignored by older panels.
+- `sub_clash_user_agent_regex` (Optional, String) - User-Agent regex for Clash subscription auto-detection. Added in 3x-ui v3.6.0; ignored by older panels.
 - `sub_json_final_mask` (Optional, String) - JSON subscription global finalmask (tcp/udp masks and quicParams). Available since 3x-ui v3.2.8.
 
 ## Attribute Reference
