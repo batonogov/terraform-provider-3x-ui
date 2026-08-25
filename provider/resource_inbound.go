@@ -530,6 +530,10 @@ func (r *InboundResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	// A peer dropped from the configuration is removed by this update, but the
+	// panel keeps its client row — see releasePeerEmailsRemovedByUpdate.
+	releasePeerEmailsRemovedByUpdate(ctx, r.client, id, plan.Protocol.ValueString(), &state, &plan, &resp.Diagnostics)
+
 	newState, diags := inboundToModel(updated, false)
 	resp.Diagnostics.Append(diags...)
 	alignBlocksWithPlan(newState, &plan)
@@ -562,6 +566,10 @@ func (r *InboundResource) Delete(ctx context.Context, req resource.DeleteRequest
 		resp.Diagnostics.AddError("Failed to delete inbound", err.Error())
 		return
 	}
+
+	// Free the peers' emails now that the inbound is gone. Deliberately after
+	// the inbound delete, not before — see releaseInboundOwnedPeers.
+	releaseInboundOwnedPeers(ctx, r.client, id, state.Protocol.ValueString(), &state, &resp.Diagnostics)
 
 	// The DELETE was accepted by the API. 3x-ui's DelInbound is a multi-step
 	// SQLite operation; under load the row may still be visible to a follow-up

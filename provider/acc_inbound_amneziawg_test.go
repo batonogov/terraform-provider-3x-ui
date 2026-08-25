@@ -227,8 +227,95 @@ resource "threexui_inbound" "awg_peers" {
 				),
 			},
 			{
-				Config:   testAccProviderConfig() + fmt.Sprintf(base, port, ""),
-				PlanOnly: true,
+				// ...and its email must be free again. Dropping a peer is an
+				// update, not a delete, and the panel keeps the client row just as
+				// it does when the whole inbound goes — so a second inbound reusing
+				// the address fails with "Duplicate email" unless the provider
+				// released it (#452).
+				Config: testAccProviderConfig() + fmt.Sprintf(base, port, "") + `
+resource "threexui_inbound" "awg_peers_reuse" {
+  port     = 26016
+  protocol = "amneziawg"
+  remark   = "acc-awg-peers-reuse"
+  enable   = true
+
+  amneziawg_settings {
+    server {}
+    clients {
+      email       = "awg-last-peer@test.com"
+      enable      = true
+      public_key  = "dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXkxMjM0NQ=="
+      allowed_ips = ["10.8.1.6/32"]
+    }
+  }
+}
+`,
+				Check: resource.TestCheckResourceAttr("threexui_inbound.awg_peers_reuse",
+					"amneziawg_settings.clients.0.email", "awg-last-peer@test.com"),
+			},
+		},
+	})
+}
+
+// TestAccInboundAmneziawgRecreateWithSamePeerEmail is the regression guard for
+// #452: destroy followed by apply, which is what a `-replace`, a moved resource
+// or a rebuilt workspace does.
+//
+// 3x-ui's DelInbound drops the inbound-to-client links but keeps the `clients`
+// rows, which carry the unique index on `email`. Peers owned by the inbound
+// (AmneziaWG, and WireGuard `clients[]` since v3.4.2) are therefore left
+// occupying their address, and the next create fails with
+// "Duplicate email: <address>" naming a client that no longer appears under any
+// inbound. The provider now deletes each peer through the per-client endpoint
+// before removing the inbound.
+//
+// terraform-plugin-testing destroys only at the end of a test case, so the
+// second step taints the resource to force a destroy+create in the middle. Both
+// steps deliberately use the SAME peer email: the destroy has to leave it free
+// for the create that follows.
+func TestAccInboundAmneziawgRecreateWithSamePeerEmail(t *testing.T) {
+	requireMinVersion(t, "v3.7.0")
+
+	const port = 26015
+	config := func(remark string) string {
+		return testAccProviderConfig() + fmt.Sprintf(`
+resource "threexui_inbound" "awg_recreate" {
+  port     = %d
+  protocol = "amneziawg"
+  remark   = %q
+  enable   = true
+
+  amneziawg_settings {
+    server {}
+    clients {
+      email       = "awg-recreated@test.com"
+      enable      = true
+      public_key  = "dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXkxMjM0NQ=="
+      allowed_ips = ["10.8.1.7/32"]
+    }
+  }
+}
+`, port, remark)
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: config("acc-awg-recreate-first"),
+				Check: resource.TestCheckResourceAttr("threexui_inbound.awg_recreate",
+					"amneziawg_settings.clients.0.email", "awg-recreated@test.com"),
+			},
+			{
+				// Forces destroy + create of the inbound with the same peer email.
+				Taint:  []string{"threexui_inbound.awg_recreate"},
+				Config: config("acc-awg-recreate-second"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.awg_recreate", "remark", "acc-awg-recreate-second"),
+					resource.TestCheckResourceAttr("threexui_inbound.awg_recreate",
+						"amneziawg_settings.clients.0.email", "awg-recreated@test.com"),
+				),
 			},
 		},
 	})

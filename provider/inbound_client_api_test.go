@@ -191,10 +191,16 @@ func TestClientDeleteInboundClientIgnoresMissingClient(t *testing.T) {
 	}
 }
 
+// The message is the one 3x-ui actually formats — `client %q not found in any
+// inbound or client record` (3x-ui-3.7.0/internal/web/service/client_crud.go:919),
+// verified against a live v3.7.0 panel. The earlier fixture used an invented
+// "Client Not Found", which is why the provider's tolerance check could look
+// correct while never matching: the quoted email sits between "client" and
+// "not found".
 func TestClientDeleteInboundClientNewAPIIgnoresMissingClient(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/panel/api/clients/del/test@example.com" {
-			w.Write(failResponse("Client Not Found"))
+			w.Write(failResponse(`client "test@example.com" not found in any inbound or client record`))
 			return
 		}
 		w.Write(okResponse(nil))
