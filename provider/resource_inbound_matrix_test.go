@@ -793,9 +793,21 @@ resource "threexui_inbound" "mx_awg" {
 				resource.TestCheckResourceAttr(addr, "amneziawg_settings.server.mtu", "1380"),
 				resource.TestCheckResourceAttr(addr, "amneziawg_settings.server.subnet_ip", "10.9.1.0"),
 				resource.TestCheckResourceAttr(addr, "amneziawg_settings.clients.0.email", "matrix-awg-peer@test.com"),
-				// Generated server-side from an empty configuration.
+				// Generated server-side. `jc` must be checked for a non-zero value,
+				// not merely for being set: a partial server block used to come back
+				// with the whole obfuscation set zeroed, which is plain WireGuard
+				// wearing AmneziaWG's name, and TestCheckResourceAttrSet passes on
+				// "0".
 				resource.TestCheckResourceAttrSet(addr, "amneziawg_settings.server.public_key"),
-				resource.TestCheckResourceAttrSet(addr, "amneziawg_settings.server.jc"),
+				resource.TestCheckResourceAttrWith(addr, "amneziawg_settings.server.jc", nonZeroAttr("jc")),
+				resource.TestCheckResourceAttrWith(addr, "amneziawg_settings.server.jmin", nonZeroAttr("jmin")),
+				resource.TestCheckResourceAttrWith(addr, "amneziawg_settings.server.s1", nonZeroAttr("s1")),
+				resource.TestCheckResourceAttrWith(addr, "amneziawg_settings.server.h1", func(v string) error {
+					if v == "" {
+						return fmt.Errorf("h1 is blank: the inbound has no magic-header obfuscation")
+					}
+					return nil
+				}),
 			}
 		},
 		updateChecks: func(addr string) []resource.TestCheckFunc {
@@ -930,5 +942,17 @@ resource "threexui_inbound" "mx_hysteria" {
 		// Client creation for hysteria is tested by TestAccInboundClientHysteria.
 		// Skipped here to reduce SQLite pressure at the end of a long test run.
 		hasClient: false,
+	}
+}
+
+// nonZeroAttr fails when an obfuscation parameter reads back as 0 — the shape a
+// partial server block produces when the panel is not allowed to generate the
+// set (#441).
+func nonZeroAttr(name string) func(string) error {
+	return func(v string) error {
+		if v == "" || v == "0" {
+			return fmt.Errorf("%s is %q: AmneziaWG obfuscation is disabled, the inbound is plain WireGuard", name, v)
+		}
+		return nil
 	}
 }

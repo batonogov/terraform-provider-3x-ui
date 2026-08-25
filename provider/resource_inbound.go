@@ -294,6 +294,20 @@ func (r *InboundResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	// AmneziaWG: hold the configured server fields back so the panel generates a
+	// complete obfuscation set, then re-apply them below. See
+	// splitAmneziawgServer for why a partial block silently disables obfuscation.
+	var amneziawgServerOverrides map[string]any
+	if inbound.Protocol == "amneziawg" {
+		rest, overrides, splitErr := splitAmneziawgServer(inbound.Settings)
+		if splitErr != nil {
+			resp.Diagnostics.AddError("Failed to prepare AmneziaWG settings", splitErr.Error())
+			return
+		}
+		inbound.Settings = rest
+		amneziawgServerOverrides = overrides
+	}
+
 	// Acquire inboundClientMu if settings contains clients[] to serialise
 	// with concurrent inbound_client RMW cycles on the same inbound (#343).
 	if settingsHasClients(inbound.Settings) {
@@ -351,6 +365,39 @@ func (r *InboundResource) Create(ctx context.Context, req resource.CreateRequest
 	}); retryErr != nil {
 		resp.Diagnostics.AddError("Failed to read created inbound", retryErr.Error())
 		return
+	}
+
+	// Second phase of the AmneziaWG create: the panel has now generated a full
+	// server block, so the configured fields can be laid over it without wiping
+	// the obfuscation parameters.
+	if len(amneziawgServerOverrides) > 0 {
+		mergedSettings, changed, mergeErr := applyAmneziawgServerOverrides(created.Settings, amneziawgServerOverrides)
+		if mergeErr != nil {
+			resp.Diagnostics.AddError("Failed to apply AmneziaWG server settings", mergeErr.Error())
+			return
+		}
+		if changed {
+			created.Settings = mergedSettings
+			updated, updateErr := r.client.UpdateInbound(ctx, created)
+			if updateErr != nil {
+				resp.Diagnostics.AddError("Failed to apply AmneziaWG server settings", updateErr.Error())
+				return
+			}
+			if updated != nil && updated.ID != 0 {
+				created = updated
+			}
+			if retryErr := r.client.WithReadAfterWriteRetry(ctx, fmt.Sprintf("read amneziawg inbound %d", created.ID), func() (bool, error) {
+				got, getErr := r.client.GetInbound(ctx, created.ID)
+				if getErr != nil {
+					return false, getErr
+				}
+				created = got
+				return true, nil
+			}); retryErr != nil {
+				resp.Diagnostics.AddError("Failed to read AmneziaWG inbound after applying server settings", retryErr.Error())
+				return
+			}
+		}
 	}
 
 	state, diags := inboundToModel(created, false)
@@ -912,6 +959,21 @@ func preserveInboundSettings(desired *Inbound, existing *Inbound) error {
 	existingSettings, err := ParseJSONField(existing.Settings)
 	if err != nil {
 		return err
+	}
+	// clients[] is only preserved for protocols whose clients belong to
+	// threexui_inbound_client. WireGuard and AmneziaWG peers are owned by the
+	// inbound itself, so copying the existing array back would make removing the
+	// last peer impossible: the plan drops it, this puts it straight back, and
+	// the apply fails with "block count changed from 0 to 1" while the peer keeps
+	// connecting.
+	if protocolOwnsClients(desired.Protocol) {
+		_ = preserveSettingsKey(desiredSettings, existingSettings, "testseed")
+		updated, err := json.Marshal(desiredSettings)
+		if err != nil {
+			return err
+		}
+		desired.Settings = string(updated)
+		return nil
 	}
 	if !preserveSettingsKey(desiredSettings, existingSettings, "clients") {
 		return nil

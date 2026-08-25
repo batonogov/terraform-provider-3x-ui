@@ -337,7 +337,9 @@ Typed AmneziaWG settings, available on 3x-ui v3.7.0+. Unlike the client-carrying
 
 ~> **Required in practice.** The provider rejects an `amneziawg` inbound that does not declare this block, because a settings blob without a `server` object makes the panel regenerate the server keypair on every save. Declare `server {}` and leave the attributes to the panel if you do not want to manage them.
 
-Every attribute is Optional+Computed: what the configuration omits, the panel generates on save and the provider records in state. Attributes the panel declares `omitempty` upstream reject an empty string or a zero — omit them instead, since a value the panel strips could not round-trip.
+Every attribute is Optional+Computed: what the configuration omits, the panel generates on save and the provider records in state. Attributes the panel declares `omitempty` upstream reject an empty string or a zero — omit them instead, since a value the panel strips could not round-trip. The range-valued fields (`content_padding_addition` and the five timings) additionally reject spaces, because the panel stores them canonicalised: `"110 - 140"` would come back as `"110-140"` and fail the apply.
+
+The provider creates an AmneziaWG inbound in two steps: first without this block, so the panel generates a complete randomised obfuscation set, then applying the configured fields on top. This matters because 3x-ui only generates that set when the settings carry no `server` object at all — a partial block is taken literally, and every field left out is stored as its zero value. Configuring just a subnet directly would produce `jc = 0`, blank `h1`-`h4` and no header protection: plain WireGuard under an AmneziaWG name, with nothing reporting it.
 
 - `private_key` (Optional+Computed, String, Sensitive) - Server private key (base64). Generated when absent. Sending an empty value makes the panel generate a **new** keypair, invalidating every existing peer config.
 - `public_key` (Optional+Computed, String) - Server public key (base64). The panel does not derive this from `private_key` for the server (only for clients), so set both or let it generate both.
@@ -383,8 +385,8 @@ Every attribute is Optional+Computed: what the configuration omits, the panel ge
 - `private_key` (Optional+Computed, String, Sensitive) - Peer private key. The panel stores it only to render a ready-made peer config, so it can be left out when the key is kept elsewhere; it is not generated on this path.
 - `public_key` (**Required**, String) - Peer public key (base64). The panel rejects an AmneziaWG peer without one (`wireguard client requires a key`) and does not derive it from `private_key` on the inbound path — key generation lives only on the `/panel/api/clients` endpoints, which do not own these peers.
 - `pre_shared_key` (Optional+Computed, String, Sensitive) - Optional pre-shared key.
-- `allowed_ips` (Optional+Computed, List of String) - Peer tunnel addresses. Allocated from the inbound's subnet when omitted and normalised server-side (a bare address becomes `/32`).
-- `keep_alive` (Optional+Computed, Number) - Persistent keepalive in seconds.
+- `allowed_ips` (Optional+Computed, List of String) - Peer tunnel addresses, e.g. `["10.9.1.2/32"]`. Set at least one: address allocation happens on the `/panel/api/clients` endpoints, which do not own these peers, so a peer declared here without addresses is saved unroutable. Normalised server-side — a bare address becomes `/32` and duplicates are dropped.
+- `keep_alive` (Optional+Computed, Number) - Persistent keepalive in seconds, at least 1. Omit it to disable keepalive — the panel strips a zero, so `0` cannot round-trip.
 - `forwarded_ports` (Optional+Computed, String) - Ports DNAT-forwarded to this peer, e.g. `80,443,8000-8100`. Expands to at most 100 ports. The panel rejects a spec colliding with the panel's own port, any enabled inbound's port, or this inbound's SOCKS relay port (65100 + inbound id); malformed tokens are dropped silently.
 - `enable` (Optional+Computed, Boolean) - Whether the peer is enabled.
 - `limit_ip` (Optional+Computed, Number) - Concurrent IP limit (0 = unlimited).
@@ -394,6 +396,13 @@ Every attribute is Optional+Computed: what the configuration omits, the panel ge
 - `sub_id` (Optional+Computed, String) - Subscription id.
 - `comment` (Optional+Computed, String) - Free-form comment.
 - `reset` (Optional+Computed, Number) - Traffic reset interval in days (0 = never).
+- `group` (Optional+Computed, String) - Logical grouping label.
+- `reset_day` (Optional+Computed, Number) - Calendar day of month (1-31) the peer's traffic renews on. `0` keeps the rolling `reset` interval.
+- `reset_max` (Optional+Computed, Number) - Maximum number of automatic renewals; `0` means unlimited.
+- `traffic_reset` (Optional+Computed, String) - Per-peer traffic reset cycle: `never`, `hourly`, `daily`, `weekly` or `monthly`. Independent of the inbound's own cycle.
+- `traffic_reset_day` (Optional+Computed, Number) - Day of month (1-31) for a monthly per-peer reset. The panel clamps anything below 1 up to 1, so `0` cannot round-trip.
+- `created_at` (Optional+Computed, Number) - Creation timestamp in milliseconds since epoch, set by the panel.
+- `updated_at` (Optional+Computed, Number) - Last-update timestamp in milliseconds since epoch, set by the panel.
 
 #### `mtproto_settings` (Optional, Block)
 

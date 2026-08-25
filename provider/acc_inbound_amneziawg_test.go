@@ -99,3 +99,137 @@ resource "threexui_inbound" "awg_keys" {
 		},
 	})
 }
+
+// TestAccInboundAmneziawgPartialServerKeepsObfuscation guards the reason
+// AmneziaWG exists at all.
+//
+// 3x-ui generates its randomised obfuscation set only when the settings it
+// receives carry NO `server` object; a partial block is taken literally and
+// every omitted field is stored as its zero value. An inbound configured with
+// just a subnet therefore ends up with jc=0, blank h1-h4 and no header
+// protection — plain WireGuard, trivially fingerprinted, with nothing in the
+// panel or in Terraform reporting it. Measured directly against v3.7.0.
+//
+// The provider works around it by creating the inbound without the block and
+// applying the configured fields afterwards (splitAmneziawgServer /
+// applyAmneziawgServerOverrides). This test pins both halves: the configured
+// values must win, and the generated ones must survive.
+func TestAccInboundAmneziawgPartialServerKeepsObfuscation(t *testing.T) {
+	requireMinVersion(t, "v3.7.0")
+
+	const port = 26013
+	config := testAccProviderConfig() + fmt.Sprintf(`
+resource "threexui_inbound" "awg_partial" {
+  port     = %d
+  protocol = "amneziawg"
+  remark   = "acc-awg-partial"
+  enable   = true
+
+  amneziawg_settings {
+    server {
+      subnet_ip   = "10.9.2.0"
+      subnet_cidr = 24
+      primary_dns = "1.1.1.1"
+    }
+  }
+}
+`, port)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					// Configured fields win.
+					resource.TestCheckResourceAttr("threexui_inbound.awg_partial", "amneziawg_settings.server.subnet_ip", "10.9.2.0"),
+					resource.TestCheckResourceAttr("threexui_inbound.awg_partial", "amneziawg_settings.server.primary_dns", "1.1.1.1"),
+					// Generated fields survive.
+					resource.TestCheckResourceAttrWith("threexui_inbound.awg_partial", "amneziawg_settings.server.jc", nonZeroAttr("jc")),
+					resource.TestCheckResourceAttrWith("threexui_inbound.awg_partial", "amneziawg_settings.server.jmin", nonZeroAttr("jmin")),
+					resource.TestCheckResourceAttrWith("threexui_inbound.awg_partial", "amneziawg_settings.server.jmax", nonZeroAttr("jmax")),
+					resource.TestCheckResourceAttrWith("threexui_inbound.awg_partial", "amneziawg_settings.server.s1", nonZeroAttr("s1")),
+					resource.TestCheckResourceAttrWith("threexui_inbound.awg_partial", "amneziawg_settings.server.s2", nonZeroAttr("s2")),
+					resource.TestCheckResourceAttrWith("threexui_inbound.awg_partial", "amneziawg_settings.server.h1", func(v string) error {
+						if v == "" {
+							return fmt.Errorf("h1 is blank: magic-header obfuscation was not generated")
+						}
+						return nil
+					}),
+					resource.TestCheckResourceAttrWith("threexui_inbound.awg_partial", "amneziawg_settings.server.header_protection_key", func(v string) error {
+						if v == "" {
+							return fmt.Errorf("header_protection_key is blank: header protection was not generated")
+						}
+						return nil
+					}),
+				),
+			},
+			{
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+// TestAccInboundAmneziawgRemoveLastPeer covers peer removal, which is only
+// possible because preserveInboundSettings skips protocols whose clients the
+// inbound owns.
+//
+// For vmess/vless/… the provider re-injects the existing clients[] on update,
+// since those peers belong to threexui_inbound_client and must not be clobbered
+// by an inbound-level write. AmneziaWG peers are owned by the inbound, so the
+// same behaviour would put a deleted peer straight back: the apply fails with
+// "block count changed from 0 to 1" and the peer keeps connecting — a removal
+// that reports failure while leaving access intact.
+func TestAccInboundAmneziawgRemoveLastPeer(t *testing.T) {
+	requireMinVersion(t, "v3.7.0")
+
+	const port = 26014
+	base := `
+resource "threexui_inbound" "awg_peers" {
+  port     = %d
+  protocol = "amneziawg"
+  remark   = "acc-awg-peers"
+  enable   = true
+
+  amneziawg_settings {
+    server {}
+%s
+  }
+}
+`
+	peer := `
+    clients {
+      email       = "awg-last-peer@test.com"
+      enable      = true
+      public_key  = "dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXkxMjM0NQ=="
+      allowed_ips = ["10.8.1.5/32"]
+    }`
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + fmt.Sprintf(base, port, peer),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.awg_peers", "amneziawg_settings.clients.#", "1"),
+					resource.TestCheckResourceAttr("threexui_inbound.awg_peers", "amneziawg_settings.clients.0.email", "awg-last-peer@test.com"),
+				),
+			},
+			{
+				// The only peer is removed. It must actually go away.
+				Config: testAccProviderConfig() + fmt.Sprintf(base, port, ""),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.awg_peers", "amneziawg_settings.clients.#", "0"),
+				),
+			},
+			{
+				Config:   testAccProviderConfig() + fmt.Sprintf(base, port, ""),
+				PlanOnly: true,
+			},
+		},
+	})
+}

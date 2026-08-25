@@ -58,21 +58,28 @@ func awgFullServerModel() *InboundAmneziawgServerModel {
 
 func awgClientModel() InboundAmneziawgClientModel {
 	return InboundAmneziawgClientModel{
-		Email:          types.StringValue("peer-one@test.com"),
-		PrivateKey:     types.StringValue("clientPrivateKey0000000000000000000000000000="),
-		PublicKey:      types.StringValue("clientPublicKey00000000000000000000000000000="),
-		PreSharedKey:   types.StringValue("presharedKey000000000000000000000000000000000="),
-		AllowedIPs:     anySliceToTypesList([]any{"10.8.1.2/32", "fd00:8:1::2/128"}),
-		KeepAlive:      types.Int64Value(25),
-		ForwardedPorts: types.StringValue("80,443,8000-8100"),
-		Enable:         types.BoolValue(true),
-		LimitIP:        types.Int64Value(2),
-		TotalGB:        types.Int64Value(107374182400),
-		ExpiryTime:     types.Int64Value(1767225600000),
-		TgID:           types.Int64Value(12345),
-		SubID:          types.StringValue("abcdef0123456789"),
-		Comment:        types.StringValue("first peer"),
-		Reset:          types.Int64Value(0),
+		Email:           types.StringValue("peer-one@test.com"),
+		PrivateKey:      types.StringValue("clientPrivateKey0000000000000000000000000000="),
+		PublicKey:       types.StringValue("clientPublicKey00000000000000000000000000000="),
+		PreSharedKey:    types.StringValue("presharedKey000000000000000000000000000000000="),
+		AllowedIPs:      anySliceToTypesList([]any{"10.8.1.2/32", "fd00:8:1::2/128"}),
+		KeepAlive:       types.Int64Value(25),
+		ForwardedPorts:  types.StringValue("80,443,8000-8100"),
+		Enable:          types.BoolValue(true),
+		LimitIP:         types.Int64Value(2),
+		TotalGB:         types.Int64Value(107374182400),
+		ExpiryTime:      types.Int64Value(1767225600000),
+		TgID:            types.Int64Value(12345),
+		SubID:           types.StringValue("abcdef0123456789"),
+		Comment:         types.StringValue("first peer"),
+		Reset:           types.Int64Value(0),
+		Group:           types.StringValue("mobile"),
+		ResetDay:        types.Int64Value(1),
+		ResetMax:        types.Int64Value(12),
+		TrafficReset:    types.StringValue("monthly"),
+		TrafficResetDay: types.Int64Value(5),
+		CreatedAt:       types.Int64Value(1767225600000),
+		UpdatedAt:       types.Int64Value(1767225600001),
 	}
 }
 
@@ -148,6 +155,15 @@ func TestExpandFlattenAmneziawgSettingsModel_RoundTrip(t *testing.T) {
 	}
 	if before.ForwardedPorts != after.ForwardedPorts {
 		t.Errorf("forwarded_ports changed: %v -> %v", before.ForwardedPorts, after.ForwardedPorts)
+	}
+	// The renewal fields are the ones a practitioner sets in the panel UI; the
+	// inbound rewrites clients[] wholesale, so any of them the provider fails to
+	// carry is silently zeroed on the next apply.
+	if before.Group != after.Group || before.ResetDay != after.ResetDay ||
+		before.ResetMax != after.ResetMax || before.TrafficReset != after.TrafficReset ||
+		before.TrafficResetDay != after.TrafficResetDay ||
+		before.CreatedAt != after.CreatedAt || before.UpdatedAt != after.UpdatedAt {
+		t.Errorf("client renewal fields changed across the round trip:\n before: %+v\n after:  %+v", before, after)
 	}
 	if before.Email != after.Email || before.PrivateKey != after.PrivateKey ||
 		before.PublicKey != after.PublicKey || before.PreSharedKey != after.PreSharedKey ||
@@ -419,4 +435,302 @@ func TestInboundResourceRegistersAmneziawgValidator(t *testing.T) {
 		}
 	}
 	t.Fatalf("threexui_inbound does not register the amneziawg server validator (got %d validators)", len(validators))
+}
+
+// The two-phase create is the only thing keeping a partial server block from
+// silently disabling obfuscation, so both halves are pinned here.
+func TestSplitAmneziawgServer(t *testing.T) {
+	cases := []struct {
+		name        string
+		settings    string
+		wantRest    string
+		wantServer  map[string]any
+		wantNoSplit bool
+	}{
+		{
+			name:       "server is lifted out, clients stay",
+			settings:   `{"server":{"subnetIp":"10.9.1.0"},"clients":[{"email":"a@b.c"}]}`,
+			wantRest:   `{"clients":[{"email":"a@b.c"}]}`,
+			wantServer: map[string]any{"subnetIp": "10.9.1.0"},
+		},
+		{
+			name:        "no server object: nothing to hold back",
+			settings:    `{"clients":[]}`,
+			wantNoSplit: true,
+		},
+		{
+			name:        "empty server object is not worth a second write",
+			settings:    `{"server":{}}`,
+			wantNoSplit: true,
+		},
+		{
+			name:        "empty settings",
+			settings:    "",
+			wantNoSplit: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rest, server, err := splitAmneziawgServer(tc.settings)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tc.wantNoSplit {
+				if server != nil {
+					t.Errorf("expected no server to be split off, got %v", server)
+				}
+				if rest != tc.settings {
+					t.Errorf("settings should be untouched, got %s", rest)
+				}
+				return
+			}
+			if rest != tc.wantRest {
+				t.Errorf("rest = %s, want %s", rest, tc.wantRest)
+			}
+			if len(server) != len(tc.wantServer) {
+				t.Fatalf("server = %v, want %v", server, tc.wantServer)
+			}
+			for k, v := range tc.wantServer {
+				if server[k] != v {
+					t.Errorf("server[%q] = %v, want %v", k, server[k], v)
+				}
+			}
+		})
+	}
+}
+
+func TestSplitAmneziawgServer_InvalidJSON(t *testing.T) {
+	if _, _, err := splitAmneziawgServer(`{"server":`); err == nil {
+		t.Error("expected an error on malformed settings")
+	}
+}
+
+func TestApplyAmneziawgServerOverrides(t *testing.T) {
+	// What the panel generates when it is handed no server block.
+	generated := `{"server":{"privateKey":"gen","publicKey":"genpub","subnetIp":"10.8.1.0","subnetCidr":24,"jc":6,"jmin":60,"h1":"1553264530-1553265530"},"clients":[]}`
+
+	merged, changed, err := applyAmneziawgServerOverrides(generated, map[string]any{
+		"subnetIp":   "10.9.1.0",
+		"primaryDns": "1.1.1.1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected the merge to report a change")
+	}
+
+	var parsed struct {
+		Server map[string]any `json:"server"`
+	}
+	if err := json.Unmarshal([]byte(merged), &parsed); err != nil {
+		t.Fatalf("merged settings are not valid JSON: %v", err)
+	}
+
+	// Configured values win.
+	if parsed.Server["subnetIp"] != "10.9.1.0" {
+		t.Errorf("configured subnetIp lost: %v", parsed.Server["subnetIp"])
+	}
+	if parsed.Server["primaryDns"] != "1.1.1.1" {
+		t.Errorf("configured primaryDns lost: %v", parsed.Server["primaryDns"])
+	}
+	// Generated obfuscation survives — this is the whole point.
+	if parsed.Server["jc"] != float64(6) || parsed.Server["jmin"] != float64(60) {
+		t.Errorf("generated obfuscation was clobbered: jc=%v jmin=%v", parsed.Server["jc"], parsed.Server["jmin"])
+	}
+	if parsed.Server["h1"] != "1553264530-1553265530" {
+		t.Errorf("generated h1 was clobbered: %v", parsed.Server["h1"])
+	}
+	if parsed.Server["privateKey"] != "gen" {
+		t.Errorf("generated keypair was clobbered: %v", parsed.Server["privateKey"])
+	}
+}
+
+// A no-op merge must not trigger a second write to the panel.
+func TestApplyAmneziawgServerOverrides_NoChange(t *testing.T) {
+	generated := `{"server":{"subnetIp":"10.8.1.0","subnetCidr":24}}`
+
+	if _, changed, err := applyAmneziawgServerOverrides(generated, nil); err != nil || changed {
+		t.Errorf("empty overrides: changed=%v err=%v", changed, err)
+	}
+	// Numbers survive a JSON round trip as float64, so an int64 override that
+	// matches must not read as a difference.
+	if _, changed, err := applyAmneziawgServerOverrides(generated, map[string]any{"subnetCidr": int64(24)}); err != nil || changed {
+		t.Errorf("identical value should not count as a change: changed=%v err=%v", changed, err)
+	}
+	if _, changed, err := applyAmneziawgServerOverrides(generated, map[string]any{"subnetCidr": int64(25)}); err != nil || !changed {
+		t.Errorf("a real difference must be applied: changed=%v err=%v", changed, err)
+	}
+}
+
+// clients[] is preserved on update only for protocols whose peers belong to
+// threexui_inbound_client. Getting this wrong makes removing the last WireGuard
+// or AmneziaWG peer impossible.
+func TestProtocolOwnsClients(t *testing.T) {
+	for _, p := range []string{"wireguard", "amneziawg"} {
+		if !protocolOwnsClients(p) {
+			t.Errorf("%s peers are managed by threexui_inbound and must not be preserved on update", p)
+		}
+	}
+	for _, p := range []string{"vless", "vmess", "trojan", "shadowsocks", "hysteria", "mtproto"} {
+		if protocolOwnsClients(p) {
+			t.Errorf("%s clients belong to threexui_inbound_client and must be preserved", p)
+		}
+	}
+}
+
+// The clients block carries the fix for the panel's keyless-peer rejection, and
+// mutation testing showed nothing covered it.
+func TestAmneziawgClientsBlockShape(t *testing.T) {
+	clients := amneziawgClientsBlock()
+
+	publicKey, ok := clients.NestedObject.Attributes["public_key"]
+	if !ok {
+		t.Fatal("clients block has no public_key attribute")
+	}
+	if !publicKey.IsRequired() {
+		t.Error("clients.public_key must be Required: the panel rejects a keyless peer on inbound create and update, " +
+			"and never derives the key on this path")
+	}
+
+	for _, name := range []string{"private_key", "pre_shared_key"} {
+		if !clients.NestedObject.Attributes[name].IsSensitive() {
+			t.Errorf("clients.%s must be Sensitive", name)
+		}
+	}
+
+	want := []string{
+		"email", "private_key", "public_key", "pre_shared_key", "allowed_ips",
+		"keep_alive", "forwarded_ports", "enable", "limit_ip", "total_gb",
+		"expiry_time", "tg_id", "sub_id", "comment", "reset", "group",
+		"reset_day", "reset_max", "traffic_reset", "traffic_reset_day",
+		"created_at", "updated_at",
+	}
+	for _, name := range want {
+		if _, ok := clients.NestedObject.Attributes[name]; !ok {
+			t.Errorf("clients block is missing attribute %q", name)
+		}
+	}
+	if len(clients.NestedObject.Attributes) != len(want) {
+		t.Errorf("clients block has %d attributes, expected %d — update the model, the docs and this list together",
+			len(clients.NestedObject.Attributes), len(want))
+	}
+}
+
+// The cross-field rules the panel would otherwise reject mid-apply.
+func TestAmneziawgServerConstraints(t *testing.T) {
+	cases := []struct {
+		name      string
+		server    InboundAmneziawgServerModel
+		wantError bool
+	}{
+		{
+			name:      "jmin above jmax",
+			server:    InboundAmneziawgServerModel{Jmin: types.Int64Value(90), Jmax: types.Int64Value(50)},
+			wantError: true,
+		},
+		{
+			name:   "jmin below jmax is fine",
+			server: InboundAmneziawgServerModel{Jmin: types.Int64Value(50), Jmax: types.Int64Value(90)},
+		},
+		{
+			name:      "s1 + 56 equals s2",
+			server:    InboundAmneziawgServerModel{S1: types.Int64Value(30), S2: types.Int64Value(86)},
+			wantError: true,
+		},
+		{
+			name:   "s1 + 56 differs from s2",
+			server: InboundAmneziawgServerModel{S1: types.Int64Value(30), S2: types.Int64Value(87)},
+		},
+		{
+			name: "header protection with a junk size below 12",
+			server: InboundAmneziawgServerModel{
+				HeaderProtectionKey: types.StringValue("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="),
+				S1:                  types.Int64Value(20), S2: types.Int64Value(20),
+				S3: types.Int64Value(8), S4: types.Int64Value(20),
+			},
+			wantError: true,
+		},
+		{
+			name: "header protection with junk sizes at the floor",
+			server: InboundAmneziawgServerModel{
+				HeaderProtectionKey: types.StringValue("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="),
+				S1:                  types.Int64Value(12), S2: types.Int64Value(20),
+				S3: types.Int64Value(12), S4: types.Int64Value(13),
+			},
+		},
+		{
+			name:      "ipv6 enabled without a subnet",
+			server:    InboundAmneziawgServerModel{IPv6Enabled: types.BoolValue(true), IPv6Subnet: types.StringNull()},
+			wantError: true,
+		},
+		{
+			name:   "ipv6 enabled with a subnet",
+			server: InboundAmneziawgServerModel{IPv6Enabled: types.BoolValue(true), IPv6Subnet: types.StringValue("fd00:8:1::/64")},
+		},
+		{
+			name:   "ipv6 disabled needs no subnet",
+			server: InboundAmneziawgServerModel{IPv6Enabled: types.BoolValue(false)},
+		},
+		{
+			name:   "unknown values are left to the panel",
+			server: InboundAmneziawgServerModel{Jmin: types.Int64Unknown(), Jmax: types.Int64Value(50)},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := &resource.ValidateConfigResponse{}
+			server := tc.server
+			validateAmneziawgServerConstraints(&server, resp)
+			if got := resp.Diagnostics.HasError(); got != tc.wantError {
+				t.Errorf("error = %v, want %v (%v)", got, tc.wantError, resp.Diagnostics)
+			}
+		})
+	}
+}
+
+func TestAmneziawgValidatorDescriptions(t *testing.T) {
+	v := amneziawgServerRequiredValidator{}
+	ctx := context.Background()
+	if v.Description(ctx) == "" {
+		t.Error("Description must not be empty")
+	}
+	if v.MarkdownDescription(ctx) != v.Description(ctx) {
+		t.Error("MarkdownDescription should mirror Description")
+	}
+}
+
+// Absent and malformed payloads must produce a nil model rather than a
+// half-populated one, so a broken panel response cannot land in state.
+func TestFlattenAmneziawgInboundSettings_Edges(t *testing.T) {
+	if got := flattenAmneziawgInboundSettings(nil); got != nil {
+		t.Errorf("nil data should flatten to nil, got %+v", got)
+	}
+	if got := flattenAmneziawgInboundSettings(map[string]any{"server": "not-an-object"}); got != nil {
+		t.Errorf("a non-object server should flatten to nil, got %+v", got)
+	}
+	if got := flattenAmneziawgServerToModel(nil); got != nil {
+		t.Errorf("nil server should flatten to nil, got %+v", got)
+	}
+	if got := flattenAmneziawgClientsToModel([]any{"not-an-object"}); got != nil {
+		t.Errorf("a client list with no usable entries should flatten to nil, got %+v", got)
+	}
+
+	// A clients array alone (no server) is still a valid block.
+	got := flattenAmneziawgInboundSettings(map[string]any{
+		"clients": []any{map[string]any{"email": "a@b.c"}},
+	})
+	if got == nil || len(got.Clients) != 1 {
+		t.Fatalf("expected one client, got %+v", got)
+	}
+	if got.Server != nil {
+		t.Errorf("no server was present, so none should be modelled: %+v", got.Server)
+	}
+	// An absent allowed_ips must be a null list, not an empty one — the two plan
+	// differently.
+	if !got.Clients[0].AllowedIPs.IsNull() {
+		t.Errorf("absent allowedIPs should read as null, got %v", got.Clients[0].AllowedIPs)
+	}
 }
