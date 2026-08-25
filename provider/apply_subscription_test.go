@@ -69,6 +69,18 @@ func TestApplySubscription_RestartsOnServerKeyChange(t *testing.T) {
 		if v, ok := payload["subURI"]; ok {
 			m.SubURI = types.StringValue(v.(string))
 		}
+		if v, ok := payload["subJsonMux"]; ok {
+			m.SubJsonMux = types.StringValue(v.(string))
+		}
+		if v, ok := payload["subJsonPath"]; ok {
+			m.SubJsonPath = types.StringValue(v.(string))
+		}
+		if v, ok := payload["subJsonEnable"]; ok {
+			m.SubJsonEnable = types.BoolValue(v.(bool))
+		}
+		if v, ok := payload["subTitle"]; ok {
+			m.SubTitle = types.StringValue(v.(string))
+		}
 		return m
 	}
 
@@ -102,6 +114,40 @@ func TestApplySubscription_RestartsOnServerKeyChange(t *testing.T) {
 			existing:    map[string]any{"subEnable": true},
 			plan:        mkPlan(map[string]any{"subEnable": false}),
 			wantRestart: 1,
+		},
+		{
+			// #443: the JSON body settings are read once in initRouter, so without a
+			// restart the panel keeps serving the old blob forever.
+			name:        "change JSON subscription body (subJsonMux)",
+			existing:    map[string]any{"subJsonMux": `{"enabled":false}`},
+			plan:        mkPlan(map[string]any{"subJsonMux": `{"enabled":true}`}),
+			wantRestart: 1,
+		},
+		{
+			// Route registration: a changed path 404s until the engine is rebuilt.
+			name:        "change JSON subscription path",
+			existing:    map[string]any{"subJsonPath": "/json/"},
+			plan:        mkPlan(map[string]any{"subJsonPath": "/j/"}),
+			wantRestart: 1,
+		},
+		{
+			name:        "toggle JSON subscription route",
+			existing:    map[string]any{"subJsonEnable": false},
+			plan:        mkPlan(map[string]any{"subJsonEnable": true}),
+			wantRestart: 1,
+		},
+		{
+			// Looks like a link-generation field but is frozen at startup too.
+			name:        "change subscription page title",
+			existing:    map[string]any{"subTitle": "old"},
+			plan:        mkPlan(map[string]any{"subTitle": "new"}),
+			wantRestart: 1,
+		},
+		{
+			name:        "unchanged JSON body does NOT restart",
+			existing:    map[string]any{"subJsonMux": `{"enabled":true}`, "subTitle": "same"},
+			plan:        mkPlan(map[string]any{"subJsonMux": `{"enabled":true}`, "subTitle": "same"}),
+			wantRestart: 0,
 		},
 		{
 			name:        "link-generation key only (subURI) does NOT restart",

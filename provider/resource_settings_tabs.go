@@ -2832,6 +2832,14 @@ func panelSettingsNeedRestart(existing, desired map[string]any) bool {
 		"webCertFile",
 		"webKeyFile",
 		"sessionMaxAge",
+		// Read once in web.Server.Start()/startTask registration, not per request:
+		// GetTimeLocation seeds every cron job's location (internal/web/web.go:503),
+		// GetLdapEnable/GetLdapSyncCron decide whether the LDAP sync job is registered
+		// at all and on what schedule (web.go:376-383). Changing them without a restart
+		// leaves the old schedule running.
+		"timeLocation",
+		"ldapEnable",
+		"ldapSyncCron",
 		// Subscription server binding — parallels the web* keys above. The sub server is
 		// (re)initialised at panel startup, so changing whether/where it listens needs a
 		// panel restart; without it the subscription URL 404s until the panel is restarted.
@@ -2842,6 +2850,48 @@ func panelSettingsNeedRestart(existing, desired map[string]any) bool {
 		"subPath",
 		"subCertFile",
 		"subKeyFile",
+		// Subscription server body/route settings. Every one of these is read inside
+		// (*sub.Server).initRouter() and frozen into the SUBController it builds
+		// (3x-ui-3.7.0/internal/sub/sub.go:50-301), and initRouter runs only from
+		// Start(), which main.go calls at boot and on SIGHUP. A change that is not
+		// followed by a restart applies to the panel DB and to Terraform state while
+		// every served subscription keeps the old value — the same silent no-op as the
+		// binding keys above (#291), reported as #443.
+		//
+		// Route registration: these decide which paths the gin engine even serves, so
+		// a change without a restart 404s on the new path and keeps serving the old one.
+		"subJsonPath",
+		"subClashPath",
+		"subJsonEnable",
+		"subClashEnable",
+		// JSON/Clash body content.
+		"subJsonMux",
+		"subJsonRules",
+		"subJsonFinalMask",
+		"subJsonObservatory",
+		"subClashRules",
+		"subClashEnableRouting",
+		// Client-detection and body-shape switches.
+		"subJsonAutoDetect",
+		"subJsonAlwaysArray",
+		"subJsonUserAgentRegex",
+		"subClashAutoDetect",
+		"subClashUserAgentRegex",
+		"subEncrypt",
+		"subUpdates",
+		"remarkTemplate",
+		// Page/link presentation. These look like the per-request link-generation
+		// fields (subURI, subJsonURI, subClashURI — deliberately NOT listed here), but
+		// they are not: initRouter reads them once and hands them to the controller.
+		"subTitle",
+		"subSupportUrl",
+		"subProfileUrl",
+		"subAnnounce",
+		"subHideSettings",
+		"subEnableRouting",
+		"subRoutingRules",
+		"subIncyEnableRouting",
+		"subIncyRoutingRules",
 	}
 	for _, key := range restartKeys {
 		newVal, ok := desired[key]

@@ -13,6 +13,8 @@ This is a singleton resource -- only one instance should exist per provider. Del
 
 ~> **Warning:** Changing `web_base_path` requires updating the provider's `base_path` to match. Otherwise the provider will lose connectivity to the panel.
 
+~> **Note:** Changing any of the web-server binding fields — `web_listen`, `web_domain`, `web_port`, `web_base_path`, `web_cert_file`, `web_key_file`, `session_max_age` — or the scheduler wiring — `time_location`, `ldap_enable`, `ldap_sync_cron` — triggers a **panel restart** and therefore brief panel downtime. The panel binds its listener and registers its cron jobs once at startup: `time_location` fixes the timezone every scheduled job runs in, and `ldap_enable`/`ldap_sync_cron` decide whether the LDAP sync job is registered at all and on what schedule. Without the restart the change applies to the panel database and to Terraform state while the running panel keeps the old schedule. A restart fires only on an actual value change: re-applying identical configuration does nothing.
+
 ## Example Usage
 
 ```hcl

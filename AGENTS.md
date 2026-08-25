@@ -100,15 +100,33 @@ Five resources — `panel_general`, `panel_security`, `panel_telegram`,
 - Changing a restart-triggering key triggers a provider-initiated restart
   (`POST /setting/restartPanel`, SIGHUP; 3x-ui does **not** auto-restart) in two
   resources, each gated by the shared `panelSettingsNeedRestart` check followed by
-  `SendRestart` + `WaitForReady`: `panel_general` (`webListen`, `webDomain`,
-  `webPort`, `webBasePath`, `webCertFile`, `webKeyFile`, `sessionMaxAge`) and
-  `panel_subscription` (the subscription-server binding keys `subEnable`, `subListen`,
-  `subDomain`, `subPort`, `subPath`, `subCertFile`, `subKeyFile`). The 3x-ui sub
-  server only (re)binds at startup, so without this restart a changed `sub_path`/
-  `sub_port`/… does not take effect and the subscription URL 404s (#291). Link-
-  generation fields (`subURI`, `subTitle`, …) are read per request and do **not**
-  restart. For `webBasePath` the provider additionally calls `SetBasePath` +
-  `WaitForReady` so subsequent requests target the new path.
+  `SendRestart` + `WaitForReady`: `panel_general` and `panel_subscription`. The rule
+  behind the list is **"does the panel read this once at startup?"**, not "is it a
+  binding setting":
+  - `panel_general`: the web-server binding keys (`webListen`, `webDomain`, `webPort`,
+    `webBasePath`, `webCertFile`, `webKeyFile`, `sessionMaxAge`) plus the cron wiring
+    read once in `web.Server.Start()` — `timeLocation` (every job's timezone,
+    `internal/web/web.go:503`) and `ldapEnable`/`ldapSyncCron` (whether the LDAP sync
+    job is registered, and on what schedule, `web.go:376-383`).
+  - `panel_subscription`: the sub-server binding keys (`subEnable`, `subListen`,
+    `subDomain`, `subPort`, `subPath`, `subCertFile`, `subKeyFile`) **and every setting
+    `(*sub.Server).initRouter()` reads** — route registration (`subJsonEnable`,
+    `subJsonPath`, `subClashEnable`, `subClashPath`), JSON/Clash body content
+    (`subJsonMux`, `subJsonRules`, `subJsonFinalMask`, `subJsonObservatory`,
+    `subClashRules`, `subClashEnableRouting`), detection/shape switches
+    (`subJsonAutoDetect`, `subJsonAlwaysArray`, `subJsonUserAgentRegex`,
+    `subClashAutoDetect`, `subClashUserAgentRegex`, `subEncrypt`, `subUpdates`,
+    `remarkTemplate`) and page presentation (`subTitle`, `subSupportUrl`,
+    `subProfileUrl`, `subAnnounce`, `subHideSettings`, `subEnableRouting`,
+    `subRoutingRules`, `subIncyEnableRouting`, `subIncyRoutingRules`). `initRouter`
+    freezes all of them into the `SUBController` it builds
+    (`3x-ui-3.7.0/internal/sub/sub.go:50-301`) and runs only from `Start()` (#443).
+  The 3x-ui sub server only (re)binds at startup, so without this restart a changed
+  `sub_path`/`sub_port`/… does not take effect and the subscription URL 404s (#291).
+  Only the three link-generation URIs (`subURI`, `subJsonURI`, `subClashURI`) are read
+  per request (`internal/sub/service.go:2704-2706`) and do **not** restart — `subTitle`
+  looks like one of them but is not. For `webBasePath` the provider additionally calls
+  `SetBasePath` + `WaitForReady` so subsequent requests target the new path.
 
 ### Write-only secret attributes (Terraform 1.11+ / OpenTofu 1.11+)
 
@@ -307,7 +325,7 @@ These are non-obvious constraints that have caused real bugs.
 | v3.7.0 AllSetting + model delta | 3x-ui v3.7.0 **added** 2 `AllSetting` fields: `ipLimitAllowlist` (`panel_general.ip_limit_allowlist` — addresses exempt from the per-client IP limit) and `subJsonObservatory` (`panel_subscription.sub_json_observatory` — client-side balancer observatory blob). `Inbound` gained `disableFlow` (`threexui_inbound.disable_flow` — opts the inbound out of auto XTLS Vision). `Client` gained 6 fields: `resetDay`/`resetMax` (calendar-day renewals, `0` keeps the old rolling interval), `trafficReset`/`trafficResetDay` (per-client reset cycle, independent of the inbound's own) — all four surfaced on `threexui_inbound_client` — plus `forwardedPorts` and `allowedIPsByInbound`, which belong to the AmneziaWG surface and sit in `clientIntentionallySkipped` in `drift_test.go`. A new `amneziawg` protocol was added upstream and is **not yet** implemented by the provider (#441); it is listed in the protocol drift gates' `upstreamSkipped` maps. `ApiToken` gained `scope`/`expiresAt` — the provider does not manage API tokens, so no gate covers them. Go toolchain upstream is 1.27; first start runs automatic schema migrations, so a panel upgrade needs a DB backup |
 | `disable_flow` blanks client `flow` | On a `threexui_inbound` with `disable_flow = true`, 3x-ui clears `flow` on every attached client: `clientWithInboundFlow` (`internal/web/service/client_crud.go`) runs on the add-client and update-client paths, and `stripClientFlows` re-runs over the inbound settings on every inbound add/update. A `threexui_inbound_client` with `flow` set on such an inbound fails the apply (`.flow: was cty.StringVal("xtls-rprx-vision"), but now cty.StringVal("")`), and flipping `disable_flow` on later silently strips flows off already-managed clients. Leave client `flow` unset on `disable_flow` inbounds |
 | `traffic_reset_day` cannot be 0 | Upstream `normalizeTrafficResetDay` clamps any value below 1 up to 1, on the inbound path (`AddInbound`/`UpdateInbound`) and, since v3.7.0, on the client path too (`normalizeClientTrafficReset`, which additionally normalizes an empty `trafficReset` to `never`). Omitting the form key and posting an explicit `0` are therefore indistinguishable to the panel. Both `traffic_reset_day` attributes use `Between(1, 31)` so a non-round-trippable `0` is rejected at plan time instead of failing mid-apply with an inconsistent result |
-| JSON-subscription body settings need a restart | `subJsonMux`, `subJsonRules`, `subJsonFinalMask` and (v3.7.0) `subJsonObservatory` are read once inside `(*sub.Server).initRouter()`, which runs only from `Start()` — but `panelSettingsNeedRestart` lists only the *binding* keys (`web*`, `subEnable`/`subListen`/`subDomain`/`subPort`/`subPath`/`subCertFile`/`subKeyFile`). Changing any of the four applies to state while served subscriptions keep the old value until the panel restarts: the same silent no-op as #291. Pre-existing gap tracked in #443 — adding them to `restartKeys` means restarting the panel on every change, so it needs its own PR |
+| Sub-server settings are frozen at startup | Every setting `(*sub.Server).initRouter()` reads — not just the binding keys — is captured into the `SUBController` it builds (`3x-ui-3.7.0/internal/sub/sub.go:50-301`), and `initRouter` runs only from `Start()`, which `main.go` calls at boot and on SIGHUP. That covers `subJsonMux`/`subJsonRules`/`subJsonFinalMask`/`subJsonObservatory`, the `subJsonPath`/`subClashPath`/`subJsonEnable`/`subClashEnable` route switches, and presentation fields like `subTitle`. All of them are in `restartKeys` since #443; before that a change applied to the panel DB and to state while every served subscription kept the old value — the same silent no-op as #291. When adding a `panel_subscription` attribute, check whether `initRouter` reads it and add it to `restartKeys` if so. The only per-request exceptions are `subURI`/`subJsonURI`/`subClashURI` |
 | Removed ciphers cause silent drift on v3.5.0 | xray-core v26.7.11 (3x-ui v3.5.0) **removed** shadowsocks `method` `none`/`plain` and vmess `security` `none`/`zero`. The panel runs `migrateShadowsocksRemovedCiphers` (→ `chacha20-ietf-poly1305`) and `migrateVmessRemovedSecurities` (→ `auto`) on **every startup** (`internal/database/db.go`, not seeder-gated, idempotent). A provider-managed inbound carrying one of these values applies cleanly, then drifts after the next panel restart: `terraform plan` shows state=`none`, panel=`chacha20-ietf-poly1305` (or `auto`). Avoid these values in `threexui_inbound` settings / `threexui_inbound_client.security` |
 | WireGuard `workers` deprecated | xray-core v26.6.22 (3x-ui v3.4.0) removed the WireGuard `workers` field; `xray_outbound_wireguard` now marks it `DeprecationMessage` — accepted for backward compat, ignored by xray |
 | Write-only attrs quirks | See "Write-only secret attributes" section above — read `_wo` from `req.Config`; ModifyPlan marks plain `Unknown` on version change; `panel_user` nulls state password instead |
