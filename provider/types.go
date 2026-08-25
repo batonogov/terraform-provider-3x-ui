@@ -34,6 +34,7 @@ type Inbound struct {
 	ShareAddrStrategy string `json:"shareAddrStrategy,omitempty"`
 	Sniffing          string `json:"sniffing"`
 	NodeID            *int   `json:"nodeId,omitempty"`
+	DisableFlow       bool   `json:"disableFlow"`
 }
 
 func (i *Inbound) UnmarshalJSON(data []byte) error {

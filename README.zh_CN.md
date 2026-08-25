@@ -97,6 +97,7 @@ resource "threexui_inbound_client" "client_a" {
 
 | 3x-ui 版本 | 状态 |
 | --- | --- |
+| v3.7.0 | 已测试 |
 | v3.6.0 | 已测试 |
 | v3.5.0 | 已测试 |
 | v3.4.2 | 已测试 |
@@ -109,7 +110,6 @@ resource "threexui_inbound_client" "client_a" {
 | v3.2.6 | 已测试 |
 | v3.2.5 | 已测试 |
 | v3.2.0 | 已测试 |
-| v3.1.0 | 已测试 |
 
 新版本协议特性通过 `requireMinVersion` 守门,在老版本上自动跳过 —— 无需为每个版本拉分支。
 

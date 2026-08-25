@@ -1,6 +1,7 @@
 {
-  "version": "3.6.0",
+  "version": "3.7.0",
   "protocols_go_model": [
+    "amneziawg",
     "http",
     "hysteria",
     "mixed",
@@ -13,6 +14,7 @@
     "wireguard"
   ],
   "protocols_js": [
+    "amneziawg",
     "http",
     "hysteria",
     "mixed",
@@ -26,6 +28,7 @@
     "wireguard"
   ],
   "protocol_forms": [
+    "amneziawg",
     "http",
     "hysteria",
     "mixed",
@@ -52,8 +55,8 @@
     "stream_xhttp"
   ],
   "inbound_fields": [
-    "allTime",
     "clientStats",
+    "disableFlow",
     "down",
     "enable",
     "expiryTime",
@@ -81,6 +84,7 @@
   "client_fields": [
     "adTag",
     "allowedIPs",
+    "allowedIPsByInbound",
     "auth",
     "comment",
     "created_at",
@@ -88,6 +92,7 @@
     "enable",
     "expiryTime",
     "flow",
+    "forwardedPorts",
     "group",
     "id",
     "keepAlive",
@@ -97,12 +102,16 @@
     "privateKey",
     "publicKey",
     "reset",
+    "resetDay",
+    "resetMax",
     "reverse",
     "secret",
     "security",
     "subId",
     "tgId",
     "totalGB",
+    "trafficReset",
+    "trafficResetDay",
     "updated_at"
   ],
   "all_setting_fields": [
@@ -110,6 +119,7 @@
     "expireDiff",
     "externalTrafficInformEnable",
     "externalTrafficInformURI",
+    "ipLimitAllowlist",
     "ldapAutoCreate",
     "ldapAutoDelete",
     "ldapBaseDN",
@@ -170,6 +180,7 @@
     "subJsonEnable",
     "subJsonFinalMask",
     "subJsonMux",
+    "subJsonObservatory",
     "subJsonPath",
     "subJsonRules",
     "subJsonURI",

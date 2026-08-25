@@ -2,7 +2,10 @@ package provider
 
 import (
 	"context"
+	"net/netip"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
@@ -196,4 +199,53 @@ func (durationValidator) ValidateString(_ context.Context, req validator.StringR
 			err.Error(),
 		)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Address-list validators
+// ---------------------------------------------------------------------------
+
+// addrOrPrefixListValidator validates a comma-separated list of bare IP
+// addresses and CIDR prefixes, mirroring upstream's CheckNetipAddrOrPrefixList
+// (internal/web/entity/entity.go). It deliberately uses netip rather than net:
+// the two disagree (net accepts "10.0.0.0/024", netip does not), and the panel
+// rejects the save with an opaque error when they diverge. Validating here moves
+// that failure to plan time.
+type addrOrPrefixListValidator struct{}
+
+func (addrOrPrefixListValidator) Description(_ context.Context) string {
+	return "must be a comma-separated list of IP addresses or CIDR prefixes"
+}
+
+func (addrOrPrefixListValidator) MarkdownDescription(ctx context.Context) string {
+	return addrOrPrefixListValidator{}.Description(ctx)
+}
+
+func (addrOrPrefixListValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	for _, entry := range strings.Split(req.ConfigValue.ValueString(), ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		if _, err := netip.ParseAddr(entry); err == nil {
+			continue
+		}
+		if _, err := netip.ParsePrefix(entry); err != nil {
+			resp.Diagnostics.AddAttributeError(
+				req.Path,
+				"Invalid address list entry",
+				"Entry "+strconv.Quote(entry)+" is neither an IP address nor a CIDR prefix. "+
+					"3x-ui parses this list with netip, which — unlike net — rejects forms such as "+
+					`"10.0.0.0/024".`,
+			)
+		}
+	}
+}
+
+// addrOrPrefixListValidators validates a comma-separated IP/CIDR list.
+func addrOrPrefixListValidators() []validator.String {
+	return []validator.String{addrOrPrefixListValidator{}}
 }

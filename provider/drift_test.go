@@ -567,6 +567,13 @@ func checkRemoved(t *testing.T, provider map[string]bool, upstream map[string]bo
 	}
 }
 
+// amneziawgDeferred marks the v3.7.0 `amneziawg` protocol as knowingly
+// unimplemented. It needs its own settings block (server obfuscation params +
+// clients[]), tracked in #441. Shared by all three protocol drift gates so
+// removing the deferral is a single edit — silencing one gate but not the
+// others would leave a protocol permanently unguarded.
+var amneziawgDeferred = map[string]bool{"amneziawg": true}
+
 // -------------------------------------------------------------------------
 // Test: upstream inbound protocols vs provider protocol mappings (Go model)
 // -------------------------------------------------------------------------
@@ -632,7 +639,7 @@ func TestDriftInboundProtocols_GoModel(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	upstreamSkipped := map[string]bool{}
+	upstreamSkipped := amneziawgDeferred
 	checkMissing(t, upstream, providerHandled, upstreamSkipped,
 		"upstream model.go has protocols not handled by provider: %v")
 	checkRemoved(t, providerHandled, upstreamSet, providerExtras,
@@ -670,7 +677,7 @@ func TestDriftInboundProtocols_JS(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	upstreamSkipped := map[string]bool{}
+	upstreamSkipped := amneziawgDeferred
 	checkMissing(t, upstream, providerHandled, upstreamSkipped,
 		"upstream inbound.js Protocols has entries not handled by provider: %v")
 	checkRemoved(t, providerHandled, upstreamSet, providerExtras,
@@ -708,7 +715,7 @@ func TestDriftProtocolForms(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	upstreamSkipped := map[string]bool{}
+	upstreamSkipped := amneziawgDeferred
 	checkMissing(t, upstream, providerBlocks, upstreamSkipped,
 		"upstream protocol form files not handled by provider: %v")
 	checkRemoved(t, providerBlocks, upstreamSet, providerExtras,
@@ -784,6 +791,11 @@ func TestDriftInboundFields(t *testing.T) {
 	upstreamSet := toSet(upstream)
 	checkMissing(t, upstream, providerFields, skip,
 		"upstream Inbound struct has json fields not in provider: %v")
+	// `allTime` is provider-only: grep finds it in no upstream source (Go, TS or
+	// JS) of any snapshot from v3.2.0 to v3.7.0 — only xray.ClientTraffic has a
+	// like-named field. The panel therefore never sends it and threexui_inbound
+	// .all_time always reads 0. Kept for state compatibility; removal is a
+	// breaking change tracked in #442.
 	checkRemoved(t, providerFields, upstreamSet, map[string]bool{"allTime": true},
 		"provider Inbound struct has json fields not in upstream: %v")
 }
@@ -804,6 +816,9 @@ func TestDriftClientFields(t *testing.T) {
 		"reverse": true, "group": true,
 		// v3.5.0 MTProto multi-client (mtg-multi): per-client FakeTLS secret + ad-tag.
 		"secret": true, "adTag": true,
+		// v3.7.0 calendar-day renewals + per-client traffic reset cycle.
+		"resetDay": true, "resetMax": true,
+		"trafficReset": true, "trafficResetDay": true,
 	}
 
 	dir := latestSnapshotDir(t)
@@ -832,6 +847,11 @@ func TestDriftClientFields(t *testing.T) {
 	clientIntentionallySkipped := map[string]bool{
 		"privateKey": true, "publicKey": true, "allowedIPs": true,
 		"preSharedKey": true, "keepAlive": true,
+		// v3.7.0 AmneziaWG surface: forwardedPorts is the per-client DNAT spec on
+		// an AmneziaWG inbound, and allowedIPsByInbound overrides allowedIPs per
+		// inbound id. Both belong to the amneziawg settings block, which the
+		// provider does not implement yet (#441).
+		"forwardedPorts": true, "allowedIPsByInbound": true,
 	}
 	checkMissing(t, upstream, providerKnown, clientIntentionallySkipped,
 		"upstream Client struct has json fields not known to provider: %v")
@@ -907,6 +927,9 @@ func TestDriftAllSettingFields(t *testing.T) {
 		"subClashUserAgentRegex": true,
 		// v3.6.0 panel_general
 		"subShowIdentityOnAllLinks": true, "outboundDownThreshold": true,
+		// v3.7.0 IP-limit allowlist (threexui_panel_general) and JSON-subscription
+		// observatory blob for client-side balancers (threexui_panel_subscription)
+		"ipLimitAllowlist": true, "subJsonObservatory": true,
 	}
 
 	// Fields intentionally not managed by the provider.

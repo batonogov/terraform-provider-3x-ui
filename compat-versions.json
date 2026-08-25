@@ -1,6 +1,5 @@
 {
   "versions": [
-    {"version": "v3.1.0", "supported": true},
     {"version": "v3.2.0", "supported": true},
     {"version": "v3.2.5", "supported": true},
     {"version": "v3.2.6", "supported": true},
@@ -12,8 +11,9 @@
     {"version": "v3.4.1", "supported": true},
     {"version": "v3.4.2", "supported": true},
     {"version": "v3.5.0", "supported": true},
-    {"version": "v3.6.0", "supported": true}
+    {"version": "v3.6.0", "supported": true},
+    {"version": "v3.7.0", "supported": true}
   ],
-  "default_version": "v3.6.0",
-  "minor_lines": ["3.1.x", "3.2.x", "3.3.x", "3.4.x", "3.5.x", "3.6.x"]
+  "default_version": "v3.7.0",
+  "minor_lines": ["3.2.x", "3.3.x", "3.4.x", "3.5.x", "3.6.x", "3.7.x"]
 }

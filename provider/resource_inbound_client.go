@@ -43,27 +43,31 @@ var (
 // ---------------------------------------------------------------------------
 
 type InboundClientResourceModel struct {
-	ID          types.String `tfsdk:"id"`
-	InboundID   types.Int64  `tfsdk:"inbound_id"`
-	ClientID    types.String `tfsdk:"client_id"`
-	Email       types.String `tfsdk:"email"`
-	Security    types.String `tfsdk:"security"`
-	Password    types.String `tfsdk:"password"`
-	Flow        types.String `tfsdk:"flow"`
-	ReverseTag  types.String `tfsdk:"reverse_tag"`
-	Auth        types.String `tfsdk:"auth"`
-	LimitIP     types.Int64  `tfsdk:"limit_ip"`
-	TotalGB     types.Int64  `tfsdk:"total_gb"`
-	ExpiryTime  types.Int64  `tfsdk:"expiry_time"`
-	Enable      types.Bool   `tfsdk:"enable"`
-	TgID        types.Int64  `tfsdk:"tg_id"`
-	SubID       types.String `tfsdk:"sub_id"`
-	Comment     types.String `tfsdk:"comment"`
-	Reset       types.Int64  `tfsdk:"reset"`
-	Group       types.String `tfsdk:"group"`
-	Secret      types.String `tfsdk:"secret"`
-	AdTag       types.String `tfsdk:"ad_tag"`
-	RestartXray types.Bool   `tfsdk:"restart_xray"`
+	ID              types.String `tfsdk:"id"`
+	InboundID       types.Int64  `tfsdk:"inbound_id"`
+	ClientID        types.String `tfsdk:"client_id"`
+	Email           types.String `tfsdk:"email"`
+	Security        types.String `tfsdk:"security"`
+	Password        types.String `tfsdk:"password"`
+	Flow            types.String `tfsdk:"flow"`
+	ReverseTag      types.String `tfsdk:"reverse_tag"`
+	Auth            types.String `tfsdk:"auth"`
+	LimitIP         types.Int64  `tfsdk:"limit_ip"`
+	TotalGB         types.Int64  `tfsdk:"total_gb"`
+	ExpiryTime      types.Int64  `tfsdk:"expiry_time"`
+	Enable          types.Bool   `tfsdk:"enable"`
+	TgID            types.Int64  `tfsdk:"tg_id"`
+	SubID           types.String `tfsdk:"sub_id"`
+	Comment         types.String `tfsdk:"comment"`
+	Reset           types.Int64  `tfsdk:"reset"`
+	Group           types.String `tfsdk:"group"`
+	ResetDay        types.Int64  `tfsdk:"reset_day"`
+	ResetMax        types.Int64  `tfsdk:"reset_max"`
+	TrafficReset    types.String `tfsdk:"traffic_reset"`
+	TrafficResetDay types.Int64  `tfsdk:"traffic_reset_day"`
+	Secret          types.String `tfsdk:"secret"`
+	AdTag           types.String `tfsdk:"ad_tag"`
+	RestartXray     types.Bool   `tfsdk:"restart_xray"`
 
 	// Write-only secret variants (Strategy B — see resource_node.go).
 	PasswordWO        types.String `tfsdk:"password_wo"`
@@ -241,6 +245,55 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 				Description: "Client group name (3x-ui v3.2.0+).",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"reset_day": schema.Int64Attribute{
+				Optional: true,
+				Computed: true,
+				Description: "Calendar day of month (1-31) on which this client renews. " +
+					"0 keeps the rolling-interval behaviour driven by `reset`. " +
+					"3x-ui v3.7.0+; older panels report 0 (unsupported).",
+				Validators: []validator.Int64{
+					int64validator.Between(0, 31),
+				},
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+			},
+			"reset_max": schema.Int64Attribute{
+				Optional: true,
+				Computed: true,
+				Description: "Maximum number of automatic renewals for this client. 0 means unlimited. " +
+					"3x-ui v3.7.0+; older panels report 0 (unsupported).",
+				Validators: []validator.Int64{
+					int64validator.AtLeast(0),
+				},
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+			},
+			"traffic_reset": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+				Description: "Per-client traffic reset cycle ('never', 'hourly', 'daily', 'weekly', 'monthly'), " +
+					"independent of the inbound's own cycle. 3x-ui v3.7.0+; older panels report an empty value (unsupported).",
+				Validators: trafficResetValidators(),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"traffic_reset_day": schema.Int64Attribute{
+				Optional: true,
+				Computed: true,
+				Description: "Day of month (1-31) for this client's monthly traffic resets. " +
+					"Only effective when traffic_reset = 'monthly'. 3x-ui v3.7.0+; older panels report 0 (unsupported). " +
+					"Cannot be set to 0: the panel clamps any value below 1 up to 1 (normalizeClientTrafficReset), " +
+					"so a configured 0 could never round-trip.",
+				Validators: []validator.Int64{
+					int64validator.Between(1, 31),
+				},
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
 				},
 			},
 			"secret": schema.StringAttribute{
@@ -706,6 +759,18 @@ func expandInboundClientFromModel(m *InboundClientResourceModel) map[string]any 
 	if !m.Group.IsNull() && !m.Group.IsUnknown() {
 		client["group"] = m.Group.ValueString()
 	}
+	if !m.ResetDay.IsNull() && !m.ResetDay.IsUnknown() {
+		client["resetDay"] = int(m.ResetDay.ValueInt64())
+	}
+	if !m.ResetMax.IsNull() && !m.ResetMax.IsUnknown() {
+		client["resetMax"] = int(m.ResetMax.ValueInt64())
+	}
+	if !m.TrafficReset.IsNull() && !m.TrafficReset.IsUnknown() {
+		client["trafficReset"] = m.TrafficReset.ValueString()
+	}
+	if !m.TrafficResetDay.IsNull() && !m.TrafficResetDay.IsUnknown() {
+		client["trafficResetDay"] = int(m.TrafficResetDay.ValueInt64())
+	}
 	if !m.Secret.IsNull() && !m.Secret.IsUnknown() {
 		client["secret"] = m.Secret.ValueString()
 	}
@@ -721,26 +786,30 @@ func expandInboundClientFromModel(m *InboundClientResourceModel) map[string]any 
 
 func inboundClientToModel(inboundID int, clientID string, client map[string]any) *InboundClientResourceModel {
 	return &InboundClientResourceModel{
-		ID:         types.StringValue(makeInboundClientID(inboundID, clientID)),
-		InboundID:  types.Int64Value(int64(inboundID)),
-		ClientID:   types.StringValue(clientID),
-		Email:      types.StringValue(stringValue(client["email"])),
-		Security:   types.StringValue(stringValue(client["security"])),
-		Password:   types.StringValue(stringValue(client["password"])),
-		Flow:       types.StringValue(stringValue(client["flow"])),
-		ReverseTag: types.StringValue(reverseTagValue(client["reverse"])),
-		Auth:       types.StringValue(stringValue(client["auth"])),
-		LimitIP:    types.Int64Value(int64(intValue(client["limitIp"]))),
-		TotalGB:    types.Int64Value(int64(intValue(client["totalGB"]))),
-		ExpiryTime: types.Int64Value(int64(intValue(client["expiryTime"]))),
-		Enable:     types.BoolValue(boolValue(client["enable"])),
-		TgID:       types.Int64Value(int64(intValue(client["tgId"]))),
-		SubID:      types.StringValue(stringValue(client["subId"])),
-		Comment:    types.StringValue(stringValue(client["comment"])),
-		Reset:      types.Int64Value(int64(intValue(client["reset"]))),
-		Group:      stringValueOrNull(stringValue(client["group"])),
-		Secret:     stringValueOrNull(stringValue(client["secret"])),
-		AdTag:      stringValueOrNull(stringValue(client["adTag"])),
+		ID:              types.StringValue(makeInboundClientID(inboundID, clientID)),
+		InboundID:       types.Int64Value(int64(inboundID)),
+		ClientID:        types.StringValue(clientID),
+		Email:           types.StringValue(stringValue(client["email"])),
+		Security:        types.StringValue(stringValue(client["security"])),
+		Password:        types.StringValue(stringValue(client["password"])),
+		Flow:            types.StringValue(stringValue(client["flow"])),
+		ReverseTag:      types.StringValue(reverseTagValue(client["reverse"])),
+		Auth:            types.StringValue(stringValue(client["auth"])),
+		LimitIP:         types.Int64Value(int64(intValue(client["limitIp"]))),
+		TotalGB:         types.Int64Value(int64(intValue(client["totalGB"]))),
+		ExpiryTime:      types.Int64Value(int64(intValue(client["expiryTime"]))),
+		Enable:          types.BoolValue(boolValue(client["enable"])),
+		TgID:            types.Int64Value(int64(intValue(client["tgId"]))),
+		SubID:           types.StringValue(stringValue(client["subId"])),
+		Comment:         types.StringValue(stringValue(client["comment"])),
+		Reset:           types.Int64Value(int64(intValue(client["reset"]))),
+		Group:           stringValueOrNull(stringValue(client["group"])),
+		ResetDay:        types.Int64Value(int64(intValue(client["resetDay"]))),
+		ResetMax:        types.Int64Value(int64(intValue(client["resetMax"]))),
+		TrafficReset:    stringValueOrNull(stringValue(client["trafficReset"])),
+		TrafficResetDay: types.Int64Value(int64(intValue(client["trafficResetDay"]))),
+		Secret:          stringValueOrNull(stringValue(client["secret"])),
+		AdTag:           stringValueOrNull(stringValue(client["adTag"])),
 	}
 }
 

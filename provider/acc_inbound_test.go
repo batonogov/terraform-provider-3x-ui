@@ -144,8 +144,10 @@ resource "threexui_inbound" "http" {
 // --- WireGuard with peers ---
 
 func TestAccInboundWireguard(t *testing.T) {
+	// Below the CI matrix floor (v3.2.0), so this only matters when an older
+	// panel is pinned manually via THREEXUI_VERSION — kept for the same reason
+	// as the requireBelowVersion gates: skip cleanly instead of hard-failing.
 	requireMinVersion(t, "v2.9.0") // mtu changed from int to list [v4, v6] in v2.9.0
-
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
@@ -179,7 +181,10 @@ resource "threexui_inbound" "wg" {
 // --- Dokodemo-door (tunnel) ---
 
 func TestAccInboundDokodemo(t *testing.T) {
-	requireBelowVersion(t, "v3.2.0") // dokodemo-door renamed to "tunnel" in v3.2.0
+	// dokodemo-door renamed to "tunnel" in v3.2.0. v3.2.0 is the oldest version in
+	// the CI matrix, so this always skips there — it only runs when a panel older
+	// than v3.2.0 is pointed at manually via THREEXUI_VERSION.
+	requireBelowVersion(t, "v3.2.0")
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -814,8 +819,10 @@ resource "threexui_inbound" "grpc" {
 // --- Mixed protocol + listen + settings ---
 
 func TestAccInboundMixed(t *testing.T) {
+	// Below the CI matrix floor (v3.2.0), so this only matters when an older
+	// panel is pinned manually via THREEXUI_VERSION — kept for the same reason
+	// as the requireBelowVersion gates: skip cleanly instead of hard-failing.
 	requireMinVersion(t, "v2.9.0") // mixed protocol added in v2.9.0
-
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
@@ -1307,6 +1314,9 @@ resource "threexui_inbound" "import_sniffing" {
 // --- XHTTP with xPadding fields ---
 
 func TestAccInboundXHTTPPadding(t *testing.T) {
+	// Below the CI matrix floor (v3.2.0), so this only matters when an older
+	// panel is pinned manually via THREEXUI_VERSION — kept for the same reason
+	// as the requireBelowVersion gates: skip cleanly instead of hard-failing.
 	requireMinVersion(t, "v2.9.2") // xPaddingObfsMode, xPaddingKey added in v2.9.2
 	config := testAccProviderConfig() + `
 resource "threexui_inbound" "xhttp_pad" {
@@ -1404,6 +1414,124 @@ resource "threexui_inbound" "sub" {
 					resource.TestCheckResourceAttr("threexui_inbound.sub", "share_addr", "203.0.113.10"),
 					resource.TestCheckResourceAttr("threexui_inbound.sub", "share_addr_strategy", "custom"),
 				),
+			},
+		},
+	})
+}
+
+// TestAccInboundDisableFlow_v370 covers the v3.7.0 inbound `disable_flow` flag,
+// which opts the inbound out of the panel's automatic XTLS Vision assignment.
+func TestAccInboundDisableFlow_v370(t *testing.T) {
+	requireMinVersion(t, "v3.7.0")
+	config := testAccProviderConfig() + `
+resource "threexui_inbound" "disable_flow" {
+  port         = 25132
+  protocol     = "vless"
+  remark       = "acc-inbound-disable-flow-v370"
+  enable       = true
+  disable_flow = true
+  vless_settings {
+    decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
+  }
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check:  resource.TestCheckResourceAttr("threexui_inbound.disable_flow", "disable_flow", "true"),
+			},
+			{
+				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}
+
+// TestAccInboundTrafficResetDay_v360 is the end-to-end guard for the v3.6.0
+// `traffic_reset_day` write path. The field was present in the model, schema,
+// expand and flatten but missing from inboundToForm, so every configured value
+// was silently dropped and the panel kept its own default — invisible to a
+// url.Values unit test, and exactly what the PlanOnly step below catches.
+func TestAccInboundTrafficResetDay_v360(t *testing.T) {
+	requireMinVersion(t, "v3.6.0")
+	config := testAccProviderConfig() + `
+resource "threexui_inbound" "reset_day" {
+  port              = 25133
+  protocol          = "vless"
+  remark            = "acc-inbound-traffic-reset-day-v360"
+  enable            = true
+  traffic_reset     = "monthly"
+  traffic_reset_day = 15
+  vless_settings {
+    decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
+  }
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound.reset_day", "traffic_reset", "monthly"),
+					resource.TestCheckResourceAttr("threexui_inbound.reset_day", "traffic_reset_day", "15"),
+				),
+			},
+			// A dropped write shows up here: the panel would report its own day,
+			// leaving a permanent diff against the configured 15.
+			{
+				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+			// Updating the day must also reach the panel, not just state.
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_inbound" "reset_day" {
+  port              = 25133
+  protocol          = "vless"
+  remark            = "acc-inbound-traffic-reset-day-v360"
+  enable            = true
+  traffic_reset     = "monthly"
+  traffic_reset_day = 28
+  vless_settings {
+    decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
+  }
+}
+`,
+				Check: resource.TestCheckResourceAttr("threexui_inbound.reset_day", "traffic_reset_day", "28"),
 			},
 		},
 	})

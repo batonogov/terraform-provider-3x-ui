@@ -78,7 +78,7 @@ resource "threexui_inbound_client" "hysteria_user" {
 - `password` (Optional, String, Sensitive) - Client password (used by trojan/shadowsocks).
 - `password_wo` (Optional, String, Write-Only) - Write-only client password. Requires Terraform/OpenTofu 1.11+. Use `password_wo_version` to trigger later updates without storing the password in plan or state.
 - `password_wo_version` (Optional, Number) - Increment this value when `password_wo` changes. It can only be configured together with `password_wo`.
-- `flow` (Optional, String) - Flow control (e.g. `xtls-rprx-vision`).
+- `flow` (Optional, String) - Flow control (e.g. `xtls-rprx-vision`). Leave unset when the parent `threexui_inbound` has `disable_flow = true`: the panel blanks `flow` on every client of such an inbound, so a configured value fails the apply as an inconsistent result.
 - `reverse_tag` (Optional, String) - VLESS reverse tag. Stored in 3x-ui as `reverse.tag` and available on 3x-ui v2.9.4+.
 - `auth` (Optional, String, Sensitive) - Auth password for Hysteria clients. Used as client identifier instead of UUID.
 - `limit_ip` (Optional, Number) - Maximum concurrent connections.
@@ -89,6 +89,10 @@ resource "threexui_inbound_client" "hysteria_user" {
 - `comment` (Optional, String) - Client description for administrative notes.
 - `reset` (Optional, Number) - Traffic reset period in days. `0` means never (default).
 - `group` (Optional, String) - Client group name. Available on 3x-ui v3.2.0+.
+- `reset_day` (Optional, Number) - Calendar day of month (1-31) on which this client renews. `0` keeps the rolling-interval behaviour driven by `reset`. Added in 3x-ui v3.7.0; older panels report `0` (unsupported).
+- `reset_max` (Optional, Number) - Maximum number of automatic renewals for this client. `0` means unlimited. Added in 3x-ui v3.7.0; older panels report `0` (unsupported).
+- `traffic_reset` (Optional, String) - Per-client traffic reset cycle, independent of the inbound's own cycle: `never`, `hourly`, `daily`, `weekly`, or `monthly`. Added in 3x-ui v3.7.0; older panels report an empty value (unsupported).
+- `traffic_reset_day` (Optional, Number) - Day of month (1-31) for this client's monthly traffic resets. Only effective when `traffic_reset = "monthly"`. Added in 3x-ui v3.7.0; older panels report `0` (unsupported). `0` is rejected at plan time: the panel clamps any value below 1 up to 1, so a configured `0` could never round-trip. On v3.7.0+ the panel also normalizes an unset `traffic_reset` to `never`.
 - `secret` (Optional, String, Sensitive) - MTProto FakeTLS secret, per-client (3x-ui v3.5.0+, `mtg-multi` engine). Format: `"ee"` + 32 hex chars (random middle) + hex-encoded domain suffix. The panel rebuilds the domain suffix from the inbound's `fakeTlsDomain` on save, so only the random middle must be stable across applies. Setting a domain suffix that differs from the inbound's `fakeTlsDomain` causes drift after the first apply (the panel heals it) — leave unset to let the panel generate it. Leave unset for non-MTProto clients.
 - `secret_wo` (Optional, String, Write-Only) - Write-only MTProto FakeTLS secret. Requires Terraform/OpenTofu 1.11+. Use `secret_wo_version` to trigger later updates without storing the secret in plan or state.
 - `secret_wo_version` (Optional, Number) - Increment this value when `secret_wo` changes. It can only be configured together with `secret_wo`.

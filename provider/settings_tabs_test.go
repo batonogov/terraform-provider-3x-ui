@@ -3,7 +3,9 @@ package provider
 import (
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -1055,6 +1057,41 @@ func TestFlattenPanelGeneral_v360Fields(t *testing.T) {
 	}
 }
 
+// TestPanelSettings_v370Fields covers the two AllSetting fields added in 3x-ui
+// v3.7.0: the IP-limit allowlist (panel_general) and the JSON-subscription
+// observatory blob for client-side balancers (panel_subscription). The empty
+// case mirrors a pre-v3.7.0 panel, which reports "" for both.
+func TestPanelSettings_v370Fields(t *testing.T) {
+	general := expandPanelGeneral(&PanelGeneralModel{
+		IPLimitAllowlist: typeStringValue("10.0.0.0/8,192.0.2.7"),
+	})
+	if general["ipLimitAllowlist"] != "10.0.0.0/8,192.0.2.7" {
+		t.Fatalf("ipLimitAllowlist: %v", general["ipLimitAllowlist"])
+	}
+	gm := flattenPanelGeneral(map[string]any{"ipLimitAllowlist": "10.0.0.0/8,192.0.2.7"})
+	if gm.IPLimitAllowlist.ValueString() != "10.0.0.0/8,192.0.2.7" {
+		t.Fatalf("ipLimitAllowlist: %s", gm.IPLimitAllowlist.ValueString())
+	}
+	if empty := flattenPanelGeneral(map[string]any{"ipLimitAllowlist": ""}); empty.IPLimitAllowlist.ValueString() != "" {
+		t.Fatalf("ipLimitAllowlist on a pre-v3.7.0 panel: %s", empty.IPLimitAllowlist.ValueString())
+	}
+
+	observatory := `{"subjectSelector":["out"],"probeInterval":"5m"}`
+	sub := expandPanelSubscription(&PanelSubscriptionModel{
+		SubJsonObservatory: typeStringValue(observatory),
+	})
+	if sub["subJsonObservatory"] != observatory {
+		t.Fatalf("subJsonObservatory: %v", sub["subJsonObservatory"])
+	}
+	sm := flattenPanelSubscription(map[string]any{"subJsonObservatory": observatory})
+	if sm.SubJsonObservatory.ValueString() != observatory {
+		t.Fatalf("subJsonObservatory: %s", sm.SubJsonObservatory.ValueString())
+	}
+	if empty := flattenPanelSubscription(map[string]any{"subJsonObservatory": ""}); empty.SubJsonObservatory.ValueString() != "" {
+		t.Fatalf("subJsonObservatory on a pre-v3.7.0 panel: %s", empty.SubJsonObservatory.ValueString())
+	}
+}
+
 // TestPreservePanelEmailSecrets verifies the SMTP password replay path: when
 // the panel returns a redacted/masked sentinel for smtpPassword, the provider
 // replays the user-configured secret so state stays consistent (defensive —
@@ -1115,3 +1152,65 @@ func TestPreservePanelSubscriptionRemoved(t *testing.T) {
 func typeBoolValue(v bool) types.Bool       { return types.BoolValue(v) }
 func typeStringValue(v string) types.String { return types.StringValue(v) }
 func typeInt64Value(v int64) types.Int64    { return types.Int64Value(v) }
+
+// TestAddrOrPrefixListValidator mirrors upstream CheckNetipAddrOrPrefixList,
+// which backs ip_limit_allowlist. netip (unlike net) rejects zero-padded
+// prefixes such as "10.0.0.0/024", and the panel refuses the save when it does —
+// so the validator has to reject exactly what the panel rejects.
+func TestAddrOrPrefixListValidator(t *testing.T) {
+	if got := (addrOrPrefixListValidator{}).Description(t.Context()); got == "" {
+		t.Error("Description must not be empty — it is what Terraform shows on a validation failure")
+	}
+	if got := (addrOrPrefixListValidator{}).MarkdownDescription(t.Context()); got == "" {
+		t.Error("MarkdownDescription must not be empty")
+	}
+
+	valid := []string{
+		"",
+		"10.0.0.1",
+		"10.0.0.0/8",
+		"10.0.0.0/8, 192.0.2.7",
+		"  10.0.0.0/8 ,, 2001:db8::1  ",
+		"2001:db8::/32",
+	}
+	for _, in := range valid {
+		resp := &validator.StringResponse{}
+		addrOrPrefixListValidator{}.ValidateString(t.Context(), validator.StringRequest{
+			Path:        path.Root("ip_limit_allowlist"),
+			ConfigValue: typeStringValue(in),
+		}, resp)
+		if resp.Diagnostics.HasError() {
+			t.Errorf("%q should be valid: %v", in, resp.Diagnostics.Errors())
+		}
+	}
+
+	invalid := []string{
+		"10.0.0.0/024",
+		"192.0.2.999",
+		"not-an-address",
+		"10.0.0.0/33",
+		"10.0.0.0/8, garbage",
+	}
+	for _, in := range invalid {
+		resp := &validator.StringResponse{}
+		addrOrPrefixListValidator{}.ValidateString(t.Context(), validator.StringRequest{
+			Path:        path.Root("ip_limit_allowlist"),
+			ConfigValue: typeStringValue(in),
+		}, resp)
+		if !resp.Diagnostics.HasError() {
+			t.Errorf("%q should be rejected", in)
+		}
+	}
+
+	// Null and unknown must be skipped, not rejected.
+	for _, v := range []types.String{types.StringNull(), types.StringUnknown()} {
+		resp := &validator.StringResponse{}
+		addrOrPrefixListValidator{}.ValidateString(t.Context(), validator.StringRequest{
+			Path:        path.Root("ip_limit_allowlist"),
+			ConfigValue: v,
+		}, resp)
+		if resp.Diagnostics.HasError() {
+			t.Errorf("%v should be skipped: %v", v, resp.Diagnostics.Errors())
+		}
+	}
+}

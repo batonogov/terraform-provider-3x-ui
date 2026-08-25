@@ -311,6 +311,8 @@ func TestInboundToForm(t *testing.T) {
 		"streamSettings":       []string{"{}"},
 		"sniffing":             []string{"{}"},
 		"nodeId":               []string{"42"},
+		"disableFlow":          []string{"false"},
+		"trafficResetDay":      []string{"0"},
 	}
 	if form.Encode() != want.Encode() {
 		t.Fatalf("unexpected form: %s", form.Encode())
@@ -343,5 +345,36 @@ func TestInboundToForm_SubscriptionFields(t *testing.T) {
 	}
 	if got := form.Get("shareAddrStrategy"); got != "custom" {
 		t.Errorf("shareAddrStrategy not serialized: got %q, want \"custom\"", got)
+	}
+}
+
+// TestInboundToForm_TrafficResetDayAndDisableFlow guards the same write path for
+// the v3.6.0 `trafficResetDay` and v3.7.0 `disableFlow` fields. Both are sent
+// unconditionally — the panel's normalizeTrafficResetDay clamps anything below 1
+// up to 1, so an omitted key and an explicit 0 are indistinguishable to it, and
+// the attribute's Between(1, 31) validator is what keeps a 0 out of the request.
+func TestInboundToForm_TrafficResetDayAndDisableFlow(t *testing.T) {
+	set := inboundToForm(&Inbound{
+		ID:              1,
+		Port:            1234,
+		Protocol:        "vless",
+		Settings:        "{}",
+		TrafficReset:    "monthly",
+		TrafficResetDay: 15,
+		DisableFlow:     true,
+	})
+	if got := set.Get("trafficResetDay"); got != "15" {
+		t.Errorf("trafficResetDay not serialized: got %q, want \"15\"", got)
+	}
+	if got := set.Get("disableFlow"); got != "true" {
+		t.Errorf("disableFlow not serialized: got %q, want \"true\"", got)
+	}
+
+	unset := inboundToForm(&Inbound{ID: 1, Port: 1234, Protocol: "vless", Settings: "{}"})
+	if got := unset.Get("trafficResetDay"); got != "0" {
+		t.Errorf("trafficResetDay should always be sent: got %q, want \"0\"", got)
+	}
+	if got := unset.Get("disableFlow"); got != "false" {
+		t.Errorf("disableFlow should always be sent: got %q, want \"false\"", got)
 	}
 }

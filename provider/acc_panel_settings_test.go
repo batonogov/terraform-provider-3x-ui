@@ -172,6 +172,46 @@ resource "threexui_panel_subscription" "sub" {
 	})
 }
 
+// TestAccPanelSettings_v370 covers the two AllSetting fields added in 3x-ui
+// v3.7.0 end-to-end: the per-client IP-limit allowlist on panel_general and the
+// JSON-subscription observatory blob on panel_subscription.
+func TestAccPanelSettings_v370(t *testing.T) {
+	requireMinVersion(t, "v3.7.0")
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_general" "g" {
+  ip_limit_allowlist = "10.0.0.0/8,192.0.2.7"
+}
+resource "threexui_panel_subscription" "sub" {
+  sub_enable           = false
+  sub_listen           = ""
+  sub_port             = 2096
+  sub_json_observatory = "{\"subjectSelector\":[\"out\"],\"probeInterval\":\"5m\"}"
+}
+`,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_general.g", "ip_limit_allowlist", "10.0.0.0/8,192.0.2.7"),
+					resource.TestCheckResourceAttr("threexui_panel_subscription.sub", "sub_json_observatory",
+						`{"subjectSelector":["out"],"probeInterval":"5m"}`),
+				),
+			},
+			{
+				// Clearing the allowlist must stick, not fall back to the old value.
+				Config: testAccProviderConfig() + `
+resource "threexui_panel_general" "g" {
+  ip_limit_allowlist = ""
+}
+`,
+				Check: resource.TestCheckResourceAttr("threexui_panel_general.g", "ip_limit_allowlist", ""),
+			},
+		},
+	})
+}
+
 // --- Panel General: page_size, remark_model, time_location, update, idempotency ---
 
 func TestAccPanelGeneral(t *testing.T) {

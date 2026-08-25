@@ -1615,6 +1615,15 @@ func inboundToForm(in *Inbound) url.Values {
 	if in.ShareAddrStrategy != "" {
 		form.Set("shareAddrStrategy", in.ShareAddrStrategy)
 	}
+	// trafficResetDay (v3.6.0+) and disableFlow (v3.7.0+) are unknown form keys
+	// on older panels, where gin silently ignores them. Both are sent
+	// unconditionally: gin binds an absent key to the struct zero value anyway,
+	// and AddInbound/UpdateInbound then run normalizeTrafficResetDay, which
+	// clamps anything below 1 up to 1 — so omitting the key and posting a 0 are
+	// indistinguishable to the panel. The attribute's Between(1, 31) validator
+	// is what keeps a non-round-trippable 0 out of the request.
+	form.Set("trafficResetDay", strconv.Itoa(in.TrafficResetDay))
+	form.Set("disableFlow", strconv.FormatBool(in.DisableFlow))
 	return form
 }
 

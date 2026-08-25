@@ -97,6 +97,7 @@ resource "threexui_inbound_client" "client_a" {
 
 | 3x-ui version | Status |
 | --- | --- |
+| v3.7.0 | Tested |
 | v3.6.0 | Tested |
 | v3.5.0 | Tested |
 | v3.4.2 | Tested |
@@ -109,7 +110,6 @@ resource "threexui_inbound_client" "client_a" {
 | v3.2.6 | Tested |
 | v3.2.5 | Tested |
 | v3.2.0 | Tested |
-| v3.1.0 | Tested |
 
 Newer protocol features are guarded with `requireMinVersion` and skip automatically on older versions, so the provider runs cleanly across the matrix without per-version forks.
 

@@ -704,3 +704,60 @@ resource "threexui_inbound_client" "upd" {
 }
 `, email, enable, limitIP, comment)
 }
+
+// TestAccInboundClientRenewalFields_v370 covers the v3.7.0 per-client renewal
+// and traffic-reset fields end-to-end, including the plan-idempotency step that
+// would catch a field being accepted by the schema but dropped on the wire.
+func TestAccInboundClientRenewalFields_v370(t *testing.T) {
+	requireMinVersion(t, "v3.7.0")
+	config := testAccProviderConfig() + `
+resource "threexui_inbound" "renewal_host" {
+  port     = 25131
+  protocol = "vless"
+  remark   = "acc-client-renewal-v370"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
+  }
+}
+
+resource "threexui_inbound_client" "renewal" {
+  inbound_id        = threexui_inbound.renewal_host.id
+  email             = "renewal-v370@test.com"
+  enable            = true
+  reset_day         = 15
+  reset_max         = 3
+  traffic_reset     = "monthly"
+  traffic_reset_day = 20
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundClientDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_inbound_client.renewal", "reset_day", "15"),
+					resource.TestCheckResourceAttr("threexui_inbound_client.renewal", "reset_max", "3"),
+					resource.TestCheckResourceAttr("threexui_inbound_client.renewal", "traffic_reset", "monthly"),
+					resource.TestCheckResourceAttr("threexui_inbound_client.renewal", "traffic_reset_day", "20"),
+				),
+			},
+			{
+				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+		},
+	})
+}

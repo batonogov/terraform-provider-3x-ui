@@ -167,6 +167,7 @@ check_readme() {
 # ---------------------------------------------------------------------------
 get_version_guide_note() {
   case "$1" in
+    v3.7.0) echo 'Native AmneziaWG inbounds, calendar-day client renewals with a per-client traffic reset cycle, inbound `disable_flow`, an IP-limit allowlist, and scoped API tokens.' ;;
     v3.6.0) echo 'Node `apiToken` becomes write-only ([3x-ui #5613](https://github.com/MHSanaei/3x-ui/pull/5613)); xray-core v26.7.28.' ;;
     v3.5.0) echo 'Host groups, MTProto multi-client support, Xray `env`, outbound `target_strategy`, and expanded balancer settings.' ;;
     v3.4.2) echo 'WireGuard multi-client support, `ldap_insecure_skip_verify`, and Xray Observatory/BurstObservatory.' ;;
@@ -177,7 +178,6 @@ get_version_guide_note() {
     v3.2.8) echo 'Latest supported v3.2.x patch.' ;;
     v3.2.7) echo 'TUN inbound alias.' ;;
     v3.2.0) echo '`mixed`/`tunnel` replace legacy `socks`/`dokodemo-door`; client `group` and `panelProxy` are available.' ;;
-    v3.1.0) echo 'New client API surface; the provider detects it automatically.' ;;
     *) echo '' ;;
   esac
 }

@@ -249,3 +249,75 @@ func TestInboundClientMtprotoExpandFlatten(t *testing.T) {
 		}
 	})
 }
+
+// TestInboundClientRenewalFieldsExpandFlatten covers the four v3.7.0 client
+// fields: calendar-day renewals (resetDay/resetMax) and the per-client traffic
+// reset cycle (trafficReset/trafficResetDay). A pre-v3.7.0 panel omits all four
+// from settings.clients[], which must read back as the zero value rather than
+// producing a spurious diff.
+func TestInboundClientRenewalFieldsExpandFlatten(t *testing.T) {
+	model := &InboundClientResourceModel{
+		InboundID:       types.Int64Value(1),
+		ClientID:        types.StringValue("uuid"),
+		Email:           types.StringValue("user@test.com"),
+		ResetDay:        types.Int64Value(15),
+		ResetMax:        types.Int64Value(3),
+		TrafficReset:    types.StringValue("monthly"),
+		TrafficResetDay: types.Int64Value(20),
+	}
+
+	expanded := expandInboundClientFromModel(model)
+	for key, want := range map[string]any{
+		"resetDay":        15,
+		"resetMax":        3,
+		"trafficReset":    "monthly",
+		"trafficResetDay": 20,
+	} {
+		if expanded[key] != want {
+			t.Errorf("%s: got %v, want %v", key, expanded[key], want)
+		}
+	}
+
+	flattened := inboundClientToModel(1, "uuid", expanded)
+	if flattened.ResetDay.ValueInt64() != 15 {
+		t.Errorf("ResetDay: %d", flattened.ResetDay.ValueInt64())
+	}
+	if flattened.ResetMax.ValueInt64() != 3 {
+		t.Errorf("ResetMax: %d", flattened.ResetMax.ValueInt64())
+	}
+	if flattened.TrafficReset.ValueString() != "monthly" {
+		t.Errorf("TrafficReset: %q", flattened.TrafficReset.ValueString())
+	}
+	if flattened.TrafficResetDay.ValueInt64() != 20 {
+		t.Errorf("TrafficResetDay: %d", flattened.TrafficResetDay.ValueInt64())
+	}
+
+	t.Run("pre-v3.7.0 panel omits the keys", func(t *testing.T) {
+		old := inboundClientToModel(1, "uuid", map[string]any{"email": "user@test.com"})
+		if old.ResetDay.ValueInt64() != 0 {
+			t.Errorf("ResetDay: %d", old.ResetDay.ValueInt64())
+		}
+		if old.ResetMax.ValueInt64() != 0 {
+			t.Errorf("ResetMax: %d", old.ResetMax.ValueInt64())
+		}
+		if !old.TrafficReset.IsNull() {
+			t.Errorf("TrafficReset should be null, got %q", old.TrafficReset.ValueString())
+		}
+		if old.TrafficResetDay.ValueInt64() != 0 {
+			t.Errorf("TrafficResetDay: %d", old.TrafficResetDay.ValueInt64())
+		}
+	})
+
+	t.Run("unconfigured attributes are not sent", func(t *testing.T) {
+		expanded := expandInboundClientFromModel(&InboundClientResourceModel{
+			InboundID: types.Int64Value(1),
+			ClientID:  types.StringValue("uuid"),
+			Email:     types.StringValue("user@test.com"),
+		})
+		for _, key := range []string{"resetDay", "resetMax", "trafficReset", "trafficResetDay"} {
+			if _, ok := expanded[key]; ok {
+				t.Errorf("%s must be omitted when unconfigured, got %v", key, expanded[key])
+			}
+		}
+	})
+}
