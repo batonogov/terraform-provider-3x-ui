@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
   issues: write
+  # Reading job conclusions via the Actions API. Works without it while the repo is
+  # public, 404s the moment it is not — and a 404 under `bash -e` kills the step,
+  # so a real failure would go unreported.
+  actions: read
 
 jobs:
   prepare-matrix:
@@ -74,23 +78,75 @@ jobs:
     if: always()
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Generate report
+      - name: Report failures
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSIONS: ${{ needs.prepare-matrix.outputs.versions }}
         run: |
           WEEK=$(date -u +%Y-%m-%d)
-          # Collect results from the matrix jobs
-          RESULTS=""
+
+          # This job runs with `if: always()`, so it also runs when prepare-matrix
+          # failed and handed us nothing. Staying silent there would report a broken
+          # run as an all-green week — the exact failure mode this workflow exists to
+          # catch. Fail loudly instead.
+          if [ -z "$VERSIONS" ]; then
+            echo "::error::empty version matrix — prepare-matrix did not produce a version list"
+            exit 1
+          fi
+
+          # One paginated call for the whole run; the listing already carries each
+          # job's conclusion, so there is no need to re-query per job. Fewer calls
+          # also means fewer chances for a transient API error to kill the step
+          # (the default GHA shell is `bash -e`).
+          gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+            --paginate --jq '.jobs[] | [.name, .conclusion] | @tsv' > jobs.tsv
+
+          TABLE="| Version | Result |\n| --- | --- |"
+          FAILED=0
           for v in $VERSIONS; do
-            JOB_ID=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" --jq ".jobs[] | select(.name == \"Compat ($v)\") | .id")
-            if [ -n "$JOB_ID" ]; then
-              CONCLUSION=$(gh api "repos/${{ github.repository }}/actions/jobs/$JOB_ID" --jq '.conclusion')
-              RESULTS="$RESULTS\n| $v | ${CONCLUSION:-unknown} |"
-            else
-              RESULTS="$RESULTS\n| $v | not_found |"
-            fi
+            CONCLUSION=$(awk -F'\t' -v name="Compat ($v)" '$1 == name {print $2; exit}' jobs.tsv)
+            CONCLUSION="${CONCLUSION:-not_found}"
+            TABLE="$TABLE\n| $v | $CONCLUSION |"
+            # Only states that mean "this version is broken". A cancelled or skipped
+            # run (someone stopped a workflow_dispatch, a job never started) is not a
+            # compatibility failure and must not file an issue.
+            case "$CONCLUSION" in
+              failure | timed_out | not_found)
+                FAILED=$((FAILED + 1))
+                ;;
+            esac
           done
-          BODY="## CI Flake Rate Report — Week of $WEEK\n\n| Version | Result |\n| --- | --- |\n$RESULTS\n\n_Triggered by scheduled workflow._"
-          echo -e "$BODY" > report.md
-          gh issue create --title "CI Flake Rate Report — Week of $WEEK" --body-file report.md --label "github_actions"
+
+          echo -e "## Compat matrix — $WEEK\n\n$TABLE" >> "$GITHUB_STEP_SUMMARY"
+
+          # An all-green matrix is the expected outcome — stay silent instead of
+          # filing a weekly issue nobody reads (#439/#437/#432 were all-green noise).
+          if [ "$FAILED" -eq 0 ]; then
+            echo "No compat failures — no issue filed."
+            exit 0
+          fi
+
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          {
+            echo "## Compat matrix failure — $WEEK"
+            echo
+            echo "$FAILED of the supported 3x-ui versions did not pass the compat run."
+            echo
+            echo -e "$TABLE"
+            echo
+            echo "[Workflow run]($RUN_URL)"
+            echo
+            echo "_Filed automatically because at least one version failed. Green runs file nothing._"
+          } > report.md
+
+          # A version that stays broken would otherwise open a fresh issue every
+          # Monday. Comment on the open one instead, and only open a new issue when
+          # none is waiting.
+          EXISTING=$(gh issue list --state open --label "github_actions" \
+            --search "Compat matrix failure in:title" --limit 1 --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body-file report.md
+            echo "Commented on existing issue #$EXISTING."
+          else
+            gh issue create --title "Compat matrix failure — $WEEK" --body-file report.md --label "github_actions"
+          fi
