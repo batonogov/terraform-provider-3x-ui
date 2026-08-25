@@ -132,6 +132,16 @@ Five resources — `panel_general`, `panel_security`, `panel_telegram`,
     The bot **process** is hot-reloaded (`controller/setting.go:165-172` → `web.go:650`),
     so `tgBotToken`/`tgBotChatId`/`tgBotAPIServer` do NOT restart — but toggling
     `tgBotEnable` without one leaves the bot running with no periodic report.
+    Two of these keys are gated on *what changed*, not on the value changing at all
+    (`restartKeyRules`): the alarm thresholds only decide whether the sampler job is
+    registered (`threshold <= 0`), and the event lists only matter for `cpu.high`/
+    `memory.high` membership — so `tgCpu` 80 → 90, or adding `backup` to
+    `tgEnabledEvents`, takes effect live and must not bounce the panel.
+  A key **absent** from the panel's `/setting/all` response never restarts: AllSetting
+  is serialised whole, so an absent key means that version predates the setting and
+  `/setting/update` will drop it too. Restarting for a value the panel cannot store
+  would bounce it on every apply — 7 of the 13 versions in `compat-versions.json`
+  predate the notifier keys.
   The 3x-ui sub server only (re)binds at startup, so without this restart a changed
   `sub_path`/`sub_port`/… does not take effect and the subscription URL 404s (#291).
   Only the three link-generation URIs (`subURI`, `subJsonURI`, `subClashURI`) are read

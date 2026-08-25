@@ -86,8 +86,13 @@ func TestApplySubscription_RestartsOnServerKeyChange(t *testing.T) {
 
 	cases := []tc{
 		{
+			// /setting/all serialises AllSetting whole, so a real panel always
+			// reports subEnable — with its default, false, before the first apply.
+			// (An empty `existing` would mean a panel that does not have the key at
+			// all, which is a different case: see
+			// TestPanelSettingsNeedRestart_KeyUnknownToPanel.)
 			name:        "enable subscription server (first apply)",
-			existing:    map[string]any{},
+			existing:    map[string]any{"subEnable": false, "subPort": float64(2096), "subPath": "/sub/"},
 			plan:        mkPlan(map[string]any{"subEnable": true, "subPort": 2096, "subPath": "/sub/"}),
 			wantRestart: 1,
 		},

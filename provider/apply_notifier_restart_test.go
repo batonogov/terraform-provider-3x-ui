@@ -107,6 +107,43 @@ func TestSettingsApplyTyped_RestartsForNotifierCronKeys(t *testing.T) {
 			wantRestart: 0,
 		},
 		{
+			// Re-tuning a threshold that is already on changes nothing about cron
+			// registration — the job publishes a raw metric and the notifier does the
+			// comparison per event, so the new value is live immediately.
+			name:        "re-tuning an active threshold does not restart",
+			existing:    map[string]any{"tgCpu": float64(80), "smtpMemory": float64(70)},
+			desired:     map[string]any{"tgCpu": 90, "smtpMemory": 75},
+			wantRestart: 0,
+		},
+		{
+			name:        "switching a threshold off deregisters the job",
+			existing:    map[string]any{"tgCpu": float64(80)},
+			desired:     map[string]any{"tgCpu": 0},
+			wantRestart: 1,
+		},
+		{
+			// Only cpu.high / memory.high membership gates a job; the rest is
+			// filtered at delivery.
+			name:        "adding an unrelated event does not restart",
+			existing:    map[string]any{"tgEnabledEvents": "cpu.high,login.attempt"},
+			desired:     map[string]any{"tgEnabledEvents": "cpu.high,login.attempt,backup"},
+			wantRestart: 0,
+		},
+		{
+			name:        "dropping cpu.high deregisters the sampler",
+			existing:    map[string]any{"smtpEnabledEvents": "memory.high,cpu.high"},
+			desired:     map[string]any{"smtpEnabledEvents": "memory.high"},
+			wantRestart: 1,
+		},
+		{
+			// A panel predating the key drops it on write, so restarting would
+			// bounce it on every apply for a value that is never stored.
+			name:        "key unknown to the panel does not restart",
+			existing:    map[string]any{"tgBotEnable": true},
+			desired:     map[string]any{"smtpCpu": 80, "smtpEnabledEvents": "cpu.high"},
+			wantRestart: 0,
+		},
+		{
 			name:        "re-applying identical values stays quiet",
 			existing:    map[string]any{"tgRunTime": "@daily", "tgCpu": float64(80)},
 			desired:     map[string]any{"tgRunTime": "@daily", "tgCpu": 80},
