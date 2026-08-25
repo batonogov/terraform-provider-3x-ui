@@ -74,7 +74,7 @@ jobs:
     if: always()
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Generate report
+      - name: Report failures
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSIONS: ${{ needs.prepare-matrix.outputs.versions }}
@@ -82,15 +82,31 @@ jobs:
           WEEK=$(date -u +%Y-%m-%d)
           # Collect results from the matrix jobs
           RESULTS=""
+          FAILED=0
           for v in $VERSIONS; do
-            JOB_ID=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" --jq ".jobs[] | select(.name == \"Compat ($v)\") | .id")
+            JOB_ID=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" --paginate --jq ".jobs[] | select(.name == \"Compat ($v)\") | .id")
             if [ -n "$JOB_ID" ]; then
               CONCLUSION=$(gh api "repos/${{ github.repository }}/actions/jobs/$JOB_ID" --jq '.conclusion')
-              RESULTS="$RESULTS\n| $v | ${CONCLUSION:-unknown} |"
+              CONCLUSION="${CONCLUSION:-unknown}"
             else
-              RESULTS="$RESULTS\n| $v | not_found |"
+              CONCLUSION="not_found"
+            fi
+            RESULTS="$RESULTS\n| $v | $CONCLUSION |"
+            if [ "$CONCLUSION" != "success" ]; then
+              FAILED=$((FAILED + 1))
             fi
           done
-          BODY="## CI Flake Rate Report — Week of $WEEK\n\n| Version | Result |\n| --- | --- |\n$RESULTS\n\n_Triggered by scheduled workflow._"
+
+          # An all-green matrix is the expected outcome — stay silent instead of
+          # filing a weekly issue nobody reads (#439/#437/#432 were all-green noise).
+          if [ "$FAILED" -eq 0 ]; then
+            echo "All compat jobs succeeded — no issue filed."
+            echo -e "$RESULTS" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BODY="## Compat matrix failure — $WEEK\n\n$FAILED of the supported 3x-ui versions did not pass the weekly compat run.\n\n| Version | Result |\n| --- | --- |\n$RESULTS\n\n[Workflow run]($RUN_URL)\n\n_Filed automatically because at least one version failed. Green weeks file nothing._"
           echo -e "$BODY" > report.md
-          gh issue create --title "CI Flake Rate Report — Week of $WEEK" --body-file report.md --label "github_actions"
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+          gh issue create --title "Compat matrix failure — $WEEK" --body-file report.md --label "github_actions"
