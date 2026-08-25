@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.23.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.23.0...v3.23.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* deprecate threexui_inbound.all_time ([#446](https://github.com/batonogov/terraform-provider-threexui/issues/446)) ([bc343eb](https://github.com/batonogov/terraform-provider-threexui/commit/bc343eb1757481d0d3719354de7f059044f86316))
+* restart the panel for every startup-read subscription setting ([#447](https://github.com/batonogov/terraform-provider-threexui/issues/447)) ([b42ed0c](https://github.com/batonogov/terraform-provider-threexui/commit/b42ed0c8c8609ca6e4a6b191815990509024ab2a))
+
 ## [3.23.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.22.3...v3.23.0) (2026-08-25)
 
 
