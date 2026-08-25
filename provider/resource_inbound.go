@@ -122,8 +122,14 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Total traffic limit (bytes). 0 means unlimited.",
 			},
 			"all_time": schema.Int64Attribute{
-				Computed:    true,
-				Description: "All-time accumulated traffic (bytes).",
+				Computed: true,
+				Description: "Deprecated: always `0` on every supported panel. 3x-ui carried an `allTime` field from " +
+					"v2.6.7 until v3.1.0 removed it (upstream PR #4469, which also drops the `all_time` columns on " +
+					"startup). No version this provider supports (v3.2.x+) sends it, so the attribute has no value to " +
+					"report. Use `up`, `down`, or the `threexui_client_traffics` data source.",
+				DeprecationMessage: "all_time is always 0: 3x-ui removed the allTime field in v3.1.0 (upstream PR #4469), " +
+					"and no supported panel version (v3.2.x+) sends it. Use up, down, or the threexui_client_traffics " +
+					"data source. The attribute will be removed in the next major release.",
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
 				},
@@ -583,8 +589,10 @@ func (r *InboundResource) ImportState(ctx context.Context, req resource.ImportSt
 var trafficCounterPaths = []path.Path{
 	path.Root("up"),
 	path.Root("down"),
-	path.Root("all_time"),
 	path.Root("last_traffic_reset_time"),
+	// all_time is deliberately absent: no supported panel sends `allTime`, so the
+	// attribute is a constant 0 rather than a live counter. Marking it unknown
+	// would plan it as "(known after apply)" on every update for nothing (#442).
 }
 
 func (r *InboundResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {

@@ -10,10 +10,16 @@ import (
 // Custom UnmarshalJSON handles both the legacy format (escaped JSON strings)
 // used by v2.9.x/v3.0.x and the modern format (nested JSON objects) used by v3.1.0+.
 type Inbound struct {
-	ID                   int             `json:"id"`
-	Up                   int64           `json:"up"`
-	Down                 int64           `json:"down"`
-	Total                int64           `json:"total"`
+	ID    int   `json:"id"`
+	Up    int64 `json:"up"`
+	Down  int64 `json:"down"`
+	Total int64 `json:"total"`
+	// AllTime is deprecated and always decodes to 0 on every supported panel.
+	// Upstream carried `allTime` on model.Inbound from v2.6.7 (PR #3387) until
+	// v3.1.0 removed it (PR #4469, which also drops the `all_time` columns on
+	// startup), so the field is absent from every snapshot in the supported
+	// v3.2.x+ range. Kept only to keep feeding the deprecated `all_time`
+	// attribute until that attribute is dropped in the next major release (#442).
 	AllTime              int64           `json:"allTime"`
 	Remark               string          `json:"remark"`
 	Enable               bool            `json:"enable"`
@@ -87,7 +93,6 @@ type ClientTraffic struct {
 	SubID      string `json:"subId"`
 	Up         int64  `json:"up"`
 	Down       int64  `json:"down"`
-	AllTime    int64  `json:"allTime"`
 	ExpiryTime int64  `json:"expiryTime"`
 	Total      int64  `json:"total"`
 	Reset      int    `json:"reset"`
