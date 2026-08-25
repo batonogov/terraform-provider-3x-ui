@@ -410,7 +410,7 @@ Typed MTProto server settings available on 3x-ui v3.3.0+. On v3.5.0+, per-client
 ## Attribute Reference
 
 - `id` - The inbound ID (numeric).
-- `all_time` (Read-only, Number) - Always `0`. 3x-ui has never sent an `allTime` field on the inbound API; the attribute is kept for state compatibility and is not a usable traffic counter. Use `up`, `down`, or the `threexui_client_traffics` data source instead.
+- `all_time` (Read-only, Number, **Deprecated**) - Always `0`. 3x-ui has never sent an `allTime` field on the inbound API, so the attribute has never carried a traffic figure; it is kept for state compatibility and **will be removed in the next major release**. Use `up`, `down`, or the `threexui_client_traffics` data source instead.
 - `last_traffic_reset_time` (Number) - Last traffic reset timestamp.
 - `tag` (String) - Auto-generated inbound tag.
 

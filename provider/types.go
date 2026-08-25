@@ -10,10 +10,15 @@ import (
 // Custom UnmarshalJSON handles both the legacy format (escaped JSON strings)
 // used by v2.9.x/v3.0.x and the modern format (nested JSON objects) used by v3.1.0+.
 type Inbound struct {
-	ID                   int             `json:"id"`
-	Up                   int64           `json:"up"`
-	Down                 int64           `json:"down"`
-	Total                int64           `json:"total"`
+	ID    int   `json:"id"`
+	Up    int64 `json:"up"`
+	Down  int64 `json:"down"`
+	Total int64 `json:"total"`
+	// AllTime is deprecated and always decodes to 0: no 3x-ui release has ever
+	// sent an `allTime` field on the inbound API (`grep -r allTime` finds no
+	// match in any Go, TS or JS source of the v3.2.0-v3.7.0 snapshots). It is
+	// kept only to keep feeding the deprecated `all_time` attribute until that
+	// attribute is dropped in the next major release (#442).
 	AllTime              int64           `json:"allTime"`
 	Remark               string          `json:"remark"`
 	Enable               bool            `json:"enable"`
@@ -87,7 +92,6 @@ type ClientTraffic struct {
 	SubID      string `json:"subId"`
 	Up         int64  `json:"up"`
 	Down       int64  `json:"down"`
-	AllTime    int64  `json:"allTime"`
 	ExpiryTime int64  `json:"expiryTime"`
 	Total      int64  `json:"total"`
 	Reset      int    `json:"reset"`

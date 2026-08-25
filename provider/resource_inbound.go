@@ -122,8 +122,12 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Total traffic limit (bytes). 0 means unlimited.",
 			},
 			"all_time": schema.Int64Attribute{
-				Computed:    true,
-				Description: "All-time accumulated traffic (bytes).",
+				Computed: true,
+				Description: "Deprecated: always `0`. 3x-ui has never sent an `allTime` field on the inbound API " +
+					"(no match in any Go, TS or JS source from v3.2.0 through v3.7.0), so this attribute has " +
+					"never carried a traffic figure. Use `up`, `down`, or the `threexui_client_traffics` data source.",
+				DeprecationMessage: "all_time is always 0 — 3x-ui never sent an allTime field on the inbound API. " +
+					"Use up, down, or the threexui_client_traffics data source. The attribute will be removed in the next major release.",
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
 				},
