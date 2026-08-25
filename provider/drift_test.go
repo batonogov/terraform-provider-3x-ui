@@ -634,7 +634,7 @@ func TestDriftInboundProtocols_GoModel(t *testing.T) {
 	upstreamSet := toSet(upstream)
 	// The v3.7.0 `amneziawg` protocol (native AmneziaWG inbounds) is not yet
 	// implemented by the provider — it needs its own settings block (server
-	// obfuscation params + clients[]). Tracked separately; drop this entry when
+	// obfuscation params + clients[]). Tracked in #441; drop this entry when
 	// the block lands.
 	upstreamSkipped := map[string]bool{"amneziawg": true}
 	checkMissing(t, upstream, providerHandled, upstreamSkipped,
@@ -676,7 +676,7 @@ func TestDriftInboundProtocols_JS(t *testing.T) {
 	upstreamSet := toSet(upstream)
 	// The v3.7.0 `amneziawg` protocol (native AmneziaWG inbounds) is not yet
 	// implemented by the provider — it needs its own settings block (server
-	// obfuscation params + clients[]). Tracked separately; drop this entry when
+	// obfuscation params + clients[]). Tracked in #441; drop this entry when
 	// the block lands.
 	upstreamSkipped := map[string]bool{"amneziawg": true}
 	checkMissing(t, upstream, providerHandled, upstreamSkipped,
@@ -718,7 +718,7 @@ func TestDriftProtocolForms(t *testing.T) {
 	upstreamSet := toSet(upstream)
 	// The v3.7.0 `amneziawg` protocol (native AmneziaWG inbounds) is not yet
 	// implemented by the provider — it needs its own settings block (server
-	// obfuscation params + clients[]). Tracked separately; drop this entry when
+	// obfuscation params + clients[]). Tracked in #441; drop this entry when
 	// the block lands.
 	upstreamSkipped := map[string]bool{"amneziawg": true}
 	checkMissing(t, upstream, providerBlocks, upstreamSkipped,
@@ -850,7 +850,7 @@ func TestDriftClientFields(t *testing.T) {
 		// v3.7.0 AmneziaWG surface: forwardedPorts is the per-client DNAT spec on
 		// an AmneziaWG inbound, and allowedIPsByInbound overrides allowedIPs per
 		// inbound id. Both belong to the amneziawg settings block, which the
-		// provider does not implement yet (see the protocol drift gates).
+		// provider does not implement yet (#441).
 		"forwardedPorts": true, "allowedIPsByInbound": true,
 	}
 	checkMissing(t, upstream, providerKnown, clientIntentionallySkipped,
