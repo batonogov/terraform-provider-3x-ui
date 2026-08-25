@@ -227,8 +227,31 @@ resource "threexui_inbound" "awg_peers" {
 				),
 			},
 			{
-				Config:   testAccProviderConfig() + fmt.Sprintf(base, port, ""),
-				PlanOnly: true,
+				// ...and its email must be free again. Dropping a peer is an
+				// update, not a delete, and the panel keeps the client row just as
+				// it does when the whole inbound goes — so a second inbound reusing
+				// the address fails with "Duplicate email" unless the provider
+				// released it (#452).
+				Config: testAccProviderConfig() + fmt.Sprintf(base, port, "") + `
+resource "threexui_inbound" "awg_peers_reuse" {
+  port     = 26016
+  protocol = "amneziawg"
+  remark   = "acc-awg-peers-reuse"
+  enable   = true
+
+  amneziawg_settings {
+    server {}
+    clients {
+      email       = "awg-last-peer@test.com"
+      enable      = true
+      public_key  = "dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXkxMjM0NQ=="
+      allowed_ips = ["10.8.1.6/32"]
+    }
+  }
+}
+`,
+				Check: resource.TestCheckResourceAttr("threexui_inbound.awg_peers_reuse",
+					"amneziawg_settings.clients.0.email", "awg-last-peer@test.com"),
 			},
 		},
 	})
@@ -246,9 +269,10 @@ resource "threexui_inbound" "awg_peers" {
 // inbound. The provider now deletes each peer through the per-client endpoint
 // before removing the inbound.
 //
-// The framework's own destroy runs between steps, so a second step with an
-// identical configuration is enough: the first create+destroy has to leave the
-// email free for the second create. Both steps deliberately use the SAME email.
+// terraform-plugin-testing destroys only at the end of a test case, so the
+// second step taints the resource to force a destroy+create in the middle. Both
+// steps deliberately use the SAME peer email: the destroy has to leave it free
+// for the create that follows.
 func TestAccInboundAmneziawgRecreateWithSamePeerEmail(t *testing.T) {
 	requireMinVersion(t, "v3.7.0")
 

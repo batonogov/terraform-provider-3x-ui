@@ -851,6 +851,23 @@ func (c *Client) UpdateInboundClient(ctx context.Context, inboundID int, clientI
 	return c.doFormRetryable(ctx, http.MethodPost, relPath, form, nil)
 }
 
+// isClientAlreadyGone reports whether a delete failed because the client was
+// not there to begin with, which makes the delete a success.
+//
+// The message is not a fixed string: 3x-ui formats it as
+// `client %q not found in any inbound or client record`
+// (3x-ui-3.7.0/internal/web/service/client_crud.go:919), so the quoted email
+// sits between "client" and "not found" — matching the literal phrase "client
+// not found" never fired. Matching "not found" alone keeps this robust against
+// the wording drifting again, and is specific enough: nothing else on this
+// route reports a success-shaped failure.
+func isClientAlreadyGone(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "not found")
+}
+
 func (c *Client) DeleteInboundClient(ctx context.Context, inboundID int, clientID string, email string) error {
 	if inboundID == 0 {
 		return errors.New("inbound id is required for delete client")
@@ -867,7 +884,7 @@ func (c *Client) DeleteInboundClient(ctx context.Context, inboundID int, clientI
 		}
 		if isHTTPNotFound(err) {
 			c.markLegacyClientAPI()
-		} else if strings.Contains(strings.ToLower(err.Error()), "client not found") {
+		} else if isClientAlreadyGone(err) {
 			return nil
 		} else {
 			return err

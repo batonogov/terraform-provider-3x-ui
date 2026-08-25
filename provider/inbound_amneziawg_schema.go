@@ -867,25 +867,77 @@ func applyAmneziawgServerPhaseTwo(ctx context.Context, client *Client, created *
 // v3.7.0) are therefore left behind holding their address, and a later
 // `terraform apply` that recreates the same inbound fails with
 // "Duplicate email: <address>" naming a client the practitioner can no longer
-// see. Deleting each peer first frees the row; verified against a live v3.7.0
-// panel, where the same create/delete/create sequence fails without this and
-// succeeds with it.
+// see. Deleting each peer frees the row; verified against a live v3.7.0 panel,
+// where the same create/delete/create sequence fails without this and succeeds
+// with it.
 //
-// Only protocols whose peers the inbound owns are touched. For everything else
-// clients[] belongs to threexui_inbound_client, which deletes its own rows
-// through the same endpoint — reaching into them from here would delete
-// resources Terraform still tracks.
+// Called AFTER the inbound is deleted, not before. ClientService.DeleteByEmail
+// looks the row up by email directly (client_lookup.go:20) and its
+// client_inbounds loop no-ops on an empty link list (client_crud.go:678-707),
+// so the endpoint works just as well once the inbound is gone — confirmed
+// live. Running it first would buy nothing and open a window: if the inbound
+// delete then failed, the peers would already be gone while the inbound stayed
+// up serving nobody and still in state. This order degrades to the old
+// behaviour instead — the inbound is gone, the rows leak, and the warning says
+// so.
+//
+// Only protocols whose peers the inbound owns yield addresses (see
+// inboundOwnedPeerEmails). For everything else clients[] belongs to
+// threexui_inbound_client, which deletes its own rows through the same
+// endpoint.
+//
+// The addresses come from state rather than from a fresh GET. For WireGuard and
+// AmneziaWG the two agree after any refresh — flattenSettings reads the panel's
+// clients[] back into the inbound's own block for exactly these protocols — so
+// a GET would mostly cost a round-trip. A peer added in the panel since the
+// last refresh is invisible either way, and leaks, which is the same outcome as
+// before this function existed.
 //
 // Failures are reported as warnings rather than errors: the inbound delete is
 // what the practitioner asked for, and refusing to proceed because a peer row
 // could not be freed would strand the resource in state. The warning names the
 // email so the leftover can be cleaned up by hand.
 func releaseInboundOwnedPeers(ctx context.Context, client *Client, inboundID int, protocol string, state *InboundResourceModel, diags *diag.Diagnostics) {
-	if !protocolOwnsClients(protocol) || state == nil {
+	if state == nil {
 		return
 	}
 
-	emails := inboundOwnedPeerEmails(protocol, state)
+	// inboundOwnedPeerEmails is the single gate: it yields addresses only for
+	// the protocols whose peers the inbound owns.
+	releasePeerEmails(ctx, client, inboundID, inboundOwnedPeerEmails(protocol, state), diags)
+}
+
+// releasePeerEmailsRemovedByUpdate frees the addresses of peers that were in
+// state but are no longer in the plan (#452).
+//
+// Dropping a peer from an inbound is an update, not a delete, and it strands
+// the email exactly as removing the whole inbound does: the panel rewrites
+// settings.clients[] without the peer but keeps its `clients` row, unique index
+// and all. Measured on v3.7.0 — remove the only peer through UpdateInbound, then
+// create any inbound reusing that email, and the create fails with "Duplicate
+// email". Nothing in the panel's own UI surfaces the leftover.
+func releasePeerEmailsRemovedByUpdate(ctx context.Context, client *Client, inboundID int, protocol string, state, plan *InboundResourceModel, diags *diag.Diagnostics) {
+	if state == nil || plan == nil {
+		return
+	}
+
+	kept := make(map[string]bool)
+	for _, email := range inboundOwnedPeerEmails(protocol, plan) {
+		kept[email] = true
+	}
+
+	var removed []string
+	for _, email := range inboundOwnedPeerEmails(protocol, state) {
+		if !kept[email] {
+			removed = append(removed, email)
+		}
+	}
+	releasePeerEmails(ctx, client, inboundID, removed, diags)
+}
+
+// releasePeerEmails deletes each address through the per-client endpoint,
+// warning rather than failing on any that cannot be removed.
+func releasePeerEmails(ctx context.Context, client *Client, inboundID int, emails []string, diags *diag.Diagnostics) {
 	if len(emails) == 0 {
 		return
 	}

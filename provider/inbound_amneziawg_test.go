@@ -1047,7 +1047,7 @@ func TestReleaseInboundOwnedPeers(t *testing.T) {
 		},
 	}}
 
-	t.Run("peers are deleted before the inbound", func(t *testing.T) {
+	t.Run("peers are deleted", func(t *testing.T) {
 		var deleted []string
 		var mu sync.Mutex
 		client := newClient(t, &deleted, &mu, false)
@@ -1105,6 +1105,144 @@ func TestReleaseInboundOwnedPeers(t *testing.T) {
 		releaseInboundOwnedPeers(context.Background(), client, 7, "amneziawg", &InboundResourceModel{}, &d)
 		releaseInboundOwnedPeers(context.Background(), client, 7, "amneziawg", nil, &d)
 
+		if d.HasError() || d.WarningsCount() != 0 {
+			t.Errorf("expected silence, got %v", d)
+		}
+	})
+}
+
+// A repeat destroy — or a peer already removed in the panel — must be quiet.
+// The panel reports the miss as `client "<email>" not found in any inbound or
+// client record`, which the provider has to read as success; otherwise every
+// such destroy tells the practitioner to go clean up rows that are already gone.
+func TestReleaseInboundOwnedPeers_AlreadyGoneIsQuiet(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/login":
+			_, _ = w.Write(okResponse(nil))
+		case strings.Contains(r.URL.Path, "/panel/api/clients/del/"):
+			parts := strings.Split(r.URL.Path, "/")
+			email := parts[len(parts)-1]
+			_, _ = w.Write(failResponse(`client "` + email + `" not found in any inbound or client record`))
+		case strings.HasPrefix(r.URL.Path, "/panel/api/clients/list"):
+			_, _ = w.Write(okResponse([]any{}))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	state := &InboundResourceModel{AmneziawgSettings: &InboundAmneziawgSettingsModel{
+		Clients: []InboundAmneziawgClientModel{{Email: types.StringValue("gone@test.com")}},
+	}}
+
+	var d diag.Diagnostics
+	releaseInboundOwnedPeers(context.Background(), newTestClient(t, srv.URL), 7, "amneziawg", state, &d)
+
+	if d.HasError() {
+		t.Fatalf("unexpected errors: %v", d.Errors())
+	}
+	if d.WarningsCount() != 0 {
+		t.Errorf("a peer that is already gone must not warn, got: %v", d.Warnings())
+	}
+}
+
+// Dropping a peer from the configuration is an update, and it strands the email
+// exactly as a destroy does. Only the peers that actually left may be released:
+// releasing one that is still configured would delete a live peer mid-apply.
+func TestReleasePeerEmailsRemovedByUpdate(t *testing.T) {
+	awg := func(emails ...string) *InboundResourceModel {
+		clients := make([]InboundAmneziawgClientModel, 0, len(emails))
+		for _, e := range emails {
+			clients = append(clients, InboundAmneziawgClientModel{Email: types.StringValue(e)})
+		}
+		return &InboundResourceModel{AmneziawgSettings: &InboundAmneziawgSettingsModel{Clients: clients}}
+	}
+
+	cases := []struct {
+		name  string
+		state *InboundResourceModel
+		plan  *InboundResourceModel
+		want  []string
+	}{
+		{
+			name:  "the only peer is dropped",
+			state: awg("gone@test.com"),
+			plan:  awg(),
+			want:  []string{"gone@test.com"},
+		},
+		{
+			name:  "one of several is dropped",
+			state: awg("keep@test.com", "gone@test.com"),
+			plan:  awg("keep@test.com"),
+			want:  []string{"gone@test.com"},
+		},
+		{
+			name:  "peers only added",
+			state: awg("keep@test.com"),
+			plan:  awg("keep@test.com", "new@test.com"),
+			want:  nil,
+		},
+		{
+			name:  "unchanged",
+			state: awg("keep@test.com"),
+			plan:  awg("keep@test.com"),
+			want:  nil,
+		},
+		{
+			// A peer moved to a different position must not read as removed.
+			name:  "reordered",
+			state: awg("a@test.com", "b@test.com"),
+			plan:  awg("b@test.com", "a@test.com"),
+			want:  nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var deleted []string
+			var mu sync.Mutex
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.URL.Path == "/login":
+					_, _ = w.Write(okResponse(nil))
+				case strings.Contains(r.URL.Path, "/panel/api/clients/del/"):
+					parts := strings.Split(r.URL.Path, "/")
+					mu.Lock()
+					deleted = append(deleted, parts[len(parts)-1])
+					mu.Unlock()
+					_, _ = w.Write(okResponse(nil))
+				case strings.HasPrefix(r.URL.Path, "/panel/api/clients/list"):
+					_, _ = w.Write(okResponse([]any{}))
+				default:
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer srv.Close()
+
+			var d diag.Diagnostics
+			releasePeerEmailsRemovedByUpdate(context.Background(), newTestClient(t, srv.URL), 7, "amneziawg", tc.state, tc.plan, &d)
+
+			if d.HasError() {
+				t.Fatalf("unexpected errors: %v", d.Errors())
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if len(deleted) != len(tc.want) {
+				t.Fatalf("released %v, want %v", deleted, tc.want)
+			}
+			for i, email := range tc.want {
+				if deleted[i] != email {
+					t.Errorf("released[%d] = %q, want %q", i, deleted[i], email)
+				}
+			}
+		})
+	}
+
+	t.Run("nil models are a no-op", func(t *testing.T) {
+		var d diag.Diagnostics
+		releasePeerEmailsRemovedByUpdate(context.Background(), nil, 7, "amneziawg", nil, awg(), &d)
+		releasePeerEmailsRemovedByUpdate(context.Background(), nil, 7, "amneziawg", awg(), nil, &d)
 		if d.HasError() || d.WarningsCount() != 0 {
 			t.Errorf("expected silence, got %v", d)
 		}
