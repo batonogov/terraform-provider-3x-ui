@@ -11,13 +11,14 @@ The 3x-ui panel evolves quickly, and some releases introduce breaking API change
 
 ## Support policy
 
-The provider officially supports every released patch across all supported 3x-ui minor lines — see the compatibility table in the README. The acceptance matrix exercises each version on each push to `main` and every pull request. Older lines (2.9.x, 3.0.x and earlier) were dropped from the test matrix in provider v3.4.0.
+The provider officially supports every released patch across all supported 3x-ui minor lines — see the compatibility table in the README. The acceptance matrix exercises each version on each push to `main` and every pull request. Older lines (2.9.x, 3.0.x and earlier) were dropped from the test matrix in provider v3.4.0; 3.1.x was dropped when 3.7.x was added.
 
 ## Compatibility table
 
 <!-- sync-versions:begin -->
 | 3x-ui version | Status | Notes |
 | --- | --- | --- |
+| v3.7.0 | Tested | Native AmneziaWG inbounds, calendar-day client renewals with a per-client traffic reset cycle, inbound `disable_flow`, an IP-limit allowlist, and scoped API tokens. |
 | v3.6.0 | Tested | Node `apiToken` becomes write-only ([3x-ui #5613](https://github.com/MHSanaei/3x-ui/pull/5613)); xray-core v26.7.28. |
 | v3.5.0 | Tested | Host groups, MTProto multi-client support, Xray `env`, outbound `target_strategy`, and expanded balancer settings. |
 | v3.4.2 | Tested | WireGuard multi-client support, `ldap_insecure_skip_verify`, and Xray Observatory/BurstObservatory. |
@@ -30,10 +31,9 @@ The provider officially supports every released patch across all supported 3x-ui
 | v3.2.6 | Tested | |
 | v3.2.5 | Tested | |
 | v3.2.0 | Tested | `mixed`/`tunnel` replace legacy `socks`/`dokodemo-door`; client `group` and `panelProxy` are available. |
-| v3.1.0 | Tested | New client API surface; the provider detects it automatically. |
 <!-- sync-versions:end -->
 
-Older lines (3.0.x, 2.9.x and earlier) are no longer tested. The provider may still work, but compatibility is not guaranteed.
+Older lines (3.1.x, 3.0.x, 2.9.x and earlier) are no longer tested. The provider may still work, but compatibility is not guaranteed.
 
 ## Known issues
 
@@ -127,8 +127,10 @@ Current version gates:
 - **v3.4.1+**: Incy client routing injection in subscription output.
 - **v3.4.2+**: WireGuard multi-client fields, LDAP TLS verification control, and Xray Observatory/BurstObservatory.
 - **v3.5.0+**: host groups, MTProto per-client FakeTLS fields, Xray environment variables, outbound target strategy, and expanded balancer settings.
+- **v3.6.0+**: inbound `traffic_reset_day`, SMTP `From` header, subscription format auto-detection, and node `api_token_wo`.
+- **v3.7.0+**: inbound `disable_flow`, per-client calendar renewals (`reset_day`, `reset_max`) and traffic reset cycle (`traffic_reset`, `traffic_reset_day`), panel `ip_limit_allowlist`, and subscription `sub_json_observatory`.
 
-Tests without `requireMinVersion` run on all supported versions (v3.1.0+).
+Tests without `requireMinVersion` run on all supported versions (v3.2.0+).
 
 ## Selecting a 3x-ui version
 
@@ -136,13 +138,13 @@ The provider communicates with whatever 3x-ui version is running on your host. T
 
 ```bash
 # Set the 3x-ui image tag
-export THREEXUI_VERSION=v3.6.0
+export THREEXUI_VERSION=v3.7.0
 
 # Start the container
 docker compose up -d
 ```
 
-In `docker-compose.yaml`, the image tag is parameterized via `${THREEXUI_VERSION:-v3.6.0}`, so omitting the variable defaults to the latest tested version.
+In `docker-compose.yaml`, the image tag is parameterized via `${THREEXUI_VERSION:-v3.7.0}`, so omitting the variable defaults to the latest tested version.
 
 For the Terraform provider itself, use the latest release from the [Terraform Registry](https://registry.terraform.io/providers/batonogov/threexui). The single provider binary supports all 3x-ui versions listed in the compatibility table above.
 

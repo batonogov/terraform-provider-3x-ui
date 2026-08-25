@@ -54,6 +54,7 @@ resource "threexui_panel_general" "settings" {
 - `sub_show_identity_on_all_links` (Optional, Boolean) - Add identity tokens to every subscription link. Added in 3x-ui v3.6.0; ignored by older panels.
 - `outbound_down_threshold` (Optional, Number) - Consecutive-failure threshold before the `outbound.down` notification fires (1-100). Added in 3x-ui v3.6.0; older panels report `0` (unsupported).
 - `restart_xray_on_client_disable` (Optional, Boolean) - Restart Xray when clients are automatically disabled by expiry or traffic limit. Default is `true` on 3x-ui v2.9.4+.
+- `ip_limit_allowlist` (Optional, String) - Comma-separated addresses or CIDRs exempt from the per-client IP limit. Added in 3x-ui v3.7.0; older panels report an empty string (unsupported).
 
 ### LDAP
 

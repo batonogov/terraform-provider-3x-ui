@@ -144,8 +144,6 @@ resource "threexui_inbound" "http" {
 // --- WireGuard with peers ---
 
 func TestAccInboundWireguard(t *testing.T) {
-	requireMinVersion(t, "v2.9.0") // mtu changed from int to list [v4, v6] in v2.9.0
-
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
@@ -179,7 +177,10 @@ resource "threexui_inbound" "wg" {
 // --- Dokodemo-door (tunnel) ---
 
 func TestAccInboundDokodemo(t *testing.T) {
-	requireBelowVersion(t, "v3.2.0") // dokodemo-door renamed to "tunnel" in v3.2.0
+	// dokodemo-door renamed to "tunnel" in v3.2.0. v3.2.0 is the oldest version in
+	// the CI matrix, so this always skips there — it only runs when a panel older
+	// than v3.2.0 is pointed at manually via THREEXUI_VERSION.
+	requireBelowVersion(t, "v3.2.0")
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
@@ -814,8 +815,6 @@ resource "threexui_inbound" "grpc" {
 // --- Mixed protocol + listen + settings ---
 
 func TestAccInboundMixed(t *testing.T) {
-	requireMinVersion(t, "v2.9.0") // mixed protocol added in v2.9.0
-
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
@@ -1307,7 +1306,6 @@ resource "threexui_inbound" "import_sniffing" {
 // --- XHTTP with xPadding fields ---
 
 func TestAccInboundXHTTPPadding(t *testing.T) {
-	requireMinVersion(t, "v2.9.2") // xPaddingObfsMode, xPaddingKey added in v2.9.2
 	config := testAccProviderConfig() + `
 resource "threexui_inbound" "xhttp_pad" {
   port     = 25033
@@ -1404,6 +1402,48 @@ resource "threexui_inbound" "sub" {
 					resource.TestCheckResourceAttr("threexui_inbound.sub", "share_addr", "203.0.113.10"),
 					resource.TestCheckResourceAttr("threexui_inbound.sub", "share_addr_strategy", "custom"),
 				),
+			},
+		},
+	})
+}
+
+// TestAccInboundDisableFlow_v370 covers the v3.7.0 inbound `disable_flow` flag,
+// which opts the inbound out of the panel's automatic XTLS Vision assignment.
+func TestAccInboundDisableFlow_v370(t *testing.T) {
+	requireMinVersion(t, "v3.7.0")
+	config := testAccProviderConfig() + `
+resource "threexui_inbound" "disable_flow" {
+  port         = 25132
+  protocol     = "vless"
+  remark       = "acc-inbound-disable-flow-v370"
+  enable       = true
+  disable_flow = true
+  vless_settings {
+    decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "reality"
+    reality_settings {
+      target       = "google.com:443"
+      server_names = ["google.com"]
+    }
+  }
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		CheckDestroy:             testAccCheckInboundDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check:  resource.TestCheckResourceAttr("threexui_inbound.disable_flow", "disable_flow", "true"),
+			},
+			{
+				Config:             config,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
 			},
 		},
 	})

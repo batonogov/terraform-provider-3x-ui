@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -57,6 +58,7 @@ type InboundResourceModel struct {
 	SubSortIndex         types.Int64  `tfsdk:"sub_sort_index"`
 	ShareAddr            types.String `tfsdk:"share_addr"`
 	ShareAddrStrategy    types.String `tfsdk:"share_addr_strategy"`
+	DisableFlow          types.Bool   `tfsdk:"disable_flow"`
 	RestartXray          types.Bool   `tfsdk:"restart_xray"`
 
 	// Per-protocol settings (typed blocks)
@@ -169,6 +171,14 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Description: "Last traffic reset time in milliseconds since epoch.",
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
+				},
+			},
+			"disable_flow": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Opt this inbound out of the panel's automatic XTLS Vision flow assignment. 3x-ui v3.7.0+; older panels report false (unsupported).",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"listen": schema.StringAttribute{
@@ -656,6 +666,9 @@ func expandInboundFromModel(m *InboundResourceModel) *Inbound {
 	if !m.ShareAddr.IsNull() && !m.ShareAddr.IsUnknown() {
 		inbound.ShareAddr = m.ShareAddr.ValueString()
 	}
+	if !m.DisableFlow.IsNull() && !m.DisableFlow.IsUnknown() {
+		inbound.DisableFlow = m.DisableFlow.ValueBool()
+	}
 	if !m.ShareAddrStrategy.IsNull() && !m.ShareAddrStrategy.IsUnknown() {
 		inbound.ShareAddrStrategy = m.ShareAddrStrategy.ValueString()
 	}
@@ -690,6 +703,7 @@ func inboundToModel(inbound *Inbound, failHard bool) (*InboundResourceModel, dia
 		SubSortIndex:         types.Int64Value(int64(inbound.SubSortIndex)),
 		ShareAddr:            stringValueOrNull(inbound.ShareAddr),
 		ShareAddrStrategy:    stringValueOrNull(inbound.ShareAddrStrategy),
+		DisableFlow:          types.BoolValue(inbound.DisableFlow),
 	}
 	if inbound.NodeID != nil {
 		m.NodeID = types.Int64Value(int64(*inbound.NodeID))

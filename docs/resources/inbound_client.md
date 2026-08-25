@@ -89,6 +89,10 @@ resource "threexui_inbound_client" "hysteria_user" {
 - `comment` (Optional, String) - Client description for administrative notes.
 - `reset` (Optional, Number) - Traffic reset period in days. `0` means never (default).
 - `group` (Optional, String) - Client group name. Available on 3x-ui v3.2.0+.
+- `reset_day` (Optional, Number) - Calendar day of month (1-31) on which this client renews. `0` keeps the rolling-interval behaviour driven by `reset`. Added in 3x-ui v3.7.0; older panels report `0` (unsupported).
+- `reset_max` (Optional, Number) - Maximum number of automatic renewals for this client. `0` means unlimited. Added in 3x-ui v3.7.0; older panels report `0` (unsupported).
+- `traffic_reset` (Optional, String) - Per-client traffic reset cycle, independent of the inbound's own cycle: `never`, `hourly`, `daily`, `weekly`, or `monthly`. Added in 3x-ui v3.7.0; older panels report an empty value (unsupported).
+- `traffic_reset_day` (Optional, Number) - Day of month (1-31) for this client's monthly traffic resets. Only effective when `traffic_reset = "monthly"`. Added in 3x-ui v3.7.0; older panels report `0` (unsupported).
 - `secret` (Optional, String, Sensitive) - MTProto FakeTLS secret, per-client (3x-ui v3.5.0+, `mtg-multi` engine). Format: `"ee"` + 32 hex chars (random middle) + hex-encoded domain suffix. The panel rebuilds the domain suffix from the inbound's `fakeTlsDomain` on save, so only the random middle must be stable across applies. Setting a domain suffix that differs from the inbound's `fakeTlsDomain` causes drift after the first apply (the panel heals it) — leave unset to let the panel generate it. Leave unset for non-MTProto clients.
 - `secret_wo` (Optional, String, Write-Only) - Write-only MTProto FakeTLS secret. Requires Terraform/OpenTofu 1.11+. Use `secret_wo_version` to trigger later updates without storing the secret in plan or state.
 - `secret_wo_version` (Optional, Number) - Increment this value when `secret_wo` changes. It can only be configured together with `secret_wo`.

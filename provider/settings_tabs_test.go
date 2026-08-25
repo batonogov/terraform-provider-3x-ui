@@ -1055,6 +1055,41 @@ func TestFlattenPanelGeneral_v360Fields(t *testing.T) {
 	}
 }
 
+// TestPanelSettings_v370Fields covers the two AllSetting fields added in 3x-ui
+// v3.7.0: the IP-limit allowlist (panel_general) and the JSON-subscription
+// observatory blob for client-side balancers (panel_subscription). The empty
+// case mirrors a pre-v3.7.0 panel, which reports "" for both.
+func TestPanelSettings_v370Fields(t *testing.T) {
+	general := expandPanelGeneral(&PanelGeneralModel{
+		IPLimitAllowlist: typeStringValue("10.0.0.0/8,192.0.2.7"),
+	})
+	if general["ipLimitAllowlist"] != "10.0.0.0/8,192.0.2.7" {
+		t.Fatalf("ipLimitAllowlist: %v", general["ipLimitAllowlist"])
+	}
+	gm := flattenPanelGeneral(map[string]any{"ipLimitAllowlist": "10.0.0.0/8,192.0.2.7"})
+	if gm.IPLimitAllowlist.ValueString() != "10.0.0.0/8,192.0.2.7" {
+		t.Fatalf("ipLimitAllowlist: %s", gm.IPLimitAllowlist.ValueString())
+	}
+	if empty := flattenPanelGeneral(map[string]any{"ipLimitAllowlist": ""}); empty.IPLimitAllowlist.ValueString() != "" {
+		t.Fatalf("ipLimitAllowlist on a pre-v3.7.0 panel: %s", empty.IPLimitAllowlist.ValueString())
+	}
+
+	observatory := `{"subjectSelector":["out"],"probeInterval":"5m"}`
+	sub := expandPanelSubscription(&PanelSubscriptionModel{
+		SubJsonObservatory: typeStringValue(observatory),
+	})
+	if sub["subJsonObservatory"] != observatory {
+		t.Fatalf("subJsonObservatory: %v", sub["subJsonObservatory"])
+	}
+	sm := flattenPanelSubscription(map[string]any{"subJsonObservatory": observatory})
+	if sm.SubJsonObservatory.ValueString() != observatory {
+		t.Fatalf("subJsonObservatory: %s", sm.SubJsonObservatory.ValueString())
+	}
+	if empty := flattenPanelSubscription(map[string]any{"subJsonObservatory": ""}); empty.SubJsonObservatory.ValueString() != "" {
+		t.Fatalf("subJsonObservatory on a pre-v3.7.0 panel: %s", empty.SubJsonObservatory.ValueString())
+	}
+}
+
 // TestPreservePanelEmailSecrets verifies the SMTP password replay path: when
 // the panel returns a redacted/masked sentinel for smtpPassword, the provider
 // replays the user-configured secret so state stays consistent (defensive —

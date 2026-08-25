@@ -372,3 +372,36 @@ func TestInboundToModel_v331Fields(t *testing.T) {
 		t.Fatalf("ShareAddrStrategy: %q", m.ShareAddrStrategy.ValueString())
 	}
 }
+
+// TestInboundDisableFlowExpandFlatten covers the v3.7.0 `disableFlow` field,
+// which opts an inbound out of the panel's automatic XTLS Vision assignment.
+// A pre-v3.7.0 panel omits the key entirely, which must read back as false
+// rather than as an error.
+func TestInboundDisableFlowExpandFlatten(t *testing.T) {
+	inb := expandInboundFromModel(&InboundResourceModel{
+		DisableFlow: types.BoolValue(true),
+	})
+	if !inb.DisableFlow {
+		t.Fatalf("DisableFlow: %v", inb.DisableFlow)
+	}
+
+	m, diags := inboundToModel(&Inbound{DisableFlow: true}, false)
+	if diags.HasError() {
+		t.Fatalf("unexpected error diagnostics: %v", diags)
+	}
+	if !m.DisableFlow.ValueBool() {
+		t.Fatalf("DisableFlow: %v", m.DisableFlow.ValueBool())
+	}
+
+	// Unconfigured attribute (null) must not force a value onto the payload.
+	if inb := expandInboundFromModel(&InboundResourceModel{DisableFlow: types.BoolNull()}); inb.DisableFlow {
+		t.Fatalf("null DisableFlow must expand to false, got %v", inb.DisableFlow)
+	}
+	old, diags := inboundToModel(&Inbound{}, false)
+	if diags.HasError() {
+		t.Fatalf("unexpected error diagnostics: %v", diags)
+	}
+	if old.DisableFlow.ValueBool() {
+		t.Fatalf("pre-v3.7.0 panel must read back false, got %v", old.DisableFlow.ValueBool())
+	}
+}

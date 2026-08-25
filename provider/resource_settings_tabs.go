@@ -511,6 +511,7 @@ type PanelSubscriptionModel struct {
 	SubJsonNoises          types.String `tfsdk:"sub_json_noises"`
 	SubJsonMux             types.String `tfsdk:"sub_json_mux"`
 	SubJsonRules           types.String `tfsdk:"sub_json_rules"`
+	SubJsonObservatory     types.String `tfsdk:"sub_json_observatory"`
 	SubJsonAutoDetect      types.Bool   `tfsdk:"sub_json_auto_detect"`
 	SubJsonAlwaysArray     types.Bool   `tfsdk:"sub_json_always_array"`
 	SubJsonUserAgentRegex  types.String `tfsdk:"sub_json_user_agent_regex"`
@@ -667,6 +668,12 @@ func panelSubscriptionSchema() schema.Schema {
 			},
 			"sub_json_rules": schema.StringAttribute{
 				Optional: true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"sub_json_observatory": schema.StringAttribute{
+				Optional:      true,
+				Computed:      true,
+				Description:   "Observatory block injected into the JSON subscription for client-side balancers, as a JSON string. 3x-ui v3.7.0+; older panels report an empty string (unsupported).",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"sub_json_auto_detect": schema.BoolAttribute{
@@ -840,6 +847,9 @@ func expandPanelSubscription(m *PanelSubscriptionModel) map[string]any {
 	if !m.SubJsonRules.IsNull() && !m.SubJsonRules.IsUnknown() {
 		payload["subJsonRules"] = m.SubJsonRules.ValueString()
 	}
+	if !m.SubJsonObservatory.IsNull() && !m.SubJsonObservatory.IsUnknown() {
+		payload["subJsonObservatory"] = m.SubJsonObservatory.ValueString()
+	}
 	if !m.SubJsonAutoDetect.IsNull() && !m.SubJsonAutoDetect.IsUnknown() {
 		payload["subJsonAutoDetect"] = m.SubJsonAutoDetect.ValueBool()
 	}
@@ -974,6 +984,9 @@ func flattenPanelSubscription(in map[string]any) *PanelSubscriptionModel {
 	if v, ok := in["subJsonRules"]; ok {
 		m.SubJsonRules = types.StringValue(stringValue(v))
 	}
+	if v, ok := in["subJsonObservatory"]; ok {
+		m.SubJsonObservatory = types.StringValue(stringValue(v))
+	}
 	if v, ok := in["subJsonAutoDetect"]; ok {
 		m.SubJsonAutoDetect = types.BoolValue(boolValue(v))
 	}
@@ -1098,6 +1111,7 @@ type PanelGeneralModel struct {
 	SubShowIdentityOnAllLinks   types.Bool   `tfsdk:"sub_show_identity_on_all_links"`
 	OutboundDownThreshold       types.Int64  `tfsdk:"outbound_down_threshold"`
 	RestartXrayOnClientDisable  types.Bool   `tfsdk:"restart_xray_on_client_disable"`
+	IPLimitAllowlist            types.String `tfsdk:"ip_limit_allowlist"`
 	LDAPEnable                  types.Bool   `tfsdk:"ldap_enable"`
 	LDAPHost                    types.String `tfsdk:"ldap_host"`
 	LDAPPort                    types.Int64  `tfsdk:"ldap_port"`
@@ -1227,6 +1241,14 @@ func panelGeneralSchema() schema.Schema {
 				Description: "Restart Xray when clients are automatically disabled by expiry or traffic limit.",
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"ip_limit_allowlist": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Comma-separated addresses or CIDRs exempt from the per-client IP limit. 3x-ui v3.7.0+; older panels report an empty string (unsupported).",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"ldap_enable": schema.BoolAttribute{
@@ -1418,6 +1440,9 @@ func expandPanelGeneral(m *PanelGeneralModel) map[string]any {
 	if !m.RestartXrayOnClientDisable.IsNull() && !m.RestartXrayOnClientDisable.IsUnknown() {
 		payload["restartXrayOnClientDisable"] = m.RestartXrayOnClientDisable.ValueBool()
 	}
+	if !m.IPLimitAllowlist.IsNull() && !m.IPLimitAllowlist.IsUnknown() {
+		payload["ipLimitAllowlist"] = m.IPLimitAllowlist.ValueString()
+	}
 	if !m.LDAPEnable.IsNull() && !m.LDAPEnable.IsUnknown() {
 		payload["ldapEnable"] = m.LDAPEnable.ValueBool()
 	}
@@ -1555,6 +1580,9 @@ func flattenPanelGeneral(in map[string]any) *PanelGeneralModel {
 	}
 	if v, ok := in["restartXrayOnClientDisable"]; ok {
 		m.RestartXrayOnClientDisable = types.BoolValue(boolValue(v))
+	}
+	if v, ok := in["ipLimitAllowlist"]; ok {
+		m.IPLimitAllowlist = types.StringValue(stringValue(v))
 	}
 	if v, ok := in["ldapEnable"]; ok {
 		m.LDAPEnable = types.BoolValue(boolValue(v))

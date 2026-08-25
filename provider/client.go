@@ -1615,6 +1615,14 @@ func inboundToForm(in *Inbound) url.Values {
 	if in.ShareAddrStrategy != "" {
 		form.Set("shareAddrStrategy", in.ShareAddrStrategy)
 	}
+	// trafficResetDay (v3.6.0+) and disableFlow (v3.7.0+) are unknown form keys
+	// on older panels, where gin silently ignores them. trafficResetDay is only
+	// sent when set: upstream defaults the column to 1, so posting a 0 from an
+	// unconfigured attribute would clobber that default.
+	if in.TrafficResetDay > 0 {
+		form.Set("trafficResetDay", strconv.Itoa(in.TrafficResetDay))
+	}
+	form.Set("disableFlow", strconv.FormatBool(in.DisableFlow))
 	return form
 }
 

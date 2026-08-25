@@ -190,6 +190,7 @@ resource "threexui_inbound" "mtproto" {
 - `expiry_time` (Optional, Number) - Expiry time as Unix timestamp in milliseconds.
 - `traffic_reset` (Optional, String) - Traffic reset period. Default is `never`.
 - `traffic_reset_day` (Optional, Number) - Day of month (1-31) for monthly traffic resets. Only effective when `traffic_reset = "monthly"`. Added in 3x-ui v3.6.0; older panels report `0` (unsupported).
+- `disable_flow` (Optional, Boolean) - Opt this inbound out of the panel's automatic XTLS Vision flow assignment. Added in 3x-ui v3.7.0; older panels report `false` (unsupported).
 - `node_id` (Optional, Number) - 3x-ui v3 node ID for multi-node deployments. Leave unset for the local panel. Changing this value recreates the inbound because 3x-ui v3 does not support moving an existing inbound between nodes.
 - `restart_xray` (Optional, Boolean) - Restart Xray core after create, update, or delete operations. Default is `false`.
 - `sub_sort_index` (Optional, Number) - 1-based sort order of this inbound's links in subscription output (lower first; ties by id). Added in 3x-ui v3.3.1; ignored by older panels.
