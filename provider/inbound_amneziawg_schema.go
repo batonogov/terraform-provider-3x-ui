@@ -808,3 +808,45 @@ func validateAmneziawgServerConstraints(server *InboundAmneziawgServerModel, res
 		}
 	}
 }
+
+// applyAmneziawgServerPhaseTwo completes the two-phase create: it lays the
+// configured server fields over the block the panel generated and, when that
+// changes anything, saves and re-reads the inbound. Returns the inbound to
+// record in state, which is the argument itself when there is nothing to apply.
+func applyAmneziawgServerPhaseTwo(ctx context.Context, client *Client, created *Inbound, overrides map[string]any) (*Inbound, error) {
+	if len(overrides) == 0 || created == nil {
+		return created, nil
+	}
+
+	merged, changed, err := applyAmneziawgServerOverrides(created.Settings, overrides)
+	if err != nil {
+		return nil, err
+	}
+	if !changed {
+		return created, nil
+	}
+
+	created.Settings = merged
+	updated, err := client.UpdateInbound(ctx, created)
+	if err != nil {
+		return nil, err
+	}
+	if updated != nil && updated.ID != 0 {
+		created = updated
+	}
+
+	// Re-read for the same reason Create does after AddInbound: the write
+	// endpoint can return incomplete data while SQLite catches up.
+	settled := created
+	if err := client.WithReadAfterWriteRetry(ctx, fmt.Sprintf("read amneziawg inbound %d", created.ID), func() (bool, error) {
+		got, getErr := client.GetInbound(ctx, created.ID)
+		if getErr != nil {
+			return false, getErr
+		}
+		settled = got
+		return true, nil
+	}); err != nil {
+		return nil, fmt.Errorf("reading the inbound back after applying server settings: %w", err)
+	}
+	return settled, nil
+}

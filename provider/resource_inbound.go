@@ -370,34 +370,11 @@ func (r *InboundResource) Create(ctx context.Context, req resource.CreateRequest
 	// Second phase of the AmneziaWG create: the panel has now generated a full
 	// server block, so the configured fields can be laid over it without wiping
 	// the obfuscation parameters.
-	if len(amneziawgServerOverrides) > 0 {
-		mergedSettings, changed, mergeErr := applyAmneziawgServerOverrides(created.Settings, amneziawgServerOverrides)
-		if mergeErr != nil {
-			resp.Diagnostics.AddError("Failed to apply AmneziaWG server settings", mergeErr.Error())
-			return
-		}
-		if changed {
-			created.Settings = mergedSettings
-			updated, updateErr := r.client.UpdateInbound(ctx, created)
-			if updateErr != nil {
-				resp.Diagnostics.AddError("Failed to apply AmneziaWG server settings", updateErr.Error())
-				return
-			}
-			if updated != nil && updated.ID != 0 {
-				created = updated
-			}
-			if retryErr := r.client.WithReadAfterWriteRetry(ctx, fmt.Sprintf("read amneziawg inbound %d", created.ID), func() (bool, error) {
-				got, getErr := r.client.GetInbound(ctx, created.ID)
-				if getErr != nil {
-					return false, getErr
-				}
-				created = got
-				return true, nil
-			}); retryErr != nil {
-				resp.Diagnostics.AddError("Failed to read AmneziaWG inbound after applying server settings", retryErr.Error())
-				return
-			}
-		}
+	if settled, err := applyAmneziawgServerPhaseTwo(ctx, r.client, created, amneziawgServerOverrides); err != nil {
+		resp.Diagnostics.AddError("Failed to apply AmneziaWG server settings", err.Error())
+		return
+	} else {
+		created = settled
 	}
 
 	state, diags := inboundToModel(created, false)

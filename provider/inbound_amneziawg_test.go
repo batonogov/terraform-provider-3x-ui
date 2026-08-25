@@ -3,7 +3,10 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -860,4 +863,108 @@ func TestApplyAmneziawgServerOverrides_NoServerInPayload(t *testing.T) {
 	if !strings.Contains(merged, "10.9.1.0") {
 		t.Errorf("configured value lost: %s", merged)
 	}
+}
+
+// The second phase of the AmneziaWG create is what keeps a configured subnet
+// from costing the inbound its obfuscation, so it is exercised here against a
+// stub panel rather than only through the acceptance suite.
+func TestApplyAmneziawgServerPhaseTwo(t *testing.T) {
+	generated := `{"server":{"privateKey":"gen","publicKey":"genpub","subnetIp":"10.8.1.0","jc":6,"h1":"1-2"},"clients":[]}`
+
+	newStubPanel := func(t *testing.T, updates *int32, failUpdate bool) *Client {
+		t.Helper()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.URL.Path == "/login":
+				_, _ = w.Write(okResponse(nil))
+			case strings.Contains(r.URL.Path, "/update/"):
+				atomic.AddInt32(updates, 1)
+				if failUpdate {
+					_, _ = w.Write([]byte(`{"success":false,"msg":"panel refused"}`))
+					return
+				}
+				_, _ = w.Write(okResponse(map[string]any{"id": 7}))
+			case strings.Contains(r.URL.Path, "/get/"):
+				_, _ = w.Write(okResponse(map[string]any{
+					"id":       7,
+					"settings": `{"server":{"privateKey":"gen","publicKey":"genpub","subnetIp":"10.9.1.0","jc":6,"h1":"1-2"}}`,
+				}))
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+		t.Cleanup(srv.Close)
+		return newTestClient(t, srv.URL)
+	}
+
+	t.Run("configured fields are applied and the inbound re-read", func(t *testing.T) {
+		var updates int32
+		client := newStubPanel(t, &updates, false)
+
+		got, err := applyAmneziawgServerPhaseTwo(context.Background(), client,
+			&Inbound{ID: 7, Settings: generated}, map[string]any{"subnetIp": "10.9.1.0"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if atomic.LoadInt32(&updates) != 1 {
+			t.Errorf("expected exactly one update call, got %d", updates)
+		}
+		if !strings.Contains(got.Settings, "10.9.1.0") {
+			t.Errorf("configured value missing from the settled inbound: %s", got.Settings)
+		}
+		// The generated obfuscation must have survived the merge.
+		if !strings.Contains(got.Settings, `"jc":6`) {
+			t.Errorf("generated obfuscation lost: %s", got.Settings)
+		}
+	})
+
+	t.Run("nothing to apply means no write", func(t *testing.T) {
+		var updates int32
+		client := newStubPanel(t, &updates, false)
+		in := &Inbound{ID: 7, Settings: generated}
+
+		got, err := applyAmneziawgServerPhaseTwo(context.Background(), client, in, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != in {
+			t.Error("with no overrides the inbound should be returned untouched")
+		}
+		if atomic.LoadInt32(&updates) != 0 {
+			t.Errorf("expected no update call, got %d", updates)
+		}
+	})
+
+	t.Run("overrides matching the generated block do not write either", func(t *testing.T) {
+		var updates int32
+		client := newStubPanel(t, &updates, false)
+
+		if _, err := applyAmneziawgServerPhaseTwo(context.Background(), client,
+			&Inbound{ID: 7, Settings: generated}, map[string]any{"subnetIp": "10.8.1.0"}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if atomic.LoadInt32(&updates) != 0 {
+			t.Errorf("an identical value must not trigger a write, got %d", updates)
+		}
+	})
+
+	t.Run("a refused update surfaces as an error", func(t *testing.T) {
+		var updates int32
+		client := newStubPanel(t, &updates, true)
+
+		if _, err := applyAmneziawgServerPhaseTwo(context.Background(), client,
+			&Inbound{ID: 7, Settings: generated}, map[string]any{"subnetIp": "10.9.1.0"}); err == nil {
+			t.Error("expected the panel's refusal to surface")
+		}
+	})
+
+	t.Run("malformed generated settings surface as an error", func(t *testing.T) {
+		var updates int32
+		client := newStubPanel(t, &updates, false)
+
+		if _, err := applyAmneziawgServerPhaseTwo(context.Background(), client,
+			&Inbound{ID: 7, Settings: `{"server":`}, map[string]any{"subnetIp": "10.9.1.0"}); err == nil {
+			t.Error("expected a parse error")
+		}
+	})
 }
