@@ -286,9 +286,11 @@ func (r *InboundClientResource) Schema(_ context.Context, _ resource.SchemaReque
 				Optional: true,
 				Computed: true,
 				Description: "Day of month (1-31) for this client's monthly traffic resets. " +
-					"Only effective when traffic_reset = 'monthly'. 3x-ui v3.7.0+; older panels report 0 (unsupported).",
+					"Only effective when traffic_reset = 'monthly'. 3x-ui v3.7.0+; older panels report 0 (unsupported). " +
+					"Cannot be set to 0: the panel clamps any value below 1 up to 1 (normalizeClientTrafficReset), " +
+					"so a configured 0 could never round-trip.",
 				Validators: []validator.Int64{
-					int64validator.Between(0, 31),
+					int64validator.Between(1, 31),
 				},
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),

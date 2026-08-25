@@ -1244,9 +1244,11 @@ func panelGeneralSchema() schema.Schema {
 				},
 			},
 			"ip_limit_allowlist": schema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Comma-separated addresses or CIDRs exempt from the per-client IP limit. 3x-ui v3.7.0+; older panels report an empty string (unsupported).",
+				Optional: true,
+				Computed: true,
+				Description: "Comma-separated addresses or CIDRs exempt from the per-client IP limit. " +
+					"3x-ui v3.7.0+; older panels report an empty string (unsupported).",
+				Validators: addrOrPrefixListValidators(),
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},

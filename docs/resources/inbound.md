@@ -189,8 +189,8 @@ resource "threexui_inbound" "mtproto" {
 - `total` (Optional, Number) - Total traffic limit in bytes.
 - `expiry_time` (Optional, Number) - Expiry time as Unix timestamp in milliseconds.
 - `traffic_reset` (Optional, String) - Traffic reset period. Default is `never`.
-- `traffic_reset_day` (Optional, Number) - Day of month (1-31) for monthly traffic resets. Only effective when `traffic_reset = "monthly"`. Added in 3x-ui v3.6.0; older panels report `0` (unsupported).
-- `disable_flow` (Optional, Boolean) - Opt this inbound out of the panel's automatic XTLS Vision flow assignment. Added in 3x-ui v3.7.0; older panels report `false` (unsupported).
+- `traffic_reset_day` (Optional, Number) - Day of month (1-31) for monthly traffic resets. Only effective when `traffic_reset = "monthly"`. Added in 3x-ui v3.6.0; older panels report `0` (unsupported). `0` is rejected at plan time: the panel clamps any value below 1 up to 1, so a configured `0` could never round-trip.
+- `disable_flow` (Optional, Boolean) - Opt this inbound out of the panel's automatic XTLS Vision flow assignment. Added in 3x-ui v3.7.0; older panels report `false` (unsupported). **The panel blanks `flow` on every client of the inbound while this is `true`**, so do not combine it with a `threexui_inbound_client` that sets `flow` — see the note below.
 - `node_id` (Optional, Number) - 3x-ui v3 node ID for multi-node deployments. Leave unset for the local panel. Changing this value recreates the inbound because 3x-ui v3 does not support moving an existing inbound between nodes.
 - `restart_xray` (Optional, Boolean) - Restart Xray core after create, update, or delete operations. Default is `false`.
 - `sub_sort_index` (Optional, Number) - 1-based sort order of this inbound's links in subscription output (lower first; ties by id). Added in 3x-ui v3.3.1; ignored by older panels.
@@ -410,7 +410,7 @@ Typed MTProto server settings available on 3x-ui v3.3.0+. On v3.5.0+, per-client
 ## Attribute Reference
 
 - `id` - The inbound ID (numeric).
-- `all_time` (Number) - All-time traffic in bytes.
+- `all_time` (Read-only, Number) - Always `0`. 3x-ui has never sent an `allTime` field on the inbound API; the attribute is kept for state compatibility and is not a usable traffic counter. Use `up`, `down`, or the `threexui_client_traffics` data source instead.
 - `last_traffic_reset_time` (Number) - Last traffic reset timestamp.
 - `tag` (String) - Auto-generated inbound tag.
 
@@ -455,3 +455,18 @@ resource "threexui_inbound" "example" {
   }
 }
 ```
+
+## `disable_flow` and client `flow`
+
+When `disable_flow = true`, 3x-ui strips `flow` from every client attached to the
+inbound: the panel applies `clientWithInboundFlow` on both the add-client and
+update-client paths, and re-runs `stripClientFlows` over the inbound settings on
+every inbound add/update. A `threexui_inbound_client` on such an inbound that
+sets `flow = "xtls-rprx-vision"` therefore fails the apply with
+`Provider produced inconsistent result after apply: .flow: was
+cty.StringVal("xtls-rprx-vision"), but now cty.StringVal("")`.
+
+Flipping `disable_flow` to `true` on an inbound whose clients already carry a
+`flow` has the same effect: the panel clears them, and the next `terraform plan`
+shows drift on each client. Leave `flow` unset on clients of a `disable_flow`
+inbound.

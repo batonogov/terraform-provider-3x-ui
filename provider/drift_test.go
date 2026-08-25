@@ -567,6 +567,13 @@ func checkRemoved(t *testing.T, provider map[string]bool, upstream map[string]bo
 	}
 }
 
+// amneziawgDeferred marks the v3.7.0 `amneziawg` protocol as knowingly
+// unimplemented. It needs its own settings block (server obfuscation params +
+// clients[]), tracked in #441. Shared by all three protocol drift gates so
+// removing the deferral is a single edit — silencing one gate but not the
+// others would leave a protocol permanently unguarded.
+var amneziawgDeferred = map[string]bool{"amneziawg": true}
+
 // -------------------------------------------------------------------------
 // Test: upstream inbound protocols vs provider protocol mappings (Go model)
 // -------------------------------------------------------------------------
@@ -632,11 +639,7 @@ func TestDriftInboundProtocols_GoModel(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	// The v3.7.0 `amneziawg` protocol (native AmneziaWG inbounds) is not yet
-	// implemented by the provider — it needs its own settings block (server
-	// obfuscation params + clients[]). Tracked in #441; drop this entry when
-	// the block lands.
-	upstreamSkipped := map[string]bool{"amneziawg": true}
+	upstreamSkipped := amneziawgDeferred
 	checkMissing(t, upstream, providerHandled, upstreamSkipped,
 		"upstream model.go has protocols not handled by provider: %v")
 	checkRemoved(t, providerHandled, upstreamSet, providerExtras,
@@ -674,11 +677,7 @@ func TestDriftInboundProtocols_JS(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	// The v3.7.0 `amneziawg` protocol (native AmneziaWG inbounds) is not yet
-	// implemented by the provider — it needs its own settings block (server
-	// obfuscation params + clients[]). Tracked in #441; drop this entry when
-	// the block lands.
-	upstreamSkipped := map[string]bool{"amneziawg": true}
+	upstreamSkipped := amneziawgDeferred
 	checkMissing(t, upstream, providerHandled, upstreamSkipped,
 		"upstream inbound.js Protocols has entries not handled by provider: %v")
 	checkRemoved(t, providerHandled, upstreamSet, providerExtras,
@@ -716,11 +715,7 @@ func TestDriftProtocolForms(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	// The v3.7.0 `amneziawg` protocol (native AmneziaWG inbounds) is not yet
-	// implemented by the provider — it needs its own settings block (server
-	// obfuscation params + clients[]). Tracked in #441; drop this entry when
-	// the block lands.
-	upstreamSkipped := map[string]bool{"amneziawg": true}
+	upstreamSkipped := amneziawgDeferred
 	checkMissing(t, upstream, providerBlocks, upstreamSkipped,
 		"upstream protocol form files not handled by provider: %v")
 	checkRemoved(t, providerBlocks, upstreamSet, providerExtras,
@@ -796,6 +791,11 @@ func TestDriftInboundFields(t *testing.T) {
 	upstreamSet := toSet(upstream)
 	checkMissing(t, upstream, providerFields, skip,
 		"upstream Inbound struct has json fields not in provider: %v")
+	// `allTime` is provider-only: grep finds it in no upstream source (Go, TS or
+	// JS) of any snapshot from v3.2.0 to v3.7.0 — only xray.ClientTraffic has a
+	// like-named field. The panel therefore never sends it and threexui_inbound
+	// .all_time always reads 0. Kept for state compatibility; removal is a
+	// breaking change tracked in #442.
 	checkRemoved(t, providerFields, upstreamSet, map[string]bool{"allTime": true},
 		"provider Inbound struct has json fields not in upstream: %v")
 }

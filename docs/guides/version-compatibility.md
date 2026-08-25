@@ -118,8 +118,7 @@ Current version gates:
 - **v2.9.4+**: outbound `final_rule` and VLESS `reverse_tag`.
 - **v3.0.0+**: CSRF-protected unsafe requests, inbound `nodeId`, multi-node surface, API token endpoint.
 - **v3.0.2+**: tunnel `rewrite_address`, `rewrite_port`, and `allowed_network`; default trusted proxy CIDRs; subscription email-in-remark default.
-- **v3.1.0+**: new client API surface; the provider detects and uses it automatically.
-- **v3.2.0+**: `mixed`/`tunnel` replace legacy `socks`/`dokodemo-door`; client `group` and panel `panel_proxy` are available.
+- **v3.2.0+** (matrix floor): the client API surface the provider auto-detects; `mixed`/`tunnel` replace legacy `socks`/`dokodemo-door`; client `group` and panel `panel_proxy` are available.
 - **v3.2.7+**: `tun` is available as an alias for the tunnel inbound.
 - **v3.3.0+**: `subThemeDir` and `warpUpdateInterval` settings; node-sync multi-node surface.
 - **v3.3.1+**: inbound `subSortIndex`, `shareAddr`/`shareAddrStrategy`; `panelProxy` renamed to `panelOutbound` (outbound egress bridge).

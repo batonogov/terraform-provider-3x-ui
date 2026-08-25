@@ -3,7 +3,9 @@ package provider
 import (
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -1150,3 +1152,65 @@ func TestPreservePanelSubscriptionRemoved(t *testing.T) {
 func typeBoolValue(v bool) types.Bool       { return types.BoolValue(v) }
 func typeStringValue(v string) types.String { return types.StringValue(v) }
 func typeInt64Value(v int64) types.Int64    { return types.Int64Value(v) }
+
+// TestAddrOrPrefixListValidator mirrors upstream CheckNetipAddrOrPrefixList,
+// which backs ip_limit_allowlist. netip (unlike net) rejects zero-padded
+// prefixes such as "10.0.0.0/024", and the panel refuses the save when it does —
+// so the validator has to reject exactly what the panel rejects.
+func TestAddrOrPrefixListValidator(t *testing.T) {
+	if got := (addrOrPrefixListValidator{}).Description(t.Context()); got == "" {
+		t.Error("Description must not be empty — it is what Terraform shows on a validation failure")
+	}
+	if got := (addrOrPrefixListValidator{}).MarkdownDescription(t.Context()); got == "" {
+		t.Error("MarkdownDescription must not be empty")
+	}
+
+	valid := []string{
+		"",
+		"10.0.0.1",
+		"10.0.0.0/8",
+		"10.0.0.0/8, 192.0.2.7",
+		"  10.0.0.0/8 ,, 2001:db8::1  ",
+		"2001:db8::/32",
+	}
+	for _, in := range valid {
+		resp := &validator.StringResponse{}
+		addrOrPrefixListValidator{}.ValidateString(t.Context(), validator.StringRequest{
+			Path:        path.Root("ip_limit_allowlist"),
+			ConfigValue: typeStringValue(in),
+		}, resp)
+		if resp.Diagnostics.HasError() {
+			t.Errorf("%q should be valid: %v", in, resp.Diagnostics.Errors())
+		}
+	}
+
+	invalid := []string{
+		"10.0.0.0/024",
+		"192.0.2.999",
+		"not-an-address",
+		"10.0.0.0/33",
+		"10.0.0.0/8, garbage",
+	}
+	for _, in := range invalid {
+		resp := &validator.StringResponse{}
+		addrOrPrefixListValidator{}.ValidateString(t.Context(), validator.StringRequest{
+			Path:        path.Root("ip_limit_allowlist"),
+			ConfigValue: typeStringValue(in),
+		}, resp)
+		if !resp.Diagnostics.HasError() {
+			t.Errorf("%q should be rejected", in)
+		}
+	}
+
+	// Null and unknown must be skipped, not rejected.
+	for _, v := range []types.String{types.StringNull(), types.StringUnknown()} {
+		resp := &validator.StringResponse{}
+		addrOrPrefixListValidator{}.ValidateString(t.Context(), validator.StringRequest{
+			Path:        path.Root("ip_limit_allowlist"),
+			ConfigValue: v,
+		}, resp)
+		if resp.Diagnostics.HasError() {
+			t.Errorf("%v should be skipped: %v", v, resp.Diagnostics.Errors())
+		}
+	}
+}

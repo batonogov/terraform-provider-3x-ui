@@ -312,6 +312,7 @@ func TestInboundToForm(t *testing.T) {
 		"sniffing":             []string{"{}"},
 		"nodeId":               []string{"42"},
 		"disableFlow":          []string{"false"},
+		"trafficResetDay":      []string{"0"},
 	}
 	if form.Encode() != want.Encode() {
 		t.Fatalf("unexpected form: %s", form.Encode())
@@ -348,9 +349,10 @@ func TestInboundToForm_SubscriptionFields(t *testing.T) {
 }
 
 // TestInboundToForm_TrafficResetDayAndDisableFlow guards the same write path for
-// the v3.6.0 `trafficResetDay` and v3.7.0 `disableFlow` fields. trafficResetDay
-// is only sent when non-zero: upstream defaults the column to 1, so posting the
-// 0 of an unconfigured attribute would clobber that default.
+// the v3.6.0 `trafficResetDay` and v3.7.0 `disableFlow` fields. Both are sent
+// unconditionally — the panel's normalizeTrafficResetDay clamps anything below 1
+// up to 1, so an omitted key and an explicit 0 are indistinguishable to it, and
+// the attribute's Between(1, 31) validator is what keeps a 0 out of the request.
 func TestInboundToForm_TrafficResetDayAndDisableFlow(t *testing.T) {
 	set := inboundToForm(&Inbound{
 		ID:              1,
@@ -369,8 +371,8 @@ func TestInboundToForm_TrafficResetDayAndDisableFlow(t *testing.T) {
 	}
 
 	unset := inboundToForm(&Inbound{ID: 1, Port: 1234, Protocol: "vless", Settings: "{}"})
-	if _, ok := unset["trafficResetDay"]; ok {
-		t.Errorf("trafficResetDay must be omitted when zero, got %q", unset.Get("trafficResetDay"))
+	if got := unset.Get("trafficResetDay"); got != "0" {
+		t.Errorf("trafficResetDay should always be sent: got %q, want \"0\"", got)
 	}
 	if got := unset.Get("disableFlow"); got != "false" {
 		t.Errorf("disableFlow should always be sent: got %q, want \"false\"", got)
