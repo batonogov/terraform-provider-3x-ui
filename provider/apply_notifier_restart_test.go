@@ -261,3 +261,83 @@ func TestEventListContains_NonString(t *testing.T) {
 		t.Error("a plain list must still match")
 	}
 }
+
+// The remaining error paths through settingsApplyTyped. Each has to report
+// rather than fail silently, and — since settingsMu is now unlocked by hand
+// rather than by defer — each has to leave the lock released, which the
+// subsequent call in this test would otherwise hang on.
+func TestSettingsApplyTyped_ErrorPaths(t *testing.T) {
+	newClient := func(t *testing.T, handler http.HandlerFunc) *Client {
+		t.Helper()
+		srv := httptest.NewServer(handler)
+		t.Cleanup(srv.Close)
+		client := newTestClient(t, srv.URL)
+		client.settingsAPIMu.Lock()
+		v := true
+		client.settingsUnderAPI = &v
+		client.settingsAPIMu.Unlock()
+		return client
+	}
+
+	t.Run("unreadable settings", func(t *testing.T) {
+		client := newClient(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/login" {
+				_, _ = w.Write(okResponse(nil))
+				return
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+		})
+
+		var d diag.Diagnostics
+		settingsApplyTyped(context.Background(), map[string]any{"tgRunTime": "@daily"}, &d, client)
+		if !d.HasError() {
+			t.Fatal("a failed settings read must be reported")
+		}
+	})
+
+	t.Run("rejected update", func(t *testing.T) {
+		client := newClient(t, func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/login":
+				_, _ = w.Write(okResponse(nil))
+			case "/panel/api/setting/all":
+				_, _ = w.Write(okResponse(map[string]any{"tgRunTime": "@daily"}))
+			default:
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+		})
+
+		var d diag.Diagnostics
+		settingsApplyTyped(context.Background(), map[string]any{"tgRunTime": "@every 6h"}, &d, client)
+		if !d.HasError() {
+			t.Fatal("a rejected update must be reported")
+		}
+	})
+
+	t.Run("panel never comes back", func(t *testing.T) {
+		// The restart is accepted, then the panel stops answering. WaitForReady
+		// honours the context, so a cancelled one stands in for its 30s timeout.
+		client := newClient(t, func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/login":
+				_, _ = w.Write(okResponse(nil))
+			case "/panel/api/setting/all":
+				_, _ = w.Write(okResponse(map[string]any{"tgRunTime": "@daily"}))
+			case "/panel/api/setting/update", "/panel/api/setting/restartPanel":
+				_, _ = w.Write(okResponse(nil))
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+		var d diag.Diagnostics
+		// Cancel once the restart has been accepted: Login is what WaitForReady
+		// polls, and the cancelled context makes it give up immediately.
+		cancel()
+		settingsApplyTyped(ctx, map[string]any{"tgRunTime": "@every 6h"}, &d, client)
+		if !d.HasError() {
+			t.Fatal("a panel that never comes back must be reported")
+		}
+	})
+}
