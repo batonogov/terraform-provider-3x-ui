@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.24.0](https://github.com/batonogov/terraform-provider-threexui/compare/v3.23.1...v3.24.0) (2026-08-25)
+
+
+### Features
+
+* support the AmneziaWG inbound protocol ([#448](https://github.com/batonogov/terraform-provider-threexui/issues/448)) ([6b38b80](https://github.com/batonogov/terraform-provider-threexui/commit/6b38b80e2ecb96a7c53e5671041e0c876a8a35c2))
+
+
+### Bug Fixes
+
+* free peer emails when deleting a WireGuard/AmneziaWG inbound ([#454](https://github.com/batonogov/terraform-provider-threexui/issues/454)) ([33e0359](https://github.com/batonogov/terraform-provider-threexui/commit/33e0359d99c4e78df61aa8c0f847d7e1c564cb61))
+* restart the panel for notifier settings read at startup ([#451](https://github.com/batonogov/terraform-provider-threexui/issues/451)) ([bf9f902](https://github.com/batonogov/terraform-provider-threexui/commit/bf9f90297113a7b1fdee462e2d3c5ec85af4aefc))
+
 ## [3.23.1](https://github.com/batonogov/terraform-provider-threexui/compare/v3.23.0...v3.23.1) (2026-08-25)
 
 
