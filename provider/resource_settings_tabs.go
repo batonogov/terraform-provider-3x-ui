@@ -1691,20 +1691,44 @@ func settingsApplyTyped(
 	}
 
 	settingsMu.Lock()
-	defer settingsMu.Unlock()
 
 	existing, err := client.GetSettings(ctx)
 	if err != nil {
+		settingsMu.Unlock()
 		diags.AddError("Failed to get settings", err.Error())
 		return
 	}
 
+	// Computed before the write, while `existing` still describes the panel.
+	needRestart := panelSettingsNeedRestart(existing, desired)
+
 	merged := mergeSettingsForUpdate(client, existing, desired)
 	if err := client.UpdateSettings(ctx, merged); err != nil {
+		settingsMu.Unlock()
 		diags.AddError("Failed to update settings", err.Error())
 		return
 	}
 	client.rememberConfiguredSettingSecrets(desired)
+	settingsMu.Unlock()
+
+	// The panel registers its notifier cron jobs once, at startup, from
+	// settings owned by panel_telegram and panel_email — so those two resources
+	// need the same restart gate panel_general and panel_subscription have
+	// (#449). Restart outside settingsMu, and serialized against the other
+	// resources' restarts, exactly as they do.
+	if !needRestart {
+		return
+	}
+	panelRestartMu.Lock()
+	defer panelRestartMu.Unlock()
+	if err := client.SendRestart(ctx); err != nil {
+		diags.AddError("Failed to restart panel", err.Error())
+		return
+	}
+	if err := client.WaitForReady(ctx); err != nil {
+		diags.AddError("Panel did not become ready after restart", err.Error())
+		return
+	}
 }
 
 func settingsReadTyped(
@@ -2857,6 +2881,28 @@ func panelSettingsNeedRestart(existing, desired map[string]any) bool {
 		"timeLocation",
 		"ldapEnable",
 		"ldapSyncCron",
+		// Notifier cron registration (panel_telegram / panel_email). web.Server.Start()
+		// decides ONCE whether to register the periodic stats report and the CPU and
+		// memory alarm jobs, and on what schedule:
+		//   - tgRunTime is the stats-notify schedule (internal/web/web.go:389).
+		//   - tgBotEnable gates both the stats-notify job and the callback-hash
+		//     cleanup job (web.go:387-403). The bot process itself IS hot-reloaded
+		//     (controller/setting.go:165-172 → web.go:650), so a changed token or
+		//     chat id needs no restart — but toggling the bot without one leaves it
+		//     running with no periodic report.
+		//   - tgEnabledEvents/tgCpu/tgMemory and smtpEnable/smtpEnabledEvents/
+		//     smtpCpu/smtpMemory feed cpuAlarmWanted()/memoryAlarmWanted()
+		//     (web.go:408-412, :439-448, :469-478), which decide whether the alarm
+		//     jobs are registered at all — for either notifier.
+		"tgRunTime",
+		"tgBotEnable",
+		"tgEnabledEvents",
+		"tgCpu",
+		"tgMemory",
+		"smtpEnable",
+		"smtpEnabledEvents",
+		"smtpCpu",
+		"smtpMemory",
 		// Subscription server binding — parallels the web* keys above. The sub server is
 		// (re)initialised at panel startup, so changing whether/where it listens needs a
 		// panel restart; without it the subscription URL 404s until the panel is restarted.
@@ -2917,9 +2963,73 @@ func panelSettingsNeedRestart(existing, desired map[string]any) bool {
 		}
 		oldVal, ok := existing[key]
 		if !ok {
-			return true
+			// The panel does not report this key at all, which means its version
+			// predates the setting: /setting/update will drop it just as
+			// /setting/all omitted it. Restarting would bounce the panel on every
+			// apply for a value that is never stored — 7 of the 13 versions in
+			// compat-versions.json predate the smtp*/tg* keys below.
+			continue
+		}
+		if changed, ok := restartKeyRules[key]; ok {
+			if changed(oldVal, newVal) {
+				return true
+			}
+			continue
 		}
 		if !settingsValueEqual(oldVal, newVal) {
+			return true
+		}
+	}
+	return false
+}
+
+// restartKeyRules holds the keys where a changed value does not necessarily
+// change what the panel wired up at startup. Restarting on every edit of these
+// would take the panel down for a change it cannot observe.
+var restartKeyRules = map[string]func(oldVal, newVal any) bool{
+	// The alarm thresholds decide only WHETHER the sampler job is registered:
+	// cpuAlarmWanted()/memoryAlarmWanted() test `threshold <= 0` and nothing else
+	// (3x-ui-3.7.0/internal/web/web.go:428-431, :458-461). The job itself
+	// publishes a raw metric and never reads the threshold
+	// (internal/web/job/check_cpu_usage.go:20-33); the comparison happens per
+	// event in the notifier. So 80 → 90 changes nothing about registration and
+	// takes effect immediately, while 0 → 80 has to register the job.
+	"tgCpu":      alarmThresholdCrossesZero,
+	"tgMemory":   alarmThresholdCrossesZero,
+	"smtpCpu":    alarmThresholdCrossesZero,
+	"smtpMemory": alarmThresholdCrossesZero,
+	// Same shape for the event lists: registration turns on the membership of
+	// cpu.high / memory.high (web.go:432-436, :462-466). Every other event is
+	// filtered per event at delivery time, so adding "backup" to the list must
+	// not bounce the panel.
+	"tgEnabledEvents":   alarmEventMembershipChanged,
+	"smtpEnabledEvents": alarmEventMembershipChanged,
+}
+
+// alarmThresholdCrossesZero reports whether a threshold change flips the
+// setting between "off" (<= 0) and "on".
+func alarmThresholdCrossesZero(oldVal, newVal any) bool {
+	return intValue(oldVal) <= 0 != (intValue(newVal) <= 0)
+}
+
+// alarmEventMembershipChanged reports whether the comma-separated event list
+// gained or lost one of the two events that gate a cron job.
+func alarmEventMembershipChanged(oldVal, newVal any) bool {
+	for _, event := range []string{"cpu.high", "memory.high"} {
+		if eventListContains(oldVal, event) != eventListContains(newVal, event) {
+			return true
+		}
+	}
+	return false
+}
+
+func eventListContains(value any, event string) bool {
+	list, ok := value.(string)
+	if !ok {
+		return false
+	}
+	for _, candidate := range strings.Split(list, ",") {
+		if strings.TrimSpace(candidate) == event {
 			return true
 		}
 	}

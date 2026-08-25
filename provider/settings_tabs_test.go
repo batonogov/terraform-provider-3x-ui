@@ -69,11 +69,23 @@ func TestPanelSettingsNeedRestart_NonRestartKey(t *testing.T) {
 	}
 }
 
-func TestPanelSettingsNeedRestart_NewRestartKey(t *testing.T) {
-	existing := map[string]any{}
-	desired := map[string]any{"webBasePath": "/new/"}
-	if !panelSettingsNeedRestart(existing, desired) {
-		t.Fatalf("expected restart for new restart key")
+// A key the panel does not report is a key the panel does not have:
+// /setting/all serialises AllSetting whole, so an absent key means this version
+// predates the setting and /setting/update will drop it exactly as the read
+// omitted it. Restarting for a value that is never stored would bounce the
+// panel on every apply — and 7 of the 13 versions in compat-versions.json
+// predate the notifier keys (#449). This deliberately reverses the behaviour
+// added in #443.
+func TestPanelSettingsNeedRestart_KeyUnknownToPanel(t *testing.T) {
+	if panelSettingsNeedRestart(map[string]any{}, map[string]any{"webBasePath": "/new/"}) {
+		t.Error("a key absent from the panel must not trigger a restart: the value cannot be stored either")
+	}
+	if panelSettingsNeedRestart(map[string]any{}, map[string]any{"smtpCpu": 80}) {
+		t.Error("a v3.4.0+ key on a v3.2.x panel must not restart on every apply")
+	}
+	// A key the panel does report still restarts when it changes.
+	if !panelSettingsNeedRestart(map[string]any{"webBasePath": "/old/"}, map[string]any{"webBasePath": "/new/"}) {
+		t.Error("expected restart when a known key changes")
 	}
 }
 
@@ -164,17 +176,70 @@ func TestPanelSettingsNeedRestart_PanelStartupKeys(t *testing.T) {
 	}
 }
 
-// A key the panel does not report at all (an older 3x-ui that predates it) but
-// which the plan wants to set counts as a change: the panel goes from "no value"
-// to "a value", and the sub server has to be rebuilt to pick it up. This is the
-// `!ok` branch of the loop, which no other test covers.
-func TestPanelSettingsNeedRestart_KeyAbsentFromPanel(t *testing.T) {
-	if !panelSettingsNeedRestart(map[string]any{}, map[string]any{"subJsonObservatory": "{}"}) {
-		t.Error("expected restart when a gated key is absent from the panel but present in the plan")
+// The panel registers its notifier cron jobs once, in web.Server.Start(): the
+// stats-notify schedule (internal/web/web.go:389), whether the Telegram bot's
+// jobs exist at all (web.go:387-403), and whether the CPU/memory alarm jobs are
+// registered for either notifier (web.go:408-412, :439-448, :469-478). Changing
+// any of them without a restart leaves the old schedule running (#449).
+func TestPanelSettingsNeedRestart_NotifierCronKeys(t *testing.T) {
+	for key, change := range map[string][2]any{
+		"tgRunTime":         {"@daily", "@every 6h"},
+		"tgEnabledEvents":   {"client.expiry", "client.expiry,cpu.high"},
+		"smtpEnabledEvents": {"", "memory.high"},
+	} {
+		if !panelSettingsNeedRestart(map[string]any{key: change[0]}, map[string]any{key: change[1]}) {
+			t.Errorf("expected restart when %s changes", key)
+		}
 	}
-	// ... but only for gated keys.
-	if panelSettingsNeedRestart(map[string]any{}, map[string]any{"subURI": "https://a/"}) {
-		t.Error("an absent non-gated key must not trigger a restart")
+
+	// Only cpu.high / memory.high membership gates a cron job; every other event
+	// is filtered at delivery time, so the list changing around them is not worth
+	// a restart.
+	for _, key := range []string{"tgEnabledEvents", "smtpEnabledEvents"} {
+		if panelSettingsNeedRestart(
+			map[string]any{key: "login.attempt,cpu.high"},
+			map[string]any{key: "login.attempt,backup,cpu.high"},
+		) {
+			t.Errorf("adding an unrelated event to %s must not restart the panel", key)
+		}
+		if !panelSettingsNeedRestart(
+			map[string]any{key: "login.attempt,cpu.high"},
+			map[string]any{key: "login.attempt"},
+		) {
+			t.Errorf("dropping cpu.high from %s must restart: the sampler job is deregistered", key)
+		}
+		if panelSettingsNeedRestart(
+			map[string]any{key: "cpu.high,memory.high"},
+			map[string]any{key: " cpu.high , memory.high "},
+		) {
+			t.Errorf("whitespace-only differences in %s must not restart the panel", key)
+		}
+	}
+	for _, key := range []string{"tgCpu", "tgMemory", "smtpCpu", "smtpMemory"} {
+		if !panelSettingsNeedRestart(map[string]any{key: float64(0)}, map[string]any{key: 80}) {
+			t.Errorf("expected restart when %s changes", key)
+		}
+	}
+	for _, key := range []string{"tgBotEnable", "smtpEnable"} {
+		if !panelSettingsNeedRestart(map[string]any{key: false}, map[string]any{key: true}) {
+			t.Errorf("expected restart when %s changes", key)
+		}
+	}
+}
+
+// The Telegram bot process is hot-reloaded by the panel, so its credentials must
+// NOT bounce the panel — only the settings that gate cron registration do.
+func TestPanelSettingsNeedRestart_HotReloadedKeysStayQuiet(t *testing.T) {
+	for key, change := range map[string][2]any{
+		"tgBotToken":     {"old", "new"},
+		"tgBotChatId":    {"1", "2"},
+		"tgBotAPIServer": {"", "https://api.example"},
+		"smtpHost":       {"old.example", "new.example"},
+		"smtpUser":       {"a@example", "b@example"},
+	} {
+		if panelSettingsNeedRestart(map[string]any{key: change[0]}, map[string]any{key: change[1]}) {
+			t.Errorf("%s is applied without a restart and must not trigger one", key)
+		}
 	}
 }
 
