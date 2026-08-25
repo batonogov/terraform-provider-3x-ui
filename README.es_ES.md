@@ -146,7 +146,7 @@ La documentación completa está en el [Terraform Registry](https://registry.ter
 
 | Recurso | Descripción |
 | --- | --- |
-| `threexui_inbound` | Inbound (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria, mtproto; TUN 3.2.7+, MTProto 3.3.0+) |
+| `threexui_inbound` | Inbound (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, amneziawg, tunnel, tun, hysteria, mtproto; TUN 3.2.7+, MTProto 3.3.0+, AmneziaWG 3.7.0+) |
 | `threexui_inbound_client` | Cliente dentro de un inbound |
 | `threexui_node` | Nodo del clúster / registro multi-node |
 | `threexui_panel_general` | Ajustes generales del panel |

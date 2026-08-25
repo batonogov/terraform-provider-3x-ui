@@ -69,6 +69,7 @@ type InboundResourceModel struct {
 	SocksSettings       *InboundSocksSettingsModel       `tfsdk:"socks_settings"`
 	MixedSettings       *InboundMixedSettingsModel       `tfsdk:"mixed_settings"`
 	WireguardSettings   *InboundWireguardSettingsModel   `tfsdk:"wireguard_settings"`
+	AmneziawgSettings   *InboundAmneziawgSettingsModel   `tfsdk:"amneziawg_settings"`
 	DokodemoSettings    *InboundDokodemoSettingsModel    `tfsdk:"dokodemo_settings"`
 	HysteriaSettings    *InboundHysteriaSettingsModel    `tfsdk:"hysteria_settings"`
 	MtprotoSettings     *InboundMtprotoSettingsModel     `tfsdk:"mtproto_settings"`
@@ -194,7 +195,7 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"protocol": schema.StringAttribute{
 				Required:    true,
-				Description: "Protocol (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria, mtproto). socks and dokodemo-door are deprecated since 3x-ui v3.2.0 — use mixed and tunnel instead. tun is an alias for tunnel available since 3x-ui v3.2.7; mtproto is available since v3.3.0.",
+				Description: "Protocol (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, amneziawg, tunnel, tun, hysteria, mtproto). socks and dokodemo-door are deprecated since 3x-ui v3.2.0 — use mixed and tunnel instead. tun is an alias for tunnel available since 3x-ui v3.2.7; mtproto is available since v3.3.0; amneziawg since v3.7.0.",
 				Validators:  protocolValidators(),
 			},
 			"tag": schema.StringAttribute{
@@ -768,6 +769,14 @@ func alignBlocksWithPlan(state *InboundResourceModel, plan *InboundResourceModel
 	}
 	if plan.WireguardSettings == nil {
 		state.WireguardSettings = nil
+	}
+	if plan.AmneziawgSettings == nil {
+		state.AmneziawgSettings = nil
+	} else if state.AmneziawgSettings != nil && plan.AmneziawgSettings.Server == nil {
+		// The nested server block follows the same rule as the top-level ones:
+		// a block absent from the configuration must stay absent in state, or the
+		// framework reports "was absent, but now present".
+		state.AmneziawgSettings.Server = nil
 	}
 	if plan.DokodemoSettings == nil {
 		state.DokodemoSettings = nil

@@ -567,13 +567,6 @@ func checkRemoved(t *testing.T, provider map[string]bool, upstream map[string]bo
 	}
 }
 
-// amneziawgDeferred marks the v3.7.0 `amneziawg` protocol as knowingly
-// unimplemented. It needs its own settings block (server obfuscation params +
-// clients[]), tracked in #441. Shared by all three protocol drift gates so
-// removing the deferral is a single edit — silencing one gate but not the
-// others would leave a protocol permanently unguarded.
-var amneziawgDeferred = map[string]bool{"amneziawg": true}
-
 // -------------------------------------------------------------------------
 // Test: upstream inbound protocols vs provider protocol mappings (Go model)
 // -------------------------------------------------------------------------
@@ -639,7 +632,7 @@ func TestDriftInboundProtocols_GoModel(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	upstreamSkipped := amneziawgDeferred
+	upstreamSkipped := map[string]bool{}
 	checkMissing(t, upstream, providerHandled, upstreamSkipped,
 		"upstream model.go has protocols not handled by provider: %v")
 	checkRemoved(t, providerHandled, upstreamSet, providerExtras,
@@ -677,7 +670,7 @@ func TestDriftInboundProtocols_JS(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	upstreamSkipped := amneziawgDeferred
+	upstreamSkipped := map[string]bool{}
 	checkMissing(t, upstream, providerHandled, upstreamSkipped,
 		"upstream inbound.js Protocols has entries not handled by provider: %v")
 	checkRemoved(t, providerHandled, upstreamSet, providerExtras,
@@ -715,7 +708,7 @@ func TestDriftProtocolForms(t *testing.T) {
 	}
 
 	upstreamSet := toSet(upstream)
-	upstreamSkipped := amneziawgDeferred
+	upstreamSkipped := map[string]bool{}
 	checkMissing(t, upstream, providerBlocks, upstreamSkipped,
 		"upstream protocol form files not handled by provider: %v")
 	checkRemoved(t, providerBlocks, upstreamSet, providerExtras,
@@ -847,10 +840,13 @@ func TestDriftClientFields(t *testing.T) {
 	clientIntentionallySkipped := map[string]bool{
 		"privateKey": true, "publicKey": true, "allowedIPs": true,
 		"preSharedKey": true, "keepAlive": true,
-		// v3.7.0 AmneziaWG surface: forwardedPorts is the per-client DNAT spec on
-		// an AmneziaWG inbound, and allowedIPsByInbound overrides allowedIPs per
-		// inbound id. Both belong to the amneziawg settings block, which the
-		// provider does not implement yet (#441).
+		// v3.7.0 AmneziaWG surface. forwardedPorts is the per-client DNAT spec;
+		// it IS implemented, but on amneziawg_settings.clients[] rather than on
+		// the generic threexui_inbound_client resource this gate covers (#441).
+		// allowedIPsByInbound is deliberately unimplemented: the panel accepts it
+		// only on the /panel/api/clients CRUD endpoints, never echoes it back on
+		// a GET (the read side is the separate tunnelAllowedIPs projection), so
+		// it cannot round-trip through Terraform state.
 		"forwardedPorts": true, "allowedIPsByInbound": true,
 	}
 	checkMissing(t, upstream, providerKnown, clientIntentionallySkipped,

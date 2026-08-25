@@ -7,7 +7,7 @@ description: |-
 
 # threexui_inbound (Resource)
 
-Manages an inbound proxy in the 3x-ui panel. Supports protocols: vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria, and mtproto. For older panels, the provider also preserves legacy `socks`, `dokodemo-door`, and `hysteria2` values from imported state; on 3x-ui v3.2.0+ use `mixed`, `tunnel`, and `hysteria` with `version = 2` for new configurations. TUN requires v3.2.7+, and MTProto requires v3.3.0+.
+Manages an inbound proxy in the 3x-ui panel. Supports protocols: vless, vmess, trojan, shadowsocks, http, mixed, wireguard, amneziawg, tunnel, tun, hysteria, and mtproto. For older panels, the provider also preserves legacy `socks`, `dokodemo-door`, and `hysteria2` values from imported state; on 3x-ui v3.2.0+ use `mixed`, `tunnel`, and `hysteria` with `version = 2` for new configurations. TUN requires v3.2.7+, MTProto requires v3.3.0+, and AmneziaWG requires v3.7.0+.
 
 ## Example Usage
 
@@ -139,6 +139,37 @@ resource "threexui_inbound" "wg" {
 }
 ```
 
+### AmneziaWG
+
+AmneziaWG (3x-ui v3.7.0+) is WireGuard with DPI-resistant obfuscation, running in-process on an embedded userspace device — no kernel module is needed. Peers are declared inline as `clients` blocks; do **not** attach `threexui_inbound_client` resources to an AmneziaWG inbound.
+
+Everything under `server` is optional. Creating the inbound without it makes the panel generate a keypair, a tunnel subnet and a randomised obfuscation set, which the provider reads back into state:
+
+```hcl
+resource "threexui_inbound" "awg" {
+  port     = 51821
+  protocol = "amneziawg"
+  enable   = true
+  remark   = "AmneziaWG"
+
+  amneziawg_settings {
+    server {
+      subnet_ip   = "10.9.1.0"
+      subnet_cidr = 24
+      primary_dns = "1.1.1.1"
+    }
+
+    clients {
+      email       = "phone@example.com"
+      enable      = true
+      allowed_ips = ["10.9.1.2/32"]
+      # Publish two ports from the peer through the server.
+      forwarded_ports = "80,443"
+    }
+  }
+}
+```
+
 ### Hysteria
 
 ```hcl
@@ -180,7 +211,7 @@ resource "threexui_inbound" "mtproto" {
 ### Top-level
 
 - `port` (Required, Number) - Port number for the inbound.
-- `protocol` (Required, String) - Protocol type (`vless`, `vmess`, `trojan`, `shadowsocks`, `http`, `mixed`, `wireguard`, `tunnel`, `tun`, `hysteria`, `mtproto`). Legacy `socks` and `dokodemo-door` are available only on panels before 3x-ui v3.2.0; use `mixed` and `tunnel` on v3.2.0+. `tun` is a tunnel alias available on v3.2.7+, and `mtproto` is available on v3.3.0+.
+- `protocol` (Required, String) - Protocol type (`vless`, `vmess`, `trojan`, `shadowsocks`, `http`, `mixed`, `wireguard`, `amneziawg`, `tunnel`, `tun`, `hysteria`, `mtproto`). Legacy `socks` and `dokodemo-door` are available only on panels before 3x-ui v3.2.0; use `mixed` and `tunnel` on v3.2.0+. `tun` is a tunnel alias available on v3.2.7+, `mtproto` is available on v3.3.0+, and `amneziawg` on v3.7.0+.
 - `enable` (Optional, Boolean) - Whether the inbound is enabled. Default is `true`.
 - `remark` (Optional, String) - A label/name for the inbound.
 - `listen` (Optional, String) - Listen address.
@@ -293,6 +324,73 @@ Used for both `tunnel` and `dokodemo-door` protocols.
 #### `hysteria_settings`
 
 - `version` (Optional, Number) - Hysteria version (1 or 2, default 2).
+
+#### `amneziawg_settings` (Optional, Block)
+
+Typed AmneziaWG settings, available on 3x-ui v3.7.0+. Unlike the client-carrying protocols (vmess/vless/trojan/shadowsocks/hysteria), whose clients are managed by `threexui_inbound_client`, AmneziaWG peers live in this block — the same rule as `wireguard_settings.clients`.
+
+- `server` (Optional, Block) - Server parameters.
+- `clients` (Optional, Block List) - Peers this server accepts.
+
+##### `server` (Optional, Block)
+
+Every attribute is Optional+Computed: what the configuration omits, the panel generates on save and the provider records in state. Attributes the panel declares `omitempty` upstream reject an empty string or a zero — omit them instead, since a value the panel strips could not round-trip.
+
+- `private_key` (Optional+Computed, String, Sensitive) - Server private key (base64). Generated when absent. Sending an empty value makes the panel generate a **new** keypair, invalidating every existing peer config.
+- `public_key` (Optional+Computed, String) - Server public key (base64). The panel does not derive this from `private_key` for the server (only for clients), so set both or let it generate both.
+- `subnet_ip` (Optional+Computed, String) - Tunnel subnet address. Panel default `10.8.1.0`.
+- `subnet_cidr` (Optional+Computed, Number) - Tunnel prefix length, 1-32. Panel default `24`.
+- `mtu` (Optional+Computed, Number) - Tunnel MTU, at least 1. Omit for the embedded device default of 1420 — `0` is rejected because the panel strips it.
+- `primary_dns` (Optional+Computed, String) - Primary DNS handed to peers. Panel default `8.8.8.8`. An empty string is meaningful: it clears the entry rather than restoring the default.
+- `secondary_dns` (Optional+Computed, String) - Secondary DNS. Panel default `8.8.4.4`. An empty string clears it.
+- `external_interface` (Optional+Computed, String) - Host NIC used for egress NAT. Omit to auto-detect.
+- `ipv6_enabled` (Optional+Computed, Boolean) - Enable the IPv6 tunnel. Requires `ipv6_subnet`.
+- `ipv6_subnet` (Optional+Computed, String) - IPv6 tunnel prefix, e.g. `fd00:8:1::/64`. Required when `ipv6_enabled` is true.
+- `ipv6_external_interface` (Optional+Computed, String) - Host NIC for IPv6 egress. Omit to reuse the IPv4 interface.
+- `route_through_xray` (Optional+Computed, Boolean) - Vestigial upstream: the embedded relay is always on and nothing reads the flag. Round-tripped so the blob is not altered on save.
+- `jc` (Optional+Computed, Number) - Junk packet count.
+- `jmin` (Optional+Computed, Number) - Minimum junk packet size. Must not exceed `jmax`.
+- `jmax` (Optional+Computed, Number) - Maximum junk packet size.
+- `s1` (Optional+Computed, Number) - Init packet junk size. `s1 + 56` must not equal `s2`.
+- `s2` (Optional+Computed, Number) - Response packet junk size.
+- `s3` (Optional+Computed, Number) - Cookie reply packet junk size, 0-64.
+- `s4` (Optional+Computed, Number) - Transport packet junk size, 0-32.
+- `h1` (Optional+Computed, String) - Init packet magic header: an integer or a `lo-hi` range within 0-4294967295. Blank falls back to the classic WireGuard header `1` when a peer config is rendered.
+- `h2` (Optional+Computed, String) - Response packet magic header. Blank falls back to `2`.
+- `h3` (Optional+Computed, String) - Underload packet magic header. Blank falls back to `3`.
+- `h4` (Optional+Computed, String) - Transport packet magic header. Blank falls back to `4`.
+- `i1` (Optional+Computed, String) - Custom signature packet 1, e.g. `<r 64>`.
+- `i2` (Optional+Computed, String) - Custom signature packet 2.
+- `i3` (Optional+Computed, String) - Custom signature packet 3.
+- `i4` (Optional+Computed, String) - Custom signature packet 4.
+- `i5` (Optional+Computed, String) - Custom signature packet 5.
+- `header_protection_key` (Optional+Computed, String, Sensitive) - Header-protection key: base64 of exactly 32 bytes. When set, all of `s1`-`s4` must be at least 12.
+- `content_padding_addition` (Optional+Computed, String) - Extra content padding: an integer or a `lo-hi` range.
+- `rekey_after_time` (Optional+Computed, String) - Rekey interval in seconds, integer or `lo-hi` range. Its maximum must be lower than the minimum of `reject_after_time`.
+- `rekey_timeout` (Optional+Computed, String) - Rekey timeout in seconds.
+- `reject_after_time` (Optional+Computed, String) - Session reject time in seconds.
+- `keepalive_timeout` (Optional+Computed, String) - Keepalive timeout in seconds.
+- `max_handshake_attempts` (Optional+Computed, String) - Maximum handshake attempts.
+- `random_trailers` (Optional+Computed, Boolean) - Append random trailers to packets.
+- `disable_cookies` (Optional+Computed, Boolean) - Disable the cookie-reply mechanism.
+
+##### `clients` (Optional, Block List)
+
+- `email` (Optional+Computed, String) - Peer identifier. The panel keys traffic counters on it and requires a non-empty unique value, so set it even though the schema marks it Optional.
+- `private_key` (Optional+Computed, String, Sensitive) - Peer private key. Generated when both keys are absent.
+- `public_key` (Optional+Computed, String) - Peer public key. Derived from `private_key` when only the private key is given.
+- `pre_shared_key` (Optional+Computed, String, Sensitive) - Optional pre-shared key.
+- `allowed_ips` (Optional+Computed, List of String) - Peer tunnel addresses. Allocated from the inbound's subnet when omitted and normalised server-side (a bare address becomes `/32`).
+- `keep_alive` (Optional+Computed, Number) - Persistent keepalive in seconds.
+- `forwarded_ports` (Optional+Computed, String) - Ports DNAT-forwarded to this peer, e.g. `80,443,8000-8100`. Expands to at most 100 ports. The panel rejects a spec colliding with the panel's own port, any enabled inbound's port, or this inbound's SOCKS relay port (65100 + inbound id); malformed tokens are dropped silently.
+- `enable` (Optional+Computed, Boolean) - Whether the peer is enabled.
+- `limit_ip` (Optional+Computed, Number) - Concurrent IP limit (0 = unlimited).
+- `total_gb` (Optional+Computed, Number) - Traffic limit in bytes (0 = unlimited).
+- `expiry_time` (Optional+Computed, Number) - Expiry timestamp in milliseconds since epoch (0 = never).
+- `tg_id` (Optional+Computed, Number) - Telegram user id.
+- `sub_id` (Optional+Computed, String) - Subscription id.
+- `comment` (Optional+Computed, String) - Free-form comment.
+- `reset` (Optional+Computed, Number) - Traffic reset interval in days (0 = never).
 
 #### `mtproto_settings` (Optional, Block)
 

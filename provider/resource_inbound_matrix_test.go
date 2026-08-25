@@ -63,6 +63,7 @@ func protocolMatrix() []protocolMatrixEntry {
 		matrixSocks(),
 		matrixMixed(),
 		matrixWireguard(),
+		matrixAmneziawg(),
 		matrixDokodemo(),
 		matrixHysteria(),
 	}
@@ -712,6 +713,98 @@ resource "threexui_inbound" "mx_wg" {
 		},
 		importStateVerifyIgnore: []string{
 			"wireguard_settings.secret_key",
+		},
+	}
+}
+
+// matrixAmneziawg covers the v3.7.0 AmneziaWG protocol (#441).
+//
+// The configuration deliberately sets only a handful of server fields: the panel
+// generates the keypair, the subnet and the whole randomised obfuscation set on
+// save (internal/web/service/inbound_amneziawg.go:114-148), and the provider
+// reads them back into state. Anything the panel generates is therefore excluded
+// from ImportStateVerify — not because it drifts, but because a create-time
+// generated secret is not reproducible from configuration.
+//
+// mtu is the field the update step changes: it is plain, has no cross-field
+// constraint, and is one of the omitempty keys, so a change also exercises the
+// strip-and-restore path.
+func matrixAmneziawg() protocolMatrixEntry {
+	return protocolMatrixEntry{
+		protocol:   "amneziawg",
+		tfName:     "mx_awg",
+		port:       26011,
+		minVersion: "v3.7.0",
+		createHCL: func(port int) string {
+			return fmt.Sprintf(`
+resource "threexui_inbound" "mx_awg" {
+  port     = %d
+  protocol = "amneziawg"
+  remark   = "matrix-awg-create"
+  enable   = true
+  amneziawg_settings {
+    server {
+      subnet_ip   = "10.9.1.0"
+      subnet_cidr = 24
+      mtu         = 1380
+      primary_dns = "1.1.1.1"
+    }
+    clients {
+      email       = "matrix-awg-peer@test.com"
+      enable      = true
+      allowed_ips = ["10.9.1.2/32"]
+    }
+  }
+}
+`, port)
+		},
+		updateHCL: func(port int) string {
+			return fmt.Sprintf(`
+resource "threexui_inbound" "mx_awg" {
+  port     = %d
+  protocol = "amneziawg"
+  remark   = "matrix-awg-updated"
+  enable   = true
+  amneziawg_settings {
+    server {
+      subnet_ip   = "10.9.1.0"
+      subnet_cidr = 24
+      mtu         = 1400
+      primary_dns = "1.1.1.1"
+    }
+    clients {
+      email       = "matrix-awg-peer@test.com"
+      enable      = true
+      allowed_ips = ["10.9.1.2/32"]
+    }
+  }
+}
+`, port)
+		},
+		createChecks: func(addr string) []resource.TestCheckFunc {
+			return []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr(addr, "remark", "matrix-awg-create"),
+				resource.TestCheckResourceAttr(addr, "amneziawg_settings.server.mtu", "1380"),
+				resource.TestCheckResourceAttr(addr, "amneziawg_settings.server.subnet_ip", "10.9.1.0"),
+				resource.TestCheckResourceAttr(addr, "amneziawg_settings.clients.0.email", "matrix-awg-peer@test.com"),
+				// Generated server-side from an empty configuration.
+				resource.TestCheckResourceAttrSet(addr, "amneziawg_settings.server.public_key"),
+				resource.TestCheckResourceAttrSet(addr, "amneziawg_settings.server.jc"),
+			}
+		},
+		updateChecks: func(addr string) []resource.TestCheckFunc {
+			return []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr(addr, "remark", "matrix-awg-updated"),
+				resource.TestCheckResourceAttr(addr, "amneziawg_settings.server.mtu", "1400"),
+				// The peer must survive an inbound update rather than being
+				// dropped or re-keyed.
+				resource.TestCheckResourceAttr(addr, "amneziawg_settings.clients.0.email", "matrix-awg-peer@test.com"),
+			}
+		},
+		importStateVerifyIgnore: []string{
+			"amneziawg_settings.server.private_key",
+			"amneziawg_settings.server.header_protection_key",
+			"amneziawg_settings.clients.0.private_key",
 		},
 	}
 }

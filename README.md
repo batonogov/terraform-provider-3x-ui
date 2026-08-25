@@ -146,7 +146,7 @@ Full documentation is available on the [Terraform Registry](https://registry.ter
 
 | Resource | Description |
 | --- | --- |
-| `threexui_inbound` | Inbound proxy (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria, mtproto; TUN 3.2.7+, MTProto 3.3.0+) |
+| `threexui_inbound` | Inbound proxy (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, amneziawg, tunnel, tun, hysteria, mtproto; TUN 3.2.7+, MTProto 3.3.0+, AmneziaWG 3.7.0+) |
 | `threexui_inbound_client` | Client within an inbound |
 | `threexui_node` | Cluster node / multi-node registration |
 | `threexui_panel_general` | General panel settings |
