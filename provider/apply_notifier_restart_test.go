@@ -211,3 +211,53 @@ func TestSettingsApplyTyped_RestartsForNotifierCronKeys(t *testing.T) {
 		})
 	}
 }
+
+// A panel that refuses the restart must surface as an error, not as a silent
+// success: the settings were written, so the practitioner has to know the panel
+// is still running the old wiring.
+func TestSettingsApplyTyped_RestartFailureSurfaces(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			_, _ = w.Write(okResponse(nil))
+		case "/panel/api/setting/all":
+			_, _ = w.Write(okResponse(map[string]any{"tgRunTime": "@daily"}))
+		case "/panel/api/setting/update":
+			_, _ = w.Write(okResponse(nil))
+		case "/panel/api/setting/restartPanel":
+			w.WriteHeader(http.StatusInternalServerError)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	client.settingsAPIMu.Lock()
+	v := true
+	client.settingsUnderAPI = &v
+	client.settingsAPIMu.Unlock()
+
+	var d diag.Diagnostics
+	settingsApplyTyped(context.Background(), map[string]any{"tgRunTime": "@every 6h"}, &d, client)
+
+	if !d.HasError() {
+		t.Fatal("a refused restart must be reported")
+	}
+}
+
+// The event-list comparison reads whatever the panel returned, which is not
+// guaranteed to be a string on a malformed response.
+func TestEventListContains_NonString(t *testing.T) {
+	if eventListContains(42, "cpu.high") {
+		t.Error("a non-string value cannot contain an event")
+	}
+	if eventListContains(nil, "cpu.high") {
+		t.Error("a nil value cannot contain an event")
+	}
+	if !eventListContains("memory.high,cpu.high", "cpu.high") {
+		t.Error("a plain list must still match")
+	}
+}
