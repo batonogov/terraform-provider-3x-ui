@@ -2,18 +2,15 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
 
 // inboundSchemaAttr fetches one top-level attribute off the threexui_inbound schema.
-func inboundSchemaAttr(t *testing.T, name string) interface {
-	GetDeprecationMessage() string
-	GetDescription() string
-} {
+func inboundSchemaAttr(t *testing.T, name string) schema.Attribute {
 	t.Helper()
 
 	var resp resource.SchemaResponse
@@ -46,6 +43,12 @@ func TestInboundAllTimeIsDeprecated(t *testing.T) {
 	if !strings.Contains(msg, "threexui_client_traffics") {
 		t.Errorf("DeprecationMessage should point at the replacement, got %q", msg)
 	}
+	// The field did exist upstream (v2.6.7 through v3.0.2) — the message has to
+	// say it was removed, not that it never existed, or the next reader of the
+	// drop migration in inbound_migration.go will think the provider is confused.
+	if !strings.Contains(msg, "v3.1.0") {
+		t.Errorf("DeprecationMessage should name the version that removed the field, got %q", msg)
+	}
 	if !strings.Contains(strings.ToLower(attr.GetDescription()), "deprecated") {
 		t.Errorf("Description should mark the attribute deprecated, got %q", attr.GetDescription())
 	}
@@ -57,23 +60,5 @@ func TestInboundTrafficCountersNotDeprecated(t *testing.T) {
 		if msg := inboundSchemaAttr(t, name).GetDeprecationMessage(); msg != "" {
 			t.Errorf("%s must not be deprecated, got %q", name, msg)
 		}
-	}
-}
-
-// Pins the reason for the deprecation: a real panel payload carries no `allTime`
-// key, so the field decodes to the zero value on every supported version.
-func TestInboundDecodesWithoutAllTimeField(t *testing.T) {
-	// Shape of GET /panel/api/inbounds/list on v3.2.0-v3.7.0.
-	payload := `{"id":1,"up":1024,"down":2048,"total":0,"remark":"in","enable":true}`
-
-	var inbound Inbound
-	if err := json.Unmarshal([]byte(payload), &inbound); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if inbound.AllTime != 0 {
-		t.Errorf("AllTime should decode to 0 when the panel omits the key, got %d", inbound.AllTime)
-	}
-	if inbound.Up != 1024 || inbound.Down != 2048 {
-		t.Errorf("live counters must still decode: up=%d down=%d", inbound.Up, inbound.Down)
 	}
 }

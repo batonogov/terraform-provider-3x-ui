@@ -14,11 +14,12 @@ type Inbound struct {
 	Up    int64 `json:"up"`
 	Down  int64 `json:"down"`
 	Total int64 `json:"total"`
-	// AllTime is deprecated and always decodes to 0: no 3x-ui release has ever
-	// sent an `allTime` field on the inbound API (`grep -r allTime` finds no
-	// match in any Go, TS or JS source of the v3.2.0-v3.7.0 snapshots). It is
-	// kept only to keep feeding the deprecated `all_time` attribute until that
-	// attribute is dropped in the next major release (#442).
+	// AllTime is deprecated and always decodes to 0 on every supported panel.
+	// Upstream carried `allTime` on model.Inbound from v2.6.7 (PR #3387) until
+	// v3.1.0 removed it (PR #4469, which also drops the `all_time` columns on
+	// startup), so the field is absent from every snapshot in the supported
+	// v3.2.x+ range. Kept only to keep feeding the deprecated `all_time`
+	// attribute until that attribute is dropped in the next major release (#442).
 	AllTime              int64           `json:"allTime"`
 	Remark               string          `json:"remark"`
 	Enable               bool            `json:"enable"`

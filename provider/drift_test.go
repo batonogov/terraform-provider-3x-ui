@@ -791,12 +791,14 @@ func TestDriftInboundFields(t *testing.T) {
 	upstreamSet := toSet(upstream)
 	checkMissing(t, upstream, providerFields, skip,
 		"upstream Inbound struct has json fields not in provider: %v")
-	// `allTime` is provider-only: grep finds it in no upstream source (Go, TS or
-	// JS) of any snapshot from v3.2.0 to v3.7.0 — not on model.Inbound and not
-	// on xray.ClientTraffic either. The panel therefore never sends it and
-	// threexui_inbound.all_time always reads 0. The attribute now carries a
-	// DeprecationMessage; dropping it is a breaking change held for the next
-	// major release (#442).
+	// `allTime` is provider-only within the supported range. Upstream added it to
+	// model.Inbound and xray.ClientTraffic in v2.6.7 (PR #3387) and removed it in
+	// v3.1.0 (PR #4469), which also drops the `all_time` columns at startup — the
+	// drop migration is still present in every snapshot here
+	// (3x-ui-3.7.0/internal/web/service/inbound_migration.go:55-63). No panel this
+	// provider supports (v3.2.x+) sends the field, so threexui_inbound.all_time
+	// always reads 0. The attribute now carries a DeprecationMessage; dropping it
+	// is a breaking change held for the next major release (#442).
 	checkRemoved(t, providerFields, upstreamSet, map[string]bool{"allTime": true},
 		"provider Inbound struct has json fields not in upstream: %v")
 }
