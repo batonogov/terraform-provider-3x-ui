@@ -30,6 +30,11 @@ func TestDocumentedSchemaSections(t *testing.T) {
 
 	mtproto := requireSingleNestedBlock(t, inbound["mtproto_settings"])
 	assertDocumentedBlock(t, "docs/resources/inbound.md", "##### `domain_fronting`", mtproto.Blocks["domain_fronting"])
+
+	assertDocumentedBlock(t, "docs/resources/inbound.md", "#### `amneziawg_settings`", inbound["amneziawg_settings"])
+	amneziawg := requireSingleNestedBlock(t, inbound["amneziawg_settings"])
+	assertDocumentedBlock(t, "docs/resources/inbound.md", "##### `server`", amneziawg.Blocks["server"])
+	assertDocumentedBlock(t, "docs/resources/inbound.md", "##### `clients`", amneziawg.Blocks["clients"])
 }
 
 func TestInboundProtocolDescriptionListsVersionedProtocols(t *testing.T) {

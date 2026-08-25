@@ -179,7 +179,7 @@ func TestProtocolValidators(t *testing.T) {
 		"vless", "vmess", "trojan", "shadowsocks",
 		"http", "socks", "mixed", "wireguard",
 		"dokodemo-door", "tunnel", "tun",
-		"hysteria", "hysteria2", "mtproto",
+		"hysteria", "hysteria2", "mtproto", "amneziawg",
 	}
 	for _, val := range valid {
 		for _, vv := range v {

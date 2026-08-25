@@ -146,7 +146,7 @@ resource "threexui_inbound_client" "client_a" {
 
 | Resource | 说明 |
 | --- | --- |
-| `threexui_inbound` | inbound 代理(vless、vmess、trojan、shadowsocks、http、mixed、wireguard、tunnel、tun、hysteria、mtproto；TUN 3.2.7+，MTProto 3.3.0+) |
+| `threexui_inbound` | inbound 代理(vless、vmess、trojan、shadowsocks、http、mixed、wireguard、amneziawg、tunnel、tun、hysteria、mtproto；TUN 3.2.7+，MTProto 3.3.0+，AmneziaWG 3.7.0+) |
 | `threexui_inbound_client` | inbound 内的客户端 |
 | `threexui_node` | 集群节点 / multi-node 注册 |
 | `threexui_panel_general` | 面板通用设置 |

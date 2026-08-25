@@ -146,7 +146,7 @@ resource "threexui_inbound_client" "client_a" {
 
 | Ресурс | Описание |
 | --- | --- |
-| `threexui_inbound` | Инбаунд (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria, mtproto; TUN с 3.2.7, MTProto с 3.3.0) |
+| `threexui_inbound` | Инбаунд (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, amneziawg, tunnel, tun, hysteria, mtproto; TUN с 3.2.7, MTProto с 3.3.0, AmneziaWG с 3.7.0) |
 | `threexui_inbound_client` | Клиент внутри инбаунда |
 | `threexui_node` | Узел кластера / регистрация multi-node |
 | `threexui_panel_general` | Общие настройки панели |

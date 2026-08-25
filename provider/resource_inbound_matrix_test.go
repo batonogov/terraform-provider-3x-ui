@@ -63,6 +63,7 @@ func protocolMatrix() []protocolMatrixEntry {
 		matrixSocks(),
 		matrixMixed(),
 		matrixWireguard(),
+		matrixAmneziawg(),
 		matrixDokodemo(),
 		matrixHysteria(),
 	}
@@ -716,6 +717,116 @@ resource "threexui_inbound" "mx_wg" {
 	}
 }
 
+// matrixAmneziawg covers the v3.7.0 AmneziaWG protocol (#441).
+//
+// The configuration deliberately sets only a handful of server fields: the panel
+// generates the keypair, the subnet and the whole randomised obfuscation set on
+// save (internal/web/service/inbound_amneziawg.go:114-148), and the provider
+// reads them back into state. Anything the panel generates is therefore excluded
+// from ImportStateVerify — not because it drifts, but because a create-time
+// generated secret is not reproducible from configuration.
+//
+// mtu is the field the update step changes: it is plain, has no cross-field
+// constraint, and is one of the omitempty keys, so a change also exercises the
+// strip-and-restore path.
+func matrixAmneziawg() protocolMatrixEntry {
+	return protocolMatrixEntry{
+		protocol:   "amneziawg",
+		tfName:     "mx_awg",
+		port:       26011,
+		minVersion: "v3.7.0",
+		createHCL: func(port int) string {
+			return fmt.Sprintf(`
+resource "threexui_inbound" "mx_awg" {
+  port     = %d
+  protocol = "amneziawg"
+  remark   = "matrix-awg-create"
+  enable   = true
+  amneziawg_settings {
+    server {
+      subnet_ip   = "10.9.1.0"
+      subnet_cidr = 24
+      mtu         = 1380
+      primary_dns = "1.1.1.1"
+    }
+    clients {
+      email       = "matrix-awg-peer@test.com"
+      enable      = true
+      allowed_ips = ["10.9.1.2/32"]
+      # Required: the panel rejects a keyless AmneziaWG peer and does not
+      # generate one on the inbound path.
+      public_key = "dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXkxMjM0NQ=="
+    }
+  }
+}
+`, port)
+		},
+		updateHCL: func(port int) string {
+			return fmt.Sprintf(`
+resource "threexui_inbound" "mx_awg" {
+  port     = %d
+  protocol = "amneziawg"
+  remark   = "matrix-awg-updated"
+  enable   = true
+  amneziawg_settings {
+    server {
+      subnet_ip   = "10.9.1.0"
+      subnet_cidr = 24
+      mtu         = 1400
+      primary_dns = "1.1.1.1"
+    }
+    clients {
+      email       = "matrix-awg-peer@test.com"
+      enable      = true
+      allowed_ips = ["10.9.1.2/32"]
+      # Required: the panel rejects a keyless AmneziaWG peer and does not
+      # generate one on the inbound path.
+      public_key = "dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXkxMjM0NQ=="
+    }
+  }
+}
+`, port)
+		},
+		createChecks: func(addr string) []resource.TestCheckFunc {
+			return []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr(addr, "remark", "matrix-awg-create"),
+				resource.TestCheckResourceAttr(addr, "amneziawg_settings.server.mtu", "1380"),
+				resource.TestCheckResourceAttr(addr, "amneziawg_settings.server.subnet_ip", "10.9.1.0"),
+				resource.TestCheckResourceAttr(addr, "amneziawg_settings.clients.0.email", "matrix-awg-peer@test.com"),
+				// Generated server-side. `jc` must be checked for a non-zero value,
+				// not merely for being set: a partial server block used to come back
+				// with the whole obfuscation set zeroed, which is plain WireGuard
+				// wearing AmneziaWG's name, and TestCheckResourceAttrSet passes on
+				// "0".
+				resource.TestCheckResourceAttrSet(addr, "amneziawg_settings.server.public_key"),
+				resource.TestCheckResourceAttrWith(addr, "amneziawg_settings.server.jc", nonZeroAttr("jc")),
+				resource.TestCheckResourceAttrWith(addr, "amneziawg_settings.server.jmin", nonZeroAttr("jmin")),
+				resource.TestCheckResourceAttrWith(addr, "amneziawg_settings.server.s1", nonZeroAttr("s1")),
+				resource.TestCheckResourceAttrWith(addr, "amneziawg_settings.server.h1", func(v string) error {
+					if v == "" {
+						return fmt.Errorf("h1 is blank: the inbound has no magic-header obfuscation")
+					}
+					return nil
+				}),
+			}
+		},
+		updateChecks: func(addr string) []resource.TestCheckFunc {
+			return []resource.TestCheckFunc{
+				resource.TestCheckResourceAttr(addr, "remark", "matrix-awg-updated"),
+				resource.TestCheckResourceAttr(addr, "amneziawg_settings.server.mtu", "1400"),
+				// The peer must survive an inbound update rather than being
+				// dropped or re-keyed.
+				resource.TestCheckResourceAttr(addr, "amneziawg_settings.clients.0.email", "matrix-awg-peer@test.com"),
+			}
+		},
+		importStateVerifyIgnore: []string{
+			"amneziawg_settings.server.private_key",
+			"amneziawg_settings.server.header_protection_key",
+			"amneziawg_settings.clients.0.private_key",
+		},
+	}
+}
+
 func matrixDokodemo() protocolMatrixEntry {
 	return protocolMatrixEntry{
 		protocol:   "dokodemo-door",
@@ -831,5 +942,17 @@ resource "threexui_inbound" "mx_hysteria" {
 		// Client creation for hysteria is tested by TestAccInboundClientHysteria.
 		// Skipped here to reduce SQLite pressure at the end of a long test run.
 		hasClient: false,
+	}
+}
+
+// nonZeroAttr fails when an obfuscation parameter reads back as 0 — the shape a
+// partial server block produces when the panel is not allowed to generate the
+// set (#441).
+func nonZeroAttr(name string) func(string) error {
+	return func(v string) error {
+		if v == "" || v == "0" {
+			return fmt.Errorf("%s is %q: AmneziaWG obfuscation is disabled, the inbound is plain WireGuard", name, v)
+		}
+		return nil
 	}
 }

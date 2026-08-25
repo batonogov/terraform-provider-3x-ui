@@ -152,7 +152,7 @@ resource "threexui_inbound_client" "client_a" {
 
 | Resource | توضیح |
 | --- | --- |
-| `threexui_inbound` | اینباند (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria, mtproto؛ TUN از 3.2.7 و MTProto از 3.3.0) |
+| `threexui_inbound` | اینباند (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, amneziawg, tunnel, tun, hysteria, mtproto؛ TUN از 3.2.7، MTProto از 3.3.0 و AmneziaWG از 3.7.0) |
 | `threexui_inbound_client` | کلاینت داخل اینباند |
 | `threexui_node` | گره کلاستر / ثبت multi-node |
 | `threexui_panel_general` | تنظیمات عمومی پنل |

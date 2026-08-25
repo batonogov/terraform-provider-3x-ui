@@ -146,7 +146,7 @@ Tam belgeler [Terraform Registry](https://registry.terraform.io/providers/batono
 
 | Kaynak | Açıklama |
 | --- | --- |
-| `threexui_inbound` | Inbound proxy (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria, mtproto; TUN 3.2.7+, MTProto 3.3.0+) |
+| `threexui_inbound` | Inbound proxy (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, amneziawg, tunnel, tun, hysteria, mtproto; TUN 3.2.7+, MTProto 3.3.0+, AmneziaWG 3.7.0+) |
 | `threexui_inbound_client` | Bir inbound içindeki istemci |
 | `threexui_node` | Küme düğümü / multi-node kaydı |
 | `threexui_panel_general` | Genel panel ayarları |
