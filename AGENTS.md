@@ -116,7 +116,7 @@ Five resources — `panel_general`, `panel_security`, `panel_telegram`,
     `subClashRules`, `subClashEnableRouting`), detection/shape switches
     (`subJsonAutoDetect`, `subJsonAlwaysArray`, `subJsonUserAgentRegex`,
     `subClashAutoDetect`, `subClashUserAgentRegex`, `subEncrypt`, `subUpdates`,
-    `remarkTemplate`) and page presentation (`subTitle`, `subSupportUrl`,
+    `remarkTemplate` — which is read per request by the panel's own link provider too, but frozen at startup for the sub server) and page presentation (`subTitle`, `subSupportUrl`,
     `subProfileUrl`, `subAnnounce`, `subHideSettings`, `subEnableRouting`,
     `subRoutingRules`, `subIncyEnableRouting`, `subIncyRoutingRules`). `initRouter`
     freezes all of them into the `SUBController` it builds

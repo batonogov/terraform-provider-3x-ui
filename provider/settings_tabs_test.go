@@ -114,7 +114,13 @@ func TestPanelSettingsNeedRestart_SubscriptionLinkKeyNoRestart(t *testing.T) {
 // until the panel restarts (3x-ui-3.7.0/internal/sub/sub.go:50-301, reached only
 // from Start()). Changing one without a restart is a silent no-op: state matches
 // the panel while served subscriptions keep the old value (#443, same class as
-// #291). This pins the full list so a key cannot quietly fall out of the gate.
+// #291).
+//
+// This is a PIN, not a verification: it restates the list rather than deriving it
+// from upstream, so it catches a key being dropped from restartKeys but cannot
+// catch a key that upstream adds to initRouter and nobody adds here. The
+// derived-from-upstream check for that is the drift gate over AllSetting; when
+// adding a panel_subscription attribute, check initRouter by hand.
 func TestPanelSettingsNeedRestart_SubServerStartupKeys(t *testing.T) {
 	stringKeys := []string{
 		"subJsonPath", "subClashPath",
@@ -155,6 +161,20 @@ func TestPanelSettingsNeedRestart_PanelStartupKeys(t *testing.T) {
 	}
 	if !panelSettingsNeedRestart(map[string]any{"ldapSyncCron": "@every 1m"}, map[string]any{"ldapSyncCron": "@hourly"}) {
 		t.Error("expected restart when ldapSyncCron changes")
+	}
+}
+
+// A key the panel does not report at all (an older 3x-ui that predates it) but
+// which the plan wants to set counts as a change: the panel goes from "no value"
+// to "a value", and the sub server has to be rebuilt to pick it up. This is the
+// `!ok` branch of the loop, which no other test covers.
+func TestPanelSettingsNeedRestart_KeyAbsentFromPanel(t *testing.T) {
+	if !panelSettingsNeedRestart(map[string]any{}, map[string]any{"subJsonObservatory": "{}"}) {
+		t.Error("expected restart when a gated key is absent from the panel but present in the plan")
+	}
+	// ... but only for gated keys.
+	if panelSettingsNeedRestart(map[string]any{}, map[string]any{"subURI": "https://a/"}) {
+		t.Error("an absent non-gated key must not trigger a restart")
 	}
 }
 

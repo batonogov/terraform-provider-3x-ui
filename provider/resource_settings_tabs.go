@@ -1664,6 +1664,15 @@ func flattenPanelGeneral(in map[string]any) *PanelGeneralModel {
 
 var settingsMu sync.Mutex
 
+// panelRestartMu serializes provider-initiated panel restarts. It is separate
+// from settingsMu on purpose: the restart is issued *after* the settings lock is
+// released (a restart while holding it would block every other settings read for
+// the whole restart window). Without its own lock, panel_general and
+// panel_subscription — which Terraform applies concurrently when both are in the
+// graph — can each SendRestart and then WaitForReady against a panel the other
+// one is bouncing, so both wait on a moving target.
+var panelRestartMu sync.Mutex
+
 var panelSettingSecretKeys = []string{
 	"ldapPassword",
 	"twoFactorToken",
@@ -2123,9 +2132,11 @@ func (r *PanelGeneralResource) applyPanelGeneral(ctx context.Context, plan *Pane
 		settingsMu.Unlock()
 
 		if needRestart {
+			panelRestartMu.Lock()
 			// Send the restart request while basePath still points to the
 			// old path (where the panel is currently listening).
 			if err := r.client.SendRestart(ctx); err != nil {
+				panelRestartMu.Unlock()
 				diags.AddError("Failed to restart panel", err.Error())
 				return
 			}
@@ -2135,7 +2146,9 @@ func (r *PanelGeneralResource) applyPanelGeneral(ctx context.Context, plan *Pane
 				r.client.SetBasePath(stringValue(newPath))
 			}
 
-			if err := r.client.WaitForReady(ctx); err != nil {
+			err := r.client.WaitForReady(ctx)
+			panelRestartMu.Unlock()
+			if err != nil {
 				diags.AddError("Panel did not become ready after restart", err.Error())
 				return
 			}
@@ -2808,11 +2821,15 @@ func (r *PanelSubscriptionResource) applySubscription(ctx context.Context, plan 
 	// rebinds with the new settings. Mirrors applyPanelGeneral. No base-path
 	// handling here — the subscription server does not share the panel's webBasePath.
 	if needRestart {
+		panelRestartMu.Lock()
 		if err := r.client.SendRestart(ctx); err != nil {
+			panelRestartMu.Unlock()
 			diags.AddError("Failed to restart panel", err.Error())
 			return
 		}
-		if err := r.client.WaitForReady(ctx); err != nil {
+		err := r.client.WaitForReady(ctx)
+		panelRestartMu.Unlock()
+		if err != nil {
 			diags.AddError("Panel did not become ready after restart", err.Error())
 			return
 		}

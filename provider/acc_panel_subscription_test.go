@@ -172,9 +172,12 @@ func waitForSubscriptionReady(t *testing.T, subURL string) error {
 // outbound.Mux verbatim, and the per-inbound xmux override that would suppress it
 // only applies to xhttp streams — this inbound is plain tcp).
 func TestAccPanelSubscription_JsonBodySettingsTakeEffect(t *testing.T) {
+	// sub_path is deliberately NOT set here. It was already in restartKeys before
+	// #443, so a config that changes it would restart the panel on the old code
+	// too and the test would pass either way. Only keys this PR adds are changed,
+	// which is what makes the test a regression guard rather than a smoke test.
 	const (
 		subPort     = 2096
-		subPath     = "/sub3/"
 		subJSONPath = "/json3/"
 		// Distinctive value so a stale body cannot accidentally match.
 		muxConcurrency = 37
@@ -189,18 +192,16 @@ func TestAccPanelSubscription_JsonBodySettingsTakeEffect(t *testing.T) {
 				Config: testAccProviderConfig() + fmt.Sprintf(`
 resource "threexui_panel_subscription" "sub" {
   sub_enable      = true
-  sub_listen      = ""
-  sub_domain      = ""
-  sub_port        = %d
-  sub_path        = %q
-  sub_cert_file   = ""
-  sub_key_file    = ""
   sub_json_enable = true
   sub_json_path   = %q
   sub_json_mux    = "%s"
 }
 
 resource "threexui_inbound" "host" {
+  # The subscription apply restarts the panel; creating the inbound through the
+  # restart window would race the client's retry budget.
+  depends_on = [threexui_panel_subscription.sub]
+
   port     = 25211
   protocol = "vless"
   remark   = "acc-sub-json-body-host"
@@ -219,7 +220,7 @@ resource "threexui_inbound_client" "cli" {
   email      = "sub-json-body@test.com"
   enable     = true
 }
-`, subPort, subPath, subJSONPath, muxBlob),
+`, subJSONPath, muxBlob),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("threexui_panel_subscription.sub", "sub_json_path", subJSONPath),
 					resource.TestCheckResourceAttrWith("threexui_inbound_client.cli", "sub_id", func(subID string) error {
