@@ -69,6 +69,7 @@ type InboundResourceModel struct {
 	SocksSettings       *InboundSocksSettingsModel       `tfsdk:"socks_settings"`
 	MixedSettings       *InboundMixedSettingsModel       `tfsdk:"mixed_settings"`
 	WireguardSettings   *InboundWireguardSettingsModel   `tfsdk:"wireguard_settings"`
+	AmneziawgSettings   *InboundAmneziawgSettingsModel   `tfsdk:"amneziawg_settings"`
 	DokodemoSettings    *InboundDokodemoSettingsModel    `tfsdk:"dokodemo_settings"`
 	HysteriaSettings    *InboundHysteriaSettingsModel    `tfsdk:"hysteria_settings"`
 	MtprotoSettings     *InboundMtprotoSettingsModel     `tfsdk:"mtproto_settings"`
@@ -200,7 +201,7 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			},
 			"protocol": schema.StringAttribute{
 				Required:    true,
-				Description: "Protocol (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, tunnel, tun, hysteria, mtproto). socks and dokodemo-door are deprecated since 3x-ui v3.2.0 — use mixed and tunnel instead. tun is an alias for tunnel available since 3x-ui v3.2.7; mtproto is available since v3.3.0.",
+				Description: "Protocol (vless, vmess, trojan, shadowsocks, http, mixed, wireguard, amneziawg, tunnel, tun, hysteria, mtproto). socks and dokodemo-door are deprecated since 3x-ui v3.2.0 — use mixed and tunnel instead. tun is an alias for tunnel available since 3x-ui v3.2.7; mtproto is available since v3.3.0; amneziawg since v3.7.0.",
 				Validators:  protocolValidators(),
 			},
 			"tag": schema.StringAttribute{
@@ -248,6 +249,15 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 	}
 }
 
+// ConfigValidators enforces cross-attribute rules the schema alone cannot
+// express — currently only the AmneziaWG server block, whose absence would let
+// the panel rotate the server keypair on an unrelated update (#441).
+func (r *InboundResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		amneziawgServerRequiredValidator{},
+	}
+}
+
 func (r *InboundResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
@@ -288,6 +298,20 @@ func (r *InboundResource) Create(ctx context.Context, req resource.CreateRequest
 	if err := ensureInboundClientIDs(inbound); err != nil {
 		resp.Diagnostics.AddError("Failed to ensure inbound client IDs", err.Error())
 		return
+	}
+
+	// AmneziaWG: hold the configured server fields back so the panel generates a
+	// complete obfuscation set, then re-apply them below. See
+	// splitAmneziawgServer for why a partial block silently disables obfuscation.
+	var amneziawgServerOverrides map[string]any
+	if inbound.Protocol == "amneziawg" {
+		rest, overrides, splitErr := splitAmneziawgServer(inbound.Settings)
+		if splitErr != nil {
+			resp.Diagnostics.AddError("Failed to prepare AmneziaWG settings", splitErr.Error())
+			return
+		}
+		inbound.Settings = rest
+		amneziawgServerOverrides = overrides
 	}
 
 	// Acquire inboundClientMu if settings contains clients[] to serialise
@@ -347,6 +371,16 @@ func (r *InboundResource) Create(ctx context.Context, req resource.CreateRequest
 	}); retryErr != nil {
 		resp.Diagnostics.AddError("Failed to read created inbound", retryErr.Error())
 		return
+	}
+
+	// Second phase of the AmneziaWG create: the panel has now generated a full
+	// server block, so the configured fields can be laid over it without wiping
+	// the obfuscation parameters.
+	if settled, err := applyAmneziawgServerPhaseTwo(ctx, r.client, created, amneziawgServerOverrides); err != nil {
+		resp.Diagnostics.AddError("Failed to apply AmneziaWG server settings", err.Error())
+		return
+	} else {
+		created = settled
 	}
 
 	state, diags := inboundToModel(created, false)
@@ -777,6 +811,14 @@ func alignBlocksWithPlan(state *InboundResourceModel, plan *InboundResourceModel
 	if plan.WireguardSettings == nil {
 		state.WireguardSettings = nil
 	}
+	if plan.AmneziawgSettings == nil {
+		state.AmneziawgSettings = nil
+	} else if state.AmneziawgSettings != nil && plan.AmneziawgSettings.Server == nil {
+		// The nested server block follows the same rule as the top-level ones:
+		// a block absent from the configuration must stay absent in state, or the
+		// framework reports "was absent, but now present".
+		state.AmneziawgSettings.Server = nil
+	}
 	if plan.DokodemoSettings == nil {
 		state.DokodemoSettings = nil
 	}
@@ -902,6 +944,21 @@ func preserveInboundSettings(desired *Inbound, existing *Inbound) error {
 	existingSettings, err := ParseJSONField(existing.Settings)
 	if err != nil {
 		return err
+	}
+	// clients[] is only preserved for protocols whose clients belong to
+	// threexui_inbound_client. WireGuard and AmneziaWG peers are owned by the
+	// inbound itself, so copying the existing array back would make removing the
+	// last peer impossible: the plan drops it, this puts it straight back, and
+	// the apply fails with "block count changed from 0 to 1" while the peer keeps
+	// connecting.
+	if protocolOwnsClients(desired.Protocol) {
+		_ = preserveSettingsKey(desiredSettings, existingSettings, "testseed")
+		updated, err := json.Marshal(desiredSettings)
+		if err != nil {
+			return err
+		}
+		desired.Settings = string(updated)
+		return nil
 	}
 	if !preserveSettingsKey(desiredSettings, existingSettings, "clients") {
 		return nil
