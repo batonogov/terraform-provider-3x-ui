@@ -178,6 +178,49 @@ func TestPanelSettingsNeedRestart_KeyAbsentFromPanel(t *testing.T) {
 	}
 }
 
+// The panel registers its notifier cron jobs once, in web.Server.Start(): the
+// stats-notify schedule (internal/web/web.go:389), whether the Telegram bot's
+// jobs exist at all (web.go:387-403), and whether the CPU/memory alarm jobs are
+// registered for either notifier (web.go:408-412, :439-448, :469-478). Changing
+// any of them without a restart leaves the old schedule running (#449).
+func TestPanelSettingsNeedRestart_NotifierCronKeys(t *testing.T) {
+	for key, change := range map[string][2]any{
+		"tgRunTime":         {"@daily", "@every 6h"},
+		"tgEnabledEvents":   {"client.expiry", "client.expiry,cpu.high"},
+		"smtpEnabledEvents": {"", "memory.high"},
+	} {
+		if !panelSettingsNeedRestart(map[string]any{key: change[0]}, map[string]any{key: change[1]}) {
+			t.Errorf("expected restart when %s changes", key)
+		}
+	}
+	for _, key := range []string{"tgCpu", "tgMemory", "smtpCpu", "smtpMemory"} {
+		if !panelSettingsNeedRestart(map[string]any{key: float64(0)}, map[string]any{key: 80}) {
+			t.Errorf("expected restart when %s changes", key)
+		}
+	}
+	for _, key := range []string{"tgBotEnable", "smtpEnable"} {
+		if !panelSettingsNeedRestart(map[string]any{key: false}, map[string]any{key: true}) {
+			t.Errorf("expected restart when %s changes", key)
+		}
+	}
+}
+
+// The Telegram bot process is hot-reloaded by the panel, so its credentials must
+// NOT bounce the panel — only the settings that gate cron registration do.
+func TestPanelSettingsNeedRestart_HotReloadedKeysStayQuiet(t *testing.T) {
+	for key, change := range map[string][2]any{
+		"tgBotToken":     {"old", "new"},
+		"tgBotChatId":    {"1", "2"},
+		"tgBotAPIServer": {"", "https://api.example"},
+		"smtpHost":       {"old.example", "new.example"},
+		"smtpUser":       {"a@example", "b@example"},
+	} {
+		if panelSettingsNeedRestart(map[string]any{key: change[0]}, map[string]any{key: change[1]}) {
+			t.Errorf("%s is applied without a restart and must not trigger one", key)
+		}
+	}
+}
+
 // A restart is only justified by a real change: re-applying identical values for
 // the newly gated keys must stay quiet, or every no-op apply bounces the panel.
 func TestPanelSettingsNeedRestart_UnchangedSubServerKeysStayQuiet(t *testing.T) {

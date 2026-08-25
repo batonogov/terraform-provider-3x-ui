@@ -11,6 +11,8 @@ Manages the SMTP/email notification settings of the 3x-ui panel (3x-ui v3.4.0+).
 
 This is a singleton resource -- only one instance should exist per provider. Deleting this resource only removes it from Terraform state; it does not reset the settings.
 
+~> **Note:** Changing `smtp_enable`, `smtp_enabled_events`, `smtp_cpu` or `smtp_memory` triggers a **panel restart** and therefore brief panel downtime. Those four decide whether the CPU and memory alarm jobs are registered at all, and the panel makes that decision once at startup — without the restart the setting applies to the database and to Terraform state while no alarm job is running. The SMTP transport settings (`smtp_host`, `smtp_port`, `smtp_username`, `smtp_password`, `smtp_from`, …) are read per message and do **not** restart the panel. A restart fires only on an actual value change.
+
 ## Example Usage
 
 ```hcl

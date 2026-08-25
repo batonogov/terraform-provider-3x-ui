@@ -1691,20 +1691,44 @@ func settingsApplyTyped(
 	}
 
 	settingsMu.Lock()
-	defer settingsMu.Unlock()
 
 	existing, err := client.GetSettings(ctx)
 	if err != nil {
+		settingsMu.Unlock()
 		diags.AddError("Failed to get settings", err.Error())
 		return
 	}
 
+	// Computed before the write, while `existing` still describes the panel.
+	needRestart := panelSettingsNeedRestart(existing, desired)
+
 	merged := mergeSettingsForUpdate(client, existing, desired)
 	if err := client.UpdateSettings(ctx, merged); err != nil {
+		settingsMu.Unlock()
 		diags.AddError("Failed to update settings", err.Error())
 		return
 	}
 	client.rememberConfiguredSettingSecrets(desired)
+	settingsMu.Unlock()
+
+	// The panel registers its notifier cron jobs once, at startup, from
+	// settings owned by panel_telegram and panel_email — so those two resources
+	// need the same restart gate panel_general and panel_subscription have
+	// (#449). Restart outside settingsMu, and serialized against the other
+	// resources' restarts, exactly as they do.
+	if !needRestart {
+		return
+	}
+	panelRestartMu.Lock()
+	defer panelRestartMu.Unlock()
+	if err := client.SendRestart(ctx); err != nil {
+		diags.AddError("Failed to restart panel", err.Error())
+		return
+	}
+	if err := client.WaitForReady(ctx); err != nil {
+		diags.AddError("Panel did not become ready after restart", err.Error())
+		return
+	}
 }
 
 func settingsReadTyped(
@@ -2857,6 +2881,28 @@ func panelSettingsNeedRestart(existing, desired map[string]any) bool {
 		"timeLocation",
 		"ldapEnable",
 		"ldapSyncCron",
+		// Notifier cron registration (panel_telegram / panel_email). web.Server.Start()
+		// decides ONCE whether to register the periodic stats report and the CPU and
+		// memory alarm jobs, and on what schedule:
+		//   - tgRunTime is the stats-notify schedule (internal/web/web.go:389).
+		//   - tgBotEnable gates both the stats-notify job and the callback-hash
+		//     cleanup job (web.go:387-403). The bot process itself IS hot-reloaded
+		//     (controller/setting.go:165-172 → web.go:650), so a changed token or
+		//     chat id needs no restart — but toggling the bot without one leaves it
+		//     running with no periodic report.
+		//   - tgEnabledEvents/tgCpu/tgMemory and smtpEnable/smtpEnabledEvents/
+		//     smtpCpu/smtpMemory feed cpuAlarmWanted()/memoryAlarmWanted()
+		//     (web.go:408-412, :439-448, :469-478), which decide whether the alarm
+		//     jobs are registered at all — for either notifier.
+		"tgRunTime",
+		"tgBotEnable",
+		"tgEnabledEvents",
+		"tgCpu",
+		"tgMemory",
+		"smtpEnable",
+		"smtpEnabledEvents",
+		"smtpCpu",
+		"smtpMemory",
 		// Subscription server binding — parallels the web* keys above. The sub server is
 		// (re)initialised at panel startup, so changing whether/where it listens needs a
 		// panel restart; without it the subscription URL 404s until the panel is restarted.

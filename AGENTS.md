@@ -121,6 +121,17 @@ Five resources — `panel_general`, `panel_security`, `panel_telegram`,
     `subRoutingRules`, `subIncyEnableRouting`, `subIncyRoutingRules`). `initRouter`
     freezes all of them into the `SUBController` it builds
     (`3x-ui-3.7.0/internal/sub/sub.go:50-301`) and runs only from `Start()` (#443).
+  - `panel_telegram` / `panel_email`: the notifier cron registration, read once in
+    `web.Server.Start()` — `tgRunTime` (stats-notify schedule, `internal/web/web.go:389`),
+    `tgBotEnable` (whether the bot's cron jobs exist at all, `web.go:387-403`), and
+    `tgEnabledEvents`/`tgCpu`/`tgMemory` + `smtpEnable`/`smtpEnabledEvents`/`smtpCpu`/
+    `smtpMemory`, which feed `cpuAlarmWanted()`/`memoryAlarmWanted()` (`web.go:408-412`,
+    `:439-448`, `:469-478`) and decide whether the alarm jobs are registered for either
+    notifier (#449). These two resources share `settingsApplyTyped` with `panel_security`,
+    so the restart lives there; `panel_security` owns no startup-read key and stays quiet.
+    The bot **process** is hot-reloaded (`controller/setting.go:165-172` → `web.go:650`),
+    so `tgBotToken`/`tgBotChatId`/`tgBotAPIServer` do NOT restart — but toggling
+    `tgBotEnable` without one leaves the bot running with no periodic report.
   The 3x-ui sub server only (re)binds at startup, so without this restart a changed
   `sub_path`/`sub_port`/… does not take effect and the subscription URL 404s (#291).
   Only the three link-generation URIs (`subURI`, `subJsonURI`, `subClashURI`) are read

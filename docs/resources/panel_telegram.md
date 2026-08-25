@@ -11,6 +11,8 @@ Manages the Telegram bot integration settings of the 3x-ui panel.
 
 This is a singleton resource -- only one instance should exist per provider. Deleting this resource only removes it from Terraform state; it does not reset the settings.
 
+~> **Note:** Changing `tg_bot_enable`, `tg_run_time`, `tg_enabled_events`, `tg_cpu` or `tg_memory` triggers a **panel restart** and therefore brief panel downtime. The panel decides once at startup whether to register the periodic stats report and the CPU/memory alarm jobs, and on what schedule, so without the restart the change lands in the database and in Terraform state while the running panel keeps the old schedule — or never starts the job at all. The bot process itself is hot-reloaded, so `tg_bot_token`, `tg_bot_chat_id` and `tg_bot_api_server` take effect immediately and do **not** restart the panel. A restart fires only on an actual value change.
+
 ## Example Usage
 
 ```hcl
