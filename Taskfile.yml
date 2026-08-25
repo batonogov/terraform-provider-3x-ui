@@ -49,7 +49,7 @@ tasks:
         THREEXUI_USERNAME=admin
         THREEXUI_PASSWORD=admin
         THREEXUI_VERSION={{.THREEXUI_VERSION}}
-        go test ./provider -run TestAcc -count=1 -timeout 600s -v
+        go test ./provider -run TestAcc -count=1 -timeout 900s -v
 
   test:acc:compat:
     desc: Запустить acceptance-тесты совместимости (версионный пропуск)
@@ -79,7 +79,7 @@ tasks:
         THREEXUI_USERNAME=admin
         THREEXUI_PASSWORD=admin
         THREEXUI_VERSION={{.THREEXUI_VERSION}}
-        go test ./provider -run TestAcc -count=1 -timeout 600s -v
+        go test ./provider -run TestAcc -count=1 -timeout 900s -v
 
   test:acc:postgres:
     desc: Запустить acceptance-тесты с PostgreSQL бэкендом
@@ -108,7 +108,7 @@ tasks:
         THREEXUI_USERNAME=admin
         THREEXUI_PASSWORD=admin
         THREEXUI_VERSION={{.THREEXUI_VERSION}}
-        go test ./provider -run TestAcc -count=1 -timeout 600s -v
+        go test ./provider -run TestAcc -count=1 -timeout 900s -v
 
   _wait-for-xray:
     desc: Дождаться готовности xray-подсистемы внутри 3x-ui (внутренняя задача)

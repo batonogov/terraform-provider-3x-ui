@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -148,4 +149,140 @@ func waitForSubscriptionReady(t *testing.T, subURL string) error {
 		time.Sleep(wait)
 	}
 	return fmt.Errorf("subscription endpoint not ready after %d attempts: %w", attempts, lastErr)
+}
+
+// TestAccPanelSubscription_JsonBodySettingsTakeEffect is the end-to-end guard
+// for #443.
+//
+// The subscription server reads its JSON-body settings — sub_json_mux,
+// sub_json_rules, sub_json_final_mask and (v3.7.0+) sub_json_observatory — once,
+// inside (*sub.Server).initRouter(), which freezes them into the SUBController it
+// builds (3x-ui-3.7.0/internal/sub/sub.go:143-158, :251) and runs only from
+// Start(). Before #443 those keys were not in restartKeys, so `terraform apply`
+// wrote them to the panel database, state matched the panel, and every served
+// JSON subscription kept the OLD body indefinitely — the same silent no-op class
+// as #291.
+//
+// The test asserts the user-visible contract rather than the restart itself: it
+// applies a non-default sub_json_path together with a mux blob carrying a
+// recognisable concurrency value, then GETs the JSON subscription. Two things
+// have to be true for that to pass, and both require the router to have been
+// rebuilt: the new path must be registered (otherwise 404), and the served
+// outbound must carry the configured mux (json_service.go:519-534 copies it into
+// outbound.Mux verbatim, and the per-inbound xmux override that would suppress it
+// only applies to xhttp streams — this inbound is plain tcp).
+func TestAccPanelSubscription_JsonBodySettingsTakeEffect(t *testing.T) {
+	// sub_path is deliberately NOT set here. It was already in restartKeys before
+	// #443, so a config that changes it would restart the panel on the old code
+	// too and the test would pass either way. Only keys this PR adds are changed,
+	// which is what makes the test a regression guard rather than a smoke test.
+	const (
+		subPort     = 2096
+		subJSONPath = "/json3/"
+		// Distinctive value so a stale body cannot accidentally match.
+		muxConcurrency = 37
+	)
+	muxBlob := fmt.Sprintf(`{\"enabled\":true,\"concurrency\":%d}`, muxConcurrency)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfig() + fmt.Sprintf(`
+resource "threexui_panel_subscription" "sub" {
+  sub_enable      = true
+  sub_json_enable = true
+  sub_json_path   = %q
+  sub_json_mux    = "%s"
+}
+
+resource "threexui_inbound" "host" {
+  # The subscription apply restarts the panel; creating the inbound through the
+  # restart window would race the client's retry budget.
+  depends_on = [threexui_panel_subscription.sub]
+
+  port     = 25211
+  protocol = "vless"
+  remark   = "acc-sub-json-body-host"
+  enable   = true
+  vless_settings {
+    decryption = "none"
+  }
+  stream_settings {
+    network  = "tcp"
+    security = "none"
+  }
+}
+
+resource "threexui_inbound_client" "cli" {
+  inbound_id = threexui_inbound.host.id
+  email      = "sub-json-body@test.com"
+  enable     = true
+}
+`, subJSONPath, muxBlob),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("threexui_panel_subscription.sub", "sub_json_path", subJSONPath),
+					resource.TestCheckResourceAttrWith("threexui_inbound_client.cli", "sub_id", func(subID string) error {
+						if subID == "" {
+							return fmt.Errorf("client sub_id is empty; cannot probe the JSON subscription endpoint")
+						}
+						jsonURL := subscriptionTestURL(t, subPort, subJSONPath, subID)
+						body, err := waitForSubscriptionBody(t, jsonURL)
+						if err != nil {
+							return err
+						}
+						// The panel re-marshals the blob, so match on the value, not on the
+						// exact spacing of the JSON we sent.
+						if !strings.Contains(strings.ReplaceAll(body, " ", ""), fmt.Sprintf(`"concurrency":%d`, muxConcurrency)) {
+							return fmt.Errorf("JSON subscription does not carry the configured mux (want concurrency %d); "+
+								"the sub server is still serving a pre-restart body. Got: %s",
+								muxConcurrency, truncateForError(body))
+						}
+						return nil
+					}),
+				),
+			},
+		},
+	})
+}
+
+// waitForSubscriptionBody polls a subscription endpoint until it answers HTTP 200
+// and returns the response body, covering the panel-restart window.
+func waitForSubscriptionBody(t *testing.T, subURL string) (string, error) {
+	t.Helper()
+	client := &http.Client{Timeout: 3 * time.Second}
+	const (
+		attempts = 60
+		wait     = 1 * time.Second
+	)
+	var lastErr error
+	for i := 0; i < attempts; i++ {
+		resp, err := client.Get(subURL)
+		if err == nil {
+			body, readErr := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK && readErr == nil {
+				t.Logf("subscription endpoint ready at %s after %d attempt(s)", subURL, i+1)
+				return string(body), nil
+			}
+			if readErr != nil {
+				lastErr = fmt.Errorf("reading subscription body: %w", readErr)
+			} else {
+				lastErr = fmt.Errorf("subscription endpoint returned HTTP %d (want 200)", resp.StatusCode)
+			}
+		} else {
+			lastErr = fmt.Errorf("subscription endpoint not reachable: %w", err)
+		}
+		time.Sleep(wait)
+	}
+	return "", fmt.Errorf("subscription endpoint not ready after %d attempts: %w", attempts, lastErr)
+}
+
+func truncateForError(s string) string {
+	const max = 400
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "…(truncated)"
 }

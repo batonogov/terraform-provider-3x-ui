@@ -100,9 +100,103 @@ func TestPanelSettingsNeedRestart_SubscriptionServerKey(t *testing.T) {
 }
 
 func TestPanelSettingsNeedRestart_SubscriptionLinkKeyNoRestart(t *testing.T) {
-	// Link-generation settings (read at request time) must NOT force a restart.
-	if panelSettingsNeedRestart(map[string]any{"subURI": "https://a/"}, map[string]any{"subURI": "https://b/"}) {
-		t.Fatalf("expected no restart for subURI (link-generation only)")
+	// The three *URI settings are the only subscription keys read at request time
+	// (internal/sub/service.go:2704-2706); everything else initRouter touches is
+	// frozen at startup and IS gated below.
+	for _, key := range []string{"subURI", "subJsonURI", "subClashURI"} {
+		if panelSettingsNeedRestart(map[string]any{key: "https://a/"}, map[string]any{key: "https://b/"}) {
+			t.Errorf("expected no restart for %s (link-generation only)", key)
+		}
+	}
+}
+
+// Every setting (*sub.Server).initRouter() reads is frozen into the SUBController
+// until the panel restarts (3x-ui-3.7.0/internal/sub/sub.go:50-301, reached only
+// from Start()). Changing one without a restart is a silent no-op: state matches
+// the panel while served subscriptions keep the old value (#443, same class as
+// #291).
+//
+// This is a PIN, not a verification: it restates the list rather than deriving it
+// from upstream, so it catches a key being dropped from restartKeys but cannot
+// catch a key that upstream adds to initRouter and nobody adds here. The
+// derived-from-upstream check for that is the drift gate over AllSetting; when
+// adding a panel_subscription attribute, check initRouter by hand.
+func TestPanelSettingsNeedRestart_SubServerStartupKeys(t *testing.T) {
+	stringKeys := []string{
+		"subJsonPath", "subClashPath",
+		"subJsonMux", "subJsonRules", "subJsonFinalMask", "subJsonObservatory",
+		"subClashRules", "subJsonUserAgentRegex", "subClashUserAgentRegex",
+		"subUpdates", "remarkTemplate",
+		"subTitle", "subSupportUrl", "subProfileUrl", "subAnnounce",
+		"subRoutingRules", "subIncyRoutingRules",
+	}
+	for _, key := range stringKeys {
+		if !panelSettingsNeedRestart(map[string]any{key: "old"}, map[string]any{key: "new"}) {
+			t.Errorf("expected restart when %s changes", key)
+		}
+	}
+
+	boolKeys := []string{
+		"subJsonEnable", "subClashEnable",
+		"subJsonAutoDetect", "subJsonAlwaysArray", "subClashAutoDetect",
+		"subClashEnableRouting", "subEncrypt", "subHideSettings",
+		"subEnableRouting", "subIncyEnableRouting",
+	}
+	for _, key := range boolKeys {
+		if !panelSettingsNeedRestart(map[string]any{key: false}, map[string]any{key: true}) {
+			t.Errorf("expected restart when %s changes", key)
+		}
+	}
+}
+
+// The panel's own cron wiring is read once in web.Server.Start(): the timezone
+// every job is scheduled in (internal/web/web.go:503) and whether the LDAP sync
+// job is registered at all, on what schedule (web.go:376-383).
+func TestPanelSettingsNeedRestart_PanelStartupKeys(t *testing.T) {
+	if !panelSettingsNeedRestart(map[string]any{"timeLocation": "UTC"}, map[string]any{"timeLocation": "Europe/Moscow"}) {
+		t.Error("expected restart when timeLocation changes")
+	}
+	if !panelSettingsNeedRestart(map[string]any{"ldapEnable": false}, map[string]any{"ldapEnable": true}) {
+		t.Error("expected restart when ldapEnable changes")
+	}
+	if !panelSettingsNeedRestart(map[string]any{"ldapSyncCron": "@every 1m"}, map[string]any{"ldapSyncCron": "@hourly"}) {
+		t.Error("expected restart when ldapSyncCron changes")
+	}
+}
+
+// A key the panel does not report at all (an older 3x-ui that predates it) but
+// which the plan wants to set counts as a change: the panel goes from "no value"
+// to "a value", and the sub server has to be rebuilt to pick it up. This is the
+// `!ok` branch of the loop, which no other test covers.
+func TestPanelSettingsNeedRestart_KeyAbsentFromPanel(t *testing.T) {
+	if !panelSettingsNeedRestart(map[string]any{}, map[string]any{"subJsonObservatory": "{}"}) {
+		t.Error("expected restart when a gated key is absent from the panel but present in the plan")
+	}
+	// ... but only for gated keys.
+	if panelSettingsNeedRestart(map[string]any{}, map[string]any{"subURI": "https://a/"}) {
+		t.Error("an absent non-gated key must not trigger a restart")
+	}
+}
+
+// A restart is only justified by a real change: re-applying identical values for
+// the newly gated keys must stay quiet, or every no-op apply bounces the panel.
+func TestPanelSettingsNeedRestart_UnchangedSubServerKeysStayQuiet(t *testing.T) {
+	settings := map[string]any{
+		"subJsonMux":         `{"enabled":true}`,
+		"subJsonRules":       "[]",
+		"subJsonObservatory": "",
+		"subTitle":           "My subscription",
+		"subJsonEnable":      true,
+		"subJsonPath":        "/json/",
+		"timeLocation":       "UTC",
+		"ldapEnable":         false,
+	}
+	same := make(map[string]any, len(settings))
+	for k, v := range settings {
+		same[k] = v
+	}
+	if panelSettingsNeedRestart(settings, same) {
+		t.Fatal("expected no restart when nothing changed")
 	}
 }
 
