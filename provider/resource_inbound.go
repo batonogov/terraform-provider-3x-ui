@@ -558,6 +558,9 @@ func (r *InboundResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 
+	// Peers owned by the inbound have to go first — see releaseInboundOwnedPeers.
+	releaseInboundOwnedPeers(ctx, r.client, id, state.Protocol.ValueString(), &state, &resp.Diagnostics)
+
 	if err := r.client.DeleteInbound(ctx, id); err != nil {
 		resp.Diagnostics.AddError("Failed to delete inbound", err.Error())
 		return

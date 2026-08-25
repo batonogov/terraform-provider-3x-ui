@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -849,4 +850,93 @@ func applyAmneziawgServerPhaseTwo(ctx context.Context, client *Client, created *
 		return nil, fmt.Errorf("reading the inbound back after applying server settings: %w", err)
 	}
 	return settled, nil
+}
+
+// ---------------------------------------------------------------------------
+// Peer cleanup on delete
+// ---------------------------------------------------------------------------
+
+// releaseInboundOwnedPeers deletes an inbound's peers through the per-client
+// endpoint before the inbound itself is removed (#452).
+//
+// 3x-ui's DelInbound removes the inbound and, via ClientService.DetachInbound
+// (3x-ui-3.7.0/internal/web/service/client_link.go:291-296), the
+// client_inbounds link rows — but not the `clients` rows, which carry the
+// unique index on `email`. Peers owned by threexui_inbound rather than by
+// threexui_inbound_client (WireGuard clients[] since v3.4.2, AmneziaWG since
+// v3.7.0) are therefore left behind holding their address, and a later
+// `terraform apply` that recreates the same inbound fails with
+// "Duplicate email: <address>" naming a client the practitioner can no longer
+// see. Deleting each peer first frees the row; verified against a live v3.7.0
+// panel, where the same create/delete/create sequence fails without this and
+// succeeds with it.
+//
+// Only protocols whose peers the inbound owns are touched. For everything else
+// clients[] belongs to threexui_inbound_client, which deletes its own rows
+// through the same endpoint — reaching into them from here would delete
+// resources Terraform still tracks.
+//
+// Failures are reported as warnings rather than errors: the inbound delete is
+// what the practitioner asked for, and refusing to proceed because a peer row
+// could not be freed would strand the resource in state. The warning names the
+// email so the leftover can be cleaned up by hand.
+func releaseInboundOwnedPeers(ctx context.Context, client *Client, inboundID int, protocol string, state *InboundResourceModel, diags *diag.Diagnostics) {
+	if !protocolOwnsClients(protocol) || state == nil {
+		return
+	}
+
+	emails := inboundOwnedPeerEmails(protocol, state)
+	if len(emails) == 0 {
+		return
+	}
+
+	// Serialise against threexui_inbound_client's read-modify-write cycles, the
+	// same lock the create and update paths take when settings carry clients[].
+	inboundClientMu.Lock()
+	defer inboundClientMu.Unlock()
+
+	for _, email := range emails {
+		// The v3.1.0+ endpoint keys on email; the legacy fallback wants a client
+		// id, which these peers do not have, so email stands in for both.
+		if err := client.DeleteInboundClient(ctx, inboundID, email, email); err != nil {
+			diags.AddWarning(
+				"Could not release peer email before deleting the inbound",
+				fmt.Sprintf("The peer %q could not be deleted (%s). The inbound will still be removed, but 3x-ui keeps the "+
+					"client row, so recreating this inbound with the same peer email will fail with a duplicate-email error. "+
+					"Delete the leftover client in the panel, or use a different email.", email, err.Error()),
+			)
+		}
+	}
+}
+
+// inboundOwnedPeerEmails collects the peer emails recorded in state for the
+// protocols whose clients the inbound owns.
+func inboundOwnedPeerEmails(protocol string, state *InboundResourceModel) []string {
+	var emails []string
+	add := func(v types.String) {
+		if v.IsNull() || v.IsUnknown() {
+			return
+		}
+		if email := v.ValueString(); email != "" {
+			emails = append(emails, email)
+		}
+	}
+
+	switch protocol {
+	case "amneziawg":
+		if state.AmneziawgSettings == nil {
+			return nil
+		}
+		for _, c := range state.AmneziawgSettings.Clients {
+			add(c.Email)
+		}
+	case "wireguard":
+		if state.WireguardSettings == nil {
+			return nil
+		}
+		for _, c := range state.WireguardSettings.Clients {
+			add(c.Email)
+		}
+	}
+	return emails
 }

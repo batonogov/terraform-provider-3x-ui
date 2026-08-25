@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -965,6 +967,146 @@ func TestApplyAmneziawgServerPhaseTwo(t *testing.T) {
 		if _, err := applyAmneziawgServerPhaseTwo(context.Background(), client,
 			&Inbound{ID: 7, Settings: `{"server":`}, map[string]any{"subnetIp": "10.9.1.0"}); err == nil {
 			t.Error("expected a parse error")
+		}
+	})
+}
+
+// Peers are only released for the protocols whose clients the inbound owns.
+// Reaching into any other protocol's clients[] would delete rows that
+// threexui_inbound_client still tracks in its own state.
+func TestInboundOwnedPeerEmails(t *testing.T) {
+	awg := &InboundResourceModel{AmneziawgSettings: &InboundAmneziawgSettingsModel{
+		Clients: []InboundAmneziawgClientModel{
+			{Email: types.StringValue("a@test.com")},
+			{Email: types.StringValue("b@test.com")},
+			{Email: types.StringNull()},    // never created
+			{Email: types.StringValue("")}, // nothing to release
+			{Email: types.StringUnknown()}, // not known at destroy time
+		},
+	}}
+	if got := inboundOwnedPeerEmails("amneziawg", awg); len(got) != 2 || got[0] != "a@test.com" || got[1] != "b@test.com" {
+		t.Errorf("amneziawg peers = %v, want the two real emails", got)
+	}
+
+	wg := &InboundResourceModel{WireguardSettings: &InboundWireguardSettingsModel{
+		Clients: []InboundWireguardClientModel{{Email: types.StringValue("wg@test.com")}},
+	}}
+	if got := inboundOwnedPeerEmails("wireguard", wg); len(got) != 1 || got[0] != "wg@test.com" {
+		t.Errorf("wireguard peers = %v", got)
+	}
+
+	// A wireguard inbound using the legacy peer[] block has no emails to free.
+	if got := inboundOwnedPeerEmails("wireguard", &InboundResourceModel{
+		WireguardSettings: &InboundWireguardSettingsModel{Peer: []InboundWireguardPeerModel{{}}},
+	}); len(got) != 0 {
+		t.Errorf("legacy peer[] carries no emails, got %v", got)
+	}
+
+	for _, protocol := range []string{"vless", "vmess", "trojan", "mtproto"} {
+		if got := inboundOwnedPeerEmails(protocol, awg); len(got) != 0 {
+			t.Errorf("%s clients belong to threexui_inbound_client and must not be touched, got %v", protocol, got)
+		}
+	}
+	if got := inboundOwnedPeerEmails("amneziawg", &InboundResourceModel{}); len(got) != 0 {
+		t.Errorf("a model without the block yields nothing, got %v", got)
+	}
+}
+
+func TestReleaseInboundOwnedPeers(t *testing.T) {
+	newClient := func(t *testing.T, deleted *[]string, mu *sync.Mutex, fail bool) *Client {
+		t.Helper()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.URL.Path == "/login":
+				_, _ = w.Write(okResponse(nil))
+			case strings.Contains(r.URL.Path, "/panel/api/clients/del/"):
+				if fail {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				parts := strings.Split(r.URL.Path, "/")
+				mu.Lock()
+				*deleted = append(*deleted, parts[len(parts)-1])
+				mu.Unlock()
+				_, _ = w.Write(okResponse(nil))
+			case strings.HasPrefix(r.URL.Path, "/panel/api/clients/list"):
+				// Probed once to pick the v3.1.0+ client API.
+				_, _ = w.Write(okResponse([]any{}))
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+		t.Cleanup(srv.Close)
+		return newTestClient(t, srv.URL)
+	}
+
+	state := &InboundResourceModel{AmneziawgSettings: &InboundAmneziawgSettingsModel{
+		Clients: []InboundAmneziawgClientModel{
+			{Email: types.StringValue("one@test.com")},
+			{Email: types.StringValue("two@test.com")},
+		},
+	}}
+
+	t.Run("peers are deleted before the inbound", func(t *testing.T) {
+		var deleted []string
+		var mu sync.Mutex
+		client := newClient(t, &deleted, &mu, false)
+
+		var d diag.Diagnostics
+		releaseInboundOwnedPeers(context.Background(), client, 7, "amneziawg", state, &d)
+
+		if d.HasError() {
+			t.Fatalf("unexpected errors: %v", d.Errors())
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if len(deleted) != 2 {
+			t.Fatalf("expected both peers deleted, got %v", deleted)
+		}
+	})
+
+	t.Run("a protocol that does not own its clients is untouched", func(t *testing.T) {
+		var deleted []string
+		var mu sync.Mutex
+		client := newClient(t, &deleted, &mu, false)
+
+		var d diag.Diagnostics
+		releaseInboundOwnedPeers(context.Background(), client, 7, "vless", state, &d)
+
+		mu.Lock()
+		defer mu.Unlock()
+		if len(deleted) != 0 {
+			t.Errorf("vless clients belong to threexui_inbound_client, got %v", deleted)
+		}
+	})
+
+	t.Run("a failure warns but does not block the delete", func(t *testing.T) {
+		var deleted []string
+		var mu sync.Mutex
+		client := newClient(t, &deleted, &mu, true)
+
+		var d diag.Diagnostics
+		releaseInboundOwnedPeers(context.Background(), client, 7, "amneziawg", state, &d)
+
+		if d.HasError() {
+			t.Error("a peer that cannot be released must not fail the destroy")
+		}
+		if d.WarningsCount() != 2 {
+			t.Errorf("expected a warning naming each stranded peer, got %d", d.WarningsCount())
+		}
+	})
+
+	t.Run("nothing to release is a no-op", func(t *testing.T) {
+		var deleted []string
+		var mu sync.Mutex
+		client := newClient(t, &deleted, &mu, true)
+
+		var d diag.Diagnostics
+		releaseInboundOwnedPeers(context.Background(), client, 7, "amneziawg", &InboundResourceModel{}, &d)
+		releaseInboundOwnedPeers(context.Background(), client, 7, "amneziawg", nil, &d)
+
+		if d.HasError() || d.WarningsCount() != 0 {
+			t.Errorf("expected silence, got %v", d)
 		}
 	})
 }
