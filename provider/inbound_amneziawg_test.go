@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -732,5 +733,131 @@ func TestFlattenAmneziawgInboundSettings_Edges(t *testing.T) {
 	// differently.
 	if !got.Clients[0].AllowedIPs.IsNull() {
 		t.Errorf("absent allowedIPs should read as null, got %v", got.Clients[0].AllowedIPs)
+	}
+}
+
+// preserveInboundSettings must not resurrect peers the plan removed for
+// protocols where the inbound owns clients[], and must keep preserving them for
+// the protocols where threexui_inbound_client does.
+func TestPreserveInboundSettings_ClientOwnership(t *testing.T) {
+	existingWithClients := `{"clients":[{"email":"kept@test.com"}],"testseed":[900,500]}`
+
+	t.Run("amneziawg peer removal survives", func(t *testing.T) {
+		desired := &Inbound{Protocol: "amneziawg", Settings: `{"server":{"subnetIp":"10.8.1.0"}}`}
+		existing := &Inbound{Protocol: "amneziawg", Settings: existingWithClients}
+
+		if err := preserveInboundSettings(desired, existing); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if strings.Contains(desired.Settings, "kept@test.com") {
+			t.Errorf("the removed peer was put back, so the last peer could never be deleted: %s", desired.Settings)
+		}
+		if !strings.Contains(desired.Settings, "10.8.1.0") {
+			t.Errorf("the server block was lost: %s", desired.Settings)
+		}
+	})
+
+	t.Run("wireguard peer removal survives", func(t *testing.T) {
+		desired := &Inbound{Protocol: "wireguard", Settings: `{"mtu":[1420]}`}
+		existing := &Inbound{Protocol: "wireguard", Settings: existingWithClients}
+
+		if err := preserveInboundSettings(desired, existing); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if strings.Contains(desired.Settings, "kept@test.com") {
+			t.Errorf("the removed peer was put back: %s", desired.Settings)
+		}
+	})
+
+	t.Run("vless clients are still preserved", func(t *testing.T) {
+		desired := &Inbound{Protocol: "vless", Settings: `{"decryption":"none"}`}
+		existing := &Inbound{Protocol: "vless", Settings: existingWithClients}
+
+		if err := preserveInboundSettings(desired, existing); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !strings.Contains(desired.Settings, "kept@test.com") {
+			t.Errorf("clients owned by threexui_inbound_client must be preserved: %s", desired.Settings)
+		}
+	})
+
+	t.Run("testseed is preserved for inbound-owned protocols too", func(t *testing.T) {
+		desired := &Inbound{Protocol: "amneziawg", Settings: `{"server":{}}`}
+		existing := &Inbound{Protocol: "amneziawg", Settings: existingWithClients}
+
+		if err := preserveInboundSettings(desired, existing); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !strings.Contains(desired.Settings, "testseed") {
+			t.Errorf("testseed should still be carried over: %s", desired.Settings)
+		}
+	})
+}
+
+// alignBlocksWithPlan nils blocks the configuration does not declare, so the
+// framework does not report "was absent, but now present". The nested server
+// block needs the same treatment as the top-level ones.
+func TestAlignBlocksWithPlan_AmneziawgServer(t *testing.T) {
+	t.Run("whole block absent from plan", func(t *testing.T) {
+		state := &InboundResourceModel{AmneziawgSettings: &InboundAmneziawgSettingsModel{Server: &InboundAmneziawgServerModel{}}}
+		alignBlocksWithPlan(state, &InboundResourceModel{})
+		if state.AmneziawgSettings != nil {
+			t.Error("amneziawg_settings should be nil when the plan has no block")
+		}
+	})
+
+	t.Run("block present, nested server absent", func(t *testing.T) {
+		state := &InboundResourceModel{AmneziawgSettings: &InboundAmneziawgSettingsModel{
+			Server:  &InboundAmneziawgServerModel{},
+			Clients: []InboundAmneziawgClientModel{{Email: types.StringValue("a@b.c")}},
+		}}
+		plan := &InboundResourceModel{AmneziawgSettings: &InboundAmneziawgSettingsModel{}}
+
+		alignBlocksWithPlan(state, plan)
+
+		if state.AmneziawgSettings == nil {
+			t.Fatal("the block itself was declared and must survive")
+		}
+		if state.AmneziawgSettings.Server != nil {
+			t.Error("the nested server block should be nil when the plan does not declare it")
+		}
+		if len(state.AmneziawgSettings.Clients) != 1 {
+			t.Error("clients must not be touched by the server alignment")
+		}
+	})
+
+	t.Run("both declared", func(t *testing.T) {
+		state := &InboundResourceModel{AmneziawgSettings: &InboundAmneziawgSettingsModel{Server: &InboundAmneziawgServerModel{}}}
+		plan := &InboundResourceModel{AmneziawgSettings: &InboundAmneziawgSettingsModel{Server: &InboundAmneziawgServerModel{}}}
+
+		alignBlocksWithPlan(state, plan)
+
+		if state.AmneziawgSettings == nil || state.AmneziawgSettings.Server == nil {
+			t.Error("a declared server block must survive")
+		}
+	})
+}
+
+// A malformed blob from the panel must surface as an error rather than a
+// half-applied merge.
+func TestApplyAmneziawgServerOverrides_InvalidJSON(t *testing.T) {
+	if _, _, err := applyAmneziawgServerOverrides(`{"server":`, map[string]any{"mtu": 1380}); err == nil {
+		t.Error("expected an error on malformed generated settings")
+	}
+}
+
+// A blob with no server object at all still has to accept the overrides — the
+// panel is expected to have produced one, but the merge must not silently drop
+// the configuration if it did not.
+func TestApplyAmneziawgServerOverrides_NoServerInPayload(t *testing.T) {
+	merged, changed, err := applyAmneziawgServerOverrides(`{"clients":[]}`, map[string]any{"subnetIp": "10.9.1.0"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected the merge to report a change")
+	}
+	if !strings.Contains(merged, "10.9.1.0") {
+		t.Errorf("configured value lost: %s", merged)
 	}
 }
