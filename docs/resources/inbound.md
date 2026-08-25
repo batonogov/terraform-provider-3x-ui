@@ -381,6 +381,8 @@ The provider creates an AmneziaWG inbound in two steps: first without this block
 
 ##### `clients` (Optional, Block List)
 
+~> **Note:** Deleting an AmneziaWG inbound does not free its peers' `email` values. The panel drops the inbound-to-client links but keeps the client rows, which carry a unique index on `email`, so re-creating the inbound with the same peer emails fails with `Duplicate email: <address>`. Use fresh emails after a destroy, or remove the leftover clients in the panel first. `wireguard_settings.clients` behaves the same way.
+
 ~> **Note:** Deleting an AmneziaWG inbound does not free its peers' `email` values. The panel removes the inbound-to-client links but keeps the client rows, which carry a unique index on `email`, so re-creating the inbound with the same peer emails fails with `Duplicate email`. Use fresh emails after a destroy, or remove the leftover clients in the panel first. The same applies to `wireguard_settings.clients`.
 
 - `email` (Optional+Computed, String) - Peer identifier. The panel keys traffic counters on it and requires a non-empty unique value, so set it even though the schema marks it Optional.
