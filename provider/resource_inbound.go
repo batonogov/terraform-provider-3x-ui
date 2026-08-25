@@ -243,6 +243,15 @@ func (r *InboundResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 	}
 }
 
+// ConfigValidators enforces cross-attribute rules the schema alone cannot
+// express — currently only the AmneziaWG server block, whose absence would let
+// the panel rotate the server keypair on an unrelated update (#441).
+func (r *InboundResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		amneziawgServerRequiredValidator{},
+	}
+}
+
 func (r *InboundResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return

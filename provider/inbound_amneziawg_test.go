@@ -1,10 +1,13 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -317,4 +320,103 @@ func TestAmneziawgSettingsBlockShape(t *testing.T) {
 		t.Errorf("server block has %d attributes, expected %d — update the model, the docs and this list together",
 			len(server.Attributes), len(want))
 	}
+}
+
+// The validator is the only thing standing between a practitioner and a silent
+// server-key rotation, so it has to fire on exactly the right configurations.
+func TestAmneziawgServerRequiredValidator(t *testing.T) {
+	cases := []struct {
+		name      string
+		model     InboundResourceModel
+		wantError bool
+	}{
+		{
+			name: "amneziawg without a settings block is rejected",
+			model: InboundResourceModel{
+				Protocol: types.StringValue("amneziawg"),
+			},
+			wantError: true,
+		},
+		{
+			name: "amneziawg with settings but no server block is rejected",
+			model: InboundResourceModel{
+				Protocol:          types.StringValue("amneziawg"),
+				AmneziawgSettings: &InboundAmneziawgSettingsModel{},
+			},
+			wantError: true,
+		},
+		{
+			name: "an empty server block is enough — the panel fills it in",
+			model: InboundResourceModel{
+				Protocol: types.StringValue("amneziawg"),
+				AmneziawgSettings: &InboundAmneziawgSettingsModel{
+					Server: &InboundAmneziawgServerModel{},
+				},
+			},
+		},
+		{
+			name: "other protocols are untouched",
+			model: InboundResourceModel{
+				Protocol: types.StringValue("wireguard"),
+			},
+		},
+		{
+			name: "an unknown protocol cannot be checked here",
+			model: InboundResourceModel{
+				Protocol: types.StringUnknown(),
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotError := amneziawgConfigRejected(t, tc.model)
+			if gotError != tc.wantError {
+				t.Errorf("validator error = %v, want %v", gotError, tc.wantError)
+			}
+		})
+	}
+}
+
+// amneziawgConfigRejected runs the validator against a config built from model
+// and reports whether it produced an error diagnostic.
+func amneziawgConfigRejected(t *testing.T, model InboundResourceModel) bool {
+	t.Helper()
+
+	var schemaResp resource.SchemaResponse
+	(&InboundResource{}).Schema(context.Background(), resource.SchemaRequest{}, &schemaResp)
+	if schemaResp.Diagnostics.HasError() {
+		t.Fatalf("building schema: %v", schemaResp.Diagnostics)
+	}
+
+	ctx := context.Background()
+	obj, diags := types.ObjectValueFrom(ctx, schemaResp.Schema.Type().(types.ObjectType).AttrTypes, model)
+	if diags.HasError() {
+		t.Fatalf("building config object: %v", diags)
+	}
+	raw, err := obj.ToTerraformValue(ctx)
+	if err != nil {
+		t.Fatalf("converting config object: %v", err)
+	}
+
+	req := resource.ValidateConfigRequest{
+		Config: tfsdk.Config{Raw: raw, Schema: schemaResp.Schema},
+	}
+	resp := &resource.ValidateConfigResponse{}
+	amneziawgServerRequiredValidator{}.ValidateResource(ctx, req, resp)
+	return resp.Diagnostics.HasError()
+}
+
+// The validator has to be wired into the resource, or it never runs.
+func TestInboundResourceRegistersAmneziawgValidator(t *testing.T) {
+	validators := (&InboundResource{}).ConfigValidators(context.Background())
+	for _, v := range validators {
+		if _, ok := v.(amneziawgServerRequiredValidator); ok {
+			if v.Description(context.Background()) == "" {
+				t.Error("validator must describe itself")
+			}
+			return
+		}
+	}
+	t.Fatalf("threexui_inbound does not register the amneziawg server validator (got %d validators)", len(validators))
 }

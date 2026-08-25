@@ -143,7 +143,7 @@ resource "threexui_inbound" "wg" {
 
 AmneziaWG (3x-ui v3.7.0+) is WireGuard with DPI-resistant obfuscation, running in-process on an embedded userspace device — no kernel module is needed. Peers are declared inline as `clients` blocks; do **not** attach `threexui_inbound_client` resources to an AmneziaWG inbound.
 
-Everything under `server` is optional. Creating the inbound without it makes the panel generate a keypair, a tunnel subnet and a randomised obfuscation set, which the provider reads back into state:
+Every attribute under `server` is optional, but the **block itself is required**: 3x-ui regenerates the whole server block — a fresh keypair included — whenever it saves an inbound whose settings carry no `server` object, on update as well as on create. Without the block in the configuration there would be nothing for the provider to send back, so an unrelated change such as a new remark would rotate the server keys and invalidate every peer configuration already distributed. `server {}` is enough: the panel fills the attributes in on create and the provider replays them on every later apply.
 
 ```hcl
 resource "threexui_inbound" "awg" {
@@ -162,6 +162,7 @@ resource "threexui_inbound" "awg" {
     clients {
       email       = "phone@example.com"
       enable      = true
+      public_key  = "BASE64_PEER_PUBLIC_KEY"
       allowed_ips = ["10.9.1.2/32"]
       # Publish two ports from the peer through the server.
       forwarded_ports = "80,443"
@@ -334,6 +335,8 @@ Typed AmneziaWG settings, available on 3x-ui v3.7.0+. Unlike the client-carrying
 
 ##### `server` (Optional, Block)
 
+~> **Required in practice.** The provider rejects an `amneziawg` inbound that does not declare this block, because a settings blob without a `server` object makes the panel regenerate the server keypair on every save. Declare `server {}` and leave the attributes to the panel if you do not want to manage them.
+
 Every attribute is Optional+Computed: what the configuration omits, the panel generates on save and the provider records in state. Attributes the panel declares `omitempty` upstream reject an empty string or a zero — omit them instead, since a value the panel strips could not round-trip.
 
 - `private_key` (Optional+Computed, String, Sensitive) - Server private key (base64). Generated when absent. Sending an empty value makes the panel generate a **new** keypair, invalidating every existing peer config.
@@ -377,8 +380,8 @@ Every attribute is Optional+Computed: what the configuration omits, the panel ge
 ##### `clients` (Optional, Block List)
 
 - `email` (Optional+Computed, String) - Peer identifier. The panel keys traffic counters on it and requires a non-empty unique value, so set it even though the schema marks it Optional.
-- `private_key` (Optional+Computed, String, Sensitive) - Peer private key. Generated when both keys are absent.
-- `public_key` (Optional+Computed, String) - Peer public key. Derived from `private_key` when only the private key is given.
+- `private_key` (Optional+Computed, String, Sensitive) - Peer private key. The panel stores it only to render a ready-made peer config, so it can be left out when the key is kept elsewhere; it is not generated on this path.
+- `public_key` (**Required**, String) - Peer public key (base64). The panel rejects an AmneziaWG peer without one (`wireguard client requires a key`) and does not derive it from `private_key` on the inbound path — key generation lives only on the `/panel/api/clients` endpoints, which do not own these peers.
 - `pre_shared_key` (Optional+Computed, String, Sensitive) - Optional pre-shared key.
 - `allowed_ips` (Optional+Computed, List of String) - Peer tunnel addresses. Allocated from the inbound's subnet when omitted and normalised server-side (a bare address becomes `/32`).
 - `keep_alive` (Optional+Computed, Number) - Persistent keepalive in seconds.

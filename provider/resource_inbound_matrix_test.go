@@ -753,6 +753,9 @@ resource "threexui_inbound" "mx_awg" {
       email       = "matrix-awg-peer@test.com"
       enable      = true
       allowed_ips = ["10.9.1.2/32"]
+      # Required: the panel rejects a keyless AmneziaWG peer and does not
+      # generate one on the inbound path.
+      public_key = "dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXkxMjM0NQ=="
     }
   }
 }
@@ -776,6 +779,9 @@ resource "threexui_inbound" "mx_awg" {
       email       = "matrix-awg-peer@test.com"
       enable      = true
       allowed_ips = ["10.9.1.2/32"]
+      # Required: the panel rejects a keyless AmneziaWG peer and does not
+      # generate one on the inbound path.
+      public_key = "dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXkxMjM0NQ=="
     }
   }
 }
